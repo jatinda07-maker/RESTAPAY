@@ -12,6 +12,7 @@ const defaults = {
 let state = loadState();
 let lastInvoiceRead = null;
 let currentInvoiceItems = [];
+let selectedInvoiceId = null;
 
 function loadState() {
   const saved = JSON.parse(localStorage.getItem("restaurant-payroll-vendor") || "{}");
@@ -22,6 +23,7 @@ function loadState() {
     payroll: saved.payroll || [],
     invoices: saved.invoices || [],
     cashCollections: saved.cashCollections || [],
+    priceAlerts: saved.priceAlerts || [],
     customReports: saved.customReports || []
   };
 }
@@ -237,12 +239,166 @@ function topInvoiceCategory(invoice) {
 }
 
 function renderInvoices() {
-  renderList("invoiceList", state.invoices.map(invoice => rowItem(
-    `${invoice.date || "No date"} • ${vendorName(invoice.vendorId)}`,
-    `${invoice.category || "No category"} • Invoice ${invoice.number || "blank"} • ${money.format(currencyValue(invoice.total))}`,
-    () => removeById("invoices", invoice.id),
-    "invoice"
-  )), "No invoices saved yet.");
+  const rows = state.invoices.map(invoice => {
+    const row = rowItem(
+      `${invoice.date || "No date"} • ${vendorName(invoice.vendorId)}`,
+      `${invoice.category || "No category"} • Invoice ${invoice.number || "blank"} • ${money.format(currencyValue(invoice.total))}`,
+      event => {
+        event.stopPropagation();
+        removeById("invoices", invoice.id);
+        if (selectedInvoiceId === invoice.id) clearSelectedInvoice();
+      },
+      "invoice"
+    );
+    row.classList.add("clickable-invoice-row");
+    row.title = "Click to view or edit invoice line items";
+    row.addEventListener("click", () => selectInvoice(invoice.id));
+    return row;
+  });
+  renderList("invoiceList", rows, "No invoices saved yet.");
+}
+
+
+function selectedInvoice() {
+  return state.invoices.find(invoice => invoice.id === selectedInvoiceId) || null;
+}
+
+function clearSelectedInvoice() {
+  selectedInvoiceId = null;
+  const panel = document.getElementById("invoiceDetailPanel");
+  const status = document.getElementById("selectedInvoiceStatus");
+  const header = document.getElementById("selectedInvoiceHeader");
+  const lines = document.getElementById("selectedInvoiceLines");
+  const save = document.getElementById("saveSelectedInvoice");
+  const close = document.getElementById("closeSelectedInvoice");
+  const del = document.getElementById("deleteSelectedInvoice");
+  if (panel) panel.classList.remove("active");
+  if (status) status.textContent = "No invoice selected";
+  if (header) header.textContent = "Click a saved invoice below to view, edit, or delete its line items.";
+  if (lines) lines.innerHTML = "";
+  if (save) save.disabled = true;
+  if (close) close.disabled = true;
+  if (del) del.disabled = true;
+}
+
+function selectInvoice(id) {
+  selectedInvoiceId = id;
+  renderSelectedInvoice();
+  const panel = document.getElementById("invoiceDetailPanel");
+  if (panel) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function renderSelectedInvoice() {
+  const invoice = selectedInvoice();
+  const panel = document.getElementById("invoiceDetailPanel");
+  const status = document.getElementById("selectedInvoiceStatus");
+  const header = document.getElementById("selectedInvoiceHeader");
+  const lines = document.getElementById("selectedInvoiceLines");
+  const save = document.getElementById("saveSelectedInvoice");
+  const close = document.getElementById("closeSelectedInvoice");
+  const del = document.getElementById("deleteSelectedInvoice");
+  if (!panel || !status || !header || !lines) return;
+
+  if (!invoice) {
+    clearSelectedInvoice();
+    return;
+  }
+
+  panel.classList.add("active");
+  status.textContent = "Editing saved invoice";
+  if (save) save.disabled = false;
+  if (close) close.disabled = false;
+  if (del) del.disabled = false;
+
+  invoice.lineItems = cleanInvoiceItems(invoice.lineItems || []);
+
+  header.innerHTML = `
+    <div class="selected-invoice-title">
+      <strong>${esc(vendorName(invoice.vendorId))}</strong>
+      <span>${esc(invoice.date || "No date")} • Invoice ${esc(invoice.number || "blank")}</span>
+    </div>
+    <div class="selected-invoice-total">
+      <span>Total</span>
+      <strong>${money.format(currencyValue(invoice.total))}</strong>
+    </div>
+  `;
+
+  const categoryOptions = state.options.categories
+    .map(category => `<option value="${esc(category)}">${esc(category)}</option>`)
+    .join("");
+
+  if (!invoice.lineItems.length) {
+    lines.innerHTML = '<div class="status">No line items saved for this invoice. Click Add Line Item below.</div>';
+  } else {
+    lines.innerHTML = invoice.lineItems.map((item, index) => `
+      <div class="selected-invoice-line" data-index="${index}">
+        <input class="selected-line-description" value="${esc(item.description)}" placeholder="Item description">
+        <select class="selected-line-category">${categoryOptions}</select>
+        <input class="selected-line-total" type="number" min="0" step="0.01" value="${currencyValue(item.total) || ""}" placeholder="0.00">
+        <button class="delete-button selected-line-delete" type="button" title="Delete line">${iconSvg("trash")}</button>
+      </div>
+    `).join("");
+
+    lines.querySelectorAll(".selected-invoice-line").forEach(row => {
+      const index = Number(row.dataset.index);
+      const category = row.querySelector(".selected-line-category");
+      category.value = invoice.lineItems[index].category || "Other";
+
+      row.querySelector(".selected-line-description").addEventListener("input", event => {
+        invoice.lineItems[index].description = event.currentTarget.value;
+      });
+      category.addEventListener("change", event => {
+        invoice.lineItems[index].category = event.currentTarget.value || "Other";
+      });
+      row.querySelector(".selected-line-total").addEventListener("input", event => {
+        invoice.lineItems[index].total = currencyValue(event.currentTarget.value);
+      });
+      row.querySelector(".selected-line-delete").addEventListener("click", () => {
+        invoice.lineItems.splice(index, 1);
+        renderSelectedInvoice();
+      });
+    });
+  }
+
+  const addLine = document.createElement("button");
+  addLine.className = "mini-button selected-add-line";
+  addLine.type = "button";
+  addLine.textContent = "Add Line Item";
+  addLine.addEventListener("click", () => {
+    invoice.lineItems.push({ description: "", quantity: "", unitPrice: 0, total: 0, category: "Other" });
+    renderSelectedInvoice();
+  });
+  lines.append(addLine);
+}
+
+function saveSelectedInvoiceChanges() {
+  const invoice = selectedInvoice();
+  if (!invoice) return;
+  invoice.lineItems = cleanInvoiceItems(invoice.lineItems || []);
+  const lineTotal = invoice.lineItems.reduce((sum, item) => sum + currencyValue(item.total), 0);
+  if (lineTotal > 0) invoice.total = String(lineTotal.toFixed(2));
+  invoice.category = topInvoiceCategory(invoice);
+  invoice.categoryTotals = invoiceCategoryTotals([invoice]);
+  const alerts = buildPriceAlertsForInvoice({ ...invoice, lineItems: invoice.lineItems });
+  invoice.priceAlerts = alerts;
+  state.priceAlerts = [...alerts, ...(state.priceAlerts || [])].slice(0, 100);
+  saveState();
+  renderAll();
+  selectedInvoiceId = invoice.id;
+  renderSelectedInvoice();
+  renderPriceAlerts(alerts);
+  const status = document.getElementById("selectedInvoiceStatus");
+  if (status) status.textContent = "Changes saved";
+}
+
+function deleteSelectedInvoice() {
+  const invoice = selectedInvoice();
+  if (!invoice) return;
+  const ok = window.confirm(`Delete invoice ${invoice.number || "blank"} from ${vendorName(invoice.vendorId)}?`);
+  if (!ok) return;
+  state.invoices = state.invoices.filter(item => item.id !== invoice.id);
+  clearSelectedInvoice();
+  renderAll();
 }
 
 function updateInvoiceReadActions() {
@@ -274,6 +430,7 @@ function clearCurrentInvoiceRead(message = "Read invoice cleared. Choose another
   renderSelects();
   renderInvoiceLineEditor();
   updateInvoiceReadActions();
+  updateCurrentInvoicePriceAlerts();
 }
 
 function renderOptionManager() {
@@ -373,6 +530,210 @@ function renderCashCollections(cashItems, cashPayroll, cashExpenses, cashBalance
   renderList("cashCollectionList", rows, "No cash collected entries for this range.");
 }
 
+
+function normalizeItemName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\b(each|case|cs|lb|lbs|oz|gal|ct|pack|pkg|fresh|frozen|dry)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 70);
+}
+
+function itemComparablePrice(item) {
+  const unit = currencyValue(item.unitPrice);
+  if (unit > 0) return unit;
+  const total = currencyValue(item.total);
+  const qty = Number.parseFloat(String(item.quantity || "").replace(/[^0-9.]/g, ""));
+  if (total > 0 && qty > 0) return total / qty;
+  return total;
+}
+
+function dateMinusMonths(dateValue, months) {
+  const baseDate = dateValue ? new Date(`${dateValue}T00:00:00`) : new Date();
+  baseDate.setMonth(baseDate.getMonth() - months);
+  return toDateInput(baseDate);
+}
+
+function findPriorInvoiceItems(description, invoiceDate) {
+  const key = normalizeItemName(description);
+  if (!key) return [];
+  const endDate = invoiceDate || today;
+  const startDate = dateMinusMonths(endDate, 3);
+  const matches = [];
+
+  state.invoices.forEach(invoice => {
+    const date = invoice.date || "";
+    if (!date || date >= endDate || date < startDate) return;
+    cleanInvoiceItems(invoice.lineItems).forEach(item => {
+      const itemKey = normalizeItemName(item.description);
+      if (!itemKey) return;
+      if (!(itemKey === key || itemKey.includes(key) || key.includes(itemKey))) return;
+      const price = itemComparablePrice(item);
+      if (price > 0) {
+        matches.push({
+          description: item.description,
+          date,
+          invoiceNumber: invoice.number || "",
+          vendor: vendorName(invoice.vendorId),
+          price
+        });
+      }
+    });
+  });
+  return matches.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+
+function buildPriceAlertsForInvoice(invoiceDraft) {
+  const invoiceDate = invoiceDraft.date || invoiceDraft.invoiceDate || today;
+  const lineItems = cleanInvoiceItems(invoiceDraft.lineItems || currentInvoiceItems);
+  const alerts = [];
+
+  lineItems.forEach(item => {
+    const currentPrice = itemComparablePrice(item);
+    if (!item.description || currentPrice <= 0) return;
+    const history = findPriorInvoiceItems(item.description, invoiceDate);
+    if (!history.length) return;
+    const last = history[0];
+    const avg = history.reduce((sum, entry) => sum + entry.price, 0) / history.length;
+    const baseline = last.price || avg;
+    const increase = currentPrice - baseline;
+    const percent = baseline > 0 ? (increase / baseline) * 100 : 0;
+    if (increase > 0) {
+      alerts.push({
+        id: uid("price-alert"),
+        date: invoiceDate,
+        item: item.description,
+        currentPrice,
+        previousPrice: baseline,
+        averagePrice: avg,
+        percent,
+        previousDate: last.date,
+        previousVendor: last.vendor,
+        invoiceNumber: invoiceDraft.number || invoiceDraft.invoiceNumber || "",
+        category: item.category || "Other"
+      });
+    }
+  });
+  return alerts.sort((a, b) => b.percent - a.percent).slice(0, 20);
+}
+
+function priceAlertRow(alert) {
+  const row = document.createElement("div");
+  const increaseAmount = currencyValue(alert.currentPrice) - currencyValue(alert.previousPrice);
+  const increaseClass = alert.percent >= 20 ? "high" : alert.percent >= 10 ? "medium" : "low";
+
+  row.className = `price-alert-row price-alert-${increaseClass}`;
+  row.innerHTML = `
+    <div class="price-alert-main">
+      <strong>${esc(alert.item)}</strong>
+      <small>${esc(alert.category || "Other")}</small>
+    </div>
+
+    <div class="price-alert-cell current">
+      <span>Current</span>
+      <small>${esc(alert.date || today)}</small>
+      <strong>${money.format(currencyValue(alert.currentPrice))}</strong>
+    </div>
+
+    <div class="price-alert-cell previous">
+      <span>Previous</span>
+      <small>${esc(alert.previousDate || "No date")}</small>
+      <strong>${money.format(currencyValue(alert.previousPrice))}</strong>
+    </div>
+
+    <div class="price-alert-cell increase">
+      <span>Increase</span>
+      <small>${money.format(Math.max(0, increaseAmount))}</small>
+      <strong>+${Math.round(alert.percent)}%</strong>
+    </div>
+  `;
+  return row;
+}
+
+function renderPriceAlerts(alerts = state.priceAlerts || []) {
+  const element = document.getElementById("priceAlertList");
+  const count = document.getElementById("priceAlertCount");
+  if (count) count.textContent = `${alerts.length} alerts`;
+  if (!element) return;
+  element.innerHTML = "";
+  if (!alerts.length) {
+    element.innerHTML = '<div class="status">No price increases found in the last 3 months.</div>';
+    return;
+  }
+  alerts.slice(0, 12).forEach(alert => element.append(priceAlertRow(alert)));
+}
+
+function updateCurrentInvoicePriceAlerts() {
+  const form = document.getElementById("invoiceForm");
+  if (!form) return [];
+  const alerts = buildPriceAlertsForInvoice({
+    date: form.date?.value || today,
+    number: form.number?.value || "",
+    lineItems: currentInvoiceItems
+  });
+  renderPriceAlerts(alerts);
+  return alerts;
+}
+
+
+
+function categoryColorClass(category) {
+  const key = String(category || "Other").toLowerCase();
+  if (key.includes("food")) return "cat-food";
+  if (key.includes("suppl")) return "cat-supplies";
+  if (key.includes("util")) return "cat-utilities";
+  if (key.includes("clean")) return "cat-cleaning";
+  if (key.includes("beverage")) return "cat-beverage";
+  if (key.includes("pack")) return "cat-packaging";
+  if (key.includes("maintenance")) return "cat-maintenance";
+  if (key.includes("equipment")) return "cat-equipment";
+  return "cat-other";
+}
+
+function allCategorySpendingTotals(invoices = state.invoices) {
+  const totals = invoiceCategoryTotals(invoices);
+  (state.options.categories || []).forEach(category => {
+    if (!(category in totals)) totals[category] = 0;
+  });
+  return totals;
+}
+
+function renderDashboardCategorySpending(categoryTotals, invoiceTotal) {
+  const totalElement = document.getElementById("dashboardCategoryTotal");
+  const cards = document.getElementById("dashboardCategorySpendingCards");
+  if (!cards) return;
+
+  const total = Object.values(categoryTotals).reduce((sum, value) => sum + currencyValue(value), 0);
+  if (totalElement) totalElement.textContent = money.format(total);
+
+  cards.innerHTML = "";
+  const rows = Object.entries(categoryTotals)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (!rows.length || total <= 0) {
+    cards.innerHTML = '<div class="status">No category spending yet. Save invoices with categories to see Food, Supplies, Utilities, and more.</div>';
+    return;
+  }
+
+  rows.forEach(([category, amount]) => {
+    if (amount <= 0) return;
+    const percent = total ? Math.round((amount / total) * 100) : 0;
+    const card = document.createElement("article");
+    card.className = `category-spending-card ${categoryColorClass(category)}`;
+    card.innerHTML = `
+      <div class="category-spending-top">
+        <span>${esc(category)}</span>
+        <strong>${money.format(amount)}</strong>
+      </div>
+      <div class="category-spending-bar"><i style="width:${percent}%"></i></div>
+      <small>${percent}% of invoice spending</small>
+    `;
+    cards.append(card);
+  });
+}
+
 function renderDashboard() {
   const employeePayrollTotal = state.payroll
     .filter(entry => String(entry.personId).startsWith("employee:"))
@@ -383,7 +744,7 @@ function renderDashboard() {
   const invoiceTotal = state.invoices.reduce((sum, invoice) => sum + currencyValue(invoice.total), 0);
   const vendorPaymentTotal = vendorPayrollTotal + invoiceTotal;
   const totalSpend = employeePayrollTotal + vendorPaymentTotal;
-  const categoryTotals = invoiceCategoryTotals(state.invoices);
+  const categoryTotals = allCategorySpendingTotals(state.invoices);
   const foodCost = Object.entries(categoryTotals)
     .filter(([category]) => String(category || "").toLowerCase() === "food")
     .reduce((sum, [, total]) => sum + total, 0);
@@ -425,7 +786,8 @@ function renderDashboard() {
   if (metricCashExpenses) metricCashExpenses.textContent = money.format(cashExpenseTotal);
   if (metricCashBalance) metricCashBalance.textContent = money.format(cashBalance);
   renderCashCollections(cashCollections, cashPayrollTotal, cashExpenseTotal, cashBalance);
-  document.getElementById("categoryCount").textContent = `${Object.keys(categoryTotals).length} categories`;
+  document.getElementById("categoryCount").textContent = `${Object.values(categoryTotals).filter(total => total > 0).length} categories`;
+  renderDashboardCategorySpending(categoryTotals, invoiceTotal);
 
   const categoryRows = Object.entries(categoryTotals)
     .sort((a, b) => b[1] - a[1])
@@ -462,6 +824,8 @@ function renderAll() {
   renderInvoices();
   renderOptionManager();
   renderDashboard();
+  renderPriceAlerts();
+  if (selectedInvoiceId) renderSelectedInvoice();
   updateInvoiceReadActions();
   saveState();
 }
@@ -575,6 +939,173 @@ function sectionHeader(title) {
   return row;
 }
 
+
+function exportReportPdf() {
+  const reportSummary = document.getElementById("reportSummary");
+  const reportOutput = document.getElementById("reportOutput");
+  const reportTotal = document.getElementById("reportTotal");
+  const reportForm = document.getElementById("reportForm");
+
+  if (!reportOutput || !reportOutput.innerHTML.trim()) {
+    alert("Generate a report first, then export PDF.");
+    return;
+  }
+
+  const typeLabel = reportForm?.elements?.type?.selectedOptions?.[0]?.textContent || "Report";
+  const rangeLabel = reportForm?.elements?.range?.selectedOptions?.[0]?.textContent || "Date range";
+  const printedAt = new Date().toLocaleString();
+
+  const printableRows = [...reportOutput.querySelectorAll(".row-item, .report-section-title, .status")]
+    .map(node => {
+      if (node.classList.contains("report-section-title")) {
+        return `<tr class="section"><td colspan="3">${esc(node.textContent)}</td></tr>`;
+      }
+      if (node.classList.contains("status")) {
+        return `<tr><td colspan="3">${esc(node.textContent)}</td></tr>`;
+      }
+      const title = node.querySelector("strong")?.textContent || "";
+      const meta = node.querySelector("small")?.textContent || "";
+      const amount = node.matches(".report-row") ? (node.lastElementChild?.textContent || "") : "";
+      return `<tr><td>${esc(title)}</td><td>${esc(meta)}</td><td class="amount">${esc(amount)}</td></tr>`;
+    })
+    .join("");
+
+  const summaryRows = [...(reportSummary?.querySelectorAll(".summary-card") || [])]
+    .map(card => {
+      const label = card.querySelector("span")?.textContent || "";
+      const value = card.querySelector("strong")?.textContent || "";
+      return `<tr><td>${esc(label)}</td><td class="amount">${esc(value)}</td></tr>`;
+    })
+    .join("");
+
+  const html = `
+<!doctype html>
+<html>
+<head>
+  <title>${esc(typeLabel)}</title>
+  <style>
+    @page { margin: 0.45in; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #111827;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      font-size: 11px;
+      line-height: 1.35;
+      background: #fff;
+    }
+    .top {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #d1d5db;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .meta {
+      color: #6b7280;
+      font-size: 10px;
+      text-align: right;
+    }
+    .summary {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 10px;
+    }
+    .summary td {
+      padding: 5px 7px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .summary td:first-child {
+      color: #4b5563;
+      width: 70%;
+    }
+    table.detail {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table.detail th {
+      padding: 6px 7px;
+      text-align: left;
+      color: #374151;
+      font-size: 10px;
+      font-weight: 650;
+      text-transform: uppercase;
+      border-bottom: 1px solid #d1d5db;
+      background: #f9fafb;
+    }
+    table.detail td {
+      padding: 6px 7px;
+      vertical-align: top;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .amount {
+      text-align: right;
+      white-space: nowrap;
+      font-weight: 650;
+    }
+    tr.section td {
+      padding-top: 10px;
+      color: #111827;
+      font-weight: 650;
+      background: #f3f4f6;
+    }
+    .footer {
+      margin-top: 12px;
+      padding-top: 6px;
+      border-top: 1px solid #e5e7eb;
+      color: #6b7280;
+      font-size: 9px;
+      text-align: center;
+    }
+    @media print {
+      button { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>Resta Pay - ${esc(typeLabel)}</h1>
+      <div class="meta" style="text-align:left;">${esc(rangeLabel)} • Total ${esc(reportTotal?.textContent || "$0.00")}</div>
+    </div>
+    <div class="meta">Printed ${esc(printedAt)}</div>
+  </div>
+
+  ${summaryRows ? `<table class="summary">${summaryRows}</table>` : ""}
+
+  <table class="detail">
+    <thead><tr><th>Item</th><th>Details</th><th class="amount">Amount</th></tr></thead>
+    <tbody>${printableRows || '<tr><td colspan="3">No report rows.</td></tr>'}</tbody>
+  </table>
+
+  <div class="footer">Generated by Resta Pay</div>
+  <script>
+    window.onload = () => {
+      window.print();
+      setTimeout(() => window.close(), 500);
+    };
+  <\/script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) {
+    alert("Popup blocked. Please allow popups to export the report PDF.");
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
 function removeById(collection, id) {
   state[collection] = state[collection].filter(item => item.id !== id);
   renderAll();
@@ -661,12 +1192,15 @@ document.getElementById("invoiceForm").addEventListener("submit", event => {
   const lineItems = cleanInvoiceItems(currentInvoiceItems);
   const lineTotal = lineItems.reduce((sum, item) => sum + currencyValue(item.total), 0);
   if (!currencyValue(data.total) && lineTotal) data.total = String(lineTotal.toFixed(2));
+  const priceAlerts = buildPriceAlertsForInvoice({ ...data, lineItems });
+  state.priceAlerts = [...priceAlerts, ...(state.priceAlerts || [])].slice(0, 100);
   state.invoices.push({
     id: uid("invoice"),
     ...data,
     categoryTotals: invoiceCategoryTotals([{ ...data, lineItems }]),
     lineItems,
-    ai: lastInvoiceRead ? { ...lastInvoiceRead, lineItems } : null
+    ai: lastInvoiceRead ? { ...lastInvoiceRead, lineItems } : null,
+    priceAlerts
   });
   event.currentTarget.reset();
   lastInvoiceRead = null;
@@ -1092,6 +1626,7 @@ function applyInvoice(invoice) {
   renderInvoiceLineEditor();
   updateInvoicePreview();
   updateInvoiceReadActions();
+  updateCurrentInvoicePriceAlerts();
   return;
 
   const items = Array.isArray(invoice.lineItems) ? invoice.lineItems.slice(0, 12) : [];
@@ -1115,6 +1650,12 @@ function applyInvoice(invoice) {
       <tbody>${items.map(item => `<tr><td>${item.description || ""}</td><td>${item.category || ""}</td><td>${money.format(currencyValue(item.total))}</td></tr>`).join("") || '<tr><td>No readable line details found</td><td>Manual</td><td>$0.00</td></tr>'}</tbody>
     </table>`;
 }
+
+
+document.getElementById("saveSelectedInvoice")?.addEventListener("click", saveSelectedInvoiceChanges);
+document.getElementById("closeSelectedInvoice")?.addEventListener("click", clearSelectedInvoice);
+document.getElementById("deleteSelectedInvoice")?.addEventListener("click", deleteSelectedInvoice);
+document.getElementById("exportReportPdf")?.addEventListener("click", exportReportPdf);
 
 document.getElementById("saveReadInvoice").addEventListener("click", () => {
   const form = document.getElementById("invoiceForm");
@@ -1275,7 +1816,13 @@ document.getElementById("reportForm").addEventListener("submit", event => {
       ),
       groupTotals(invoices, item => vendorName(item.vendorId), item => currencyValue(item.total))
     )),
-    categoryTotals: totalRows(invoiceCategoryTotals(invoices)),
+    categoryTotals: totalRows(allCategorySpendingTotals(invoices)),
+    categorySpending: Object.entries(allCategorySpendingTotals(invoices))
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, total]) => {
+        const percent = invoiceTotal ? Math.round((total / invoiceTotal) * 100) : 0;
+        return detailRow(category, `${percent}% of invoice spending`, total);
+      }),
     paymentMethods: totalRows(groupTotals(payroll, item => item.method || "No method", item => payrollFinalCheckAmount(item))),
     extraPay: payroll
       .filter(item => String(item.personId).startsWith("employee:"))
@@ -1297,6 +1844,7 @@ document.getElementById("reportForm").addEventListener("submit", event => {
         employeeTotals: "Employee Totals",
         vendorTotals: "Vendor Totals",
         categoryTotals: "Expense By Category",
+        categorySpending: "Category Spending Detail",
         paymentMethods: "Payment Methods",
         extraPay: "Extra Pay Reasons",
         waiterTips: "Waiter Tips Final Checks"
