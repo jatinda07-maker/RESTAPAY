@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resta Pay</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar" aria-label="Main menu">
+    <div class="brand">
+      <span class="brand-mark"><svg viewBox="0 0 24 24"><path d="M5 3v8M8 3v8M5 7h3M6.5 11v10M15 3c2.5 2 4 4.5 4 8 0 3-1.5 5-4 5V3ZM15 16v5M11 21h8"/></svg></span>
+      <span class="brand-text">Resta Pay</span>
+    </div>
+    <button class="nav-item active" data-view="dashboard" title="Dashboard"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm10 7h6V4h-6v16ZM4 20h6v-4H4v4Z"/></svg></span><span>Dashboard</span></button>
+    <button class="nav-item" data-view="vendors" title="Vendors"><span class="icon"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M8 10h.01M12 10h.01M16 10h.01"/></svg></span><span>Vendors</span></button>
+    <button class="nav-item" data-view="employees" title="Employees"><span class="icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM21 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>Employees</span></button>
+    <button class="nav-item" data-view="payroll" title="Payroll"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg></span><span>Payroll</span></button>
+    <button class="nav-item" data-view="invoices" title="Invoices"><span class="icon"><svg viewBox="0 0 24 24"><path d="M7 3h10l3 3v15l-2-1-2 1-2-1-2 1-2-1-2 1-2-1-2 1V3h3ZM8 9h8M8 13h8M8 17h5"/></svg></span><span>Invoices</span></button>
+    <button class="nav-item" data-view="reports" title="Reports"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3"/></svg></span><span>Reports</span></button>
+    <button class="nav-item" data-view="types" title="Types"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14M4 5h4M16 5h4M4 19h4M16 19h4"/></svg></span><span>Types</span></button>
+  </aside>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="page-title-card">
+        <h1 id="viewTitle">Dashboard</h1>
+      </div>
+      <div class="quick-actions"></div>
+    </header>
+
+    <section class="view active" id="dashboard">
+      <div class="metric-grid">
+        <article class="metric color-a"><span>Total Spend</span><strong id="metricTotalSpend">$0.00</strong><small>Payroll + invoices</small></article>
+        <article class="metric color-b"><span>Payroll</span><strong id="metricPayroll">$0.00</strong><small>Employees and staff</small></article>
+        <article class="metric color-c"><span>Vendor Payments</span><strong id="metricVendorPayments">$0.00</strong><small>Vendor payroll + bills</small></article>
+        <article class="metric color-d"><span>Food Cost</span><strong id="metricFoodCost">$0.00</strong><small id="metricFoodPercent">0% of spending</small></article>
+        <article class="metric color-e"><span>Invoice Spending</span><strong id="metricInvoices">$0.00</strong><small>All vendor invoices</small></article>
+        <article class="metric color-f"><span>Extra Pay</span><strong id="metricExtra">$0.00</strong><small>Bonuses, tips, adjustments</small></article>
+        <article class="metric color-g"><span>Tip Deduction</span><strong id="metricTipDeduction">$0.00</strong><small>3% waiter tips</small></article>
+      </div>
+      <div class="workspace two-column">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Spending by Category</h2>
+            <span class="pill" id="categoryCount">0 categories</span>
+          </div>
+          <div id="categorySpendList" class="category-list"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Recent Activity</h2>
+            <span class="pill hot" id="recentCount">0 items</span>
+          </div>
+          <div id="recentList" class="activity-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="vendors">
+      <div class="workspace two-column">
+        <form class="panel form-card" id="vendorForm">
+          <div class="panel-head"><h2>Add Vendor</h2></div>
+          <label>Vendor name<input name="name" required placeholder="Vendor name"></label>
+          <label>Vendor type
+            <select name="type" required data-kind="vendorTypes"><option value="">Select vendor type</option></select>
+          </label>
+          <label>Default category
+            <select name="category" required data-kind="categories"><option value="">Select category</option></select>
+          </label>
+          <label>Phone / email<input name="contact" placeholder="Optional"></label>
+          <button class="primary-button" type="submit">Add Vendor</button>
+        </form>
+        <section class="panel">
+          <div class="panel-head"><h2>Vendor List</h2></div>
+          <div id="vendorList" class="data-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="employees">
+      <div class="workspace two-column">
+        <form class="panel form-card" id="employeeForm">
+          <div class="panel-head"><h2>Add Employee</h2><span class="pill">Kitchen / waiter</span></div>
+          <label>Employee name<input name="name" required placeholder="Employee name"></label>
+          <label>Employee type
+            <select name="type" required data-kind="employeeTypes"><option value="">Select employee type</option></select>
+          </label>
+          <label>Default pay type
+            <select name="payType" required data-kind="payTypes"><option value="">Select pay type</option></select>
+          </label>
+          <label>Rate<input name="rate" type="number" min="0" step="0.01" placeholder="0.00"></label>
+          <button class="primary-button" type="submit">Add Employee</button>
+        </form>
+        <section class="panel">
+          <div class="panel-head"><h2>Employee List</h2><button class="mini-button" data-add-type="employeeTypes">Add Type</button></div>
+          <div id="employeeList" class="data-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="payroll">
+      <div class="workspace">
+        <form class="panel form-grid" id="payrollForm">
+          <div class="panel-head wide"><h2>Payroll / Payment Entry</h2><span class="pill">Extra pay + reason</span></div>
+          <label>Date<input name="date" type="date" required></label>
+          <label>Pay for
+            <select name="personId" required id="payrollPerson"><option value="">Select employee or vendor</option></select>
+          </label>
+          <label>Type
+            <select name="type" required data-kind="payTypes"><option value="">Select type</option></select>
+          </label>
+          <label>Amount<input name="amount" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+          <label>Extra pay<input name="extra" type="number" min="0" step="0.01" value="0" required placeholder="0.00"></label>
+          <label>Reason<input name="reason" placeholder="Reason for extra pay, zero extra, or note"></label>
+          <label>Payment method
+            <select name="method" required data-kind="paymentMethods"><option value="">Select payment method</option></select>
+          </label>
+          <button class="primary-button" type="submit">Save Payment</button>
+        </form>
+        <section class="panel">
+          <div class="panel-head"><h2>Payroll &amp; Expenses</h2><button class="mini-button" data-add-type="payTypes">Add Pay Type</button></div>
+          <div id="payrollList" class="data-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="invoices">
+      <div class="workspace two-column">
+        <form class="panel form-card" id="invoiceForm">
+          <div class="panel-head"><h2>Invoice Entry</h2><span class="pill hot">AI assisted</span></div>
+          <div class="invoice-reader-box ai-reader">
+            <div class="reader-head">
+              <h2>Smart AI Invoice Reader</h2>
+              <span class="pill hot">Uses Gemini credits</span>
+            </div>
+            <div class="invoice-source-actions">
+              <label class="primary-button file-button">
+                AI upload
+                <input name="file" id="invoiceFile" type="file" accept="image/*,application/pdf">
+              </label>
+              <label class="primary-button file-button camera-button">
+                AI camera
+                <input id="invoiceCameraFile" type="file" accept="image/*" capture="environment">
+              </label>
+            </div>
+            <button class="primary-button" type="button" id="readInvoice">Read With AI</button>
+          </div>
+          <div class="invoice-reader-box local-reader">
+            <div class="reader-head">
+              <h2>Local First Import</h2>
+              <span class="pill">AI fallback when needed</span>
+            </div>
+            <label>EDI, PDF, image, text, or CSV invoice
+              <input id="localInvoiceFile" type="file" accept=".edi,.txt,.csv,.pdf,image/*,application/pdf,text/*">
+            </label>
+            <button class="ghost-button" type="button" id="readLocalInvoice">Break Down Locally</button>
+            <small class="helper-text">Text/EDI/CSV and text-based PDFs are categorized locally first. If the invoice cannot be read locally, Gemini AI is used to break it down.</small>
+          </div>
+          <div class="status" id="invoiceStatus">Waiting for invoice.</div>
+          <div class="invoice-review-actions" id="invoiceReviewActions">
+            <button class="primary-button" type="button" id="saveReadInvoice" disabled>Save Read Invoice</button>
+            <button class="ghost-button" type="button" id="clearReadInvoice" disabled>Delete / Clear Read Invoice</button>
+          </div>
+          <small class="helper-text">After AI or Local First reads an invoice, review the fields, then save it or clear it and try another file.</small>
+          <label>Vendor
+            <select name="vendorId" id="invoiceVendor"><option value="">Select vendor</option></select>
+          </label>
+          <label>Category
+            <select name="category" required data-kind="categories"><option value="">Select category</option></select>
+          </label>
+          <label>Invoice date<input name="date" type="date"></label>
+          <label>Invoice number<input name="number" placeholder="Invoice number"></label>
+          <label>Total<input name="total" type="number" min="0" step="0.01" placeholder="0.00"></label>
+          <div class="invoice-line-panel">
+            <div class="panel-head compact-head">
+              <h2>Item Categories</h2>
+              <div class="mini-actions">
+                <button class="mini-button" type="button" data-add-type="categories">Add Category</button>
+                <button class="mini-button" type="button" id="addInvoiceLine">Add Line</button>
+              </div>
+            </div>
+            <div id="invoiceLineEditor" class="invoice-line-editor empty">Read or enter an invoice to distribute item spending.</div>
+            <div id="invoiceLineTotals" class="invoice-line-totals"></div>
+          </div>
+          <button class="primary-button" type="submit">Save Invoice</button>
+        </form>
+        <section class="panel">
+          <div class="panel-head"><h2>Invoice Breakdown</h2><button class="mini-button" data-add-type="categories">Add Category</button></div>
+          <div id="invoicePreview" class="invoice-preview empty">No invoice read yet.</div>
+          <div id="invoiceList" class="data-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="reports">
+      <div class="workspace">
+        <form class="panel form-grid report-grid" id="reportForm">
+          <div class="panel-head wide"><h2>Report Center</h2><span class="pill">Date range + report type</span></div>
+          <label>Date range
+            <select name="range" id="reportRange">
+              <option value="">Select date range</option>
+              <option value="all">All dates</option>
+              <option value="single">Single date</option>
+              <option value="today">Today</option>
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="quarter">This quarter</option>
+              <option value="year">This year</option>
+              <option value="custom">Custom range</option>
+            </select>
+          </label>
+          <label class="report-date-field" id="singleDateField">Report date<input name="singleDate" id="reportSingleDate" type="date"></label>
+          <label class="report-date-field" id="startDateField">Start date<input name="start" id="reportStart" type="date"></label>
+          <label class="report-date-field" id="endDateField">End date<input name="end" id="reportEnd" type="date"></label>
+          <label>Report type
+            <select name="type" required>
+              <option value="">Select report type</option>
+              <option value="summary">Summary totals</option>
+              <option value="all">All transaction details</option>
+              <option value="payroll">Payroll detail</option>
+              <option value="invoices">Invoice detail</option>
+              <option value="employeeTotals">Employee totals</option>
+              <option value="vendorTotals">Vendor totals</option>
+              <option value="categoryTotals">Expense by category</option>
+              <option value="paymentMethods">Cash/check/card report</option>
+              <option value="extraPay">Extra pay with reasons</option>
+              <option value="waiterTips">Waiter tips final checks</option>
+              <option value="custom">Custom report builder</option>
+            </select>
+          </label>
+          <label>Saved custom report
+            <select name="savedReport" id="savedReportSelect"><option value="">Select saved report</option></select>
+          </label>
+          <label>Category filter
+            <select name="category" data-kind="categories"><option value="">All categories</option></select>
+          </label>
+          <label>Person / vendor filter
+            <select name="person" id="reportPerson"><option value="">All employees and vendors</option></select>
+          </label>
+          <button class="primary-button report-submit-button" type="submit">Generate Report</button>
+        </form>
+        <section class="panel custom-report-panel" id="customReportPanel">
+          <div class="panel-head"><h2>Custom Report Builder</h2><span class="pill">Save for future</span></div>
+          <div class="custom-report-grid">
+            <label>Custom report name<input id="customReportName" placeholder="Example: Weekly food and payroll"></label>
+            <div class="field-picker">
+              <label><input type="checkbox" value="summary"> Summary totals</label>
+              <label><input type="checkbox" value="payroll"> Payroll detail</label>
+              <label><input type="checkbox" value="invoices"> Invoice detail</label>
+              <label><input type="checkbox" value="employeeTotals"> Employee totals</label>
+              <label><input type="checkbox" value="vendorTotals"> Vendor totals</label>
+              <label><input type="checkbox" value="categoryTotals"> Expense by category</label>
+              <label><input type="checkbox" value="paymentMethods"> Payment methods</label>
+              <label><input type="checkbox" value="extraPay"> Extra pay reasons</label>
+              <label><input type="checkbox" value="waiterTips"> Waiter tips checks</label>
+            </div>
+            <button class="ghost-button" type="button" id="saveCustomReport">Save Custom Report</button>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Generated Report</h2><span class="pill" id="reportTotal">$0.00</span></div>
+          <div class="report-summary" id="reportSummary"></div>
+          <div id="reportOutput" class="report-output"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="types">
+      <div class="workspace">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Manage Dropdown Types</h2>
+            <span class="pill">Add / delete options</span>
+          </div>
+          <div class="type-manager-grid">
+            <div class="type-box">
+              <div class="type-box-head"><h2>Vendor Types</h2><button class="mini-button" data-add-type="vendorTypes">Add</button></div>
+              <div id="vendorTypeOptions" class="option-list"></div>
+            </div>
+            <div class="type-box">
+              <div class="type-box-head"><h2>Employee Types</h2><button class="mini-button" data-add-type="employeeTypes">Add</button></div>
+              <div id="employeeTypeOptions" class="option-list"></div>
+            </div>
+            <div class="type-box">
+              <div class="type-box-head"><h2>Pay Types</h2><button class="mini-button" data-add-type="payTypes">Add</button></div>
+              <div id="payTypeOptions" class="option-list"></div>
+            </div>
+            <div class="type-box">
+              <div class="type-box-head"><h2>Payment Methods</h2><button class="mini-button" data-add-type="paymentMethods">Add</button></div>
+              <div id="paymentMethodOptions" class="option-list"></div>
+            </div>
+            <div class="type-box">
+              <div class="type-box-head"><h2>Invoice Categories</h2><button class="mini-button" data-add-type="categories">Add</button></div>
+              <div id="categoryOptions" class="option-list"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <template id="typePrompt">
+    <div class="modal-backdrop">
+      <form class="modal">
+        <h2>Add Option</h2>
+        <input name="value" placeholder="New option name" required>
+        <div class="modal-actions">
+          <button class="ghost-button" type="button" data-close>Cancel</button>
+          <button class="primary-button" type="submit">Add</button>
+        </div>
+      </form>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

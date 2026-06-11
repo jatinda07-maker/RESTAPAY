@@ -1,0 +1,11 @@
+{
+  "name": "resta-pay",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.0.0"
+  }
+}

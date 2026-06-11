@@ -1,0 +1,14 @@
+Gemini invoice reader setup
+
+If invoice reading shows a quota or billing error, the app is still working.
+Gemini is refusing the request for the current API key.
+
+Fix options:
+1. Wait for the Gemini quota to reset.
+2. Add billing or increase quota in the Google AI Studio / Gemini account.
+3. Start the app with a different API key:
+
+   set GEMINI_API_KEY=your_new_key_here
+   npm start
+
+Manual invoice entry remains available even when AI reading is paused.
