@@ -21,6 +21,7 @@ function loadState() {
     employees: saved.employees || [],
     payroll: saved.payroll || [],
     invoices: saved.invoices || [],
+    cashCollections: saved.cashCollections || [],
     customReports: saved.customReports || []
   };
 }
@@ -304,6 +305,74 @@ function renderOptionManager() {
   });
 }
 
+
+function dateInRange(value, start, end) {
+  if (!value) return false;
+  return (!start || value >= start) && (!end || value <= end);
+}
+
+function getCashDashboardRange() {
+  return {
+    start: document.getElementById("cashStartDate")?.value || "",
+    end: document.getElementById("cashEndDate")?.value || ""
+  };
+}
+
+function setCashDashboardRange(kind) {
+  const start = document.getElementById("cashStartDate");
+  const end = document.getElementById("cashEndDate");
+  if (!start || !end) return;
+  const now = new Date();
+  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (kind === "all") {
+    start.value = "";
+    end.value = "";
+  } else if (kind === "today") {
+    start.value = today;
+    end.value = today;
+  } else if (kind === "week") {
+    const from = new Date(date);
+    from.setDate(date.getDate() - date.getDay());
+    start.value = toDateInput(from);
+    end.value = today;
+  } else if (kind === "month") {
+    start.value = toDateInput(new Date(date.getFullYear(), date.getMonth(), 1));
+    end.value = today;
+  }
+  renderAll();
+}
+
+function cashCollectionMeta(entry) {
+  return `${entry.date || "No date"} • ${money.format(currencyValue(entry.amount))}${entry.note ? ` • ${entry.note}` : ""}`;
+}
+
+function renderCashCollections(cashItems, cashPayroll, cashExpenses, cashBalance) {
+  const count = document.getElementById("cashCollectionCount");
+  if (count) count.textContent = `${cashItems.length} entries`;
+
+  const summary = document.getElementById("cashBalanceSummary");
+  if (summary) {
+    summary.innerHTML = "";
+    summary.append(
+      summaryCard("Cash Collected", money.format(cashItems.reduce((sum, item) => sum + currencyValue(item.amount), 0)), "green"),
+      summaryCard("Cash Payroll", money.format(cashPayroll), "orange"),
+      summaryCard("Cash Expenses", money.format(cashExpenses), "pink"),
+      summaryCard("Leftover Balance", money.format(cashBalance), cashBalance < 0 ? "orange" : "blue")
+    );
+  }
+
+  const rows = cashItems
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .map(entry => rowItem(
+      money.format(currencyValue(entry.amount)),
+      cashCollectionMeta(entry),
+      () => removeById("cashCollections", entry.id),
+      "payroll"
+    ));
+  renderList("cashCollectionList", rows, "No cash collected entries for this range.");
+}
+
 function renderDashboard() {
   const employeePayrollTotal = state.payroll
     .filter(entry => String(entry.personId).startsWith("employee:"))
@@ -321,6 +390,23 @@ function renderDashboard() {
   const foodPercent = totalSpend ? Math.round((foodCost / totalSpend) * 100) : 0;
   const extraTotal = state.payroll.reduce((sum, entry) => sum + currencyValue(entry.extra), 0);
   const tipDeductionTotal = state.payroll.reduce((sum, entry) => sum + waiterTipDeduction(entry), 0);
+  const { start: cashStart, end: cashEnd } = getCashDashboardRange();
+  const cashCollections = state.cashCollections.filter(entry => dateInRange(entry.date, cashStart, cashEnd));
+  const payrollInCashRange = state.payroll.filter(entry => dateInRange(entry.date, cashStart, cashEnd));
+  const invoicesInCashRange = state.invoices.filter(invoice => dateInRange(invoice.date, cashStart, cashEnd));
+  const cashCollectedTotal = cashCollections.reduce((sum, entry) => sum + currencyValue(entry.amount), 0);
+  const cashPayrollTotal = payrollInCashRange
+    .filter(entry => String(entry.personId).startsWith("employee:"))
+    .filter(entry => String(entry.method || "").toLowerCase() === "cash")
+    .reduce((sum, entry) => sum + payrollFinalCheckAmount(entry), 0);
+  const cashExpenseTotal = payrollInCashRange
+    .filter(entry => String(entry.personId).startsWith("vendor:"))
+    .filter(entry => String(entry.method || "").toLowerCase() === "cash")
+    .reduce((sum, entry) => sum + payrollFinalCheckAmount(entry), 0)
+    + invoicesInCashRange
+      .filter(invoice => String(invoice.method || "").toLowerCase() === "cash")
+      .reduce((sum, invoice) => sum + currencyValue(invoice.total), 0);
+  const cashBalance = cashCollectedTotal - cashPayrollTotal - cashExpenseTotal;
 
   document.getElementById("metricTotalSpend").textContent = money.format(totalSpend);
   document.getElementById("metricPayroll").textContent = money.format(employeePayrollTotal);
@@ -330,6 +416,15 @@ function renderDashboard() {
   document.getElementById("metricInvoices").textContent = money.format(invoiceTotal);
   document.getElementById("metricExtra").textContent = money.format(extraTotal);
   document.getElementById("metricTipDeduction").textContent = money.format(tipDeductionTotal);
+  const metricCashCollected = document.getElementById("metricCashCollected");
+  const metricCashPayroll = document.getElementById("metricCashPayroll");
+  const metricCashExpenses = document.getElementById("metricCashExpenses");
+  const metricCashBalance = document.getElementById("metricCashBalance");
+  if (metricCashCollected) metricCashCollected.textContent = money.format(cashCollectedTotal);
+  if (metricCashPayroll) metricCashPayroll.textContent = money.format(cashPayrollTotal);
+  if (metricCashExpenses) metricCashExpenses.textContent = money.format(cashExpenseTotal);
+  if (metricCashBalance) metricCashBalance.textContent = money.format(cashBalance);
+  renderCashCollections(cashCollections, cashPayrollTotal, cashExpenseTotal, cashBalance);
   document.getElementById("categoryCount").textContent = `${Object.keys(categoryTotals).length} categories`;
 
   const categoryRows = Object.entries(categoryTotals)
@@ -509,6 +604,30 @@ document.querySelectorAll(".nav-item").forEach(button => {
 
 document.querySelector(".sidebar").addEventListener("mouseenter", event => {
   event.currentTarget.classList.remove("is-collapsed");
+});
+
+document.getElementById("cashCollectionForm")?.addEventListener("submit", event => {
+  event.preventDefault();
+  const data = formData(event.currentTarget);
+  if (!currencyValue(data.amount)) {
+    document.getElementById("cashCollectionStatus").textContent = "Enter a cash collected amount.";
+    return;
+  }
+  state.cashCollections.push({
+    id: uid("cash"),
+    date: data.date || today,
+    amount: data.amount,
+    note: data.note || ""
+  });
+  event.currentTarget.reset();
+  event.currentTarget.date.value = today;
+  document.getElementById("cashCollectionStatus").textContent = "Cash collected saved.";
+  renderAll();
+});
+
+document.getElementById("applyCashRange")?.addEventListener("click", renderAll);
+document.querySelectorAll("[data-cash-range]").forEach(button => {
+  button.addEventListener("click", () => setCashDashboardRange(button.dataset.cashRange));
 });
 
 document.getElementById("vendorForm").addEventListener("submit", event => {
@@ -1196,6 +1315,9 @@ document.querySelectorAll('input[type="date"]').forEach(input => {
   if (input.name === "date") input.value = today;
 });
 
+const cashCollectionDate = document.querySelector('#cashCollectionForm input[name="date"]');
+if (cashCollectionDate) cashCollectionDate.value = today;
+setCashDashboardRange("month");
 applyReportRange("");
 updateCustomReportPanel();
 updateInvoiceReadActions();
