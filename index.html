@@ -30,30 +30,104 @@
     </header>
 
     <section class="view active" id="dashboard">
-      <div class="metric-grid">
-        <article class="metric color-a"><span>Total Spend</span><strong id="metricTotalSpend">$0.00</strong><small>Payroll + invoices</small></article>
-        <article class="metric color-b"><span>Payroll</span><strong id="metricPayroll">$0.00</strong><small>Employees and staff</small></article>
-        <article class="metric color-c"><span>Vendor Payments</span><strong id="metricVendorPayments">$0.00</strong><small>Vendor payroll + bills</small></article>
-        <article class="metric color-d"><span>Food Cost</span><strong id="metricFoodCost">$0.00</strong><small id="metricFoodPercent">0% of spending</small></article>
-        <article class="metric color-e"><span>Invoice Spending</span><strong id="metricInvoices">$0.00</strong><small>All vendor invoices</small></article>
-        <article class="metric color-f"><span>Extra Pay</span><strong id="metricExtra">$0.00</strong><small>Bonuses, tips, adjustments</small></article>
-        <article class="metric color-g"><span>Tip Deduction</span><strong id="metricTipDeduction">$0.00</strong><small>3% waiter tips</small></article>
-      </div>
-      <div class="workspace two-column">
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Spending by Category</h2>
-            <span class="pill" id="categoryCount">0 categories</span>
+      <div class="dashboard-right-only">
+        <div class="metric-grid dashboard-main-metrics">
+          <article class="metric color-a"><span>Total Spend</span><strong id="metricTotalSpend">$0.00</strong><small>Payroll + invoices</small></article>
+          <article class="metric color-b"><span>Payroll</span><strong id="metricPayroll">$0.00</strong><small>Employees and staff</small></article>
+          <article class="metric color-c"><span>Vendor Payments</span><strong id="metricVendorPayments">$0.00</strong><small>Vendor payroll + bills</small></article>
+          <article class="metric color-d"><span>Food Cost</span><strong id="metricFoodCost">$0.00</strong><small id="metricFoodPercent">0% of spending</small></article>
+          <article class="metric color-e"><span>Invoice Spending</span><strong id="metricInvoices">$0.00</strong><small>All vendor invoices</small></article>
+          <article class="metric color-f"><span>Extra Pay</span><strong id="metricExtra">$0.00</strong><small>Bonuses, tips, adjustments</small></article>
+          <article class="metric color-g"><span>Tip Deduction</span><strong id="metricTipDeduction">$0.00</strong><small>3% waiter tips</small></article>
+        </div>
+
+        <section class="panel cash-dashboard-panel clean-cash-panel">
+          <div class="panel-head clean-cash-head">
+            <div>
+              <h2>Cash Collected Balance</h2>
+              <small class="helper-text">Collected cash minus cash payroll, cash vendor payments, and invoices marked Cash.</small>
+            </div>
+            <span class="pill" id="cashCollectionCount">0 entries</span>
           </div>
-          <div id="categorySpendList" class="category-list"></div>
-        </section>
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Recent Activity</h2>
-            <span class="pill hot" id="recentCount">0 items</span>
+
+          <div class="cash-pro-grid">
+            <form class="cash-card cash-entry-card" id="cashCollectionForm">
+              <div class="cash-card-title">
+                <span>Add Cash Collected</span>
+                <small>Record register or shift cash</small>
+              </div>
+              <div class="cash-entry-fields">
+                <label>Collection date<input name="date" type="date" required></label>
+                <label>Cash collected<input name="amount" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+                <label class="cash-note-field">Note<input name="note" placeholder="Lunch, dinner, register, etc."></label>
+              </div>
+              <button class="primary-button cash-save-button" type="submit">Save Cash</button>
+            </form>
+
+            <div class="cash-card cash-filter-card">
+              <div class="cash-card-title">
+                <span>Date Filter</span>
+                <small>Choose the cash balance period</small>
+              </div>
+              <div class="cash-range-simple">
+                <label>Start<input id="cashStartDate" type="date"></label>
+                <span class="range-arrow">→</span>
+                <label>End<input id="cashEndDate" type="date"></label>
+              </div>
+              <button class="ghost-button cash-filter-button" type="button" id="applyCashRange">Filter</button>
+            </div>
           </div>
-          <div id="recentList" class="activity-list"></div>
+
+          <div class="cash-kpi-grid">
+            <article class="cash-kpi cash-kpi-collected">
+              <span>Cash Collected</span>
+              <strong id="metricCashCollected">$0.00</strong>
+              <small>Selected range</small>
+            </article>
+            <article class="cash-kpi cash-kpi-balance">
+              <span>Leftover Cash</span>
+              <strong id="metricCashBalance">$0.00</strong>
+              <small>After cash paid out</small>
+            </article>
+            <article class="cash-kpi cash-kpi-payroll">
+              <span>Cash Payroll</span>
+              <strong id="metricCashPayroll">$0.00</strong>
+              <small>Employee cash payroll</small>
+            </article>
+            <article class="cash-kpi cash-kpi-expenses">
+              <span>Cash Expenses</span>
+              <strong id="metricCashExpenses">$0.00</strong>
+              <small>Cash vendor + invoices</small>
+            </article>
+          </div>
+
+          <div class="cash-list-wrap">
+            <div class="cash-list-head">
+              <h3>Cash Collection Entries</h3>
+              <span class="helper-text" id="cashCollectionStatus">Use the date filter to review cash activity.</span>
+            </div>
+            <div id="cashCollectionList" class="data-list"></div>
+          </div>
+
+          <div class="report-summary cash-balance-summary" id="cashBalanceSummary"></div>
         </section>
+
+        <div class="workspace two-column dashboard-lower-panels">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Spending by Category</h2>
+              <span class="pill" id="categoryCount">0 categories</span>
+            </div>
+            <div id="categorySpendList" class="category-list"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Recent Activity</h2>
+              <span class="pill hot" id="recentCount">0 items</span>
+            </div>
+            <div id="recentList" class="activity-list"></div>
+          </section>
+        </div>
       </div>
     </section>
 
@@ -172,6 +246,9 @@
           <label>Invoice date<input name="date" type="date"></label>
           <label>Invoice number<input name="number" placeholder="Invoice number"></label>
           <label>Total<input name="total" type="number" min="0" step="0.01" placeholder="0.00"></label>
+          <label>Payment method
+            <select name="method" data-kind="paymentMethods"><option value="">Select payment method</option></select>
+          </label>
           <div class="invoice-line-panel">
             <div class="panel-head compact-head">
               <h2>Item Categories</h2>
