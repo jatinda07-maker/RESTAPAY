@@ -1,19 +1,17 @@
-# RESTAPAY
+# RESTAPAY Compact Square-Style Fix
 
-Clean production project package.
+This package fixes the oversized Square-style rebuild.
 
-## Files included
+## Fixes
 
-- `index.html` - RESTAPAY front-end
-- `app.js` - application logic, dashboard calculations, Supabase persistence
-- `styles.css` - UI styling
-- `server.js` - Node server and Gemini invoice reader API
-- `package.json` / `package-lock.json` - Node dependencies
-- `.npmrc` - public npm registry for Render deploy
-- `.env.example` - environment variable example
-- `SUPABASE_APP_DATA_SETUP.sql` - Supabase app_data table setup
-- `supabase_tables.sql` - supporting Supabase tables
-- `assets/` - RESTAPAY logo and favicon
+- Sidebar icon blocks are fixed and compact.
+- Dashboard tiles are compact and fit on screen.
+- No giant cards.
+- No huge vertical color bars.
+- All screens use smaller rows, buttons, forms, and headings.
+- Supabase/localStorage data recovery logic is kept.
+- Deduped expense calculations are kept.
+- Unit-price-only price alert logic is kept.
 
 ## Local start
 
@@ -28,36 +26,10 @@ Open:
 http://localhost:4173
 ```
 
-## Render deploy
+## Render
 
-Build command:
-
-```bash
-npm install
-```
-
-Start command:
-
-```bash
-npm start
-```
-
-## Required environment variable
+After pushing to GitHub:
 
 ```text
-GEMINI_API_KEY=your_key_here
+Manual Deploy -> Clear Build Cache & Deploy
 ```
-
-## Supabase setup
-
-Run `SUPABASE_APP_DATA_SETUP.sql` once in Supabase SQL Editor if cloud save/load is not working.
-
-## Notes
-
-This clean project excludes:
-- `node_modules`
-- old README package notes
-- old ZIP packages
-- backups
-- temporary test files
-- Git internals

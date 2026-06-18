@@ -36,70 +36,111 @@
       <div class="quick-actions"></div>
     </header>
 
-    <section class="view active" id="dashboard">
-      <div class="pos-dashboard">
-        <div class="pos-dashboard-head">
-          <div>
-            <h2>Dashboard</h2>
-            <p>Profit, loss, payroll, cash, expenses, tips, and price insight.</p>
-          </div>
-          <div class="pos-date-tools"><span id="cloudSaveStatus" class="cloud-save-status">Cloud loading...</span>
-            <button class="pos-date-range" type="button"><span>📅</span><span id="sampleDashboardRange">Jun 1 - Jun 14, 2026</span></button>
-            <button class="pos-date-button" type="button" data-range-mode="today">Today</button>
-            <button class="pos-date-button active" type="button" data-range-mode="month">This Month</button>
-            <button class="pos-date-button" type="button" data-range-mode="custom">Custom</button>
-          </div>
+    <section class="view active square-dashboard-view" id="dashboard">
+      <div class="square-dashboard">
+        <div class="square-date-line" id="squareDashboardDate">Today</div>
+
+        <div class="square-tile-grid">
+          <article class="square-tile square-deposit-tile">
+            <div class="square-tile-title">Deposits</div>
+            <div class="square-deposit-body">
+              <strong id="metricCashBalance">$0.00</strong>
+              <span>Cash position</span>
+            </div>
+          </article>
+
+          <article class="square-tile">
+            <div class="square-tile-title">Gross Sales</div>
+            <div class="square-empty-icon">▣</div>
+            <strong id="metricNetSales">$0.00</strong>
+            <span class="square-muted">Selected date range</span>
+          </article>
+
+          <article class="square-tile">
+            <div class="square-tile-title">Net Profit</div>
+            <div class="square-empty-icon">↗</div>
+            <strong id="metricNetProfit">$0.00</strong>
+            <span class="square-muted">After expenses</span>
+          </article>
+
+          <article class="square-tile">
+            <div class="square-tile-title">Payroll</div>
+            <div class="square-blue-band">
+              <strong id="metricPayroll">$0.00</strong>
+              <span>Total payroll</span>
+            </div>
+          </article>
+
+          <article class="square-tile">
+            <div class="square-tile-title">Invoices</div>
+            <div class="square-blue-band">
+              <strong id="metricInvoices">$0.00</strong>
+              <span>Vendor invoices</span>
+            </div>
+          </article>
+
+          <article class="square-tile">
+            <div class="square-tile-title">Total Expenses</div>
+            <div class="square-blue-band">
+              <strong id="metricTotalExpenses">$0.00</strong>
+              <span>Deduped total</span>
+            </div>
+          </article>
         </div>
 
-        <section class="pos-kpi-grid">
-          <article class="pos-kpi"><span class="pos-icon blue">💰</span><small>Net Sales</small><strong id="metricNetSales">$0.00</strong><em id="sampleSalesChange">Selected range</em></article>
-          <article class="pos-kpi"><span class="pos-icon purple">%</span><small>Gross Profit</small><strong id="posGrossProfit">$0.00</strong><em>Sales minus COGS</em></article>
-          <article class="pos-kpi"><span class="pos-icon green">↗</span><small>Net Profit</small><strong id="metricNetProfit">$0.00</strong><em id="sampleProfitChange">After expenses</em></article>
-          <article class="pos-kpi"><span class="pos-icon green">💳</span><small>Cash Balance</small><strong id="metricCashBalance">$0.00</strong><em>Closeout cash left</em></article>
-          <article class="pos-kpi"><span class="pos-icon blue">👥</span><small>Cash Payroll</small><strong id="metricCashPayroll">$0.00</strong><em>Cash employee payroll</em></article>
-          <article class="pos-kpi"><span class="pos-icon purple">👥</span><small>Credit / Check Payroll</small><strong id="posCreditPayroll">$0.00</strong><em>Check employee payroll</em></article>
-          <article class="pos-kpi"><span class="pos-icon orange">🎁</span><small>Total Tips</small><strong id="posTotalTips">$0.00</strong><em>Tips and deductions</em></article>
-          <article class="pos-kpi"><span class="pos-icon red">📄</span><small>Total Expenses</small><strong id="metricTotalExpenses">$0.00</strong><em>Deduped expense total</em></article>
-        </section>
+        <div class="square-bottom-grid">
+          <section class="square-panel">
+            <div class="square-panel-head">
+              <h2>Profit & Loss</h2>
+              <button type="button" data-view-target="reports">Open report</button>
+            </div>
+            <div id="posPnlSummaryList" class="square-list"></div>
+          </section>
 
-        <section class="pos-panel pos-expense-summary">
-          <div class="pos-panel-head"><h3>Expense Summary</h3><button type="button" id="posViewAllExpenses">View All Expenses ›</button></div>
-          <div id="posExpenseSummaryList" class="pos-info-list"></div>
-        </section>
+          <section class="square-panel">
+            <div class="square-panel-head">
+              <h2>Expense Summary</h2>
+              <button type="button" id="posViewAllExpenses">View all</button>
+            </div>
+            <div id="posExpenseSummaryList" class="square-list"></div>
+          </section>
 
-        <section class="pos-panel pos-pnl-summary">
-          <div class="pos-panel-head"><h3>Profit & Loss Summary</h3><button type="button" data-view-target="reports">View Full P&L Report ›</button></div>
-          <div id="posPnlSummaryList" class="pos-info-list"></div>
-        </section>
+          <section class="square-panel">
+            <div class="square-panel-head">
+              <h2>Price Increase Insights</h2>
+              <button type="button" id="posViewAllPriceAlerts">View all</button>
+            </div>
+            <div id="priceAlertList" class="square-price-list"></div>
+            <span id="priceAlertCount" class="hidden-dashboard-values">0 alerts</span>
+          </section>
+        </div>
 
-        <section class="pos-panel pos-price-panel price-alert-panel">
-          <div class="pos-panel-head"><h3>Price Increase Insights</h3><button type="button" id="posViewAllPriceAlerts">View All Insights ›</button></div>
-          <div id="priceAlertList" class="pos-price-list"></div>
-          <span id="priceAlertCount" class="hidden-dashboard-values">0 alerts</span>
-        </section>
-
-        <section class="pos-panel pos-recent-panel">
-          <div class="pos-panel-head"><h3>Recent Activity</h3><span id="recentCount">0 items</span></div>
-          <div id="recentList" class="pos-recent-list"></div>
+        <section class="square-panel square-recent-panel">
+          <div class="square-panel-head">
+            <h2>Recent Activity</h2>
+            <span id="recentCount">0 items</span>
+          </div>
+          <div id="recentList" class="square-recent-list"></div>
         </section>
 
         <section class="panel dashboard-detail-panel hidden-dashboard-values" id="dashboardDetailPanel">
           <div class="panel-head">
-            <h2 id="dashboardDetailTitle">Click any category for details</h2>
+            <h2 id="dashboardDetailTitle">Details</h2>
             <span class="pill" id="dashboardDetailTotal">$0.00</span>
           </div>
-          <div id="dashboardDetailList" class="data-list dashboard-detail-list">
-            <div class="status">Click an expense category to see every row included in that total.</div>
-          </div>
+          <div id="dashboardDetailList" class="data-list dashboard-detail-list"></div>
         </section>
 
         <div class="hidden-dashboard-values" aria-hidden="true">
+          <span id="sampleDashboardRange">All dates</span>
+          <span id="posGrossProfit">$0.00</span>
+          <span id="posCreditPayroll">$0.00</span>
+          <span id="posTotalTips">$0.00</span>
+          <span id="metricCashPayroll">$0.00</span>
           <span id="metricTotalSpend">$0.00</span>
-          <span id="metricPayroll">$0.00</span>
           <span id="metricVendorPayments">$0.00</span>
           <span id="metricFoodCost">$0.00</span>
           <span id="metricFoodPercent">0%</span>
-          <span id="metricInvoices">$0.00</span>
           <span id="metricExtra">$0.00</span>
           <span id="metricTipDeduction">$0.00</span>
           <span id="metricLaborPercent">0%</span>
@@ -115,6 +156,7 @@
           <span id="categoryCount">0 categories</span>
           <div id="dashboardCategorySpendingCards"></div>
           <div id="categorySpendList"></div>
+          <div id="ownerBusinessInsights"></div>
         </div>
       </div>
     </section>
