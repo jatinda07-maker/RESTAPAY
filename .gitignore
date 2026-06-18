@@ -1,0 +1,13 @@
+node_modules/
+.env
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+RESTAPAY_*.zip
+README_*.txt
+recheck_restapay/
+recheck_restapay_fixed/
+temp/
+backup/
