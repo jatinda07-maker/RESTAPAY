@@ -1,15 +1,6 @@
 const SUPABASE_URL = "https://nzravalposusjrjcwvgz.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Hl39iP3Oj41qiywYFLrqjw_0-0iAvi4";
 const DATA_KEY = "restaurant-payroll-vendor";
-const DATA_KEY_CANDIDATES = [
-  "restaurant-payroll-vendor",
-  "RESTAPAY",
-  "restapay",
-  "restapay-state",
-  "resta-pay",
-  "restaurant-payroll-vendor-v1",
-  "restaurant-payroll-vendor-data"
-];
 const supabaseClient = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY) || null;
 let cloudStorageReady = false;
 let cloudStorageLoading = true;
@@ -65,54 +56,12 @@ function defaultStateFromSaved(saved = {}) {
 
 function loadState() {
   try {
-    let bestSaved = {};
-    let bestScore = -1;
-    const keys = [...DATA_KEY_CANDIDATES];
-
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (key && !keys.includes(key)) keys.push(key);
-    }
-
-    keys.forEach(key => {
-      try {
-        const raw = localStorage.getItem(key);
-        if (!raw || raw.length < 2) return;
-        const parsed = JSON.parse(raw);
-        const candidate = parsed?.data && typeof parsed.data === "object" ? parsed.data : parsed;
-        const score = dataCompletenessScore(candidate);
-        if (score > bestScore) {
-          bestScore = score;
-          bestSaved = candidate;
-        }
-      } catch (_) {}
-    });
-
-    if (bestScore > 0) {
-      console.log("Loaded RESTAPAY local data score:", bestScore);
-      return defaultStateFromSaved(bestSaved);
-    }
-
-    return defaultStateFromSaved({});
+    const saved = JSON.parse(localStorage.getItem(DATA_KEY) || "{}");
+    return defaultStateFromSaved(saved);
   } catch (error) {
     console.warn("Local saved data could not be loaded:", error);
     return defaultStateFromSaved({});
   }
-}
-
-function dataCompletenessScore(saved = {}) {
-  return [
-    "vendors",
-    "employees",
-    "payroll",
-    "invoices",
-    "propertyExpenses",
-    "cashCollections",
-    "sales",
-    "toastPayroll",
-    "weeklyCashEmployees",
-    "priceAlerts"
-  ].reduce((score, key) => score + ((saved[key] || []).length || 0), 0);
 }
 
 function migrateOptions(options) {
@@ -157,7 +106,15 @@ function saveState() {
 }
 
 function hasMeaningfulSavedData(saved = {}) {
-  return dataCompletenessScore(saved) > 0;
+  return Boolean(
+    (saved.vendors || []).length ||
+    (saved.employees || []).length ||
+    (saved.payroll || []).length ||
+    (saved.invoices || []).length ||
+    (saved.propertyExpenses || []).length ||
+    (saved.sales || []).length ||
+    (saved.toastPayroll || []).length
+  );
 }
 
 function setCloudStatus(message, ok = true) {
@@ -183,8 +140,9 @@ async function loadStateFromSupabase() {
 
   const { data, error } = await supabaseClient
     .from("app_data")
-    .select("id,data")
-    .in("id", DATA_KEY_CANDIDATES);
+    .select("data")
+    .eq("id", DATA_KEY)
+    .maybeSingle();
 
   cloudStorageLoading = false;
 
@@ -197,19 +155,12 @@ async function loadStateFromSupabase() {
 
   cloudStorageReady = true;
 
-  const bestCloud = (data || [])
-    .map(row => ({ id: row.id, data: row.data || {}, score: dataCompletenessScore(row.data || {}) }))
-    .sort((a, b) => b.score - a.score)[0];
-
-  const cloudData = bestCloud?.data || {};
-  const cloudScore = bestCloud?.score || 0;
-  const localScore = dataCompletenessScore(localState);
-
-  if (cloudScore > 0 && cloudScore >= localScore) {
+  const cloudData = data?.data || {};
+  if (hasMeaningfulSavedData(cloudData)) {
     state = defaultStateFromSaved(cloudData);
     window.restaPayState = state;
     lastSavedPayload = JSON.stringify(state);
-    setCloudStatus(`Cloud loaded ${cloudScore} records`);
+    setCloudStatus("Cloud loaded");
   } else if (hasMeaningfulSavedData(localState)) {
     // First-time setup: seed Supabase from this browser's local data.
     state = localState;
@@ -3648,75 +3599,6 @@ function priceAlertDetailRows() {
   return (state.priceAlerts || []).map(alert => detailRow(alert.item || "Item", `${alert.previousDate || ""} to ${alert.date || ""} • Unit price comparison`, currencyValue(alert.currentPrice) - currencyValue(alert.previousPrice)));
 }
 
-
-function renderSquareDashboard(snapshot, cashData, categoryTotals) {
-  const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
-  const cogs = currencyValue(categoryTotals.Food) + currencyValue(categoryTotals.Beverage) + currencyValue(categoryTotals.Supplies) + currencyValue(categoryTotals.Packaging);
-  const grossProfit = snapshot.sales.netSales - cogs;
-  const checkPayroll = currencyValue(categoryTotals["Check Payroll"]);
-  const cashPayroll = currencyValue(categoryTotals["Cash Payroll"]);
-  const totalTips = (snapshot.expenses.payrollItems || []).reduce((sum, item) => sum + waiterTipDeduction(item), 0);
-
-  set("posGrossProfit", money.format(grossProfit));
-  set("posCreditPayroll", money.format(checkPayroll));
-  set("posTotalTips", money.format(totalTips));
-  set("metricCashPayroll", money.format(cashPayroll));
-  set("metricPayroll", money.format(cashPayroll + checkPayroll));
-  set("metricTotalExpenses", money.format(snapshot.expenses.totalExpenses));
-  set("metricInvoices", money.format(snapshot.expenses.invoiceTotal));
-  set("sampleDashboardRange", selectedRangeText());
-  set("squareDashboardDate", new Date().toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }));
-
-  const expenseList = document.getElementById("posExpenseSummaryList");
-  if (expenseList) {
-    const preferred = ["Food", "Beverage", "Supplies", "Packaging", "Utilities", "Insurance", "Repairs & Maintenance", "Mortgage & Loans", "Check Payroll", "Cash Payroll", "Other Property", "Other"];
-    const rows = sortedAccountingRows(categoryTotals).sort((a,b) => {
-      const ai = preferred.includes(a[0]) ? preferred.indexOf(a[0]) : 999;
-      const bi = preferred.includes(b[0]) ? preferred.indexOf(b[0]) : 999;
-      return ai - bi || b[1] - a[1];
-    });
-    const total = rows.reduce((sum, [, amount]) => sum + currencyValue(amount), 0);
-    expenseList.innerHTML = rows.filter(([, amount]) => currencyValue(amount) !== 0).slice(0, 9).map(([category, amount]) => `
-      <button class="square-info-row" type="button" data-square-category="${esc(category)}">
-        <span>${esc(category)}</span>
-        <strong>${money.format(amount)}</strong>
-      </button>
-    `).join("") + `
-      <button class="square-info-row total" type="button" id="squareExpenseTotal">
-        <span>Total Expenses</span>
-        <strong>${money.format(total)}</strong>
-      </button>
-    `;
-    expenseList.querySelectorAll("[data-square-category]").forEach(button => {
-      button.addEventListener("click", () => {
-        const category = button.dataset.squareCategory;
-        const amount = rows.find(row => row[0] === category)?.[1] || 0;
-        showDashboardDetails(`${category} Details`, money.format(amount), categoryDetailRows(category));
-      });
-    });
-    expenseList.querySelector("#squareExpenseTotal")?.addEventListener("click", () => showDashboardDetails("All Expenses", money.format(total), categoryDetailRows()));
-  }
-
-  const pnl = document.getElementById("posPnlSummaryList");
-  if (pnl) {
-    pnl.innerHTML = `
-      <div class="square-info-row"><span>Total Net Sales</span><strong>${money.format(snapshot.sales.netSales)}</strong></div>
-      <div class="square-info-row"><span>Cost of Goods Sold</span><strong>${money.format(cogs)}</strong></div>
-      <div class="square-info-row good"><span>Gross Profit</span><strong>${money.format(grossProfit)}</strong></div>
-      <div class="square-info-row"><span>Total Expenses</span><strong>${money.format(snapshot.expenses.totalExpenses)}</strong></div>
-      <div class="square-info-row good"><span>Net Profit</span><strong>${money.format(snapshot.netProfit)}</strong></div>
-      <div class="square-info-row good"><span>Profit Margin</span><strong>${percentText(snapshot.profitMargin)}</strong></div>
-    `;
-  }
-
-  document.getElementById("posViewAllExpenses")?.addEventListener("click", () => showDashboardDetails("All Expenses", money.format(snapshot.expenses.totalExpenses), categoryDetailRows()));
-  document.getElementById("posViewAllPriceAlerts")?.addEventListener("click", () => showDashboardDetails("Price Increase Insights", "", priceAlertDetailRows()));
-
-  sampleRenderRecentActivity();
-  sampleWireQuickActions();
-}
-
-
 function renderDashboard() {
   try { if ((state.toastPayroll || []).length) syncToastPayrollToPayroll(); } catch (error) { console.warn("Toast payroll sync skipped", error); }
   const employeePayrollTotal = state.payroll
@@ -3771,7 +3653,7 @@ function renderDashboard() {
   renderCashCollections(cashCollections, cashPayrollTotal, cashExpenseTotal, cashBalance);
   setText("categoryCount", `${Object.values(categoryTotals).filter(total => currencyValue(total) !== 0).length} categories`);
   renderDashboardCategorySpending(categoryTotals, totalSpend);
-  renderSquareDashboard(profitSnapshot(cashStart, cashEnd), cashData, categoryTotals);
+  renderPosDashboard(profitSnapshot(cashStart, cashEnd), cashData, categoryTotals);
   attachDashboardMetricActions();
   initDashboardCardDrag();
 
