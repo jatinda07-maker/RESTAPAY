@@ -113,3 +113,16 @@ Restart after changing `.env`:
 ```bash
 npm run dev
 ```
+
+## Supabase cloud saving
+
+This build saves the full RESTAPAY app state to Supabase table `app_data` when these Render/local environment variables exist:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+Run `supabase/schema.sql` in Supabase SQL Editor before deploying.
+
+The app still keeps a localStorage backup, but Supabase is now the shared online source when configured.

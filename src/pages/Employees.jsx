@@ -15,6 +15,8 @@ export default function Employees({ data, setData }) {
   const [newEmployeeType, setNewEmployeeType] = useState('')
   const [newJobType, setNewJobType] = useState('')
   const [status, setStatus] = useState('Local auto-save is active. Employees stay saved when you change screens.')
+  const [activeFilter, setActiveFilter] = useState('all')
+  const [selectedIds, setSelectedIds] = useState([])
 
   const employees = data.employees || []
   const employeeTypes = data.employeeTypes || []
@@ -30,7 +32,7 @@ export default function Employees({ data, setData }) {
   }
 
   function saveEmployee(event) {
-    event.preventDefault()
+    event?.preventDefault?.()
     const name = form.name.trim()
     if (!name) return setStatus('Employee name is required')
 
@@ -72,11 +74,30 @@ export default function Employees({ data, setData }) {
   function deleteEmployee(id) {
     setData(prev => ({
       ...prev,
-      employees: prev.employees.filter(emp => emp.id !== id),
-      payrollGroups: prev.payrollGroups.map(group => ({ ...group, memberIds: group.memberIds.filter(memberId => memberId !== id) }))
+      employees: (prev.employees || []).filter(emp => emp.id !== id),
+      payrollGroups: (prev.payrollGroups || []).map(group => ({ ...group, memberIds: (group.memberIds || []).filter(memberId => memberId !== id) }))
     }))
+    setSelectedIds(prev => prev.filter(item => item !== id))
     if (editingId === id) clearForm()
     setStatus('Employee deleted locally and removed from payroll groups')
+  }
+
+  function toggleSelected(id) { setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]) }
+  function toggleAllFiltered(checked) { setSelectedIds(checked ? filteredEmployees.map(emp => emp.id) : []) }
+  function bulkDelete() {
+    if (!selectedIds.length) return setStatus('Select employees first')
+    setData(prev => ({
+      ...prev,
+      employees: (prev.employees || []).filter(emp => !selectedIds.includes(emp.id)),
+      payrollGroups: (prev.payrollGroups || []).map(group => ({ ...group, memberIds: (group.memberIds || []).filter(memberId => !selectedIds.includes(memberId)) }))
+    }))
+    setSelectedIds([])
+    setStatus(`Deleted ${selectedIds.length} selected employees and removed them from payroll groups`)
+  }
+  function bulkSetActive(isActive) {
+    if (!selectedIds.length) return setStatus('Select employees first')
+    setData(prev => ({ ...prev, employees: (prev.employees || []).map(emp => selectedIds.includes(emp.id) ? { ...emp, is_active: isActive } : emp) }))
+    setStatus(`Updated ${selectedIds.length} selected employees`)
   }
 
   function addEmployeeType() {
@@ -99,8 +120,10 @@ export default function Employees({ data, setData }) {
 
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return sortByName(employees).filter(emp => !q || `${emp.name} ${emp.employee_type} ${emp.job_type} ${emp.pay_type} ${emp.payroll_type}`.toLowerCase().includes(q))
-  }, [employees, search])
+    return sortByName(employees)
+      .filter(emp => activeFilter === 'all' ? true : activeFilter === 'active' ? emp.is_active !== false : emp.is_active === false)
+      .filter(emp => !q || `${emp.name} ${emp.employee_type} ${emp.job_type} ${emp.pay_type} ${emp.payroll_type}`.toLowerCase().includes(q))
+  }, [employees, search, activeFilter])
 
   return <>
     <div className="page-head employee-head">
@@ -110,6 +133,7 @@ export default function Employees({ data, setData }) {
       </div>
       <div className="employee-head-actions">
         <div className="search-box"><Icon name="search" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search employees..." /></div>
+        <select className="filter-select" value={activeFilter} onChange={e => setActiveFilter(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </div>
     </div>
 
@@ -126,20 +150,23 @@ export default function Employees({ data, setData }) {
         <label>Base pay<input type="number" min="0" step="0.01" value={form.base_pay} onChange={e => updateField('base_pay', e.target.value)} placeholder="0.00" /></label>
         <label>Extra pay<input type="number" min="0" step="0.01" value={form.extra_pay} onChange={e => updateField('extra_pay', e.target.value)} placeholder="0.00" /></label>
         <label>Extra reason<input value={form.extra_reason} onChange={e => updateField('extra_reason', e.target.value)} placeholder="Optional" /></label>
-        <div className="form-actions-inline"><button className="btn secondary" type="button" onClick={clearForm}>Clear</button><button className="btn primary" type="submit"><Icon name="save" /> Save</button></div>
+        <label className="check-line vendor-active"><input type="checkbox" checked={form.is_active} onChange={e => updateField('is_active', e.target.checked)} /> Active employee</label>
       </form>
 
       <div className="type-manager-grid compact-types">
         <div className="type-box"><h3>Add employee type</h3><div className="mini-add-row"><input value={newEmployeeType} onChange={e => setNewEmployeeType(e.target.value)} placeholder="Example: Seasonal" /><button className="btn secondary" type="button" onClick={addEmployeeType}>Add</button></div></div>
         <div className="type-box"><h3>Add job type</h3><div className="mini-add-row"><input value={newJobType} onChange={e => setNewJobType(e.target.value)} placeholder="Example: Busser" /><button className="btn secondary" type="button" onClick={addJobType}>Add</button></div></div>
       </div>
+      <div className="form-action-footer"><button className="btn secondary" type="button" onClick={clearForm}>{editingId ? 'Cancel Edit' : 'Clear'}</button><button className="btn primary" type="button" onClick={saveEmployee}><Icon name="save" /> {editingId ? 'Update Employee' : 'Save Employee'}</button></div>
     </section>
 
     <section className="table-card employee-table-card compact-table-card">
       <header><h2>Employee List</h2><span>{filteredEmployees.length} employees</span></header>
+      {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button onClick={() => bulkSetActive(true)}>Set Active</button><button onClick={() => bulkSetActive(false)}>Set Inactive</button><button className="delete-link" onClick={bulkDelete}>Delete Selected</button></div>}
       <table>
-        <thead><tr><th>Name</th><th>Type</th><th>Job</th><th>Pay</th><th>Method</th><th>Base</th><th>Extra</th><th>Action</th></tr></thead>
+        <thead><tr><th><input type="checkbox" checked={filteredEmployees.length > 0 && filteredEmployees.every(emp => selectedIds.includes(emp.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Type</th><th>Job</th><th>Pay</th><th>Method</th><th>Base</th><th>Extra</th><th>Action</th></tr></thead>
         <tbody>{filteredEmployees.map(emp => <tr key={emp.id}>
+          <td><input type="checkbox" checked={selectedIds.includes(emp.id)} onChange={() => toggleSelected(emp.id)} /></td>
           <td><b>{emp.name}</b><small>{emp.is_active === false ? 'Inactive' : 'Active'}</small></td>
           <td>{emp.employee_type}</td><td>{emp.job_type}</td><td><span className={`tag ${String(emp.pay_type).toLowerCase()}`}>{emp.pay_type}</span></td>
           <td><span className={emp.payroll_type === 'Cash' ? 'tag cash' : 'tag check'}>{emp.payroll_type}</span></td>

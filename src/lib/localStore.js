@@ -1,4 +1,7 @@
+import { supabase, isSupabaseReady } from './supabase'
+
 export const RESTAPAY_KEY = 'restapay_v2_local_data'
+export const RESTAPAY_SUPABASE_STATE_ID = 'main'
 
 export const defaultData = {
   employees: [],
@@ -20,7 +23,7 @@ export const defaultData = {
   settings: { tipWithholdingRate: 3.5, geminiApiKey: '' }
 }
 
-function mergeData(data) {
+export function mergeData(data) {
   return {
     ...defaultData,
     ...(data || {}),
@@ -56,6 +59,43 @@ export function loadData() {
 
 export function saveData(data) {
   localStorage.setItem(RESTAPAY_KEY, JSON.stringify(mergeData(data)))
+}
+
+export async function loadCloudData() {
+  if (!isSupabaseReady) return null
+  try {
+    const { data, error } = await supabase
+      .from('app_data')
+      .select('state')
+      .eq('id', RESTAPAY_SUPABASE_STATE_ID)
+      .maybeSingle()
+
+    if (error) throw error
+    return data?.state ? mergeData(data.state) : null
+  } catch (error) {
+    console.error('Failed to read Supabase data. Falling back to localStorage.', error)
+    return null
+  }
+}
+
+export async function saveCloudData(data) {
+  if (!isSupabaseReady) return { ok: false, reason: 'Supabase env vars missing' }
+  try {
+    const payload = {
+      id: RESTAPAY_SUPABASE_STATE_ID,
+      state: mergeData(data),
+      updated_at: new Date().toISOString()
+    }
+    const { error } = await supabase
+      .from('app_data')
+      .upsert(payload, { onConflict: 'id' })
+
+    if (error) throw error
+    return { ok: true }
+  } catch (error) {
+    console.error('Failed to save Supabase data. LocalStorage backup was still saved.', error)
+    return { ok: false, error }
+  }
 }
 
 export function createId(prefix) {

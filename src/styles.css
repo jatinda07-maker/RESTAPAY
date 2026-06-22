@@ -572,3 +572,476 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .invoice-toolbar { flex-direction: column; }
   .invoice-upload-actions { justify-content: flex-start; width: 100%; }
 }
+
+/* FINAL FINISH PASS: dark navy card headers across all pages */
+.list-panel header,
+.table-card header,
+.compact-table-card header,
+.employee-table-card header,
+.sales-history-card header,
+.sales-preview-card header,
+.weekly-report-section header,
+.form-card > h2:first-child,
+.type-box h3,
+.invoice-toolbar,
+.report-builder-card > h2:first-child {
+  background: linear-gradient(180deg, #06162f 0%, #041226 100%) !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(255,255,255,.10) !important;
+}
+.list-panel header h2,
+.table-card header h2,
+.compact-table-card header h2,
+.employee-table-card header h2,
+.sales-history-card header h2,
+.sales-preview-card header h2,
+.form-card > h2:first-child,
+.type-box h3,
+.report-builder-card > h2:first-child {
+  color: #ffffff !important;
+  font-weight: 760 !important;
+}
+.table-card header span,
+.compact-table-card header span,
+.employee-table-card header span,
+.sales-history-card header span,
+.sales-preview-card header span {
+  color: rgba(255,255,255,.82) !important;
+}
+.header-select {
+  height: 32px;
+  border: 1px solid rgba(255,255,255,.22) !important;
+  border-radius: 9px;
+  background: rgba(255,255,255,.08) !important;
+  color: #ffffff !important;
+  padding: 0 10px;
+  outline: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.header-select option { color: #07142d; background: #ffffff; }
+
+/* Visible form action footers for save/update buttons */
+.form-action-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin: 16px -16px -14px;
+  padding: 14px 16px;
+  border-top: 1px solid #b8c7d9;
+  background: #f8fafc;
+  border-radius: 0 0 12px 12px;
+}
+.employee-form-card .form-action-footer { margin-left: -18px; margin-right: -18px; margin-bottom: -18px; }
+
+/* Global orange calendar icons everywhere, including native date input indicators */
+:root { --calendar-icon-color: #f59e0b; }
+input[type="date"] { color-scheme: dark; }
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 1 !important;
+  cursor: pointer;
+  filter: invert(68%) sepia(78%) saturate(1492%) hue-rotate(358deg) brightness(101%) contrast(95%) !important;
+}
+.strip-date-range svg,
+.strip-date-range .calendar-icon,
+.date-range svg,
+.date-picker svg,
+.date-pill svg,
+.date-range-field svg,
+[data-lucide="calendar"],
+[data-lucide="calendar-days"] {
+  color: var(--calendar-icon-color) !important;
+  stroke: var(--calendar-icon-color) !important;
+}
+.strip-date-range input[type="date"]::-webkit-calendar-picker-indicator,
+.page-title-strip input[type="date"]::-webkit-calendar-picker-indicator,
+.date-pill input[type="date"]::-webkit-calendar-picker-indicator,
+.date-range-field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(68%) sepia(78%) saturate(1492%) hue-rotate(358deg) brightness(101%) contrast(95%) !important;
+  opacity: 1 !important;
+}
+
+/* Price increase page polish */
+.form-card .employee-form-grid.clean-grid label input[type="date"] { min-width: 0; }
+
+
+/* Functional audit finish pass */
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.card > header {
+  min-height: 46px;
+  background: linear-gradient(180deg, #06162f 0%, #041226 100%) !important;
+  color: #fff !important;
+  border-bottom: 1px solid rgba(255,255,255,.10) !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+.card > header h2 { color: #fff !important; font-weight: 760 !important; margin: 0; font-size: 16px; }
+.card > header span { color: rgba(255,255,255,.82) !important; font-size: 12.5px; }
+.btn.ghost {
+  background: #f8fafc;
+  border-color: #b8c7d9;
+  color: #07142d;
+}
+.btn.ghost:hover { background: #eef3f8; border-color: #9fb0c4; }
+.sales-top-actions .file-action input { display: none; }
+.filter-select { min-width: 116px; }
+
+/* === RC1 ALIGNMENT STABILIZATION LAYER ===
+   Purpose: prevent overlapping boxes, normalize spacing, keep tables contained,
+   preserve the approved dark navy + white workspace theme.
+*/
+:root{
+  --rc1-gap:14px;
+  --rc1-card-pad:16px;
+  --rc1-field-h:38px;
+  --rc1-btn-h:38px;
+  --rc1-header-h:46px;
+  --rc1-table-pad-y:9px;
+  --rc1-table-pad-x:12px;
+}
+
+/* Main content never leaks under sidebar/header */
+.app-shell{width:100%;overflow-x:hidden}
+.main-panel{min-width:0;overflow-x:hidden}
+.content-area{width:100%;max-width:100%;overflow-x:hidden}
+
+/* Every section/card uses predictable sizing */
+.list-panel,.form-card,.table-card,.type-box,.report-builder-card,.weekly-report-section,.weekly-report-title,
+.sales-filter-bar,.bulk-bar,.bottom-strip,.status-pill,.kpi-card,.payroll-summary-row div{
+  max-width:100%;
+}
+.form-card,.table-card,.list-panel,.type-box,.report-builder-card{overflow:hidden}
+.table-card,.compact-table-card,.employee-table-card,.sales-preview-card,.sales-history-card,.invoice-items-card,
+.payroll-members,.payroll-table-card,.dashboard-detail-card,.weekly-report-section{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+/* Unified dark navy card headers */
+.list-panel header,.table-card header,.compact-table-card header,.employee-table-card header,
+.sales-history-card header,.sales-preview-card header,.invoice-items-card header,.payroll-members header,.payroll-table-card header{
+  min-height:var(--rc1-header-h)!important;
+  height:auto!important;
+  padding:10px 14px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+  background:linear-gradient(180deg,#06162f 0%,#041226 100%)!important;
+  color:#fff!important;
+  border-bottom:1px solid rgba(255,255,255,.10)!important;
+}
+.list-panel header h2,.table-card header h2,.compact-table-card header h2,.employee-table-card header h2,
+.sales-history-card header h2,.sales-preview-card header h2,.invoice-items-card header h2,.payroll-members header h2,.payroll-table-card header h2{
+  color:#fff!important;
+  font-size:15px!important;
+  font-weight:760!important;
+  letter-spacing:-.2px!important;
+  margin:0!important;
+  min-width:0!important;
+}
+.list-panel header span,.table-card header span,.compact-table-card header span,.employee-table-card header span,
+.sales-history-card header span,.sales-preview-card header span,.invoice-items-card header span,.payroll-members header span,.payroll-table-card header span{
+  color:rgba(255,255,255,.78)!important;
+  white-space:nowrap!important;
+}
+
+/* Form title headers inside cards */
+.form-card > h2:first-child,.type-box h3,.report-builder-card > h2:first-child{
+  background:linear-gradient(180deg,#06162f 0%,#041226 100%)!important;
+  color:#fff!important;
+  border-bottom:1px solid rgba(255,255,255,.10)!important;
+  margin:calc(-1 * var(--rc1-card-pad)) calc(-1 * var(--rc1-card-pad)) 14px!important;
+  padding:12px 16px!important;
+  border-radius:12px 12px 0 0!important;
+  font-size:15px!important;
+  font-weight:760!important;
+}
+.tight-card{padding:var(--rc1-card-pad)!important}
+.tight-card > h2:first-child{margin:calc(-1 * var(--rc1-card-pad)) calc(-1 * var(--rc1-card-pad)) 14px!important;padding:12px 16px!important}
+
+/* Normalize input/dropdown/button heights */
+input,select,textarea,.filter-select,.search-box,.date-range-field,.date-pill,
+.employee-form-grid input,.employee-form-grid select,.vendor-form-grid input,.vendor-form-grid select,
+.payroll-row input,.payroll-row select,.expense-form-grid input,.expense-form-grid select,
+.sales-data-input,.sales-date-input,.inline-edit-input,.line-input,.line-select,.ai-key-row input,
+.report-builder-grid input,.report-builder-grid select,.settings-row input{
+  max-width:100%!important;
+  min-width:0!important;
+}
+input,select,.filter-select,.search-box,.date-range-field,.date-pill,
+.employee-form-grid input,.employee-form-grid select,.vendor-form-grid input,.vendor-form-grid select,
+.payroll-row input,.payroll-row select,.expense-form-grid input,.expense-form-grid select,
+.report-builder-grid input,.report-builder-grid select,.settings-row input{
+  height:var(--rc1-field-h)!important;
+}
+.btn,.file-button,td button,.bulk-bar button,.bulk-bar select,.report-field-list button,.reports-mode-tabs button{
+  min-height:32px;
+  max-width:100%;
+  white-space:nowrap;
+}
+.btn{height:var(--rc1-btn-h)!important;padding:0 13px!important}
+
+/* Action rows always align and wrap safely */
+.actions,.employee-head-actions,.form-actions-inline,.form-action-footer,.row-actions,.settings-actions,
+.report-builder-actions,.invoice-toolbar,.ai-key-row,.sales-top-actions{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+}
+.form-action-footer{
+  justify-content:flex-end!important;
+  padding-top:14px!important;
+  margin-top:14px!important;
+  border-top:1px solid rgba(15,23,42,.10)!important;
+}
+.row-actions{white-space:nowrap!important}
+.row-actions button{margin-left:0!important}
+
+/* Better grid behavior prevents overflow */
+.clean-grid,.employee-form-grid,.vendor-form-grid,.expense-form-grid,.invoice-form-grid,.report-builder-grid,.sales-filter-bar,.report-filter-bar{
+  width:100%;
+  min-width:0;
+}
+.clean-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))!important}
+.vendor-form-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))!important}
+.expense-form-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))!important}
+.invoice-form-grid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))!important}
+.sales-filter-bar,.report-filter-bar{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))!important}
+.wide-2{grid-column:span 2}
+@media(max-width:780px){.wide-2{grid-column:auto!important}}
+
+/* Tables: contain, align, no clipped action columns */
+table{width:100%;border-collapse:collapse;table-layout:auto}
+th,td{padding:var(--rc1-table-pad-y) var(--rc1-table-pad-x)!important;vertical-align:middle!important;line-height:1.25!important}
+th{white-space:nowrap!important}
+td{max-width:320px;overflow-wrap:anywhere}
+td b,td small{max-width:100%;overflow-wrap:anywhere}
+td .tag,td button,.chip{white-space:nowrap}
+.employee-table-card table,.sales-table,.invoice-items-card table,.payroll-members table,.payroll-table-card table,.weekly-report-section table,.dashboard-detail-card table{
+  min-width:900px;
+}
+
+/* Compact payroll group rows */
+.payroll-members th,.payroll-members td{padding:8px 10px!important}
+.payroll-members .delete-link{min-width:64px!important;padding:6px 10px!important}
+.group-payroll-action-row{align-items:center!important;flex-wrap:wrap!important}
+.group-payroll-action-row .btn{width:auto!important}
+
+/* Sales and import preview boxes stay compact */
+.import-preview-table .data-input,.sales-data-input,.inline-edit-input{height:32px!important}
+.import-preview-table .hours-input{width:76px!important}.import-preview-table .money-input{width:88px!important}.import-preview-table .reason-input{width:135px!important}
+.sales-data-input{width:84px!important}.sales-date-input{width:126px!important}
+
+/* Dashboard/KPI alignment */
+.kpi-grid{grid-template-columns:repeat(auto-fit,minmax(175px,1fr))!important}
+.kpi-card{min-height:96px!important;height:100%;align-items:flex-start!important}
+.kpi-card strong{word-break:break-word}
+.panel-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))!important}
+
+/* Settings and two-column workspaces collapse safely */
+.workspace-grid,.employee-workspace,.clean-payroll-grid,.payroll-grid,.settings-grid,.report-fields-wrap{
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr))!important;
+}
+
+/* Global orange calendar icons, including native date controls */
+:root{--calendar-icon-color:#f59e0b}
+.strip-date-range svg,.strip-date-range .calendar-icon,.date-range svg,.date-picker svg,.date-pill svg,.date-range-field svg,
+[data-lucide="calendar"],[data-lucide="calendar-days"]{color:#f59e0b!important;stroke:#f59e0b!important}
+input[type="date"]{color-scheme:dark!important}
+input[type="date"]::-webkit-calendar-picker-indicator,
+.strip-date-range input[type="date"]::-webkit-calendar-picker-indicator,
+.page-title-strip input[type="date"]::-webkit-calendar-picker-indicator,
+.date-pill input[type="date"]::-webkit-calendar-picker-indicator,
+.date-range-field input[type="date"]::-webkit-calendar-picker-indicator{
+  opacity:1!important;cursor:pointer!important;
+  filter:invert(68%) sepia(78%) saturate(1492%) hue-rotate(358deg) brightness(101%) contrast(95%)!important;
+}
+
+/* Empty states remain clean and visible */
+.empty-panel-note,.empty-cell{color:#64748b!important;background:#f8fafc!important;border-radius:10px}
+
+@media(max-width:720px){
+  .content-area{padding:14px!important}
+  .page-title-strip{padding:12px 16px!important}
+  .page-title-strip h1{font-size:19px!important}
+  .employee-head-actions,.actions,.form-action-footer{align-items:stretch!important;justify-content:flex-start!important}
+  .employee-head-actions > *,.actions > *,.form-action-footer > *{width:100%;justify-content:center}
+  .search-box input{min-width:0!important;width:100%!important}
+  .btn{width:100%;justify-content:center}
+}
+
+
+/* RC1 Sales upload action bar visibility fix */
+.sales-action-bar,
+.sales-top-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+  margin: 0 0 14px !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+.sales-action-bar .btn,
+.sales-action-bar .file-action,
+.sales-top-actions .btn,
+.sales-top-actions .file-action {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+}
+.sales-action-bar .file-action input,
+.sales-top-actions .file-action input {
+  display: none !important;
+}
+
+/* Manual payroll entry alignment */
+.manual-payroll-card { margin-bottom: 14px; }
+.manual-payroll-grid { align-items: end; }
+.manual-payroll-grid .form-actions-inline {
+  justify-content: flex-end !important;
+  align-self: end !important;
+  min-width: 240px;
+}
+.manual-payroll-grid label { min-width: 0; }
+.manual-payroll-grid input,
+.manual-payroll-grid select { width: 100%; }
+@media (max-width: 780px) {
+  .manual-payroll-grid .form-actions-inline { min-width: 0; width: 100%; }
+}
+
+/* === RC1 DATE RANGE OVERLAP FIX - GLOBAL ===
+   Fixes Start/End date labels, native calendar icon spacing, arrows, and preset dropdowns
+   on Sales, Expenses, Reports, Payroll reports, P&L, and weekly report screens.
+*/
+.sales-filter-bar,
+.report-filter-bar,
+.enhanced-report-filter {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+}
+
+.sales-filter-bar > *,
+.report-filter-bar > *,
+.enhanced-report-filter > * {
+  min-width: 0 !important;
+}
+
+.sales-filter-bar .search-box,
+.report-filter-bar .search-box,
+.enhanced-report-filter .search-box {
+  flex: 1 1 260px !important;
+  width: auto !important;
+  min-width: 240px !important;
+  max-width: 100% !important;
+}
+
+.date-range-field {
+  flex: 0 1 245px !important;
+  width: 245px !important;
+  min-width: 220px !important;
+  max-width: 100% !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  align-items: center !important;
+  column-gap: 10px !important;
+  height: 40px !important;
+  padding: 0 12px !important;
+  overflow: hidden !important;
+}
+
+.date-range-field span {
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+
+.date-range-field input[type="date"] {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 32px !important;
+  padding: 0 26px 0 0 !important;
+  line-height: 32px !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+}
+
+.date-range-field input[type="date"]::-webkit-calendar-picker-indicator {
+  position: relative !important;
+  right: 0 !important;
+  margin-left: 4px !important;
+  flex: 0 0 auto !important;
+}
+
+.range-arrow {
+  flex: 0 0 28px !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 40px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+}
+
+.sales-filter-bar .filter-select,
+.report-filter-bar .filter-select,
+.enhanced-report-filter .filter-select,
+.header-select {
+  flex: 0 1 170px !important;
+  width: 170px !important;
+  min-width: 150px !important;
+  max-width: 100% !important;
+}
+
+.sales-filter-bar .btn,
+.report-filter-bar .btn,
+.enhanced-report-filter .btn {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 110px !important;
+}
+
+@media (max-width: 860px) {
+  .sales-filter-bar .search-box,
+  .report-filter-bar .search-box,
+  .enhanced-report-filter .search-box,
+  .date-range-field,
+  .sales-filter-bar .filter-select,
+  .report-filter-bar .filter-select,
+  .enhanced-report-filter .filter-select,
+  .sales-filter-bar .btn,
+  .report-filter-bar .btn,
+  .enhanced-report-filter .btn {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+  .range-arrow {
+    display: none !important;
+  }
+}

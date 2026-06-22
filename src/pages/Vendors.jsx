@@ -29,12 +29,17 @@ export default function Vendors({ data, setData }) {
   const [selectedIds, setSelectedIds] = useState([])
   const [bulkCategory, setBulkCategory] = useState('Food')
   const [status, setStatus] = useState('Local auto-save is active. Vendor data stays on this computer until Supabase sync is added.')
+  const [activeFilter, setActiveFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
 
-  const filtered = useMemo(() => vendors.filter(v => {
-    const q = search.toLowerCase().trim()
-    if (!q) return true
-    return [v.name, v.category, v.contact, v.phone, v.email].join(' ').toLowerCase().includes(q)
-  }), [vendors, search])
+  const filtered = useMemo(() => vendors
+    .filter(v => activeFilter === 'all' ? true : activeFilter === 'active' ? v.is_active !== false : v.is_active === false)
+    .filter(v => categoryFilter === 'all' ? true : String(v.category || '') === categoryFilter)
+    .filter(v => {
+      const q = search.toLowerCase().trim()
+      if (!q) return true
+      return [v.name, v.category, v.contact, v.phone, v.email, v.notes].join(' ').toLowerCase().includes(q)
+    }), [vendors, search, activeFilter, categoryFilter])
 
   function update(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -116,8 +121,8 @@ export default function Vendors({ data, setData }) {
       <div><h1>Vendors</h1><p>Manage vendor records and categories locally. Invoice reader and price tracking come next.</p></div>
       <div className="employee-head-actions">
         <div className="search-box"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendors..." /></div>
-        <button className="btn primary" onClick={saveVendor}><Icon name={editingId ? 'save' : 'plus'} /> {editingId ? 'Save Changes' : 'Add Vendor'}</button>
-        <button className="btn secondary" onClick={clearForm}>Clear</button>
+        <select className="filter-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">All Categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+        <select className="filter-select" value={activeFilter} onChange={e => setActiveFilter(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </div>
     </div>
     <div className="status-pill">{status}</div>
@@ -140,6 +145,7 @@ export default function Vendors({ data, setData }) {
           <div className="chip-row">{categories.map(c => { const meta = categoryMeta(c); return <button key={c} className={`chip category-chip ${meta.cls}`} onClick={() => deleteCategory(c)} title="Click to remove category"><Icon name={meta.icon} size={15} /> <span>{c}</span><Icon name="x" size={13} /></button> })}</div>
         </div>
       </div>
+      <div className="form-action-footer"><button className="btn secondary" type="button" onClick={clearForm}>{editingId ? 'Cancel Edit' : 'Clear'}</button><button className="btn primary" type="button" onClick={saveVendor}><Icon name="save" /> {editingId ? 'Update Vendor' : 'Save Vendor'}</button></div>
     </section>
 
     <section className="table-card compact-table-card employee-table-card">

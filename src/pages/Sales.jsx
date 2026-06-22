@@ -270,13 +270,25 @@ export default function Sales({ data, setData }) {
   const checkedAll = filteredSales.length > 0 && filteredSales.every(row => selectedIds.includes(row.id))
 
   return <>
-    <div className="page-head employee-head">
-      <div><h1>Sales</h1><p>Import Toast Sales Summary, review compact data, edit inline, and save sales history locally.</p></div>
-      <div className="employee-head-actions sales-top-actions">
-        <button className="btn secondary" onClick={addManualSale}><Icon name="plus" /> Manual Sales</button>
-        <label className="btn primary file-action"><Icon name="upload" /> Import Sales<input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} /></label>
-      </div>
+    <div className="sales-action-bar sales-top-actions">
+      <label className="btn secondary file-action">
+        <Icon name="upload" />
+        Upload Sales
+        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
+      </label>
+
+      <label className="btn primary file-action">
+        <Icon name="upload" />
+        Import Toast
+        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
+      </label>
+
+      <button className="btn primary" onClick={addManualSale}>
+        <Icon name="plus" />
+        Add Manual Sale
+      </button>
     </div>
+
     <div className="status-pill">{status}</div>
 
     <div className="sales-filter-bar">
