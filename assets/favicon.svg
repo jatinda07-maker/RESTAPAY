@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="RESTAPAY logo icon">
-  <rect width="128" height="128" rx="30" fill="#FFFFFF"/>
-  <path d="M27 75c6-10 68-10 74 0 3 6-12 13-37 13S24 81 27 75Z" fill="#EFF6FF" stroke="#2563EB" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M37 91c9 8 45 9 54 0" fill="none" stroke="#0F172A" stroke-width="6" stroke-linecap="round" opacity=".92"/>
-  <path d="M50 112V78h17c12 0 20 6 20 15 0 7-4 12-11 14l12 5H75L64 96h-4v16H50Zm10-24h7c5 0 8-2 8-6s-3-6-8-6h-7v12Z" fill="#2563EB"/>
-  <path d="M43 66V48c-7-2-12-8-12-15 0-9 7-16 16-16 3 0 6 1 8 2 4-8 12-13 21-13 11 0 20 7 22 17 9 1 16 8 16 17 0 10-8 18-18 18v8H43Z" fill="#FFFFFF" stroke="#0F172A" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M49 66h43M52 55c10 4 28 4 38 0M57 28c0 7 2 12 6 15M96 27c-5 0-10 3-13 7" fill="none" stroke="#2563EB" stroke-width="4" stroke-linecap="round"/>
-</svg>
