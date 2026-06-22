@@ -1,7 +1,7 @@
 import { supabase, isSupabaseReady } from './supabase'
 
 export const RESTAPAY_KEY = 'restapay_v2_local_data'
-export const RESTAPAY_SUPABASE_STATE_ID = 'main'
+export const RESTAPAY_SUPABASE_STATE_ID = 'restaurant-payroll-vendor'
 
 export const defaultData = {
   employees: [],
@@ -63,15 +63,23 @@ export function saveData(data) {
 
 export async function loadCloudData() {
   if (!isSupabaseReady) return null
+
   try {
     const { data, error } = await supabase
       .from('app_data')
-      .select('state')
+      .select('data')
       .eq('id', RESTAPAY_SUPABASE_STATE_ID)
       .maybeSingle()
 
     if (error) throw error
-    return data?.state ? mergeData(data.state) : null
+
+    const merged = data?.data ? mergeData(data.data) : null
+
+    if (merged) {
+      localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
+    }
+
+    return merged
   } catch (error) {
     console.error('Failed to read Supabase data. Falling back to localStorage.', error)
     return null
@@ -80,17 +88,24 @@ export async function loadCloudData() {
 
 export async function saveCloudData(data) {
   if (!isSupabaseReady) return { ok: false, reason: 'Supabase env vars missing' }
+
   try {
+    const merged = mergeData(data)
+
     const payload = {
       id: RESTAPAY_SUPABASE_STATE_ID,
-      state: mergeData(data),
+      data: merged,
       updated_at: new Date().toISOString()
     }
+
     const { error } = await supabase
       .from('app_data')
       .upsert(payload, { onConflict: 'id' })
 
     if (error) throw error
+
+    localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
+
     return { ok: true }
   } catch (error) {
     console.error('Failed to save Supabase data. LocalStorage backup was still saved.', error)
