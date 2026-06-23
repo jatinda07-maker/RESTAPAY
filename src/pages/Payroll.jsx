@@ -57,6 +57,7 @@ export default function Payroll({ data, setData }) {
   const [groupPayrollType, setGroupPayrollType] = useState('Cash')
   const [groupNotes, setGroupNotes] = useState('')
   const [payDate, setPayDate] = useState(today())
+  const [toastPayDate, setToastPayDate] = useState(today())
   const [groupPayDate, setGroupPayDate] = useState(today())
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [entryForm, setEntryForm] = useState({ regular_pay: '', hours: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
@@ -320,16 +321,80 @@ export default function Payroll({ data, setData }) {
 
   function savePreviewToPayroll() {
     const rows = previewRows.filter(row => row.employee_name).map(row => ({
-      id: createId('pay'), employee_id: row.employee_id, employee_name: row.employee_name, group_name: 'Toast Labor Import', pay_date: payDate,
+      id: createId('pay'), employee_id: row.employee_id, employee_name: row.employee_name, group_name: 'Toast Labor Import', pay_date: toastPayDate,
       pay_type: row.pay_type, payroll_type: row.payroll_type, hours: num(row.hours), regular_pay: num(row.regular_pay), tips: num(row.tips),
       tip_deduction: num(row.tip_deduction), extra_pay: num(row.extra_pay), extra_reason: row.extra_reason || '', total_pay: num(row.total_pay)
     }))
-    setData(prev => ({ ...prev, payrollEntries: [...rows, ...prev.payrollEntries], payrollImports: [{ id: createId('import'), date: payDate, row_count: rows.length, created_at: new Date().toISOString() }, ...prev.payrollImports] }))
+    setData(prev => ({ ...prev, payrollEntries: [...rows, ...prev.payrollEntries], payrollImports: [{ id: createId('import'), date: toastPayDate, row_count: rows.length, created_at: new Date().toISOString() }, ...prev.payrollImports] }))
     setPreviewRows([])
     setStatus(`Saved ${rows.length} imported payroll rows locally`)
   }
 
   return <>
+
+    <style>{`
+      .payroll-table-card {
+        overflow-x: auto;
+      }
+      .payroll-entries-fit-table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .payroll-entries-fit-table th,
+      .payroll-entries-fit-table td {
+        padding: 8px 8px;
+        vertical-align: middle;
+        line-height: 1.2;
+      }
+      .payroll-entries-fit-table th {
+        white-space: nowrap;
+        font-size: 11px;
+        letter-spacing: .04em;
+      }
+      .payroll-entries-fit-table .date-cell {
+        white-space: nowrap;
+        font-size: 12px;
+      }
+      .payroll-entries-fit-table .employee-name-cell,
+      .payroll-entries-fit-table .source-cell {
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: anywhere;
+      }
+      .payroll-entries-fit-table .tag {
+        white-space: nowrap;
+        padding: 4px 8px;
+        font-size: 11px;
+      }
+      .payroll-entries-fit-table .row-actions {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .payroll-entries-fit-table .row-actions button {
+        padding: 7px 10px;
+        min-width: 0;
+      }
+      .toast-import-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .toast-import-row .group-payroll-date-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+      }
+      .toast-import-row input[type="date"] {
+        min-width: 150px;
+      }
+    `}</style>
+
     <div className="page-head employee-head">
       <div><h1>Payroll</h1><p>Persistent payroll groups, editable members, one-click group payroll, and Toast Labor CSV/XLSX import.</p></div>
       <div className="employee-head-actions"><div className="date-pill"><Icon name="calendar" /> <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} /></div></div>
@@ -414,7 +479,11 @@ export default function Payroll({ data, setData }) {
 
     <section className="form-card tight-card import-card">
       <h2>Toast Labor Summary Import</h2>
-      <div className="import-row"><label className="file-button"><Icon name="upload" /> Upload CSV/XLSX<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label><span>Extracts employees, hours, tips, gross pay, uses Toast Tips Withheld when present, otherwise applies {tipRate}% withholding, then lets you edit before saving.</span></div>
+      <div className="import-row toast-import-row">
+        <label className="group-payroll-date-label">Toast payroll date <input type="date" value={toastPayDate} onChange={e => setToastPayDate(e.target.value)} /></label>
+        <label className="file-button"><Icon name="upload" /> Upload CSV/XLSX<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
+        <span>Extracts employees, hours, tips, gross pay, uses Toast Tips Withheld when present, otherwise applies {tipRate}% withholding, then lets you edit before saving.</span>
+      </div>
     </section>
 
     {previewRows.length > 0 && <section className="table-card compact-table-card import-preview-card">
@@ -427,12 +496,28 @@ export default function Payroll({ data, setData }) {
 
     <section className="table-card payroll-table-card compact-table-card">
       <header><h2>Payroll Entries</h2><span>Total ${money(totals.total)}</span></header>
-      <table><thead><tr><th>Date</th><th>Employee</th><th>Source</th><th>Pay</th><th>Method</th><th>Hours</th><th>Regular</th><th>Tips After Withheld</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th>Action</th></tr></thead><tbody>{entries.map(entry => {
+      <table className="payroll-entries-fit-table">
+        <colgroup>
+          <col style={{ width: '74px' }} />
+          <col style={{ width: '130px' }} />
+          <col style={{ width: '118px' }} />
+          <col style={{ width: '70px' }} />
+          <col style={{ width: '82px' }} />
+          <col style={{ width: '70px' }} />
+          <col style={{ width: '88px' }} />
+          <col style={{ width: '96px' }} />
+          <col style={{ width: '96px' }} />
+          <col style={{ width: '80px' }} />
+          <col style={{ width: '80px' }} />
+          <col style={{ width: '88px' }} />
+          <col style={{ width: '96px' }} />
+        </colgroup>
+        <thead><tr><th>Date</th><th>Employee</th><th>Source</th><th>Pay</th><th>Method</th><th>Hrs</th><th>Regular</th><th>Tips Net</th><th>Tips W/H</th><th>Extra</th><th>Reason</th><th>Total</th><th>Action</th></tr></thead><tbody>{entries.map(entry => {
         const isEditing = editingEntryId === entry.id
         return <tr key={entry.id} className={isEditing ? 'editing-row' : ''}>
-          <td>{isEditing ? <input className="inline-edit-input date" type="date" value={entryForm.pay_date} onChange={e => setEntryForm(prev => ({ ...prev, pay_date: e.target.value }))} /> : entry.pay_date}</td>
-          <td><b>{entry.employee_name}</b></td>
-          <td>{entry.group_name}</td>
+          <td className="date-cell">{isEditing ? <input className="inline-edit-input date" type="date" value={entryForm.pay_date} onChange={e => setEntryForm(prev => ({ ...prev, pay_date: e.target.value }))} /> : entry.pay_date}</td>
+          <td className="employee-name-cell"><b>{entry.employee_name}</b></td>
+          <td className="source-cell">{entry.group_name}</td>
           <td><span className={`tag ${String(entry.pay_type).toLowerCase()}`}>{entry.pay_type}</span></td>
           <td><span className={entry.payroll_type === 'Cash' ? 'tag cash' : 'tag check'}>{entry.payroll_type}</span></td>
           <td>{isEditing ? <input className="inline-edit-input short" type="number" step="0.01" value={entryForm.hours} onChange={e => setEntryForm(prev => ({ ...prev, hours: e.target.value }))} /> : money(entry.hours)}</td>
