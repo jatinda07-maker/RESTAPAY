@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import { createId, sortByName } from '../lib/localStore'
@@ -69,6 +69,22 @@ export default function Payroll({ data, setData }) {
   const groupMembers = employees.filter(emp => memberIds.has(emp.id))
   const availableEmployees = employees.filter(emp => !memberIds.has(emp.id))
 
+  useEffect(() => {
+    if (!selectedGroup && groups.length) {
+      setSelectedGroupId(groups[0].id)
+      return
+    }
+
+    if (availableEmployees.length && !availableEmployees.some(emp => emp.id === selectedEmployeeId)) {
+      setSelectedEmployeeId(availableEmployees[0].id)
+      return
+    }
+
+    if (!availableEmployees.length && selectedEmployeeId) {
+      setSelectedEmployeeId('')
+    }
+  }, [selectedGroupId, selectedGroup, groups, availableEmployees, selectedEmployeeId])
+
   const totals = useMemo(() => entries.reduce((acc, entry) => {
     acc.total += num(entry.total_pay)
     acc.cash += entry.payroll_type === 'Cash' ? num(entry.total_pay) : 0
@@ -106,9 +122,33 @@ export default function Payroll({ data, setData }) {
   }
 
   function addEmployeeToGroup() {
-    if (!selectedGroup || !selectedEmployeeId) return
-    setData(prev => ({ ...prev, payrollGroups: prev.payrollGroups.map(group => group.id === selectedGroup.id ? { ...group, memberIds: Array.from(new Set([...(group.memberIds || []), selectedEmployeeId])) } : group) }))
-    setStatus('Employee added to group and saved locally')
+    if (!selectedGroup) return setStatus('Select a payroll group first')
+    if (!selectedEmployeeId) return setStatus('Select an employee first')
+
+    const employeeToAdd = employees.find(emp => emp.id === selectedEmployeeId)
+    if (!employeeToAdd) return setStatus('Selected employee was not found')
+
+    const alreadyInGroup = (selectedGroup.memberIds || []).includes(selectedEmployeeId)
+    if (alreadyInGroup) {
+      const nextAvailable = availableEmployees.find(emp => emp.id !== selectedEmployeeId)
+      setSelectedEmployeeId(nextAvailable?.id || '')
+      return setStatus(`${employeeToAdd.name} is already in this group`)
+    }
+
+    setData(prev => ({
+      ...prev,
+      payrollGroups: prev.payrollGroups.map(group => {
+        if (group.id !== selectedGroup.id) return group
+        return {
+          ...group,
+          memberIds: Array.from(new Set([...(group.memberIds || []), selectedEmployeeId]))
+        }
+      })
+    }))
+
+    const nextAvailable = availableEmployees.find(emp => emp.id !== selectedEmployeeId)
+    setSelectedEmployeeId(nextAvailable?.id || '')
+    setStatus(`${employeeToAdd.name} added to ${selectedGroup.name} and saved locally`)
   }
 
   function removeFromGroup(employeeId) {
@@ -306,7 +346,7 @@ export default function Payroll({ data, setData }) {
         <div className="payroll-row"><input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Group name or rename" /><select value={groupPayrollType} onChange={e => setGroupPayrollType(e.target.value)}><option>Cash</option><option>Check</option></select></div>
         <div className="payroll-row"><input value={groupNotes} onChange={e => setGroupNotes(e.target.value)} placeholder="Group notes optional" /><button className="btn primary" onClick={createGroup}>Create</button><button className="btn secondary" onClick={renameSelectedGroup}>Rename</button><button className="btn danger" onClick={deleteGroup}>Delete</button></div>
         <div className="payroll-row group-select-row"><select value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)}>{groups.map(group => <option key={group.id} value={group.id}>{group.name} - {group.payroll_type}</option>)}</select></div>
-        <div className="payroll-row"><select value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)}>{availableEmployees.length ? availableEmployees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} - {emp.job_type}</option>) : <option>No employees available</option>}</select><button className="btn secondary" onClick={addEmployeeToGroup}>Add To Group</button></div>
+        <div className="payroll-row"><select value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)} disabled={!availableEmployees.length}>{availableEmployees.length ? availableEmployees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} - {emp.job_type}</option>) : <option value="">All active employees are already in this group</option>}</select><button className="btn secondary" onClick={addEmployeeToGroup} disabled={!selectedGroup || !selectedEmployeeId || !availableEmployees.length}>Add To Group</button></div>
       </section>
 
       <section className="table-card payroll-members compact-table-card group-editor-card">
