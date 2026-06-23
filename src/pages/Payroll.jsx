@@ -337,6 +337,7 @@ export default function Payroll({ data, setData }) {
         overflow-x: auto;
       }
       .payroll-entries-fit-table {
+        min-width: 1265px;
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
@@ -353,9 +354,18 @@ export default function Payroll({ data, setData }) {
         font-size: 11px;
         letter-spacing: .04em;
       }
-      .payroll-entries-fit-table .date-cell {
+      .payroll-entries-fit-table .date-cell,
+      .payroll-entries-fit-table .money-cell,
+      .payroll-entries-fit-table .total-cell {
         white-space: nowrap;
+        word-break: keep-all;
+        overflow-wrap: normal;
+      }
+      .payroll-entries-fit-table .date-cell {
         font-size: 12px;
+      }
+      .payroll-entries-fit-table .total-cell {
+        font-weight: 800;
       }
       .payroll-entries-fit-table .employee-name-cell,
       .payroll-entries-fit-table .source-cell {
@@ -498,19 +508,19 @@ export default function Payroll({ data, setData }) {
       <header><h2>Payroll Entries</h2><span>Total ${money(totals.total)}</span></header>
       <table className="payroll-entries-fit-table">
         <colgroup>
-          <col style={{ width: '74px' }} />
-          <col style={{ width: '130px' }} />
-          <col style={{ width: '118px' }} />
-          <col style={{ width: '70px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '140px' }} />
+          <col style={{ width: '125px' }} />
           <col style={{ width: '82px' }} />
-          <col style={{ width: '70px' }} />
-          <col style={{ width: '88px' }} />
-          <col style={{ width: '96px' }} />
-          <col style={{ width: '96px' }} />
-          <col style={{ width: '80px' }} />
-          <col style={{ width: '80px' }} />
-          <col style={{ width: '88px' }} />
-          <col style={{ width: '96px' }} />
+          <col style={{ width: '82px' }} />
+          <col style={{ width: '65px' }} />
+          <col style={{ width: '95px' }} />
+          <col style={{ width: '95px' }} />
+          <col style={{ width: '95px' }} />
+          <col style={{ width: '85px' }} />
+          <col style={{ width: '65px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '116px' }} />
         </colgroup>
         <thead><tr><th>Date</th><th>Employee</th><th>Source</th><th>Pay</th><th>Method</th><th>Hrs</th><th>Regular</th><th>Tips Net</th><th>Tips W/H</th><th>Extra</th><th>Reason</th><th>Total</th><th>Action</th></tr></thead><tbody>{entries.map(entry => {
         const isEditing = editingEntryId === entry.id
@@ -520,13 +530,13 @@ export default function Payroll({ data, setData }) {
           <td className="source-cell">{entry.group_name}</td>
           <td><span className={`tag ${String(entry.pay_type).toLowerCase()}`}>{entry.pay_type}</span></td>
           <td><span className={entry.payroll_type === 'Cash' ? 'tag cash' : 'tag check'}>{entry.payroll_type}</span></td>
-          <td>{isEditing ? <input className="inline-edit-input short" type="number" step="0.01" value={entryForm.hours} onChange={e => setEntryForm(prev => ({ ...prev, hours: e.target.value }))} /> : money(entry.hours)}</td>
-          <td>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.regular_pay} onChange={e => setEntryForm(prev => ({ ...prev, regular_pay: e.target.value }))} /> : `$${money(entry.regular_pay)}`}</td>
-          <td>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tips} onChange={e => setEntryForm(prev => ({ ...prev, tips: e.target.value }))} /> : `$${money(entry.tips)}`}</td>
-          <td>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tip_deduction} onChange={e => setEntryForm(prev => ({ ...prev, tip_deduction: e.target.value }))} /> : `$${money(entry.tip_deduction)}`}</td>
-          <td>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.extra_pay} onChange={e => setEntryForm(prev => ({ ...prev, extra_pay: e.target.value }))} /> : `$${money(entry.extra_pay)}`}</td>
+          <td className="money-cell">{isEditing ? <input className="inline-edit-input short" type="number" step="0.01" value={entryForm.hours} onChange={e => setEntryForm(prev => ({ ...prev, hours: e.target.value }))} /> : money(entry.hours)}</td>
+          <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.regular_pay} onChange={e => setEntryForm(prev => ({ ...prev, regular_pay: e.target.value }))} /> : `$${money(entry.regular_pay)}`}</td>
+          <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tips} onChange={e => setEntryForm(prev => ({ ...prev, tips: e.target.value }))} /> : `$${money(entry.tips)}`}</td>
+          <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tip_deduction} onChange={e => setEntryForm(prev => ({ ...prev, tip_deduction: e.target.value }))} /> : `$${money(entry.tip_deduction)}`}</td>
+          <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.extra_pay} onChange={e => setEntryForm(prev => ({ ...prev, extra_pay: e.target.value }))} /> : `$${money(entry.extra_pay)}`}</td>
           <td>{isEditing ? <input className="inline-edit-input reason" value={entryForm.extra_reason} onChange={e => setEntryForm(prev => ({ ...prev, extra_reason: e.target.value }))} placeholder="Optional" /> : (entry.extra_reason || '-')}</td>
-          <td><b>${isEditing ? money(num(entryForm.regular_pay) + num(entryForm.tips) + num(entryForm.extra_pay)) : money(entry.total_pay)}</b></td>
+          <td className="total-cell"><b>${isEditing ? money(num(entryForm.regular_pay) + num(entryForm.tips) + num(entryForm.extra_pay)) : money(entry.total_pay)}</b></td>
           <td className="row-actions">{isEditing ? <><button className="save-link" onClick={saveEntryEdit}>Save</button><button onClick={() => setEditingEntryId(null)}>Cancel</button></> : <><button onClick={() => startEdit(entry)}>Edit</button><button className="delete-link" onClick={() => deleteEntry(entry.id)}>Delete</button></>}</td>
         </tr>
       })}</tbody></table>
