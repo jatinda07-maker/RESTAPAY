@@ -72,7 +72,7 @@ function extractJsonText(text) {
 }
 async function extractWithGemini(file, apiKey) {
   const key = getGeminiKey(apiKey)
-  if (!key) throw new Error('Gemini API key missing. Create .env with VITE_GEMINI_API_KEY, then restart npm run dev.')
+  if (!key) throw new Error('Gemini API key missing. Add it in Settings or set VITE_GEMINI_API_KEY in Render, then redeploy.')
   const base64 = await fileToBase64(file)
   const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract invoice data from this file/image/PDF. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","total":0,"lineItems":[{"description":"","qty":0,"unit_price":0,"total":0,"category":""}]}. Use numbers only for amounts. If a field is unclear, use empty string or 0.`
   let lastError = ''
@@ -196,7 +196,7 @@ export default function Invoices({ data, setData }) {
         extracted = inferInvoiceRows(rows)
         setStatus(`Local invoice extraction completed from ${file.name}. Review and save.`)
       } else {
-        extracted = await extractWithGemini(file, import.meta?.env?.VITE_GEMINI_API_KEY)
+        extracted = await extractWithGemini(file, data.settings?.geminiApiKey)
         setStatus(`AI invoice extraction completed from ${mode === 'phone' ? 'camera capture' : file.name}. Review and save.`)
       }
       const vendorMatch = vendors.find(v => norm(v.name) === norm(extracted.vendor_name))
