@@ -84,13 +84,13 @@ export async function loadCloudData() {
   try {
     const { data, error } = await supabase
       .from('app_data')
-      .select('state')
+      .select('data')
       .eq('id', RESTAPAY_SUPABASE_STATE_ID)
       .maybeSingle()
 
     if (error) throw error
 
-    const merged = data?.state && hasMeaningfulData(data.state) ? mergeData(data.state) : null
+    const merged = data?.data && hasMeaningfulData(data.data) ? mergeData(data.data) : null
 
     if (merged) {
       localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
@@ -335,7 +335,7 @@ export async function saveCloudData(data) {
 
     const payload = {
       id: RESTAPAY_SUPABASE_STATE_ID,
-      state: merged,
+      data: merged,
       updated_at: new Date().toISOString()
     }
 

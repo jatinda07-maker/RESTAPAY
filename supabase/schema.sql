@@ -29,12 +29,12 @@ drop table if exists public.app_data cascade;
 -- It stores the complete application state as JSON so all modules sync online immediately.
 create table public.app_data (
   id text primary key default 'main',
-  state jsonb not null default '{}',
+  data jsonb not null default '{}',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
-insert into public.app_data(id, state)
+insert into public.app_data(id, data)
 values ('main', '{}')
 on conflict (id) do nothing;
 
