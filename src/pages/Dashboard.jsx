@@ -50,10 +50,10 @@ function normalizeSpendCategory(value) {
   if (text.includes('food') || text.includes('meat') || text.includes('produce') || text.includes('grocery')) return 'Food'
   if (text.includes('beer')) return 'Beer'
   if (text.includes('liquor') || text.includes('wine') || text.includes('alcohol')) return 'Liquor'
-  if (text.includes('beverage') || text.includes('soda') || text.includes('drink') || text.includes('coffee')) return 'Beverage'
-  if (text.includes('suppl')) return 'Supplies'
+  if (text.includes('beverage') || text.includes('soda') || text.includes('drink') || text.includes('coffee') || text.includes('tea') || text.includes('juice')) return 'Beverage'
+  if (text.includes('suppl') || text.includes('glove') || text.includes('napkin') || text.includes('straw') || text.includes('bag') || text.includes('container') || text.includes('paper') || text.includes('chemical') || text.includes('soap')) return 'Supplies'
   if (text.includes('util') || text.includes('electric') || text.includes('gas') || text.includes('water')) return 'Utilities'
-  if (text.includes('maint') || text.includes('repair')) return 'Maintenance'
+  if (text.includes('maint') || text.includes('repair') || text.includes('service')) return 'Maintenance'
   if (text.includes('insurance')) return 'Insurance'
   if (text.includes('account')) return 'Accounting Fees'
   if (text.includes('loan') || text.includes('mortgage')) return 'Loans'
@@ -66,20 +66,9 @@ function inferItemCategory(row, invoice = {}) {
   const explicit = rowCategory(row) || row.category || invoice.category
   const description = String(row.description || row.item_name || row.item || row.name || '').toLowerCase()
   const combined = `${String(explicit || '').toLowerCase()} ${description}`
-
-  if (combined.includes('beer')) return 'Beer'
-  if (combined.includes('liquor') || combined.includes('wine') || combined.includes('vodka') || combined.includes('tequila') || combined.includes('whiskey') || combined.includes('rum')) return 'Liquor'
-  if (combined.includes('beverage') || combined.includes('soda') || combined.includes('coke') || combined.includes('pepsi') || combined.includes('juice') || combined.includes('drink') || combined.includes('coffee') || combined.includes('tea')) return 'Beverage'
-  if (combined.includes('suppl') || combined.includes('glove') || combined.includes('napkin') || combined.includes('straw') || combined.includes('bag') || combined.includes('container') || combined.includes('paper') || combined.includes('chemical') || combined.includes('soap')) return 'Supplies'
-  if (combined.includes('maint') || combined.includes('repair') || combined.includes('service')) return 'Maintenance'
-  if (combined.includes('util') || combined.includes('electric') || combined.includes('gas') || combined.includes('water')) return 'Utilities'
-  if (combined.includes('insurance')) return 'Insurance'
-  if (combined.includes('account')) return 'Accounting Fees'
-  if (combined.includes('loan')) return 'Loans'
-  if (combined.includes('food') || combined.includes('meat') || combined.includes('produce') || combined.includes('grocery') || combined.includes('chicken') || combined.includes('beef') || combined.includes('fish') || combined.includes('rice') || combined.includes('oil') || combined.includes('flour') || combined.includes('cheese') || combined.includes('sauce')) return 'Food'
-
-  return normalizeSpendCategory(explicit || 'Other')
+  return normalizeSpendCategory(combined || explicit || 'Other')
 }
+
 
 function KpiCard({ item, onClick, derived }) {
   const [title, value, meta, icon, tone] = item
@@ -101,7 +90,6 @@ function KpiCard({ item, onClick, derived }) {
       {isCashCollected && derived ? <div className="sales-breakdown-mini">
         <div className="sales-breakdown-mini-row"><span>Uploaded Sales Rows</span><b>{derived.monthSales.length}</b></div>
         <div className="sales-breakdown-mini-row"><span>Cash Sales</span><b>{money(derived.cashMonth)}</b></div>
-        <div className="sales-breakdown-mini-row"><span>This Month Range</span><b>{derived.monthSales.length ? 'Active' : 'No Data'}</b></div>
       </div> : null}
     </div>
   </button>
@@ -154,33 +142,53 @@ export default function Dashboard({ data, setActive }) {
       return thisMonth(row.invoice_date || row.date || row.created_at || inv.invoice_date || inv.date)
     })
     const monthExpenses = expenseRows.filter(row => thisMonth(row.date || row.expense_date))
+
     const salesToday = todaySales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const salesWeek = weekSales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const salesMonth = monthSales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const cashMonth = monthSales.reduce((sum, row) => sum + num(row.cash_sales), 0)
-    const tipsMonth = monthSales.reduce((sum, row) => sum + num(row.tips), 0)
     const taxMonth = monthSales.reduce((sum, row) => sum + num(row.tax), 0)
+    const tipsMonth = monthSales.reduce((sum, row) => sum + num(row.tips), 0)
     const tipsWithheldMonth = monthSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
     const tipsAfterWithholdingMonth = tipsMonth - tipsWithheldMonth
     const trueNetSalesMonth = salesMonth - taxMonth - tipsAfterWithholdingMonth
+
     const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
     const payrollMonth = monthPayroll.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
     const invoiceSpend = monthInvoices.reduce((sum, row) => sum + invoiceTotal(row), 0)
     const expenseSpend = monthExpenses.reduce((sum, row) => sum + num(row.amount), 0)
-    const foodFromItems = monthInvoiceItems.filter(row => {
+
+    const invoicesWithLineItems = new Set(monthInvoiceItems.map(item => item.invoice_id).filter(Boolean))
+    const invoiceItemCategorySpend = monthInvoiceItems.map(row => {
       const inv = invoiceById[row.invoice_id] || {}
-      return inferItemCategory(row, inv) === 'Food'
-    }).reduce((sum, row) => sum + itemAmount(row), 0)
-    const foodFromInvoices = monthInvoices.filter(row => !invoicesWithLineItems.has(row.id) && normalizeSpendCategory(rowCategory(row)) === 'Food').reduce((sum, row) => sum + invoiceTotal(row), 0)
-    const foodSpend = foodFromItems > 0 ? foodFromItems : foodFromInvoices
+      return {
+        ...row,
+        source: 'Invoice Item',
+        vendor: inv.vendor || inv.vendor_name || row.vendor || row.vendor_name,
+        amount: itemAmount(row),
+        category: inferItemCategory(row, inv),
+        date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date'])
+      }
+    }).filter(row => num(row.amount) > 0)
+
+    const invoiceHeaderCategorySpend = monthInvoices
+      .filter(row => !invoicesWithLineItems.has(row.id))
+      .map(row => ({ ...row, source: 'Invoice', amount: invoiceTotal(row), category: normalizeSpendCategory(rowCategory(row)), date: rowDate(row, ['invoice_date', 'date']) }))
+
+    const expenseCategorySpend = monthExpenses.map(row => ({ ...row, source: 'Expense', amount: num(row.amount), category: normalizeSpendCategory(rowCategory(row)), date: rowDate(row, ['date', 'expense_date']) }))
+    const expensesFromInvoiceCategories = [...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend, ...expenseCategorySpend]
+
+    const foodFromItems = invoiceItemCategorySpend.filter(row => row.category === 'Food').reduce((sum, row) => sum + num(row.amount), 0)
+    const foodFromInvoices = invoiceHeaderCategorySpend.filter(row => row.category === 'Food').reduce((sum, row) => sum + num(row.amount), 0)
+    const foodSpend = foodFromItems + foodFromInvoices
     const foodCostPercent = salesMonth > 0 ? (foodSpend / salesMonth) * 100 : 0
-    const expensesFromInvoiceCategories = [...monthInvoices.map(row => ({...row, source: 'Invoice', amount: invoiceTotal(row), category: normalizeSpendCategory(rowCategory(row)), date: rowDate(row, ['invoice_date', 'date']) })), ...monthExpenses.map(row => ({...row, source: 'Expense', amount: num(row.amount), category: normalizeSpendCategory(rowCategory(row)), date: rowDate(row, ['date', 'expense_date']) }))]
+
     const totalExpensesAll = expensesFromInvoiceCategories.reduce((sum, row) => sum + num(row.amount), 0)
     const profit = salesMonth - payrollMonth - totalExpensesAll
     const categoryMap = new Map()
     expensesFromInvoiceCategories.forEach(row => {
-      const key = categoryKey(row.category)
+      const key = normalizeSpendCategory(row.category)
       categoryMap.set(key, (categoryMap.get(key) || 0) + num(row.amount))
     })
     SPEND_CATEGORY_ORDER.forEach(category => { if (!categoryMap.has(category)) categoryMap.set(category, 0) })
@@ -192,13 +200,15 @@ export default function Dashboard({ data, setActive }) {
         return b[1] - a[1]
       })
       .map(([category, amount]) => ({ id: `cat-${category}`, category, amount }))
-    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, cashMonth, tipsMonth, taxMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, expensesFromInvoiceCategories }
+
+    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, expensesFromInvoiceCategories }
   }, [salesDays, payroll, invoices, invoiceItems, expenseRows])
 
   const kpiItems = [
     ['Sales Today', money(derived.salesToday), noThisPeriod(derived.todaySales, 'sales', 'today'), 'cart', 'green', 'sales-today'],
     ['Sales This Week', money(derived.salesWeek), noThisPeriod(derived.weekSales, 'sales', 'this week'), 'store', 'blue', 'sales-week'],
     ['Sales This Month', money(derived.trueNetSalesMonth), `${derived.monthSales.length} rows`, 'calendar', 'purple', 'sales-month'],
+    ['Cash Collected', money(derived.cashMonth), `${derived.monthSales.length} uploaded sales rows`, 'dollar', 'green', 'cash-collected'],
     ['Profit / Loss', money(derived.profit), 'Sales - payroll - expenses - invoices', 'dollar', 'teal', 'profit-loss'],
     ['Cash Payroll', money(derived.cashPayroll), emptyLabel(derived.cashPayrollRows, 'cash payroll'), 'payroll', 'orange', 'cash-payroll'],
     ['Check Payroll', money(derived.checkPayroll), emptyLabel(derived.checkPayrollRows, 'check payroll'), 'card', 'blue', 'check-payroll'],
@@ -267,56 +277,21 @@ export default function Dashboard({ data, setActive }) {
 
   return <>
     <style>{`
-      .dashboard-sales-breakdown {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(160px, 1fr));
-        gap: 14px;
-        margin: 14px 0 18px;
-      }
-      .dashboard-sales-breakdown > div {
-        border: 1px solid #b8c9df;
-        border-radius: 16px;
-        background: #fff;
-        padding: 16px 18px;
-      }
-      .dashboard-sales-breakdown span {
-        display: block;
-        color: #5f6f86;
-        font-weight: 700;
-        font-size: 13px;
-        margin-bottom: 6px;
-      }
-      .dashboard-sales-breakdown b {
-        display: block;
-        color: #001b3d;
-        font-size: 22px;
-        line-height: 1.1;
-        white-space: nowrap;
-      }
-      @media (max-width: 900px) {
-        .dashboard-sales-breakdown {
-          grid-template-columns: repeat(2, minmax(160px, 1fr));
-        }
-      }
-      @media (max-width: 520px) {
-        .dashboard-sales-breakdown {
-          grid-template-columns: 1fr;
-        }
-      }
-
       .dashboard-click-card.sales-month-enhanced,
       .dashboard-click-card.cash-collected-enhanced {
         align-items: flex-start;
         min-height: 250px;
       }
-      .dashboard-click-card.sales-month-enhanced > div:last-child {
+      .dashboard-click-card.sales-month-enhanced > div:last-child,
+      .dashboard-click-card.cash-collected-enhanced > div:last-child {
         width: 100%;
       }
-      .dashboard-click-card.sales-month-enhanced strong {
+      .dashboard-click-card.sales-month-enhanced strong,
+      .dashboard-click-card.cash-collected-enhanced strong {
         display: block;
         margin-bottom: 6px;
       }
-      .dashboard-click-card.sales-month-enhanced .sales-breakdown-mini {
+      .sales-breakdown-mini {
         margin-top: 14px;
         border-top: 1px solid #e4ecf5;
         padding-top: 12px;
@@ -324,7 +299,7 @@ export default function Dashboard({ data, setActive }) {
         gap: 9px;
         width: 100%;
       }
-      .dashboard-click-card.sales-month-enhanced .sales-breakdown-mini-row {
+      .sales-breakdown-mini-row {
         display: flex;
         justify-content: space-between;
         gap: 12px;
@@ -332,12 +307,12 @@ export default function Dashboard({ data, setActive }) {
         font-size: 13px;
         line-height: 1.25;
       }
-      .dashboard-click-card.sales-month-enhanced .sales-breakdown-mini-row b {
+      .sales-breakdown-mini-row b {
         color: #001b3d;
         font-weight: 700;
         white-space: nowrap;
       }
-      .dashboard-click-card.sales-month-enhanced .net-formula-mini {
+      .net-formula-mini {
         margin-top: 10px;
         padding: 9px 10px;
         border-radius: 12px;
@@ -347,13 +322,11 @@ export default function Dashboard({ data, setActive }) {
         font-weight: 700;
       }
     `}</style>
-
     <div className="page-head">
       <div><h1>Good morning, Admin 👋</h1><p>Live dashboard using only data entered/imported in RestaPay.</p></div>
       <div className="actions"><button className="btn secondary" onClick={() => openScreen('sales')}><Icon name="upload" /> Import Sales</button><button className="btn secondary" onClick={() => openScreen('invoices')}><Icon name="invoices" /> Add Invoice</button><button className="btn primary" onClick={() => openScreen('expenses')}><Icon name="plus" /> Add Expense</button></div>
     </div>
     <div className="kpi-grid">{kpiItems.map((item) => <KpiCard key={item[0]} item={item} derived={derived} onClick={() => showDetail(item[5])} />)}</div>
-
     <div className="panel-grid"><ListPanel title="Sales Summary" rows={salesSummary} type="sales" onViewAll={() => showDetail('sales-month')} /><ListPanel title="Recent Invoices" rows={invoiceRows} onViewAll={() => showDetail('invoices')} /><ListPanel title="Recent Expenses" rows={recentExpenses} type="expenses" onViewAll={() => showDetail('expense-categories')} /></div>
     <div className="bottom-strip">
       {[["Employees", String(employees.length), 'Total','employees','employees'],['Active Vendors',String(vendors.length),'Vendors','vendors','vendors'],['Open Invoices',String(invoices.length),money(invoices.reduce((s, r) => s + invoiceTotal(r), 0)),'invoices','invoices'],['Expenses Categories',String(derived.categoryRows.length),money(derived.totalExpensesAll),'expenses','expense-categories'],['Sales Rows',String(salesDays.length),'Saved locally','reports','sales-month'],['Payroll Groups',String(groups.length),'Active','payroll','cash-payroll']].map(x => <button className="strip-item dashboard-strip-button" key={x[0]} onClick={() => showDetail(x[4])}><Icon name={x[3]} /><div><span>{x[0]}</span><b>{x[1]}</b><small>{x[2]}</small></div></button>)}
