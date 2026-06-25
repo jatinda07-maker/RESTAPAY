@@ -45,8 +45,23 @@ function defaultRegularPay(employee, imported = {}) {
   return num(imported.gross_pay)
 }
 
+function normalizeType(value, options = []) {
+  const raw = String(value || '').trim()
+  if (!raw) return options[0] || 'Regular'
+  const match = options.find(item => String(item).toLowerCase() === raw.toLowerCase())
+  return match || raw
+}
+
+function employeeAssignmentLabel(employee, groups = []) {
+  if (!employee) return 'Unmatched Import'
+  const assignedGroups = groups.filter(group => (group.memberIds || []).includes(employee.id)).map(group => group.name).filter(Boolean)
+  if (assignedGroups.length) return assignedGroups.join(', ')
+  return employee.job_type || employee.employee_type || 'Employee List'
+}
+
 export default function Payroll({ data, setData }) {
   const employees = sortByName((data.employees || []).filter(emp => emp.is_active !== false))
+  const employeeTypeOptions = data.employeeTypes?.length ? data.employeeTypes : ['Regular', 'Manager', 'Kitchen', 'Front House', 'Seasonal', 'Other']
   const groups = sortByName(data.payrollGroups || [])
   const entries = data.payrollEntries || []
   const tipRate = num(data.settings?.tipWithholdingRate ?? 3.5)
@@ -284,6 +299,10 @@ export default function Payroll({ data, setData }) {
         employee_id: employee?.id || '',
         employee_name: employee?.name || cleanName || rawName,
         raw_name: rawName,
+        is_new_employee: !employee,
+        employee_type: normalizeType(employee?.employee_type || findValue(row, ['Employee Type', 'Type', 'Job Type', 'Role', 'Department']), employeeTypeOptions),
+        job_type: employee?.job_type || '',
+        assignment_label: employeeAssignmentLabel(employee, groups),
         hours: money(hours),
         rate: money(rate),
         regular_pay: money(regular),
@@ -309,8 +328,10 @@ export default function Payroll({ data, setData }) {
       const next = { ...row, [field]: value }
       if (field === 'employee_id') {
         const emp = employees.find(item => item.id === value)
-        if (emp) Object.assign(next, { employee_name: emp.name, pay_type: emp.pay_type, payroll_type: emp.payroll_type })
+        if (emp) Object.assign(next, { employee_name: emp.name, pay_type: emp.pay_type, payroll_type: emp.payroll_type, employee_type: emp.employee_type || next.employee_type, job_type: emp.job_type || next.job_type, assignment_label: employeeAssignmentLabel(emp, groups), is_new_employee: false })
+        if (!value) Object.assign(next, { is_new_employee: true, assignment_label: 'New Employee Import' })
       }
+      if (field === 'employee_type') next.employee_type = normalizeType(value, employeeTypeOptions)
       const regular = round2(num(next.regular_pay))
       const tips = round2(num(next.tips))
       const deduction = round2(num(next.tip_deduction))
@@ -320,14 +341,49 @@ export default function Payroll({ data, setData }) {
   }
 
   function savePreviewToPayroll() {
-    const rows = previewRows.filter(row => row.employee_name).map(row => ({
-      id: createId('pay'), employee_id: row.employee_id, employee_name: row.employee_name, group_name: 'Toast Labor Import', pay_date: toastPayDate,
-      pay_type: row.pay_type, payroll_type: row.payroll_type, hours: num(row.hours), regular_pay: num(row.regular_pay), tips: num(row.tips),
-      tip_deduction: num(row.tip_deduction), extra_pay: num(row.extra_pay), extra_reason: row.extra_reason || '', total_pay: num(row.total_pay)
-    }))
-    setData(prev => ({ ...prev, payrollEntries: [...rows, ...prev.payrollEntries], payrollImports: [{ id: createId('import'), date: toastPayDate, row_count: rows.length, created_at: new Date().toISOString() }, ...prev.payrollImports] }))
+    const importId = createId('import')
+    const sourceRows = previewRows.filter(row => String(row.employee_name || '').trim())
+    setData(prev => {
+      const existingEmployees = prev.employees || []
+      const newEmployees = []
+      const rows = sourceRows.map(row => {
+        let employee = existingEmployees.find(emp => emp.id === row.employee_id)
+        let employeeId = row.employee_id
+        let employeeName = String(row.employee_name || '').trim()
+        if (!employee) {
+          employeeId = createId('emp')
+          const employeeType = normalizeType(row.employee_type, employeeTypeOptions)
+          employee = {
+            id: employeeId,
+            name: employeeName,
+            employee_type: employeeType,
+            job_type: row.job_type || employeeType,
+            pay_type: row.pay_type || 'Tips',
+            payroll_type: row.payroll_type || 'Check',
+            base_pay: num(row.rate),
+            extra_pay: 0,
+            extra_reason: '',
+            is_active: true,
+            created_from: 'payroll_import'
+          }
+          newEmployees.push(employee)
+        }
+        const sourceLabel = employeeAssignmentLabel(employee, prev.payrollGroups || [])
+        return {
+          id: createId('pay'), employee_id: employeeId, employee_name: employee.name || employeeName, group_name: sourceLabel, pay_date: toastPayDate,
+          pay_type: employee.pay_type || row.pay_type, payroll_type: employee.payroll_type || row.payroll_type, hours: num(row.hours), regular_pay: num(row.regular_pay), tips: num(row.tips),
+          tip_deduction: num(row.tip_deduction), extra_pay: num(row.extra_pay), extra_reason: row.extra_reason || '', total_pay: num(row.total_pay)
+        }
+      })
+      return {
+        ...prev,
+        employees: sortByName([...existingEmployees, ...newEmployees]),
+        payrollEntries: [...rows, ...(prev.payrollEntries || [])],
+        payrollImports: [{ id: importId, date: toastPayDate, row_count: rows.length, new_employee_count: newEmployees.length, created_at: new Date().toISOString() }, ...(prev.payrollImports || [])]
+      }
+    })
     setPreviewRows([])
-    setStatus(`Saved ${rows.length} imported payroll rows locally`)
+    setStatus(`Saved ${sourceRows.length} imported payroll rows and added unmatched employees to the employee list`)
   }
 
   return <>
@@ -492,14 +548,16 @@ export default function Payroll({ data, setData }) {
       <div className="import-row toast-import-row">
         <label className="group-payroll-date-label">Toast payroll date <input type="date" value={toastPayDate} onChange={e => setToastPayDate(e.target.value)} /></label>
         <label className="file-button"><Icon name="upload" /> Upload CSV/XLSX<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
-        <span>Extracts employees, hours, tips, gross pay, uses Toast Tips Withheld when present, otherwise applies {tipRate}% withholding, then lets you edit before saving.</span>
+        <span>Extracts employees, hours, tips, gross pay, uses Toast Tips Withheld when present, otherwise applies {tipRate}% withholding, then matches employees to your project employee list and lets you choose a project employee type before saving.</span>
       </div>
     </section>
 
     {previewRows.length > 0 && <section className="table-card compact-table-card import-preview-card">
       <header><h2>Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreviewToPayroll}>Add To Payroll</button></span></header>
-      <table className="import-preview-table"><thead><tr><th>Employee</th><th>Hours</th><th>Regular</th><th>Tips After Withheld</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
-        <td><select value={row.employee_id} onChange={e => updatePreview(row.id, 'employee_id', e.target.value)}><option value="">{row.employee_name || 'Match employee'}</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></td>
+      <table className="import-preview-table"><thead><tr><th>Employee</th><th>Employee Type</th><th>Assignment Source</th><th>Hours</th><th>Regular</th><th>Tips After Withheld</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
+        <td><select value={row.employee_id} onChange={e => updatePreview(row.id, 'employee_id', e.target.value)}><option value="">{row.employee_name || 'New / unmatched employee'}</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></td>
+        <td><select value={row.employee_type || 'Regular'} onChange={e => updatePreview(row.id, 'employee_type', e.target.value)}>{employeeTypeOptions.map(type => <option key={type} value={type}>{type}</option>)}</select></td>
+        <td><span className={row.is_new_employee ? 'tag seasonal' : 'tag regular'}>{row.is_new_employee ? 'Add to Employee List' : row.assignment_label}</span></td>
         <td><input className="data-input hours-input" type="number" step="0.01" value={row.hours} onChange={e => updatePreview(row.id, 'hours', e.target.value)} onBlur={e => updatePreview(row.id, 'hours', money(e.target.value))} /></td><td><input className="data-input money-input" type="number" step="0.01" value={row.regular_pay} onChange={e => updatePreview(row.id, 'regular_pay', e.target.value)} onBlur={e => updatePreview(row.id, 'regular_pay', money(e.target.value))} /></td><td><input className="data-input tips-input" type="number" step="0.01" value={row.tips} onChange={e => updatePreview(row.id, 'tips', e.target.value)} onBlur={e => updatePreview(row.id, 'tips', money(e.target.value))} /></td><td><input className="data-input money-input" type="number" step="0.01" value={row.tip_deduction} onChange={e => updatePreview(row.id, 'tip_deduction', e.target.value)} onBlur={e => updatePreview(row.id, 'tip_deduction', money(e.target.value))} /></td><td><input className="data-input extra-input" type="number" step="0.01" value={row.extra_pay} onChange={e => updatePreview(row.id, 'extra_pay', e.target.value)} onBlur={e => updatePreview(row.id, 'extra_pay', money(e.target.value))} /></td><td><input className="data-input reason-input" value={row.extra_reason} onChange={e => updatePreview(row.id, 'extra_reason', e.target.value)} placeholder="Optional" /></td><td><b>${money(row.total_pay)}</b></td><td><button className="delete-link" onClick={() => setPreviewRows(prev => prev.filter(item => item.id !== row.id))}>Remove</button></td>
       </tr>)}</tbody></table>
     </section>}
