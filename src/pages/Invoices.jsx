@@ -55,12 +55,13 @@ async function fileToBase64(file) {
     reader.readAsDataURL(file)
   })
 }
-const DEFAULT_GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash']
+
+const DEFAULT_GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
 function getGeminiKey(localKey = '') {
-  return clean(localKey) || clean(import.meta?.env?.VITE_GEMINI_API_KEY)
+  return clean(localKey) || clean(import.meta.env.VITE_GEMINI_API_KEY)
 }
 function getGeminiModels() {
-  const envModel = clean(import.meta?.env?.VITE_GEMINI_MODEL)
+  const envModel = clean(import.meta.env.VITE_GEMINI_MODEL)
   return envModel ? [envModel, ...DEFAULT_GEMINI_MODELS.filter(m => m !== envModel)] : DEFAULT_GEMINI_MODELS
 }
 function extractJsonText(text) {
@@ -72,27 +73,43 @@ function extractJsonText(text) {
 }
 async function extractWithGemini(file, apiKey) {
   const key = getGeminiKey(apiKey)
-  if (!key) throw new Error('Gemini API key missing. Add it in Settings or set VITE_GEMINI_API_KEY in Render, then redeploy.')
+  if (!key) throw new Error('Gemini API key missing. Set VITE_GEMINI_API_KEY in Render, save, then Clear build cache & deploy.')
+
   const base64 = await fileToBase64(file)
   const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract invoice data from this file/image/PDF. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","total":0,"lineItems":[{"description":"","qty":0,"unit_price":0,"total":0,"category":""}]}. Use numbers only for amounts. If a field is unclear, use empty string or 0.`
   let lastError = ''
+
   for (const model of getGeminiModels()) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: file.type || 'application/octet-stream', data: base64 } }] }],
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: file.type || 'application/octet-stream', data: base64 } }
+          ]
+        }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
       })
     })
+
     if (!res.ok) {
       const errorText = await res.text().catch(() => '')
-      lastError = `Gemini ${model} failed: ${res.status}${errorText ? ' - ' + errorText.slice(0, 120) : ''}`
+      lastError = `Gemini ${model} failed: ${res.status}${errorText ? ' - ' + errorText.slice(0, 200) : ''}`
       if (res.status === 404) continue
+      if (res.status === 400) throw new Error(`${lastError}. Check file type and Gemini model.`)
+      if (res.status === 401 || res.status === 403) throw new Error(`${lastError}. Check your Gemini API key permissions.`)
       throw new Error(lastError)
     }
+
     const json = await res.json()
     const text = json?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('\n') || ''
+    if (!text) {
+      lastError = `Gemini ${model} returned no text.`
+      continue
+    }
     const parsed = JSON.parse(extractJsonText(text))
     return {
       ...parsed,
@@ -117,13 +134,10 @@ export default function Invoices({ data, setData }) {
   const [editingId, setEditingId] = useState(null)
   const [lineItems, setLineItems] = useState([])
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('Upload CSV/XLSX for local extraction. PDF/image/phone capture uses Gemini from .env when local extraction cannot read it.')
+  const [status, setStatus] = useState('Upload CSV/XLSX for local extraction. PDF/image/phone capture uses Gemini from Render env.')
   const localUploadRef = useRef(null)
   const aiUploadRef = useRef(null)
   const phoneRef = useRef(null)
-console.log("VITE_GEMINI_API_KEY =", import.meta.env.VITE_GEMINI_API_KEY)
-console.log("VITE_GEMINI_MODEL =", import.meta.env.VITE_GEMINI_MODEL)
-console.log("import.meta.env =", import.meta.env)
 
   const filtered = useMemo(() => invoices.filter(inv => {
     const q = search.toLowerCase().trim()
@@ -168,7 +182,7 @@ console.log("import.meta.env =", import.meta.env)
       const invoice = { ...payload, id, created_at: new Date().toISOString() }
       return { ...prev, invoices: [...current, invoice], invoiceItems: [...currentItems, ...lineItems.map(item => ({ ...item, invoice_id: id }))] }
     })
-    setStatus(editingId ? `Invoice updated: ${vendorName}` : `Invoice saved locally: ${vendorName}`)
+    setStatus(editingId ? `Invoice updated: ${vendorName}` : `Invoice saved: ${vendorName}`)
     clearForm()
   }
   function editInvoice(inv) {
@@ -181,7 +195,7 @@ console.log("import.meta.env =", import.meta.env)
   function deleteInvoice(id) {
     setData(prev => ({ ...prev, invoices: (prev.invoices || []).filter(inv => inv.id !== id), invoiceItems: (prev.invoiceItems || []).filter(item => item.invoice_id !== id) }))
     if (editingId === id) clearForm()
-    setStatus('Invoice deleted locally')
+    setStatus('Invoice deleted')
   }
   async function handleFile(file, mode = 'smart-ai') {
     if (!file) return
@@ -206,7 +220,8 @@ console.log("import.meta.env =", import.meta.env)
       setForm(prev => ({ ...prev, ...blankInvoice, ...extracted, vendor_id: vendorMatch?.id || '', vendor_name: extracted.vendor_name || vendorMatch?.name || '', category: extracted.category || vendorMatch?.category || 'Food', total: money(extracted.total), status: 'Review', source: ext || mode, file_name: file.name || 'phone-capture' }))
       setLineItems((extracted.lineItems || []).map(item => ({ id: item.id || createId('item'), description: clean(item.description), qty: Number(item.qty || 1), unit_price: Number(item.unit_price || 0), total: Number(item.total || 0), category: item.category || extracted.category || 'Food' })))
     } catch (err) {
-      setStatus(err.message || 'Invoice extraction failed. Enter manually or add Gemini API key.')
+      console.error(err)
+      setStatus(err.message || 'Invoice extraction failed. Enter manually or check Gemini API key.')
     } finally {
       if (localUploadRef.current) localUploadRef.current.value = ''
       if (aiUploadRef.current) aiUploadRef.current.value = ''
@@ -216,20 +231,14 @@ console.log("import.meta.env =", import.meta.env)
 
   return <>
     <div className="page-head employee-head">
-      <div><h1>Invoices</h1><p>Upload invoices, review extracted data, and save clean vendor invoice history locally.</p></div>
-      <div className="employee-head-actions">
-        <div className="search-box"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices..." /></div>
-
-      </div>
+      <div><h1>Invoices</h1><p>Upload invoices, review extracted data, and save clean vendor invoice history.</p></div>
+      <div className="employee-head-actions"><div className="search-box"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices..." /></div></div>
     </div>
     <div className="status-pill">{status}</div>
 
     <section className="form-card tight-card invoice-form-card">
       <div className="invoice-toolbar">
-        <div>
-          <h2>{editingId ? 'Edit Invoice' : 'Invoice Review / Manual Entry'}</h2>
-          <span className="ai-env-note">AI OCR uses Gemini from Settings / .env</span>
-        </div>
+        <div><h2>{editingId ? 'Edit Invoice' : 'Invoice Review / Manual Entry'}</h2><span className="ai-env-note">AI OCR uses Gemini from Render environment variables.</span></div>
         <div className="invoice-upload-actions">
           <label className="btn secondary file-action"><Icon name="upload" /> Local Upload<input ref={localUploadRef} type="file" accept=".csv,.xlsx,.xls" onChange={e => handleFile(e.target.files?.[0], 'local')} /></label>
           <label className="btn primary file-action"><Icon name="upload" /> Smart AI Upload<input ref={aiUploadRef} type="file" accept=".pdf,image/*" onChange={e => handleFile(e.target.files?.[0], 'smart-ai')} /></label>
@@ -262,7 +271,7 @@ console.log("import.meta.env =", import.meta.env)
     </section>
 
     <section className="table-card compact-table-card employee-table-card">
-      <header><h2>Invoice List</h2><span>{filtered.length} invoices · Local data</span></header>
+      <header><h2>Invoice List</h2><span>{filtered.length} invoices</span></header>
       <table><thead><tr><th>Vendor</th><th>Invoice #</th><th>Date</th><th>Category</th><th>Total</th><th>Status</th><th>Source</th><th>Action</th></tr></thead><tbody>{filtered.map(inv => <tr key={inv.id}>
         <td><b>{inv.vendor_name}</b><small>{inv.notes || inv.file_name || 'No notes'}</small></td>
         <td>{inv.invoice_number || '-'}</td><td>{inv.invoice_date || '-'}</td><td><span className="tag neutral">{inv.category}</span></td><td>${money(inv.total)}</td><td><span className="tag cash">{inv.status}</span></td><td>{inv.source || 'Manual'}</td>
