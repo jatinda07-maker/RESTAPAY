@@ -83,13 +83,13 @@ function KpiCard({ item, onClick, derived }) {
       <p className={title.includes('Loss') || title.includes('Refund') ? 'down' : ''}>{meta}</p>
       {isSalesMonth && derived ? <div className="sales-breakdown-mini">
         <div className="sales-breakdown-mini-row"><span>Sales Tax</span><b>{money(derived.taxMonth)}</b></div>
-        <div className="sales-breakdown-mini-row"><span>Tips After Withholding</span><b>{money(derived.tipsAfterWithholdingMonth)}</b></div>
+        <div className="sales-breakdown-mini-row"><span>Tips Net</span><b>{money(derived.tipsAfterWithholdingMonth)}</b></div>
         <div className="sales-breakdown-mini-row"><span>Tips Withheld</span><b>{money(derived.tipsWithheldMonth)}</b></div>
-        <div className="net-formula-mini">Net Sales = Sales - Tax - Tips</div>
+        <div className="net-formula-mini">Net = Sales - Tax - Tips</div>
       </div> : null}
       {isCashCollected && derived ? <div className="sales-breakdown-mini">
-        <div className="sales-breakdown-mini-row"><span>Uploaded Sales Rows</span><b>{derived.monthSales.length}</b></div>
-        <div className="sales-breakdown-mini-row"><span>Cash Sales</span><b>{money(derived.cashMonth)}</b></div>
+        <div className="sales-breakdown-mini-row"><span>Rows</span><b>{derived.monthSales.length}</b></div>
+        <div className="sales-breakdown-mini-row"><span>Cash</span><b>{money(derived.cashMonth)}</b></div>
       </div> : null}
     </div>
   </button>
@@ -220,7 +220,7 @@ export default function Dashboard({ data, setActive }) {
   ]
 
   const salesSummary = [
-    ['Cash Sales', money(salesDays.reduce((s, r) => s + num(r.cash_sales), 0)), emptyLabel(salesDays, 'sales')],
+    ['Cash', money(salesDays.reduce((s, r) => s + num(r.cash_sales), 0)), emptyLabel(salesDays, 'sales')],
     ['Credit Sales', money(salesDays.reduce((s, r) => s + num(r.credit_sales), 0)), emptyLabel(salesDays, 'sales')],
     ['Tips', money(salesDays.reduce((s, r) => s + num(r.tips), 0)), emptyLabel(salesDays, 'sales')],
     ['Total Sales', money(salesDays.reduce((s, r) => s + num(r.net_sales), 0)), emptyLabel(salesDays, 'sales')]
@@ -242,7 +242,7 @@ export default function Dashboard({ data, setActive }) {
       { key: 'business_date', label: 'Date' }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }
     ]},
     'cash-collected': { title: 'Cash Collected From Uploaded Sales', open: 'sales', rows: derived.monthSales.filter(r => num(r.cash_sales) > 0), message: `Cash collected this month = ${money(derived.cashMonth)}`, columns: [
-      { key: 'business_date', label: 'Date' }, { key: 'cash_sales', label: 'Cash Sales', render: r => money(num(r.cash_sales)) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }, { key: 'source_file', label: 'Source', render: r => r.source_file || '-' }
+      { key: 'business_date', label: 'Date' }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }, { key: 'source_file', label: 'Source', render: r => r.source_file || '-' }
     ]},
     'cash-payroll': { title: 'Cash Payroll Employees', open: 'payroll', rows: derived.cashPayrollRows, columns: [
       { key: 'pay_date', label: 'Date' }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'hours', label: 'Hours', render: r => num(r.hours).toFixed(2) }, { key: 'extra_pay', label: 'Extra Pay', render: r => money(num(r.extra_pay)) }, { key: 'total_pay', label: 'Total', render: r => money(num(r.total_pay || r.amount)) }
@@ -277,51 +277,134 @@ export default function Dashboard({ data, setActive }) {
 
   return <>
     <style>{`
-      .dashboard-click-card.sales-month-enhanced,
-      .dashboard-click-card.cash-collected-enhanced {
-        align-items: flex-start;
-        min-height: 250px;
-      }
-      .dashboard-click-card.sales-month-enhanced > div:last-child,
-      .dashboard-click-card.cash-collected-enhanced > div:last-child {
-        width: 100%;
-      }
-      .dashboard-click-card.sales-month-enhanced strong,
-      .dashboard-click-card.cash-collected-enhanced strong {
-        display: block;
-        margin-bottom: 6px;
-      }
-      .sales-breakdown-mini {
-        margin-top: 14px;
-        border-top: 1px solid #e4ecf5;
-        padding-top: 12px;
+      .kpi-grid {
         display: grid;
-        gap: 9px;
+        grid-template-columns: repeat(5, minmax(190px, 1fr));
+        gap: 14px;
+        align-items: stretch;
+      }
+
+      .kpi-card.dashboard-click-card {
+        min-height: 150px;
+        height: auto;
+        padding: 18px 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        overflow: hidden;
+      }
+
+      .kpi-card.dashboard-click-card .kpi-icon {
+        flex: 0 0 auto;
+      }
+
+      .kpi-card.dashboard-click-card > div:last-child {
+        min-width: 0;
         width: 100%;
       }
-      .sales-breakdown-mini-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        color: #60708a;
-        font-size: 13px;
-        line-height: 1.25;
+
+      .kpi-card.dashboard-click-card h3 {
+        margin: 0 0 8px;
+        line-height: 1.2;
+        font-size: 16px;
       }
-      .sales-breakdown-mini-row b {
-        color: #001b3d;
-        font-weight: 700;
+
+      .kpi-card.dashboard-click-card strong {
+        display: block;
+        margin: 0 0 8px;
+        font-size: clamp(24px, 2vw, 32px);
+        line-height: 1.05;
         white-space: nowrap;
       }
+
+      .kpi-card.dashboard-click-card p {
+        margin: 0;
+        color: #00a35c;
+        font-size: 15px;
+        line-height: 1.35;
+      }
+
+      .kpi-card.dashboard-click-card p.down {
+        color: #e00000;
+      }
+
+      .dashboard-click-card.sales-month-enhanced,
+      .dashboard-click-card.cash-collected-enhanced {
+        min-height: 235px;
+      }
+
+      .sales-breakdown-mini {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #e4ecf5;
+        display: grid;
+        gap: 9px;
+      }
+
+      .sales-breakdown-mini-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: baseline;
+        gap: 12px;
+        font-size: 14px;
+        line-height: 1.25;
+        color: #536984;
+      }
+
+      .sales-breakdown-mini-row span {
+        min-width: 0;
+        overflow-wrap: normal;
+      }
+
+      .sales-breakdown-mini-row b {
+        color: #001b3d;
+        font-size: 14px;
+        font-weight: 800;
+        white-space: nowrap;
+        text-align: right;
+      }
+
       .net-formula-mini {
-        margin-top: 10px;
-        padding: 9px 10px;
-        border-radius: 12px;
-        background: #f7f9fd;
-        color: #40516a;
-        font-size: 12px;
-        font-weight: 700;
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: #f6f8fc;
+        color: #25415f;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.35;
+      }
+
+      .panel-grid {
+        margin-top: 18px;
+      }
+
+      @media (max-width: 1350px) {
+        .kpi-grid {
+          grid-template-columns: repeat(4, minmax(190px, 1fr));
+        }
+      }
+
+      @media (max-width: 1100px) {
+        .kpi-grid {
+          grid-template-columns: repeat(3, minmax(190px, 1fr));
+        }
+      }
+
+      @media (max-width: 760px) {
+        .kpi-grid {
+          grid-template-columns: repeat(2, minmax(160px, 1fr));
+        }
+      }
+
+      @media (max-width: 520px) {
+        .kpi-grid {
+          grid-template-columns: 1fr;
+        }
       }
     `}</style>
+
+
     <div className="page-head">
       <div><h1>Good morning, Admin 👋</h1><p>Live dashboard using only data entered/imported in RestaPay.</p></div>
       <div className="actions"><button className="btn secondary" onClick={() => openScreen('sales')}><Icon name="upload" /> Import Sales</button><button className="btn secondary" onClick={() => openScreen('invoices')}><Icon name="invoices" /> Add Invoice</button><button className="btn primary" onClick={() => openScreen('expenses')}><Icon name="plus" /> Add Expense</button></div>
