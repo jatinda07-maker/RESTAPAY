@@ -121,6 +121,9 @@ export default function Dashboard({ data, setActive }) {
     const salesWeek = weekSales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const salesMonth = monthSales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const tipsMonth = monthSales.reduce((sum, row) => sum + num(row.tips), 0)
+    const taxMonth = monthSales.reduce((sum, row) => sum + num(row.tax), 0)
+    const tipsWithheldMonth = monthSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
+    const tipsAfterWithholdingMonth = tipsMonth - tipsWithheldMonth
     const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
     const payrollMonth = monthPayroll.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
@@ -150,13 +153,13 @@ export default function Dashboard({ data, setActive }) {
         return b[1] - a[1]
       })
       .map(([category, amount]) => ({ id: `cat-${category}`, category, amount }))
-    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, tipsMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, expensesFromInvoiceCategories }
+    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, tipsMonth, taxMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, expensesFromInvoiceCategories }
   }, [salesDays, payroll, invoices, invoiceItems, expenseRows])
 
   const kpiItems = [
     ['Sales Today', money(derived.salesToday), noThisPeriod(derived.todaySales, 'sales', 'today'), 'cart', 'green', 'sales-today'],
     ['Sales This Week', money(derived.salesWeek), noThisPeriod(derived.weekSales, 'sales', 'this week'), 'store', 'blue', 'sales-week'],
-    ['Sales This Month', money(derived.salesMonth), noThisPeriod(derived.monthSales, 'sales', 'this month'), 'calendar', 'purple', 'sales-month'],
+    ['Sales This Month', money(derived.salesMonth), `${derived.monthSales.length} rows • Tax ${money(derived.taxMonth)} • Tips net ${money(derived.tipsAfterWithholdingMonth)}`, 'calendar', 'purple', 'sales-month'],
     ['Profit / Loss', money(derived.profit), 'Sales - payroll - expenses - invoices', 'dollar', 'teal', 'profit-loss'],
     ['Cash Payroll', money(derived.cashPayroll), emptyLabel(derived.cashPayrollRows, 'cash payroll'), 'payroll', 'orange', 'cash-payroll'],
     ['Check Payroll', money(derived.checkPayroll), emptyLabel(derived.checkPayrollRows, 'check payroll'), 'card', 'blue', 'check-payroll'],
@@ -221,11 +224,57 @@ export default function Dashboard({ data, setActive }) {
   function showDetail(key) { setDetail(key); setTimeout(() => document.getElementById('dashboard-details')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0) }
 
   return <>
+    <style>{`
+      .dashboard-sales-breakdown {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(160px, 1fr));
+        gap: 14px;
+        margin: 14px 0 18px;
+      }
+      .dashboard-sales-breakdown > div {
+        border: 1px solid #b8c9df;
+        border-radius: 16px;
+        background: #fff;
+        padding: 16px 18px;
+      }
+      .dashboard-sales-breakdown span {
+        display: block;
+        color: #5f6f86;
+        font-weight: 700;
+        font-size: 13px;
+        margin-bottom: 6px;
+      }
+      .dashboard-sales-breakdown b {
+        display: block;
+        color: #001b3d;
+        font-size: 22px;
+        line-height: 1.1;
+        white-space: nowrap;
+      }
+      @media (max-width: 900px) {
+        .dashboard-sales-breakdown {
+          grid-template-columns: repeat(2, minmax(160px, 1fr));
+        }
+      }
+      @media (max-width: 520px) {
+        .dashboard-sales-breakdown {
+          grid-template-columns: 1fr;
+        }
+      }
+    `}</style>
+
     <div className="page-head">
       <div><h1>Good morning, Admin 👋</h1><p>Live dashboard using only data entered/imported in RestaPay.</p></div>
       <div className="actions"><button className="btn secondary" onClick={() => openScreen('sales')}><Icon name="upload" /> Import Sales</button><button className="btn secondary" onClick={() => openScreen('invoices')}><Icon name="invoices" /> Add Invoice</button><button className="btn primary" onClick={() => openScreen('expenses')}><Icon name="plus" /> Add Expense</button></div>
     </div>
     <div className="kpi-grid">{kpiItems.map((item) => <KpiCard key={item[0]} item={item} onClick={() => showDetail(item[5])} />)}</div>
+    <div className="dashboard-sales-breakdown">
+      <div><span>Net Sales</span><b>{money(derived.salesMonth)}</b></div>
+      <div><span>Sales Tax</span><b>{money(derived.taxMonth)}</b></div>
+      <div><span>Tips After Withholding</span><b>{money(derived.tipsAfterWithholdingMonth)}</b></div>
+      <div><span>Tips Withheld</span><b>{money(derived.tipsWithheldMonth)}</b></div>
+    </div>
+
     <div className="panel-grid"><ListPanel title="Sales Summary" rows={salesSummary} type="sales" onViewAll={() => showDetail('sales-month')} /><ListPanel title="Recent Invoices" rows={invoiceRows} onViewAll={() => showDetail('invoices')} /><ListPanel title="Recent Expenses" rows={recentExpenses} type="expenses" onViewAll={() => showDetail('expense-categories')} /></div>
     <div className="bottom-strip">
       {[["Employees", String(employees.length), 'Total','employees','employees'],['Active Vendors',String(vendors.length),'Vendors','vendors','vendors'],['Open Invoices',String(invoices.length),money(invoices.reduce((s, r) => s + invoiceTotal(r), 0)),'invoices','invoices'],['Expenses Categories',String(derived.categoryRows.length),money(derived.totalExpensesAll),'expenses','expense-categories'],['Sales Rows',String(salesDays.length),'Saved locally','reports','sales-month'],['Payroll Groups',String(groups.length),'Active','payroll','cash-payroll']].map(x => <button className="strip-item dashboard-strip-button" key={x[0]} onClick={() => showDetail(x[4])}><Icon name={x[3]} /><div><span>{x[0]}</span><b>{x[1]}</b><small>{x[2]}</small></div></button>)}
