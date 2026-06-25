@@ -1,10 +1,20 @@
 import React, { useMemo, useState } from 'react'
-import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import { createId } from '../lib/localStore'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
+function readSavedDateRange() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('restapay_global_date_range') || '{}')
+    return { start: saved.start || startOfMonthISO(), end: saved.end || today() }
+  } catch {
+    return { start: startOfMonthISO(), end: today() }
+  }
+}
+function saveGlobalDateRange(start, end) {
+  try { localStorage.setItem('restapay_global_date_range', JSON.stringify({ start, end })) } catch {}
+}
 function money(value) { return Number(value || 0).toFixed(2) }
 function num(value) { return Number(String(value ?? '').replace(/[$,%]/g, '')) || 0 }
 function rowDate(row) { return row.business_date || row.pay_date || row.date || row.invoice_date || row.expense_date || row.created_at?.slice(0, 10) || today() }
@@ -24,40 +34,13 @@ function downloadCsv(filename, rows) {
   a.click()
   URL.revokeObjectURL(url)
 }
-
-function safeSheetName(name) {
-  return String(name || 'Report').replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31) || 'Report'
-}
-function downloadXlsx(filename, sheets) {
-  const workbook = XLSX.utils.book_new()
-  sheets.forEach(sheet => {
-    const rows = sheet.rows && sheet.rows.length ? sheet.rows : [['No data']]
-    const worksheet = XLSX.utils.aoa_to_sheet(rows)
-    const maxCols = rows.reduce((max, row) => Math.max(max, row.length), 0)
-    worksheet['!cols'] = Array.from({ length: maxCols }, (_, index) => {
-      const width = rows.reduce((max, row) => Math.max(max, String(row[index] ?? '').length), 10)
-      return { wch: Math.min(Math.max(width + 2, 10), 34) }
-    })
-    XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(sheet.name))
-  })
-  XLSX.writeFile(workbook, filename)
-}
-function plainReportRows(title, rangeLabel, headers, rows) {
-  return [[title], [rangeLabel], [], headers, ...(rows.length ? rows : [headers.map((_, index) => index === 0 ? 'No data' : '')])]
-}
-function weeklySheets(weekly, rangeLabel) {
-  return weekly.sections.map(section => ({
-    name: section.title,
-    rows: [[weekly.title], [rangeLabel], [], [section.title], section.headers, ...(section.rows || []), ...(section.footer || []), ...(section.subtotal !== undefined ? [['Subtotal', money(section.subtotal)]] : [])]
-  }))
-}
 function exportPdf(title, headers, rows, rangeLabel) {
   const htmlRows = rows.map(row => `<tr>${row.map(cell => `<td>${String(cell ?? '')}</td>`).join('')}</tr>`).join('')
   const win = window.open('', '_blank')
   win.document.write(`<!doctype html><html><head><title>${title}</title><style>
-    body{font-family:Arial,sans-serif;color:#111827;padding:24px;background:#fff}
-    h1{font-size:20px;margin:0 0 4px;font-weight:700}p{margin:0 0 18px;color:#374151;font-size:12px}
-    table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #9ca3af;padding:6px;text-align:left;vertical-align:top}th{background:#fff;font-weight:700}
+    body{font-family:Inter,Arial,sans-serif;color:#172033;padding:24px;background:#fff}
+    h1{font-size:22px;margin:0 0 4px}p{margin:0 0 18px;color:#5d6b82;font-size:12px}
+    table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #d8e1ea;padding:7px;text-align:left}th{background:#f5f8fb;font-weight:700}
   </style></head><body><h1>${title}</h1><p>${rangeLabel}</p><table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${htmlRows || `<tr><td colspan="${headers.length}">No data</td></tr>`}</tbody></table><script>window.onload=()=>{window.print()}</script></body></html>`)
   win.document.close()
 }
@@ -71,27 +54,27 @@ const fieldCatalog = {
     ['date', 'Date'], ['employee_name', 'Employee'], ['payroll_type', 'Payroll Type'], ['hours', 'Hours'], ['regular_pay', 'Base Pay'], ['rate', 'Rate'], ['tips', 'Tips'], ['tip_deduction', 'Withheld'], ['tips_after_withheld', 'Final Tips'], ['extra_pay', 'Extra Pay'], ['extra_reason', 'Reason'], ['total_pay', 'Total']
   ],
   vendors: [
-    ['name', 'Vendor'], ['category', 'Category'], ['default_check_number', 'Default Check #'], ['contact', 'Contact'], ['phone', 'Phone'], ['email', 'Email'], ['is_active', 'Status'], ['notes', 'Notes']
+    ['name', 'Vendor'], ['category', 'Category'], ['contact', 'Contact'], ['phone', 'Phone'], ['email', 'Email'], ['is_active', 'Status'], ['notes', 'Notes']
   ],
   invoices: [
-    ['date', 'Date'], ['vendor_name', 'Vendor'], ['invoice_number', 'Invoice #'], ['check_number', 'Check #'], ['category', 'Category'], ['total', 'Total'], ['status', 'Status']
+    ['date', 'Date'], ['vendor_name', 'Vendor'], ['invoice_number', 'Invoice #'], ['category', 'Category'], ['total', 'Total'], ['status', 'Status']
   ],
   priceInflation: [
     ['vendor', 'Vendor'], ['item', 'Item'], ['category', 'Category'], ['first_date', 'First Date'], ['latest_date', 'Latest Date'], ['first_price', 'Old Unit'], ['latest_price', 'New Unit'], ['difference', 'Increase $'], ['percent', 'Increase %'], ['invoice_count', 'Invoices'], ['latest_invoice', 'Latest Invoice']
   ],
   expenses: [
-    ['date', 'Date'], ['name', 'Expense'], ['category', 'Category'], ['payment_method', 'Paid By'], ['check_number', 'Check #'], ['vendor', 'Vendor / Payee'], ['amount', 'Amount'], ['notes', 'Notes']
+    ['date', 'Date'], ['name', 'Expense'], ['category', 'Category'], ['payment_method', 'Paid By'], ['vendor', 'Vendor / Payee'], ['amount', 'Amount'], ['notes', 'Notes']
   ]
 }
 
 const standardReports = [
   { id: 'sales', label: 'Sales Report', source: 'sales', fields: ['business_date','gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips','refunds','discounts','tax','guest_count'] },
-  { id: 'payroll', label: 'Payroll Report', source: 'payroll', fields: ['date','employee_name','payroll_type','check_number','hours','tips_after_withheld','extra_pay','extra_reason','total_pay'] },
-  { id: 'cash-payroll', label: 'Employee Cash Payroll Report', source: 'payrollCash', fields: ['date','employee_name','check_number','hours','regular_pay','extra_pay','extra_reason','total_pay'] },
-  { id: 'check-payroll', label: 'Employee Check Payroll Report', source: 'payrollCheck', fields: ['date','employee_name','check_number','hours','tips','tip_deduction','tips_after_withheld','extra_pay','extra_reason','total_pay'] },
-  { id: 'vendors', label: 'Vendor Report', source: 'vendors', fields: ['name','category','default_check_number','contact','phone','email','is_active'] },
-  { id: 'invoices', label: 'Invoice Report', source: 'invoices', fields: ['date','vendor_name','invoice_number','check_number','category','total','status'] },
-  { id: 'expenses', label: 'Restaurant Expenses Report', source: 'expenses', fields: ['date','name','category','payment_method','check_number','vendor','amount','notes'] },
+  { id: 'payroll', label: 'Payroll Report', source: 'payroll', fields: ['date','employee_name','payroll_type','hours','tips_after_withheld','extra_pay','extra_reason','total_pay'] },
+  { id: 'cash-payroll', label: 'Employee Cash Payroll Report', source: 'payrollCash', fields: ['date','employee_name','hours','regular_pay','extra_pay','extra_reason','total_pay'] },
+  { id: 'check-payroll', label: 'Employee Check Payroll Report', source: 'payrollCheck', fields: ['date','employee_name','hours','tips','tip_deduction','tips_after_withheld','extra_pay','extra_reason','total_pay'] },
+  { id: 'vendors', label: 'Vendor Report', source: 'vendors', fields: ['name','category','contact','phone','email','is_active'] },
+  { id: 'invoices', label: 'Invoice Report', source: 'invoices', fields: ['date','vendor_name','invoice_number','category','total','status'] },
+  { id: 'expenses', label: 'Restaurant Expenses Report', source: 'expenses', fields: ['date','name','category','payment_method','vendor','amount','notes'] },
   { id: 'custom-weekly-restaurant', label: 'Custom Weekly Restaurant Report', source: 'weeklyRestaurant', fields: [] },
   { id: 'price-inflation', label: 'Price Inflation Report', source: 'priceInflation', fields: ['vendor','item','category','first_date','latest_date','first_price','latest_price','difference','percent','invoice_count'] },
   { id: 'profit-loss', label: 'Profit & Loss Report', source: 'profitLoss', fields: [] },
@@ -208,54 +191,6 @@ function employeePayType(row) {
 function invoiceAmount(row) {
   return num(row.total || row.amount || row.invoice_total || row.grand_total)
 }
-function invoiceItemAmount(row) {
-  const qty = num(row.qty || row.quantity || 1) || 1
-  const unit = num(row.unit_price || row.price || row.cost || row.rate)
-  return num(row.line_total || row.total || row.amount || row.extended_price || (qty * unit))
-}
-function invoiceItemCategory(item, invoice = {}) {
-  const explicit = item.category || item.expense_category || item.invoice_category
-  const description = String(item.description || item.item_name || item.item || item.name || '').toLowerCase()
-  return normalizeSpendCategory(`${explicit || invoice.category || ''} ${description}`)
-}
-function buildInvoiceSpendRows(data, invoiceRows) {
-  const invoiceById = Object.fromEntries((data.invoices || []).map(inv => [inv.id, inv]))
-  const invoiceIdsInRange = new Set(invoiceRows.map(inv => inv.id).filter(Boolean))
-  const invoiceIdsWithItems = new Set()
-  const itemRows = (data.invoiceItems || [])
-    .filter(item => item.invoice_id && invoiceIdsInRange.has(item.invoice_id))
-    .map(item => {
-      const inv = invoiceById[item.invoice_id] || {}
-      const amount = invoiceItemAmount(item)
-      if (!amount) return null
-      invoiceIdsWithItems.add(item.invoice_id)
-      return {
-        date: rowDate(inv),
-        vendor: inv.vendor || inv.vendor_name || item.vendor || item.vendor_name || 'Vendor / Expense',
-        category: invoiceItemCategory(item, inv),
-        method: paymentMethod(inv),
-        check_number: inv.check_number || '',
-        amount,
-        note: item.description || item.item_name || item.item || item.name || inv.invoice_number || 'Invoice item',
-        source: 'invoice_item'
-      }
-    })
-    .filter(Boolean)
-  const invoiceHeaderRows = invoiceRows
-    .filter(inv => !invoiceIdsWithItems.has(inv.id))
-    .map(inv => ({
-      date: rowDate(inv),
-      vendor: inv.vendor || inv.vendor_name || 'Vendor / Expense',
-      category: normalizeSpendCategory(inv.category || inv.expense_category || 'Other'),
-      method: paymentMethod(inv),
-      check_number: inv.check_number || '',
-      amount: invoiceAmount(inv),
-      note: inv.notes || inv.invoice_number || 'Invoice total',
-      source: 'invoice'
-    }))
-    .filter(row => row.amount)
-  return [...itemRows, ...invoiceHeaderRows]
-}
 function buildWeeklyRestaurantReport(data, start, end) {
   const salesRows = getRawRows(data, 'sales', start, end)
   const payrollRows = getRawRows(data, 'payroll', start, end)
@@ -269,9 +204,9 @@ function buildWeeklyRestaurantReport(data, start, end) {
       const base = num(row.regular_pay || row.base_pay || row.pay || row.amount)
       const extra = num(row.extra_pay)
       const total = num(row.total_pay || row.total || base + extra)
-      return [rowDate(row), readValue(row, 'employee_name'), row.check_number || '', money(base), money(extra), row.extra_reason || '', money(total)]
+      return [rowDate(row), readValue(row, 'employee_name'), money(base), money(extra), row.extra_reason || '', money(total)]
     })
-  const cashPayrollSubtotal = cashPayrollRows.reduce((acc, row) => acc + num(row[6]), 0)
+  const cashPayrollSubtotal = cashPayrollRows.reduce((acc, row) => acc + num(row[5]), 0)
 
   const tipsRows = payrollRows
     .filter(row => num(row.tips) || num(row.tip_deduction) || num(row.tips_after_withheld))
@@ -287,40 +222,35 @@ function buildWeeklyRestaurantReport(data, start, end) {
   const tipsWithheldSubtotal = tipsRows.reduce((acc, row) => acc + num(row[3]), 0)
   const tipsAfterSubtotal = tipsRows.reduce((acc, row) => acc + num(row[4]), 0)
 
-  const normalizeManualExpense = row => ({
+  const normalizeVendorExpense = (row, source) => ({
     date: rowDate(row),
     vendor: row.vendor || row.vendor_name || row.name || row.payee || 'Vendor / Expense',
     category: normalizeSpendCategory(row.category || row.expense_category || 'Other'),
     method: paymentMethod(row),
-    check_number: row.check_number || '',
-    amount: num(row.amount || row.total),
-    note: row.notes || row.description || 'expense',
-    source: 'expense'
+    amount: source === 'invoice' ? invoiceAmount(row) : num(row.amount || row.total),
+    note: row.notes || row.invoice_number || row.description || source
   })
-  const invoiceSpendRows = buildInvoiceSpendRows(data, invoiceRows)
   const vendorExpenses = [
-    ...expenseRows.map(row => normalizeManualExpense(row)),
-    ...invoiceSpendRows
+    ...expenseRows.map(row => normalizeVendorExpense(row, 'expense')),
+    ...invoiceRows.map(row => normalizeVendorExpense(row, 'invoice'))
   ].filter(row => row.amount)
   const vendorPaymentRows = vendorExpenses
     .sort((a, b) => a.date.localeCompare(b.date) || a.vendor.localeCompare(b.vendor))
-    .map(row => [row.date, row.vendor, row.category, row.method, row.check_number || '', row.note, money(row.amount)])
-  const vendorPaymentSubtotal = vendorPaymentRows.reduce((acc, row) => acc + num(row[6]), 0)
+    .map(row => [row.date, row.vendor, row.category, row.method, row.note, money(row.amount)])
+  const vendorPaymentSubtotal = vendorPaymentRows.reduce((acc, row) => acc + num(row[5]), 0)
 
   const cashVendorRows = vendorExpenses.filter(row => row.method.toLowerCase() === 'cash')
-    .map(row => [row.date, row.vendor, row.category, row.check_number || '', row.note, money(row.amount)])
+    .map(row => [row.date, row.vendor, row.category, row.note, money(row.amount)])
   const checkVendorRows = vendorExpenses.filter(row => ['check','cheque'].includes(row.method.toLowerCase()))
-    .map(row => [row.date, row.vendor, row.category, row.check_number || '', row.note, money(row.amount)])
-  const cashVendorSubtotal = cashVendorRows.reduce((acc, row) => acc + num(row[5]), 0)
-  const checkVendorSubtotal = checkVendorRows.reduce((acc, row) => acc + num(row[5]), 0)
+    .map(row => [row.date, row.vendor, row.category, row.note, money(row.amount)])
+  const cashVendorSubtotal = cashVendorRows.reduce((acc, row) => acc + num(row[4]), 0)
+  const checkVendorSubtotal = checkVendorRows.reduce((acc, row) => acc + num(row[4]), 0)
 
-  const datedCategoryMap = new Map()
+  const categoryMap = new Map()
   vendorExpenses.forEach(row => {
-    const category = row.category || 'Other'
-    const date = row.date || 'No Date'
-    const key = `${date}::${category}`
-    if (!datedCategoryMap.has(key)) datedCategoryMap.set(key, { date, category, cash: 0, check: 0, credit: 0, ach: 0, other: 0, total: 0 })
-    const rec = datedCategoryMap.get(key)
+    const key = row.category || 'Other'
+    if (!categoryMap.has(key)) categoryMap.set(key, { category: key, cash: 0, check: 0, credit: 0, ach: 0, other: 0, total: 0 })
+    const rec = categoryMap.get(key)
     const method = row.method.toLowerCase()
     if (method === 'cash') rec.cash += row.amount
     else if (method === 'check' || method === 'cheque') rec.check += row.amount
@@ -329,13 +259,10 @@ function buildWeeklyRestaurantReport(data, start, end) {
     else rec.other += row.amount
     rec.total += row.amount
   })
-  const categoryOrder = category => {
-    const index = SPEND_CATEGORY_ORDER.indexOf(category)
-    return index === -1 ? SPEND_CATEGORY_ORDER.length + 1 : index
-  }
-  const categoryRows = [...datedCategoryMap.values()]
-    .sort((a, b) => a.date.localeCompare(b.date) || categoryOrder(a.category) - categoryOrder(b.category) || a.category.localeCompare(b.category))
-    .map(row => [row.date, row.category, money(row.cash), money(row.check), money(row.credit), money(row.ach), money(row.other), money(row.total)])
+  SPEND_CATEGORY_ORDER.forEach(category => { if (!categoryMap.has(category)) categoryMap.set(category, { category, cash: 0, check: 0, credit: 0, ach: 0, other: 0, total: 0 }) })
+  const categoryRows = [...categoryMap.values()]
+    .sort((a, b) => SPEND_CATEGORY_ORDER.indexOf(a.category) - SPEND_CATEGORY_ORDER.indexOf(b.category))
+    .map(row => [row.category, money(row.cash), money(row.check), money(row.credit), money(row.ach), money(row.other), money(row.total)])
 
   const totalCashSpending = cashPayrollSubtotal + cashVendorSubtotal
   const remainingCashBalance = cashSales - totalCashSpending
@@ -356,13 +283,13 @@ function buildWeeklyRestaurantReport(data, start, end) {
     title: 'Custom Weekly Restaurant Report',
     sections: [
       { title: 'Weekly Sales Summary', tone: 'sales', headers: ['Metric', 'Amount'], rows: [['Gross Sales', money(grossSales)], ['Net Sales', money(netSales)], ['Cash Sales', money(cashSales)], ['Credit Sales', money(creditSales)], ['Gift Card Sales', money(giftSales)], ['Tips', money(totalTipsSales)], ['Refunds', money(refunds)], ['Discounts', money(discounts)]], subtotal: netSales },
-      { title: 'Cash Payment Employees', tone: 'payroll', headers: ['Date', 'Employee', 'Check #', 'Pay', 'Extra Pay', 'Reason', 'Total'], rows: cashPayrollRows, subtotal: cashPayrollSubtotal },
+      { title: 'Cash Payment Employees', tone: 'payroll', headers: ['Date', 'Employee', 'Pay', 'Extra Pay', 'Reason', 'Total'], rows: cashPayrollRows, subtotal: cashPayrollSubtotal },
       { title: 'Employees With Tips', tone: 'tips', headers: ['Date', 'Employee', 'Original Tips', 'Withheld', 'Tips After Withholding', 'Extra Pay', 'Reason', 'Total'], rows: tipsRows, footer: [['Subtotals', '', money(tipsOriginalSubtotal), money(tipsWithheldSubtotal), money(tipsAfterSubtotal), '', '', money(tipsAfterSubtotal)]], subtotal: tipsAfterSubtotal },
-      { title: 'Vendor Payments / Spending Detail', tone: 'vendors', headers: ['Date', 'Vendor / Payee', 'Category', 'Payment Type', 'Check #', 'Details', 'Amount'], rows: vendorPaymentRows, subtotal: vendorPaymentSubtotal },
-      { title: 'Vendor Cash Expenses', tone: 'cash', headers: ['Date', 'Vendor / Payee', 'Category', 'Check #', 'Note', 'Amount'], rows: cashVendorRows, subtotal: cashVendorSubtotal },
-      { title: 'Vendor Check Expenses', tone: 'checks', headers: ['Date', 'Vendor / Payee', 'Category', 'Check #', 'Note', 'Amount'], rows: checkVendorRows, subtotal: checkVendorSubtotal },
+      { title: 'Vendor Payments / Spending Detail', tone: 'vendors', headers: ['Date', 'Vendor / Payee', 'Category', 'Payment Type', 'Details', 'Amount'], rows: vendorPaymentRows, subtotal: vendorPaymentSubtotal },
+      { title: 'Vendor Cash Expenses', tone: 'cash', headers: ['Date', 'Vendor / Payee', 'Category', 'Note', 'Amount'], rows: cashVendorRows, subtotal: cashVendorSubtotal },
+      { title: 'Vendor Check Expenses', tone: 'checks', headers: ['Date', 'Vendor / Payee', 'Category', 'Note', 'Amount'], rows: checkVendorRows, subtotal: checkVendorSubtotal },
       { title: 'Cash Balance Summary', tone: 'balance', headers: ['Metric', 'Amount'], rows: [['Cash Sales', money(cashSales)], ['Cash Employee Payments', money(cashPayrollSubtotal)], ['Cash Vendor Expenses', money(cashVendorSubtotal)], ['Total Cash Spending', money(totalCashSpending)], ['Remaining Cash Balance', money(remainingCashBalance)]], subtotal: remainingCashBalance },
-      { title: 'Daily Spending Summary By Category', tone: 'categories', headers: ['Date', 'Category', 'Cash', 'Check', 'Credit', 'ACH', 'Other', 'Total'], rows: categoryRows, subtotal: categoryRows.reduce((acc,row)=>acc+num(row[7]),0) },
+      { title: 'Weekly Spending Summary By Category', tone: 'categories', headers: ['Category', 'Cash', 'Check', 'Credit', 'ACH', 'Other', 'Total'], rows: categoryRows, subtotal: categoryRows.reduce((acc,row)=>acc+num(row[6]),0) },
       { title: 'Weekly Profit / Loss Analysis', tone: 'profit', headers: ['Metric', 'Amount'], rows: [['Net Sales', money(netSales)], ['Employee Payroll Total', money(allPayrollSubtotal)], ['Vendor / Invoice / Expense Spending', money(allVendorSpend)], ['Manual Expenses Included', money(manualExpenseSubtotal)], ['Total Weekly Spending', money(totalSpending)], ['Estimated Profit / Loss', money(estimatedProfitLoss)]], subtotal: estimatedProfitLoss }
     ]
   }
@@ -455,7 +382,7 @@ function exportWeeklyPdf(weekly, rangeLabel) {
   }).join('')
   const win = window.open('', '_blank')
   win.document.write(`<!doctype html><html><head><title>${weekly.title}</title><style>
-    body{font-family:Arial,sans-serif;color:#111827;padding:24px;background:#fff}h1{font-size:20px;margin:0 0 4px;font-weight:700}p{margin:0 0 18px;color:#374151;font-size:12px}.report-section{margin:0 0 18px;break-inside:avoid}.report-section h2{margin:0 0 8px;padding:0;color:#111827;font-size:14px;font-weight:700}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #9ca3af;padding:6px;text-align:left;vertical-align:top}th{background:#fff;font-weight:700}.subtotal{padding:8px 0;font-weight:700;text-align:right}
+    body{font-family:Inter,Arial,sans-serif;color:#172033;padding:24px;background:#fff}h1{font-size:24px;margin:0 0 4px}p{margin:0 0 18px;color:#5d6b82;font-size:12px}.report-section{border:1px solid #cbd7e5;border-radius:12px;margin:0 0 16px;overflow:hidden}.report-section h2{margin:0;padding:10px 12px;background:#23344d;color:#fff;font-size:14px}.report-section.sales h2{background:#123c69}.report-section.payroll h2{background:#31572c}.report-section.tips h2{background:#674188}.report-section.vendors h2{background:#7c3f1d}.report-section.cash h2{background:#74512d}.report-section.checks h2{background:#293462}.report-section.profit h2{background:#1f4e5f}.report-section.balance h2{background:#0f5960}.report-section.categories h2{background:#4a5568}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border-bottom:1px solid #e1e8f0;padding:7px;text-align:left}th{background:#f4f7fb;font-weight:700}.subtotal{padding:9px 12px;background:#f8fafc;font-weight:700;text-align:right}
   </style></head><body><h1>${weekly.title}</h1><p>${rangeLabel}</p>${sectionHtml}<script>window.onload=()=>{window.print()}</script></body></html>`)
   win.document.close()
 }
@@ -472,8 +399,8 @@ function moveItem(list, index, direction) {
 export default function Reports({ data, setData }) {
   const [mode, setMode] = useState('standard')
   const [reportId, setReportId] = useState('sales')
-  const [dateStart, setDateStart] = useState(startOfMonthISO())
-  const [dateEnd, setDateEnd] = useState(today())
+  const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
+  const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
   const [customName, setCustomName] = useState('Custom Sales Report')
   const [customSource, setCustomSource] = useState('sales')
   const [selectedFields, setSelectedFields] = useState(['business_date','net_sales','cash_sales','credit_sales','tips'])
@@ -542,13 +469,13 @@ export default function Reports({ data, setData }) {
   }
 
   function exportExcelReport() {
-    const slug = (activeReport.label || 'report').toLowerCase().replace(/\s+/g, '-')
     const reportObject = activeReport.source === 'weeklyRestaurant' ? weeklyRestaurant : activeReport.source === 'profitLoss' ? profitLossReport : null
     if (reportObject) {
-      downloadXlsx(`restapay-${reportObject.title.toLowerCase().replace(/\s+/g, '-')}-${dateStart || 'all'}-${dateEnd || 'latest'}.xlsx`, weeklySheets(reportObject, rangeLabel))
+      const rowsForExport = flattenWeeklyReport(reportObject)
+      downloadCsv(`restapay-${reportObject.title.toLowerCase().replace(/\s+/g, '-')}-${dateStart || 'all'}-${dateEnd || 'latest'}.csv`, rowsForExport)
       return
     }
-    downloadXlsx(`restapay-${slug}-${dateStart || 'all'}-${dateEnd || 'latest'}.xlsx`, [{ name: activeReport.label || 'Report', rows: plainReportRows(activeReport.label || 'RestaPay Report', rangeLabel, headers, rows) }])
+    downloadCsv(`restapay-${(activeReport.label || 'report').toLowerCase().replace(/\s+/g, '-')}-${dateStart || 'all'}-${dateEnd || 'latest'}.csv`, [headers, ...rows])
   }
 
   function toggleField(field) {
@@ -575,24 +502,18 @@ export default function Reports({ data, setData }) {
   }
 
   return <>
-    <div className="page-head employee-head reports-page-head">
+    <div className="page-head employee-head">
       <div><h1>Reports</h1><p>Run standard reports or build custom reports with manual column order and date ranges.</p></div>
-      <div className="employee-head-actions report-export-actions">
-        <button className="btn export-excel" onClick={exportExcelReport}><Icon name="spreadsheet" /> Export Excel</button>
-        <button className="btn export-pdf" onClick={exportPdfReport}><Icon name="download" /> Export PDF</button>
-        <button className="btn ghost" onClick={exportCsv}><Icon name="download" /> Export CSV</button>
+      <div className="employee-head-actions">
+        <button className="btn ghost" onClick={exportPdfReport}><Icon name="download" /> Export PDF</button>
+        <button className="btn ghost" onClick={exportExcelReport}><Icon name="spreadsheet" /> Export Excel</button>
+        <button className="btn primary" onClick={exportCsv}><Icon name="download" /> Export CSV</button>
       </div>
     </div>
 
-    <div className="reports-toolbar">
-      <div className="reports-mode-tabs">
-        <button className={mode === 'standard' ? 'active' : ''} onClick={() => setMode('standard')}>Standard Reports</button>
-        <button className={mode === 'custom' ? 'active' : ''} onClick={() => setMode('custom')}>Custom Report Builder</button>
-      </div>
-      <div className="employee-head-actions report-export-actions report-export-actions-inline">
-        <button className="btn export-excel" onClick={exportExcelReport}><Icon name="spreadsheet" /> Export Excel</button>
-        <button className="btn export-pdf" onClick={exportPdfReport}><Icon name="download" /> Export PDF</button>
-      </div>
+    <div className="reports-mode-tabs">
+      <button className={mode === 'standard' ? 'active' : ''} onClick={() => setMode('standard')}>Standard Reports</button>
+      <button className={mode === 'custom' ? 'active' : ''} onClick={() => setMode('custom')}>Custom Report Builder</button>
     </div>
 
     <div className="sales-filter-bar report-filter-bar enhanced-report-filter">
@@ -602,11 +523,11 @@ export default function Reports({ data, setData }) {
         <option value="">New / Unsaved Custom Report</option>
         {customReports.map(report => <option key={report.id} value={report.id}>{report.name}</option>)}
       </select>}
-      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} /></label>
+      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => { setDateStart(e.target.value); saveGlobalDateRange(e.target.value, dateEnd) }} /></label>
       <span className="range-arrow">→</span>
-      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} /></label>
-      <button className="btn ghost" onClick={() => { setDateStart(startOfMonthISO()); setDateEnd(today()) }}>This Month</button>
-      <button className="btn ghost" onClick={() => { setDateStart(''); setDateEnd('') }}>All Dates</button>
+      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); saveGlobalDateRange(dateStart, e.target.value) }} /></label>
+      <button className="btn ghost" onClick={() => { const start = startOfMonthISO(); const end = today(); setDateStart(start); setDateEnd(end); saveGlobalDateRange(start, end) }}>This Month</button>
+      <button className="btn ghost" onClick={() => { setDateStart(''); setDateEnd(''); saveGlobalDateRange('', '') }}>All Dates</button>
     </div>
 
     {mode === 'custom' && <section className="report-builder-card">
