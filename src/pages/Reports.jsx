@@ -314,11 +314,13 @@ function buildWeeklyRestaurantReport(data, start, end) {
   const cashVendorSubtotal = cashVendorRows.reduce((acc, row) => acc + num(row[5]), 0)
   const checkVendorSubtotal = checkVendorRows.reduce((acc, row) => acc + num(row[5]), 0)
 
-  const categoryMap = new Map()
+  const datedCategoryMap = new Map()
   vendorExpenses.forEach(row => {
-    const key = row.category || 'Other'
-    if (!categoryMap.has(key)) categoryMap.set(key, { category: key, cash: 0, check: 0, credit: 0, ach: 0, other: 0, total: 0 })
-    const rec = categoryMap.get(key)
+    const category = row.category || 'Other'
+    const date = row.date || 'No Date'
+    const key = `${date}::${category}`
+    if (!datedCategoryMap.has(key)) datedCategoryMap.set(key, { date, category, cash: 0, check: 0, credit: 0, ach: 0, other: 0, total: 0 })
+    const rec = datedCategoryMap.get(key)
     const method = row.method.toLowerCase()
     if (method === 'cash') rec.cash += row.amount
     else if (method === 'check' || method === 'cheque') rec.check += row.amount
@@ -327,10 +329,13 @@ function buildWeeklyRestaurantReport(data, start, end) {
     else rec.other += row.amount
     rec.total += row.amount
   })
-  SPEND_CATEGORY_ORDER.forEach(category => { if (!categoryMap.has(category)) categoryMap.set(category, { category, cash: 0, check: 0, credit: 0, ach: 0, other: 0, total: 0 }) })
-  const categoryRows = [...categoryMap.values()]
-    .sort((a, b) => SPEND_CATEGORY_ORDER.indexOf(a.category) - SPEND_CATEGORY_ORDER.indexOf(b.category))
-    .map(row => [row.category, money(row.cash), money(row.check), money(row.credit), money(row.ach), money(row.other), money(row.total)])
+  const categoryOrder = category => {
+    const index = SPEND_CATEGORY_ORDER.indexOf(category)
+    return index === -1 ? SPEND_CATEGORY_ORDER.length + 1 : index
+  }
+  const categoryRows = [...datedCategoryMap.values()]
+    .sort((a, b) => a.date.localeCompare(b.date) || categoryOrder(a.category) - categoryOrder(b.category) || a.category.localeCompare(b.category))
+    .map(row => [row.date, row.category, money(row.cash), money(row.check), money(row.credit), money(row.ach), money(row.other), money(row.total)])
 
   const totalCashSpending = cashPayrollSubtotal + cashVendorSubtotal
   const remainingCashBalance = cashSales - totalCashSpending
@@ -357,7 +362,7 @@ function buildWeeklyRestaurantReport(data, start, end) {
       { title: 'Vendor Cash Expenses', tone: 'cash', headers: ['Date', 'Vendor / Payee', 'Category', 'Check #', 'Note', 'Amount'], rows: cashVendorRows, subtotal: cashVendorSubtotal },
       { title: 'Vendor Check Expenses', tone: 'checks', headers: ['Date', 'Vendor / Payee', 'Category', 'Check #', 'Note', 'Amount'], rows: checkVendorRows, subtotal: checkVendorSubtotal },
       { title: 'Cash Balance Summary', tone: 'balance', headers: ['Metric', 'Amount'], rows: [['Cash Sales', money(cashSales)], ['Cash Employee Payments', money(cashPayrollSubtotal)], ['Cash Vendor Expenses', money(cashVendorSubtotal)], ['Total Cash Spending', money(totalCashSpending)], ['Remaining Cash Balance', money(remainingCashBalance)]], subtotal: remainingCashBalance },
-      { title: 'Weekly Spending Summary By Category', tone: 'categories', headers: ['Category', 'Cash', 'Check', 'Credit', 'ACH', 'Other', 'Total'], rows: categoryRows, subtotal: categoryRows.reduce((acc,row)=>acc+num(row[6]),0) },
+      { title: 'Daily Spending Summary By Category', tone: 'categories', headers: ['Date', 'Category', 'Cash', 'Check', 'Credit', 'ACH', 'Other', 'Total'], rows: categoryRows, subtotal: categoryRows.reduce((acc,row)=>acc+num(row[7]),0) },
       { title: 'Weekly Profit / Loss Analysis', tone: 'profit', headers: ['Metric', 'Amount'], rows: [['Net Sales', money(netSales)], ['Employee Payroll Total', money(allPayrollSubtotal)], ['Vendor / Invoice / Expense Spending', money(allVendorSpend)], ['Manual Expenses Included', money(manualExpenseSubtotal)], ['Total Weekly Spending', money(totalSpending)], ['Estimated Profit / Loss', money(estimatedProfitLoss)]], subtotal: estimatedProfitLoss }
     ]
   }
