@@ -180,6 +180,52 @@ function employeePayType(row) {
 function invoiceAmount(row) {
   return num(row.total || row.amount || row.invoice_total || row.grand_total)
 }
+function invoiceItemAmount(row) {
+  const qty = num(row.qty || row.quantity || 1) || 1
+  const unit = num(row.unit_price || row.price || row.cost || row.rate)
+  return num(row.line_total || row.total || row.amount || row.extended_price || (qty * unit))
+}
+function invoiceItemCategory(item, invoice = {}) {
+  const explicit = item.category || item.expense_category || item.invoice_category
+  const description = String(item.description || item.item_name || item.item || item.name || '').toLowerCase()
+  return normalizeSpendCategory(`${explicit || invoice.category || ''} ${description}`)
+}
+function buildInvoiceSpendRows(data, invoiceRows) {
+  const invoiceById = Object.fromEntries((data.invoices || []).map(inv => [inv.id, inv]))
+  const invoiceIdsInRange = new Set(invoiceRows.map(inv => inv.id).filter(Boolean))
+  const invoiceIdsWithItems = new Set()
+  const itemRows = (data.invoiceItems || [])
+    .filter(item => item.invoice_id && invoiceIdsInRange.has(item.invoice_id))
+    .map(item => {
+      const inv = invoiceById[item.invoice_id] || {}
+      const amount = invoiceItemAmount(item)
+      if (!amount) return null
+      invoiceIdsWithItems.add(item.invoice_id)
+      return {
+        date: rowDate(inv),
+        vendor: inv.vendor || inv.vendor_name || item.vendor || item.vendor_name || 'Vendor / Expense',
+        category: invoiceItemCategory(item, inv),
+        method: paymentMethod(inv),
+        amount,
+        note: item.description || item.item_name || item.item || item.name || inv.invoice_number || 'Invoice item',
+        source: 'invoice_item'
+      }
+    })
+    .filter(Boolean)
+  const invoiceHeaderRows = invoiceRows
+    .filter(inv => !invoiceIdsWithItems.has(inv.id))
+    .map(inv => ({
+      date: rowDate(inv),
+      vendor: inv.vendor || inv.vendor_name || 'Vendor / Expense',
+      category: normalizeSpendCategory(inv.category || inv.expense_category || 'Other'),
+      method: paymentMethod(inv),
+      amount: invoiceAmount(inv),
+      note: inv.notes || inv.invoice_number || 'Invoice total',
+      source: 'invoice'
+    }))
+    .filter(row => row.amount)
+  return [...itemRows, ...invoiceHeaderRows]
+}
 function buildWeeklyRestaurantReport(data, start, end) {
   const salesRows = getRawRows(data, 'sales', start, end)
   const payrollRows = getRawRows(data, 'payroll', start, end)
@@ -211,17 +257,19 @@ function buildWeeklyRestaurantReport(data, start, end) {
   const tipsWithheldSubtotal = tipsRows.reduce((acc, row) => acc + num(row[3]), 0)
   const tipsAfterSubtotal = tipsRows.reduce((acc, row) => acc + num(row[4]), 0)
 
-  const normalizeVendorExpense = (row, source) => ({
+  const normalizeManualExpense = row => ({
     date: rowDate(row),
     vendor: row.vendor || row.vendor_name || row.name || row.payee || 'Vendor / Expense',
     category: normalizeSpendCategory(row.category || row.expense_category || 'Other'),
     method: paymentMethod(row),
-    amount: source === 'invoice' ? invoiceAmount(row) : num(row.amount || row.total),
-    note: row.notes || row.invoice_number || row.description || source
+    amount: num(row.amount || row.total),
+    note: row.notes || row.description || 'expense',
+    source: 'expense'
   })
+  const invoiceSpendRows = buildInvoiceSpendRows(data, invoiceRows)
   const vendorExpenses = [
-    ...expenseRows.map(row => normalizeVendorExpense(row, 'expense')),
-    ...invoiceRows.map(row => normalizeVendorExpense(row, 'invoice'))
+    ...expenseRows.map(row => normalizeManualExpense(row)),
+    ...invoiceSpendRows
   ].filter(row => row.amount)
   const vendorPaymentRows = vendorExpenses
     .sort((a, b) => a.date.localeCompare(b.date) || a.vendor.localeCompare(b.vendor))
