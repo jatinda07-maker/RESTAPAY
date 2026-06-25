@@ -75,21 +75,22 @@ function KpiCard({ item, onClick, derived }) {
   const isSalesMonth = title === 'Sales This Month'
   const isCashCollected = title === 'Cash Collected'
 
-  return <button className={`kpi-card dashboard-click-card ${isSalesMonth ? 'sales-month-enhanced' : ''} ${isCashCollected ? 'cash-collected-enhanced' : ''}`} onClick={onClick} type="button">
+  return <button className={`kpi-card dashboard-click-card ${isSalesMonth ? 'sales-month-card' : ''} ${isCashCollected ? 'cash-collected-card' : ''}`} onClick={onClick} type="button">
     <div className={`kpi-icon ${tone}`}><Icon name={icon} size={24} /></div>
-    <div>
+    <div className="kpi-content">
       <h3>{title}</h3>
       <strong>{value}</strong>
       <p className={title.includes('Loss') || title.includes('Refund') ? 'down' : ''}>{meta}</p>
-      {isSalesMonth && derived ? <div className="sales-breakdown-mini">
-        <div className="sales-breakdown-mini-row"><span>Sales Tax</span><b>{money(derived.taxMonth)}</b></div>
-        <div className="sales-breakdown-mini-row"><span>Tips Net</span><b>{money(derived.tipsAfterWithholdingMonth)}</b></div>
-        <div className="sales-breakdown-mini-row"><span>Tips Withheld</span><b>{money(derived.tipsWithheldMonth)}</b></div>
-        <div className="net-formula-mini">Net = Sales - Tax - Tips</div>
+
+      {isSalesMonth && derived ? <div className="mini-breakdown">
+        <div><span>Sales Tax</span><b>{money(derived.taxMonth)}</b></div>
+        <div><span>Tips Net</span><b>{money(derived.tipsAfterWithholdingMonth)}</b></div>
+        <div><span>Tips Withheld</span><b>{money(derived.tipsWithheldMonth)}</b></div>
       </div> : null}
-      {isCashCollected && derived ? <div className="sales-breakdown-mini">
-        <div className="sales-breakdown-mini-row"><span>Rows</span><b>{derived.monthSales.length}</b></div>
-        <div className="sales-breakdown-mini-row"><span>Cash</span><b>{money(derived.cashMonth)}</b></div>
+
+      {isCashCollected && derived ? <div className="mini-breakdown">
+        <div><span>Rows</span><b>{derived.monthSales.length}</b></div>
+        <div><span>Cash</span><b>{money(derived.cashMonth)}</b></div>
       </div> : null}
     </div>
   </button>
@@ -279,13 +280,13 @@ export default function Dashboard({ data, setActive }) {
     <style>{`
       .kpi-grid {
         display: grid;
-        grid-template-columns: repeat(5, minmax(190px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 14px;
-        align-items: stretch;
+        align-items: start;
       }
 
       .kpi-card.dashboard-click-card {
-        min-height: 150px;
+        min-height: 160px;
         height: auto;
         padding: 18px 20px;
         display: flex;
@@ -298,109 +299,62 @@ export default function Dashboard({ data, setActive }) {
         flex: 0 0 auto;
       }
 
-      .kpi-card.dashboard-click-card > div:last-child {
+      .kpi-content {
         min-width: 0;
         width: 100%;
       }
 
-      .kpi-card.dashboard-click-card h3 {
+      .kpi-content h3 {
         margin: 0 0 8px;
-        line-height: 1.2;
         font-size: 16px;
+        line-height: 1.2;
       }
 
-      .kpi-card.dashboard-click-card strong {
+      .kpi-content strong {
         display: block;
         margin: 0 0 8px;
         font-size: clamp(24px, 2vw, 32px);
-        line-height: 1.05;
+        line-height: 1.1;
         white-space: nowrap;
       }
 
-      .kpi-card.dashboard-click-card p {
+      .kpi-content p {
         margin: 0;
         color: #00a35c;
         font-size: 15px;
         line-height: 1.35;
       }
 
-      .kpi-card.dashboard-click-card p.down {
+      .kpi-content p.down {
         color: #e00000;
       }
 
-      .dashboard-click-card.sales-month-enhanced,
-      .dashboard-click-card.cash-collected-enhanced {
-        min-height: 235px;
-      }
-
-      .sales-breakdown-mini {
-        margin-top: 12px;
-        padding-top: 12px;
+      .mini-breakdown {
+        margin-top: 10px;
+        padding-top: 10px;
         border-top: 1px solid #e4ecf5;
         display: grid;
-        gap: 9px;
+        gap: 6px;
       }
 
-      .sales-breakdown-mini-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: baseline;
-        gap: 12px;
-        font-size: 14px;
-        line-height: 1.25;
+      .mini-breakdown div {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
         color: #536984;
+        font-size: 12px;
+        line-height: 1.25;
       }
 
-      .sales-breakdown-mini-row span {
+      .mini-breakdown span {
         min-width: 0;
-        overflow-wrap: normal;
       }
 
-      .sales-breakdown-mini-row b {
+      .mini-breakdown b {
         color: #001b3d;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 800;
         white-space: nowrap;
-        text-align: right;
-      }
-
-      .net-formula-mini {
-        margin-top: 8px;
-        padding: 10px 12px;
-        border-radius: 14px;
-        background: #f6f8fc;
-        color: #25415f;
-        font-size: 13px;
-        font-weight: 800;
-        line-height: 1.35;
-      }
-
-      .panel-grid {
-        margin-top: 18px;
-      }
-
-      @media (max-width: 1350px) {
-        .kpi-grid {
-          grid-template-columns: repeat(4, minmax(190px, 1fr));
-        }
-      }
-
-      @media (max-width: 1100px) {
-        .kpi-grid {
-          grid-template-columns: repeat(3, minmax(190px, 1fr));
-        }
-      }
-
-      @media (max-width: 760px) {
-        .kpi-grid {
-          grid-template-columns: repeat(2, minmax(160px, 1fr));
-        }
-      }
-
-      @media (max-width: 520px) {
-        .kpi-grid {
-          grid-template-columns: 1fr;
-        }
       }
     `}</style>
 
