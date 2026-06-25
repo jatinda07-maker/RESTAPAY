@@ -526,6 +526,7 @@ export default function Reports({ data, setData }) {
       <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => { setDateStart(e.target.value); saveGlobalDateRange(e.target.value, dateEnd) }} /></label>
       <span className="range-arrow">→</span>
       <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); saveGlobalDateRange(dateStart, e.target.value) }} /></label>
+      <button className="btn primary" onClick={() => saveGlobalDateRange(dateStart, dateEnd)}>Apply Date Range</button>
       <button className="btn ghost" onClick={() => { const start = startOfMonthISO(); const end = today(); setDateStart(start); setDateEnd(end); saveGlobalDateRange(start, end) }}>This Month</button>
       <button className="btn ghost" onClick={() => { setDateStart(''); setDateEnd(''); saveGlobalDateRange('', '') }}>All Dates</button>
     </div>

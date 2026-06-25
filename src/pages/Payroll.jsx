@@ -4,6 +4,18 @@ import { Icon } from '../components/Icons'
 import { createId, sortByName } from '../lib/localStore'
 
 function today() { return new Date().toISOString().slice(0, 10) }
+function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
+function readSavedDateRange() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('restapay_global_date_range') || '{}')
+    return { start: saved.start || startOfMonthISO(), end: saved.end || today() }
+  } catch {
+    return { start: startOfMonthISO(), end: today() }
+  }
+}
+function saveGlobalDateRange(start, end) {
+  try { localStorage.setItem('restapay_global_date_range', JSON.stringify({ start, end })) } catch {}
+}
 function money(value) { return Number(value || 0).toFixed(2) }
 function round2(value) { return Number(money(value)) }
 function num(value) { return Number(String(value ?? '').replace(/[$,%]/g, '').trim()) || 0 }
@@ -79,6 +91,43 @@ export default function Payroll({ data, setData }) {
   const [manualForm, setManualForm] = useState({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
   const [previewRows, setPreviewRows] = useState([])
   const [status, setStatus] = useState('Local auto-save is active. Payroll groups and entries will not disappear.')
+  const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
+  const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
+
+  function updateDateStart(value) {
+    setDateStart(value)
+    saveGlobalDateRange(value, dateEnd)
+  }
+
+  function updateDateEnd(value) {
+    setDateEnd(value)
+    saveGlobalDateRange(dateStart, value)
+  }
+
+  function setThisMonth() {
+    const start = startOfMonthISO()
+    const end = today()
+    setDateStart(start)
+    setDateEnd(end)
+    saveGlobalDateRange(start, end)
+  }
+
+  function setAllDates() {
+    setDateStart('')
+    setDateEnd('')
+    saveGlobalDateRange('', '')
+  }
+
+  function inSelectedRange(dateText) {
+    const d = String(dateText || '').slice(0, 10)
+    if (!d) return false
+    if (dateStart && d < dateStart) return false
+    if (dateEnd && d > dateEnd) return false
+    return true
+  }
+
+  const filteredEntries = useMemo(() => entries.filter(entry => inSelectedRange(entry.pay_date || entry.date)), [entries, dateStart, dateEnd])
+  const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
 
   const selectedGroup = groups.find(group => group.id === selectedGroupId) || groups[0]
   const memberIds = new Set(selectedGroup?.memberIds || [])
@@ -101,12 +150,13 @@ export default function Payroll({ data, setData }) {
     }
   }, [selectedGroupId, selectedGroup, groups, availableEmployees, selectedEmployeeId])
 
-  const totals = useMemo(() => entries.reduce((acc, entry) => {
+  const totals = useMemo(() => filteredEntries.reduce((acc, entry) => {
     acc.total += num(entry.total_pay)
     acc.cash += entry.payroll_type === 'Cash' ? num(entry.total_pay) : 0
     acc.check += entry.payroll_type === 'Check' ? num(entry.total_pay) : 0
+    acc.withheld += num(entry.tip_deduction)
     return acc
-  }, { total: 0, cash: 0, check: 0 }), [entries])
+  }, { total: 0, cash: 0, check: 0, withheld: 0 }), [filteredEntries])
 
   function createGroup() {
     const name = groupName.trim()
@@ -471,8 +521,18 @@ export default function Payroll({ data, setData }) {
     </div>
     <div className="status-pill">{status}</div>
 
+    <div className="sales-filter-bar report-filter-bar">
+      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => updateDateStart(e.target.value)} /></label>
+      <span className="range-arrow">→</span>
+      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => updateDateEnd(e.target.value)} /></label>
+      <button className="btn primary" onClick={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}`) }}>Apply Date Range</button>
+      <button className="btn ghost" onClick={setThisMonth}>This Month</button>
+      <button className="btn ghost" onClick={setAllDates}>All Dates</button>
+      <span className="filter-note">Filtering payroll by {rangeLabel}</span>
+    </div>
+
     <div className="payroll-summary-row">
-      <div><span>Total Payroll</span><b>${money(totals.total)}</b></div><div><span>Cash Payroll</span><b>${money(totals.cash)}</b></div><div><span>Check Payroll</span><b>${money(totals.check)}</b></div><div><span>Tip Withholding</span><b>{tipRate}%</b></div>
+      <div><span>Total Payroll</span><b>${money(totals.total)}</b></div><div><span>Cash Payroll</span><b>${money(totals.cash)}</b></div><div><span>Check Payroll</span><b>${money(totals.check)}</b></div><div><span>Tips Withheld</span><b>${money(totals.withheld)}</b></div>
     </div>
 
     <div className="payroll-grid clean-payroll-grid">
@@ -571,7 +631,7 @@ export default function Payroll({ data, setData }) {
     </section>}
 
     <section className="table-card payroll-table-card compact-table-card">
-      <header><h2>Payroll Entries</h2><span>Total ${money(totals.total)}</span></header>
+      <header><h2>Payroll Entries</h2><span>{filteredEntries.length} rows • Total ${money(totals.total)} • {rangeLabel}</span></header>
       <table className="payroll-entries-fit-table">
         <colgroup>
           <col style={{ width: '110px' }} />
@@ -589,7 +649,7 @@ export default function Payroll({ data, setData }) {
           <col style={{ width: '110px' }} />
           <col style={{ width: '116px' }} />
         </colgroup>
-        <thead><tr><th>Date</th><th>Employee</th><th>Source</th><th>Pay</th><th>Method</th><th>Check #</th><th>Hrs</th><th>Regular</th><th>Net Tips</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th>Action</th></tr></thead><tbody>{entries.map(entry => {
+        <thead><tr><th>Date</th><th>Employee</th><th>Source</th><th>Pay</th><th>Method</th><th>Check #</th><th>Hrs</th><th>Regular</th><th>Net Tips</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th>Action</th></tr></thead><tbody>{filteredEntries.map(entry => {
         const isEditing = editingEntryId === entry.id
         return <tr key={entry.id} className={isEditing ? 'editing-row' : ''}>
           <td className="date-cell">{isEditing ? <input className="inline-edit-input date" type="date" value={entryForm.pay_date} onChange={e => setEntryForm(prev => ({ ...prev, pay_date: e.target.value }))} /> : entry.pay_date}</td>

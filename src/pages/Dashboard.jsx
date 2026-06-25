@@ -5,6 +5,18 @@ function num(value) { return Number(String(value ?? '').replace(/[$,%(),]/g, '')
 function money(value) { return `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
 function pct(value) { return `${Number(value || 0).toFixed(2)}%` }
 function todayStr() { return new Date().toISOString().slice(0, 10) }
+function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
+function readSavedDateRange() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('restapay_global_date_range') || '{}')
+    return { start: saved.start || startOfMonthISO(), end: saved.end || todayStr() }
+  } catch {
+    return { start: startOfMonthISO(), end: todayStr() }
+  }
+}
+function saveGlobalDateRange(start, end) {
+  try { localStorage.setItem('restapay_global_date_range', JSON.stringify({ start, end })) } catch {}
+}
 function rowDate(row, keys = []) {
   for (const key of keys) if (row?.[key]) return String(row[key]).slice(0, 10)
   return String(row?.business_date || row?.pay_date || row?.invoice_date || row?.date || row?.expense_date || row?.created_at || '').slice(0, 10)
@@ -117,21 +129,53 @@ export default function Dashboard({ data, setActive }) {
   const employees = data?.employees || []
   const vendors = data?.vendors || []
   const groups = data?.payrollGroups || []
+  const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
+  const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
+
+  function updateDateStart(value) {
+    setDateStart(value)
+    saveGlobalDateRange(value, dateEnd)
+  }
+  function updateDateEnd(value) {
+    setDateEnd(value)
+    saveGlobalDateRange(dateStart, value)
+  }
+  function setThisMonth() {
+    const start = startOfMonthISO()
+    const end = todayStr()
+    setDateStart(start)
+    setDateEnd(end)
+    saveGlobalDateRange(start, end)
+  }
+  function setAllDates() {
+    setDateStart('')
+    setDateEnd('')
+    saveGlobalDateRange('', '')
+  }
+  function inSelectedRange(dateText) {
+    const d = String(dateText || '').slice(0, 10)
+    if (!d) return false
+    if (dateStart && d < dateStart) return false
+    if (dateEnd && d > dateEnd) return false
+    return true
+  }
+  const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
 
   const derived = useMemo(() => {
     const todaySales = salesDays.filter(row => row.business_date === todayStr())
     const weekSales = salesDays.filter(row => thisWeek(row.business_date))
-    const monthSales = salesDays.filter(row => thisMonth(row.business_date))
-    const monthPayroll = payroll.filter(row => thisMonth(row.pay_date || row.date))
+    const monthSales = salesDays.filter(row => inSelectedRange(rowDate(row, ['business_date', 'date'])))
+    const monthPayroll = payroll.filter(row => inSelectedRange(rowDate(row, ['pay_date', 'date'])))
     const cashPayrollRows = monthPayroll.filter(isCashPayroll)
     const checkPayrollRows = monthPayroll.filter(isCheckPayroll)
-    const monthInvoices = invoices.filter(row => thisMonth(row.invoice_date || row.date))
+    const monthInvoices = invoices.filter(row => inSelectedRange(rowDate(row, ['invoice_date', 'date'])))
     const invoiceById = Object.fromEntries(invoices.map(inv => [inv.id, inv]))
     const monthInvoiceItems = invoiceItems.filter(row => {
       const inv = invoiceById[row.invoice_id] || {}
-      return thisMonth(row.invoice_date || row.date || row.created_at || inv.invoice_date || inv.date)
+      const itemDate = rowDate(row, ['invoice_date', 'date', 'created_at']) || rowDate(inv, ['invoice_date', 'date'])
+      return inSelectedRange(itemDate)
     })
-    const monthExpenses = expenseRows.filter(row => thisMonth(row.date || row.expense_date))
+    const monthExpenses = expenseRows.filter(row => inSelectedRange(rowDate(row, ['date', 'expense_date'])))
     const salesToday = todaySales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const salesWeek = weekSales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const salesMonth = monthSales.reduce((sum, row) => sum + num(row.net_sales), 0)
@@ -186,31 +230,31 @@ export default function Dashboard({ data, setActive }) {
     const foodSpend = categoryMap.get('Food') || 0
     const foodCostPercent = salesMonth > 0 ? (foodSpend / salesMonth) * 100 : 0
     return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, expensesFromInvoiceCategories }
-  }, [salesDays, payroll, invoices, invoiceItems, expenseRows])
+  }, [salesDays, payroll, invoices, invoiceItems, expenseRows, dateStart, dateEnd])
 
   const kpiItems = [
     ['Sales Today', money(derived.salesToday), noThisPeriod(derived.todaySales, 'sales', 'today'), 'cart', 'green', 'sales-today'],
     ['Sales This Week', money(derived.salesWeek), noThisPeriod(derived.weekSales, 'sales', 'this week'), 'store', 'blue', 'sales-week'],
-    ['Sales This Month', money(derived.trueNetSalesMonth), noThisPeriod(derived.monthSales, 'sales', 'this month'), 'calendar', 'purple', 'sales-month', [['Sales Tax', money(derived.taxMonth)], ['Tips After Withholding', money(derived.tipsAfterWithholdingMonth)], ['Tips Withheld', money(derived.tipsWithheldMonth)]]],
-    ['Cash Collected', money(derived.cashMonth), `${derived.monthSales.length} uploaded sales rows`, 'dollar', 'green', 'cash-collected'],
+    ['Sales Selected Range', money(derived.trueNetSalesMonth), `${derived.monthSales.length} rows • ${rangeLabel}`, 'calendar', 'purple', 'sales-month', [['Sales Tax', money(derived.taxMonth)], ['Tips After Withholding', money(derived.tipsAfterWithholdingMonth)], ['Tips Withheld', money(derived.tipsWithheldMonth)]]],
+    ['Cash Collected', money(derived.cashMonth), `${derived.monthSales.length} uploaded sales rows • ${rangeLabel}`, 'dollar', 'green', 'cash-collected'],
     ['Profit / Loss', money(derived.profit), 'Sales - payroll - expenses - invoices', 'dollar', 'teal', 'profit-loss'],
     ['Cash Payroll', money(derived.cashPayroll), emptyLabel(derived.cashPayrollRows, 'cash payroll'), 'payroll', 'orange', 'cash-payroll'],
     ['Check Payroll', money(derived.checkPayroll), emptyLabel(derived.checkPayrollRows, 'check payroll'), 'card', 'blue', 'check-payroll'],
     ['Food Cost %', pct(derived.foodCostPercent), `${money(derived.foodSpend)} food spend`, 'utensils', 'orange', 'food-cost'],
     ['Expenses by Category', money(derived.totalExpensesAll), `${derived.categoryRows.length} categories`, 'expenses', 'purple', 'expense-categories'],
-    ['Invoice Spend', money(derived.invoiceSpend), emptyLabel(derived.monthInvoices, 'invoices this month'), 'invoices', 'red', 'invoices'],
-    ['Tips', money(derived.tipsMonth), 'This month from sales', 'gift', 'green', 'sales-tips'],
+    ['Invoice Spend', money(derived.invoiceSpend), emptyLabel(derived.monthInvoices, 'invoices in selected range'), 'invoices', 'red', 'invoices'],
+    ['Tips', money(derived.tipsMonth), 'Selected range from sales', 'gift', 'green', 'sales-tips'],
     ['Employees', String(employees.length), emptyLabel(employees, 'employees'), 'employees', 'teal', 'employees']
   ]
 
   const salesSummary = [
-    ['Cash Sales', money(salesDays.reduce((s, r) => s + num(r.cash_sales), 0)), emptyLabel(salesDays, 'sales')],
-    ['Credit Sales', money(salesDays.reduce((s, r) => s + num(r.credit_sales), 0)), emptyLabel(salesDays, 'sales')],
-    ['Tips', money(salesDays.reduce((s, r) => s + num(r.tips), 0)), emptyLabel(salesDays, 'sales')],
-    ['Total Sales', money(salesDays.reduce((s, r) => s + num(r.net_sales), 0)), emptyLabel(salesDays, 'sales')]
+    ['Cash Sales', money(derived.monthSales.reduce((s, r) => s + num(r.cash_sales), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Credit Sales', money(derived.monthSales.reduce((s, r) => s + num(r.credit_sales), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Tips', money(derived.monthSales.reduce((s, r) => s + num(r.tips), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Total Sales', money(derived.monthSales.reduce((s, r) => s + num(r.net_sales), 0)), emptyLabel(derived.monthSales, 'sales')]
   ]
-  const invoiceRows = invoices.slice(0, 6).map(row => [row.vendor || row.vendor_name || 'Invoice', rowDate(row, ['invoice_date', 'date']), money(invoiceTotal(row))])
-  const recentExpenses = expenseRows.slice(0, 6).map(row => [row.name || row.category || 'Expense', rowDate(row, ['date', 'expense_date']), money(num(row.amount))])
+  const invoiceRows = derived.monthInvoices.slice(0, 6).map(row => [row.vendor || row.vendor_name || 'Invoice', rowDate(row, ['invoice_date', 'date']), money(invoiceTotal(row))])
+  const recentExpenses = derived.monthExpenses.slice(0, 6).map(row => [row.name || row.category || 'Expense', rowDate(row, ['date', 'expense_date']), money(num(row.amount))])
 
   const detailConfig = {
     'sales-today': { title: 'Sales Today Details', open: 'sales', rows: derived.todaySales, message: derived.todaySales.length ? '' : 'No sales today.', columns: [
@@ -219,7 +263,7 @@ export default function Dashboard({ data, setActive }) {
     'sales-week': { title: 'Sales This Week Details', open: 'sales', rows: derived.weekSales, message: derived.weekSales.length ? '' : 'No sales this week.', columns: [
       { key: 'business_date', label: 'Date' }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'credit_sales', label: 'Credit', render: r => money(num(r.credit_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
     ]},
-    'sales-month': { title: 'Sales This Month Details', open: 'sales', rows: derived.monthSales, message: derived.monthSales.length ? '' : 'No sales this month.', columns: [
+    'sales-month': { title: 'Sales Selected Range Details', open: 'sales', rows: derived.monthSales, message: derived.monthSales.length ? '' : 'No sales in selected range.', columns: [
       { key: 'business_date', label: 'Date' }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'credit_sales', label: 'Credit', render: r => money(num(r.credit_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
     ]},
     'sales-tips': { title: 'Tips From Sales', open: 'sales', rows: derived.monthSales.filter(r => num(r.tips) > 0), columns: [
@@ -235,7 +279,7 @@ export default function Dashboard({ data, setActive }) {
       { key: 'pay_date', label: 'Date' }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'hours', label: 'Hours', render: r => num(r.hours).toFixed(2) }, { key: 'tips_after_withholding', label: 'Tips After Withheld', render: r => money(num(r.tips_after_withholding || r.final_tips || r.tips)) }, { key: 'total_pay', label: 'Total', render: r => money(num(r.total_pay || r.amount)) }
     ]},
     'profit-loss': { title: 'Profit / Loss Breakdown', open: 'reports', rows: [
-      { label: 'Sales This Month', amount: derived.salesMonth }, { label: 'Payroll This Month', amount: -derived.payrollMonth }, { label: 'Invoices This Month', amount: -derived.invoiceSpend }, { label: 'Manual Expenses This Month', amount: -derived.expenseSpend }, { label: 'Profit / Loss', amount: derived.profit }
+      { label: 'Sales Selected Range', amount: derived.salesMonth }, { label: 'Payroll Selected Range', amount: -derived.payrollMonth }, { label: 'Invoices Selected Range', amount: -derived.invoiceSpend }, { label: 'Manual Expenses Selected Range', amount: -derived.expenseSpend }, { label: 'Profit / Loss', amount: derived.profit }
     ], columns: [
       { key: 'label', label: 'Line Item' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
@@ -263,6 +307,16 @@ export default function Dashboard({ data, setActive }) {
     <div className="page-head">
       <div><h1>Good morning, Admin 👋</h1><p>Live dashboard using only data entered/imported in RestaPay.</p></div>
       <div className="actions"><button className="btn secondary" onClick={() => openScreen('sales')}><Icon name="upload" /> Import Sales</button><button className="btn secondary" onClick={() => openScreen('invoices')}><Icon name="invoices" /> Add Invoice</button><button className="btn primary" onClick={() => openScreen('expenses')}><Icon name="plus" /> Add Expense</button></div>
+    </div>
+
+    <div className="sales-filter-bar report-filter-bar">
+      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => updateDateStart(e.target.value)} /></label>
+      <span className="range-arrow">→</span>
+      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => updateDateEnd(e.target.value)} /></label>
+      <button className="btn primary" onClick={() => { saveGlobalDateRange(dateStart, dateEnd); setDetail('') }}>Apply Date Range</button>
+      <button className="btn ghost" onClick={setThisMonth}>This Month</button>
+      <button className="btn ghost" onClick={setAllDates}>All Dates</button>
+      <span className="filter-note">Filtering dashboard by {rangeLabel}</span>
     </div>
     <div className="kpi-grid">{kpiItems.map((item) => <KpiCard key={item[0]} item={item} onClick={() => showDetail(item[5])} />)}</div>
     <div className="panel-grid"><ListPanel title="Sales Summary" rows={salesSummary} type="sales" onViewAll={() => showDetail('sales-month')} /><ListPanel title="Recent Invoices" rows={invoiceRows} onViewAll={() => showDetail('invoices')} /><ListPanel title="Recent Expenses" rows={recentExpenses} type="expenses" onViewAll={() => showDetail('expense-categories')} /></div>
