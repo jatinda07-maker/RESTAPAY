@@ -71,27 +71,27 @@ const fieldCatalog = {
     ['date', 'Date'], ['employee_name', 'Employee'], ['payroll_type', 'Payroll Type'], ['hours', 'Hours'], ['regular_pay', 'Base Pay'], ['rate', 'Rate'], ['tips', 'Tips'], ['tip_deduction', 'Withheld'], ['tips_after_withheld', 'Final Tips'], ['extra_pay', 'Extra Pay'], ['extra_reason', 'Reason'], ['total_pay', 'Total']
   ],
   vendors: [
-    ['name', 'Vendor'], ['category', 'Category'], ['contact', 'Contact'], ['phone', 'Phone'], ['email', 'Email'], ['is_active', 'Status'], ['notes', 'Notes']
+    ['name', 'Vendor'], ['category', 'Category'], ['default_check_number', 'Default Check #'], ['contact', 'Contact'], ['phone', 'Phone'], ['email', 'Email'], ['is_active', 'Status'], ['notes', 'Notes']
   ],
   invoices: [
-    ['date', 'Date'], ['vendor_name', 'Vendor'], ['invoice_number', 'Invoice #'], ['category', 'Category'], ['total', 'Total'], ['status', 'Status']
+    ['date', 'Date'], ['vendor_name', 'Vendor'], ['invoice_number', 'Invoice #'], ['check_number', 'Check #'], ['category', 'Category'], ['total', 'Total'], ['status', 'Status']
   ],
   priceInflation: [
     ['vendor', 'Vendor'], ['item', 'Item'], ['category', 'Category'], ['first_date', 'First Date'], ['latest_date', 'Latest Date'], ['first_price', 'Old Unit'], ['latest_price', 'New Unit'], ['difference', 'Increase $'], ['percent', 'Increase %'], ['invoice_count', 'Invoices'], ['latest_invoice', 'Latest Invoice']
   ],
   expenses: [
-    ['date', 'Date'], ['name', 'Expense'], ['category', 'Category'], ['payment_method', 'Paid By'], ['vendor', 'Vendor / Payee'], ['amount', 'Amount'], ['notes', 'Notes']
+    ['date', 'Date'], ['name', 'Expense'], ['category', 'Category'], ['payment_method', 'Paid By'], ['check_number', 'Check #'], ['vendor', 'Vendor / Payee'], ['amount', 'Amount'], ['notes', 'Notes']
   ]
 }
 
 const standardReports = [
   { id: 'sales', label: 'Sales Report', source: 'sales', fields: ['business_date','gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips','refunds','discounts','tax','guest_count'] },
-  { id: 'payroll', label: 'Payroll Report', source: 'payroll', fields: ['date','employee_name','payroll_type','hours','tips_after_withheld','extra_pay','extra_reason','total_pay'] },
-  { id: 'cash-payroll', label: 'Employee Cash Payroll Report', source: 'payrollCash', fields: ['date','employee_name','hours','regular_pay','extra_pay','extra_reason','total_pay'] },
-  { id: 'check-payroll', label: 'Employee Check Payroll Report', source: 'payrollCheck', fields: ['date','employee_name','hours','tips','tip_deduction','tips_after_withheld','extra_pay','extra_reason','total_pay'] },
-  { id: 'vendors', label: 'Vendor Report', source: 'vendors', fields: ['name','category','contact','phone','email','is_active'] },
-  { id: 'invoices', label: 'Invoice Report', source: 'invoices', fields: ['date','vendor_name','invoice_number','category','total','status'] },
-  { id: 'expenses', label: 'Restaurant Expenses Report', source: 'expenses', fields: ['date','name','category','payment_method','vendor','amount','notes'] },
+  { id: 'payroll', label: 'Payroll Report', source: 'payroll', fields: ['date','employee_name','payroll_type','check_number','hours','tips_after_withheld','extra_pay','extra_reason','total_pay'] },
+  { id: 'cash-payroll', label: 'Employee Cash Payroll Report', source: 'payrollCash', fields: ['date','employee_name','check_number','hours','regular_pay','extra_pay','extra_reason','total_pay'] },
+  { id: 'check-payroll', label: 'Employee Check Payroll Report', source: 'payrollCheck', fields: ['date','employee_name','check_number','hours','tips','tip_deduction','tips_after_withheld','extra_pay','extra_reason','total_pay'] },
+  { id: 'vendors', label: 'Vendor Report', source: 'vendors', fields: ['name','category','default_check_number','contact','phone','email','is_active'] },
+  { id: 'invoices', label: 'Invoice Report', source: 'invoices', fields: ['date','vendor_name','invoice_number','check_number','category','total','status'] },
+  { id: 'expenses', label: 'Restaurant Expenses Report', source: 'expenses', fields: ['date','name','category','payment_method','check_number','vendor','amount','notes'] },
   { id: 'custom-weekly-restaurant', label: 'Custom Weekly Restaurant Report', source: 'weeklyRestaurant', fields: [] },
   { id: 'price-inflation', label: 'Price Inflation Report', source: 'priceInflation', fields: ['vendor','item','category','first_date','latest_date','first_price','latest_price','difference','percent','invoice_count'] },
   { id: 'profit-loss', label: 'Profit & Loss Report', source: 'profitLoss', fields: [] },
@@ -234,6 +234,7 @@ function buildInvoiceSpendRows(data, invoiceRows) {
         vendor: inv.vendor || inv.vendor_name || item.vendor || item.vendor_name || 'Vendor / Expense',
         category: invoiceItemCategory(item, inv),
         method: paymentMethod(inv),
+        check_number: inv.check_number || '',
         amount,
         note: item.description || item.item_name || item.item || item.name || inv.invoice_number || 'Invoice item',
         source: 'invoice_item'
@@ -247,6 +248,7 @@ function buildInvoiceSpendRows(data, invoiceRows) {
       vendor: inv.vendor || inv.vendor_name || 'Vendor / Expense',
       category: normalizeSpendCategory(inv.category || inv.expense_category || 'Other'),
       method: paymentMethod(inv),
+      check_number: inv.check_number || '',
       amount: invoiceAmount(inv),
       note: inv.notes || inv.invoice_number || 'Invoice total',
       source: 'invoice'
@@ -267,9 +269,9 @@ function buildWeeklyRestaurantReport(data, start, end) {
       const base = num(row.regular_pay || row.base_pay || row.pay || row.amount)
       const extra = num(row.extra_pay)
       const total = num(row.total_pay || row.total || base + extra)
-      return [rowDate(row), readValue(row, 'employee_name'), money(base), money(extra), row.extra_reason || '', money(total)]
+      return [rowDate(row), readValue(row, 'employee_name'), row.check_number || '', money(base), money(extra), row.extra_reason || '', money(total)]
     })
-  const cashPayrollSubtotal = cashPayrollRows.reduce((acc, row) => acc + num(row[5]), 0)
+  const cashPayrollSubtotal = cashPayrollRows.reduce((acc, row) => acc + num(row[6]), 0)
 
   const tipsRows = payrollRows
     .filter(row => num(row.tips) || num(row.tip_deduction) || num(row.tips_after_withheld))
@@ -290,6 +292,7 @@ function buildWeeklyRestaurantReport(data, start, end) {
     vendor: row.vendor || row.vendor_name || row.name || row.payee || 'Vendor / Expense',
     category: normalizeSpendCategory(row.category || row.expense_category || 'Other'),
     method: paymentMethod(row),
+    check_number: row.check_number || '',
     amount: num(row.amount || row.total),
     note: row.notes || row.description || 'expense',
     source: 'expense'
@@ -301,15 +304,15 @@ function buildWeeklyRestaurantReport(data, start, end) {
   ].filter(row => row.amount)
   const vendorPaymentRows = vendorExpenses
     .sort((a, b) => a.date.localeCompare(b.date) || a.vendor.localeCompare(b.vendor))
-    .map(row => [row.date, row.vendor, row.category, row.method, row.note, money(row.amount)])
-  const vendorPaymentSubtotal = vendorPaymentRows.reduce((acc, row) => acc + num(row[5]), 0)
+    .map(row => [row.date, row.vendor, row.category, row.method, row.check_number || '', row.note, money(row.amount)])
+  const vendorPaymentSubtotal = vendorPaymentRows.reduce((acc, row) => acc + num(row[6]), 0)
 
   const cashVendorRows = vendorExpenses.filter(row => row.method.toLowerCase() === 'cash')
-    .map(row => [row.date, row.vendor, row.category, row.note, money(row.amount)])
+    .map(row => [row.date, row.vendor, row.category, row.check_number || '', row.note, money(row.amount)])
   const checkVendorRows = vendorExpenses.filter(row => ['check','cheque'].includes(row.method.toLowerCase()))
-    .map(row => [row.date, row.vendor, row.category, row.note, money(row.amount)])
-  const cashVendorSubtotal = cashVendorRows.reduce((acc, row) => acc + num(row[4]), 0)
-  const checkVendorSubtotal = checkVendorRows.reduce((acc, row) => acc + num(row[4]), 0)
+    .map(row => [row.date, row.vendor, row.category, row.check_number || '', row.note, money(row.amount)])
+  const cashVendorSubtotal = cashVendorRows.reduce((acc, row) => acc + num(row[5]), 0)
+  const checkVendorSubtotal = checkVendorRows.reduce((acc, row) => acc + num(row[5]), 0)
 
   const categoryMap = new Map()
   vendorExpenses.forEach(row => {
@@ -348,11 +351,11 @@ function buildWeeklyRestaurantReport(data, start, end) {
     title: 'Custom Weekly Restaurant Report',
     sections: [
       { title: 'Weekly Sales Summary', tone: 'sales', headers: ['Metric', 'Amount'], rows: [['Gross Sales', money(grossSales)], ['Net Sales', money(netSales)], ['Cash Sales', money(cashSales)], ['Credit Sales', money(creditSales)], ['Gift Card Sales', money(giftSales)], ['Tips', money(totalTipsSales)], ['Refunds', money(refunds)], ['Discounts', money(discounts)]], subtotal: netSales },
-      { title: 'Cash Payment Employees', tone: 'payroll', headers: ['Date', 'Employee', 'Pay', 'Extra Pay', 'Reason', 'Total'], rows: cashPayrollRows, subtotal: cashPayrollSubtotal },
+      { title: 'Cash Payment Employees', tone: 'payroll', headers: ['Date', 'Employee', 'Check #', 'Pay', 'Extra Pay', 'Reason', 'Total'], rows: cashPayrollRows, subtotal: cashPayrollSubtotal },
       { title: 'Employees With Tips', tone: 'tips', headers: ['Date', 'Employee', 'Original Tips', 'Withheld', 'Tips After Withholding', 'Extra Pay', 'Reason', 'Total'], rows: tipsRows, footer: [['Subtotals', '', money(tipsOriginalSubtotal), money(tipsWithheldSubtotal), money(tipsAfterSubtotal), '', '', money(tipsAfterSubtotal)]], subtotal: tipsAfterSubtotal },
-      { title: 'Vendor Payments / Spending Detail', tone: 'vendors', headers: ['Date', 'Vendor / Payee', 'Category', 'Payment Type', 'Details', 'Amount'], rows: vendorPaymentRows, subtotal: vendorPaymentSubtotal },
-      { title: 'Vendor Cash Expenses', tone: 'cash', headers: ['Date', 'Vendor / Payee', 'Category', 'Note', 'Amount'], rows: cashVendorRows, subtotal: cashVendorSubtotal },
-      { title: 'Vendor Check Expenses', tone: 'checks', headers: ['Date', 'Vendor / Payee', 'Category', 'Note', 'Amount'], rows: checkVendorRows, subtotal: checkVendorSubtotal },
+      { title: 'Vendor Payments / Spending Detail', tone: 'vendors', headers: ['Date', 'Vendor / Payee', 'Category', 'Payment Type', 'Check #', 'Details', 'Amount'], rows: vendorPaymentRows, subtotal: vendorPaymentSubtotal },
+      { title: 'Vendor Cash Expenses', tone: 'cash', headers: ['Date', 'Vendor / Payee', 'Category', 'Check #', 'Note', 'Amount'], rows: cashVendorRows, subtotal: cashVendorSubtotal },
+      { title: 'Vendor Check Expenses', tone: 'checks', headers: ['Date', 'Vendor / Payee', 'Category', 'Check #', 'Note', 'Amount'], rows: checkVendorRows, subtotal: checkVendorSubtotal },
       { title: 'Cash Balance Summary', tone: 'balance', headers: ['Metric', 'Amount'], rows: [['Cash Sales', money(cashSales)], ['Cash Employee Payments', money(cashPayrollSubtotal)], ['Cash Vendor Expenses', money(cashVendorSubtotal)], ['Total Cash Spending', money(totalCashSpending)], ['Remaining Cash Balance', money(remainingCashBalance)]], subtotal: remainingCashBalance },
       { title: 'Weekly Spending Summary By Category', tone: 'categories', headers: ['Category', 'Cash', 'Check', 'Credit', 'ACH', 'Other', 'Total'], rows: categoryRows, subtotal: categoryRows.reduce((acc,row)=>acc+num(row[6]),0) },
       { title: 'Weekly Profit / Loss Analysis', tone: 'profit', headers: ['Metric', 'Amount'], rows: [['Net Sales', money(netSales)], ['Employee Payroll Total', money(allPayrollSubtotal)], ['Vendor / Invoice / Expense Spending', money(allVendorSpend)], ['Manual Expenses Included', money(manualExpenseSubtotal)], ['Total Weekly Spending', money(totalSpending)], ['Estimated Profit / Loss', money(estimatedProfitLoss)]], subtotal: estimatedProfitLoss }

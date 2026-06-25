@@ -11,6 +11,7 @@ const blankInvoice = {
   category: 'Food',
   total: 0,
   status: 'Draft',
+  check_number: '',
   source: 'Manual',
   notes: '',
   file_name: ''
@@ -305,6 +306,7 @@ export default function Invoices({ data, setData }) {
       vendor_name: vendorName,
       category,
       total,
+      check_number: clean(form.check_number),
       updated_at: new Date().toISOString()
     }
 
@@ -592,6 +594,10 @@ export default function Invoices({ data, setData }) {
           </select>
         </label>
 
+        <label>Check # / Ref
+          <input value={form.check_number || ''} onChange={e => update('check_number', e.target.value)} placeholder="Optional check number" />
+        </label>
+
         <label className="wide-2">Notes
           <input value={form.notes} onChange={e => update('notes', e.target.value)} placeholder="Optional notes" />
         </label>
@@ -654,6 +660,7 @@ export default function Invoices({ data, setData }) {
             <th>Category</th>
             <th>Total</th>
             <th>Status</th>
+            <th>Check #</th>
             <th>Source</th>
             <th>Action</th>
           </tr>
@@ -666,6 +673,7 @@ export default function Invoices({ data, setData }) {
             <td><span className="tag neutral">{inv.category}</span></td>
             <td>${money(inv.total)}</td>
             <td><span className="tag cash">{inv.status}</span></td>
+            <td>{inv.check_number || '-'}</td>
             <td>{inv.source || 'Manual'}</td>
             <td className="row-actions">
               <button onClick={() => editInvoice(inv)}>Edit</button>

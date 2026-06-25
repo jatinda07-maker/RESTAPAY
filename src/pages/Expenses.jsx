@@ -12,7 +12,7 @@ function inRange(row, start, end) {
   if (end && d > end) return false
   return true
 }
-const blankExpense = { date: today(), name: '', category: 'Restaurant Expenses', amount: '', payment_method: 'Cash', vendor: '', notes: '' }
+const blankExpense = { date: today(), name: '', category: 'Restaurant Expenses', amount: '', payment_method: 'Cash', check_number: '', vendor: '', notes: '' }
 
 export default function Expenses({ data, setData }) {
   const categories = data.expenseCategories || []
@@ -31,7 +31,7 @@ export default function Expenses({ data, setData }) {
     .filter(row => {
       const q = search.toLowerCase().trim()
       if (!q) return true
-      return [row.name, row.category, row.vendor, row.payment_method, row.notes].some(v => String(v || '').toLowerCase().includes(q))
+      return [row.name, row.category, row.vendor, row.payment_method, row.check_number, row.notes].some(v => String(v || '').toLowerCase().includes(q))
     })
     .sort((a, b) => rowDate(b).localeCompare(rowDate(a)) || String(a.name || '').localeCompare(String(b.name || ''))), [expenses, search, dateStart, dateEnd])
 
@@ -64,7 +64,7 @@ export default function Expenses({ data, setData }) {
   }
   function editExpense(row) {
     setEditingId(row.id)
-    setForm({ date: row.date || today(), name: row.name || '', category: row.category || categories[0] || 'Other', amount: row.amount || '', payment_method: row.payment_method || 'Cash', vendor: row.vendor || '', notes: row.notes || '' })
+    setForm({ date: row.date || today(), name: row.name || '', category: row.category || categories[0] || 'Other', amount: row.amount || '', payment_method: row.payment_method || 'Cash', check_number: row.check_number || '', vendor: row.vendor || '', notes: row.notes || '' })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   function deleteExpense(id) { setData(prev => ({ ...prev, expenses: (prev.expenses || []).filter(row => row.id !== id) })); setSelected(prev => prev.filter(x => x !== id)) }
@@ -88,6 +88,7 @@ export default function Expenses({ data, setData }) {
         <label><small>Category</small><select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
         <label><small>Amount</small><input type="number" step="0.01" value={form.amount} onChange={e => updateForm('amount', e.target.value)} placeholder="0.00" /></label>
         <label><small>Paid By</small><select value={form.payment_method} onChange={e => updateForm('payment_method', e.target.value)}>{paymentMethods.map(method => <option key={method}>{method}</option>)}</select></label>
+        <label><small>Check # / Ref</small><input value={form.check_number} onChange={e => updateForm('check_number', e.target.value)} placeholder="Check number" /></label>
         <label><small>Vendor / Payee</small><input value={form.vendor} onChange={e => updateForm('vendor', e.target.value)} placeholder="Vendor or payee" /></label>
         <label className="wide-2"><small>Notes</small><input value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Optional notes" /></label>
         <div className="form-actions-inline"><button className="btn primary" onClick={saveExpense}><Icon name="plus" /> {editingId ? 'Update' : 'Add Expense'}</button><button className="btn ghost" onClick={clearForm}>Clear</button></div>
@@ -116,9 +117,9 @@ export default function Expenses({ data, setData }) {
 
     <section className="table-card compact-table-card sales-history-card">
       <header><h2>Expenses</h2><span>{filtered.length} rows</span></header>
-      <table className="sales-table"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={toggleAll} /></th><th>Date</th><th>Name</th><th>Category</th><th>Paid By</th><th>Vendor</th><th>Amount</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
-        {filtered.map(row => <tr key={row.id}><td><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} /></td><td>{rowDate(row)}</td><td><b>{row.name || row.category}</b></td><td><span className="tag neutral">{row.category}</span></td><td><span className={`tag ${String(row.payment_method || '').toLowerCase()}`}>{row.payment_method}</span></td><td>{row.vendor || '-'}</td><td>${money(row.amount)}</td><td><small>{row.notes || '-'}</small></td><td className="row-actions"><button className="btn ghost small-btn" onClick={() => editExpense(row)}>Edit</button><button className="btn ghost small-btn delete-link" onClick={() => deleteExpense(row.id)}>Delete</button></td></tr>)}
-        {filtered.length === 0 && <tr><td colSpan="9"><small>No expenses found. Add an expense above.</small></td></tr>}
+      <table className="sales-table"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={toggleAll} /></th><th>Date</th><th>Name</th><th>Category</th><th>Paid By</th><th>Check #</th><th>Vendor</th><th>Amount</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
+        {filtered.map(row => <tr key={row.id}><td><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} /></td><td>{rowDate(row)}</td><td><b>{row.name || row.category}</b></td><td><span className="tag neutral">{row.category}</span></td><td><span className={`tag ${String(row.payment_method || '').toLowerCase()}`}>{row.payment_method}</span></td><td>{row.check_number || '-'}</td><td>{row.vendor || '-'}</td><td>${money(row.amount)}</td><td><small>{row.notes || '-'}</small></td><td className="row-actions"><button className="btn ghost small-btn" onClick={() => editExpense(row)}>Edit</button><button className="btn ghost small-btn delete-link" onClick={() => deleteExpense(row.id)}>Delete</button></td></tr>)}
+        {filtered.length === 0 && <tr><td colSpan="10"><small>No expenses found. Add an expense above.</small></td></tr>}
       </tbody></table>
     </section>
   </>

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { createId, sortByName } from '../lib/localStore'
 
-const blankVendor = { name: '', category: 'Food', contact: '', phone: '', email: '', notes: '', is_active: true }
+const blankVendor = { name: '', category: 'Food', default_check_number: '', contact: '', phone: '', email: '', notes: '', is_active: true }
 
 const categoryIconMap = {
   food: 'utensils', beer: 'beer', beverage: 'beverage', beverages: 'beverage', liquor: 'wine', wine: 'wine',
@@ -38,7 +38,7 @@ export default function Vendors({ data, setData }) {
     .filter(v => {
       const q = search.toLowerCase().trim()
       if (!q) return true
-      return [v.name, v.category, v.contact, v.phone, v.email, v.notes].join(' ').toLowerCase().includes(q)
+      return [v.name, v.category, v.default_check_number, v.contact, v.phone, v.email, v.notes].join(' ').toLowerCase().includes(q)
     }), [vendors, search, activeFilter, categoryFilter])
 
   function update(field, value) {
@@ -132,6 +132,7 @@ export default function Vendors({ data, setData }) {
       <div className="employee-form-grid vendor-form-grid">
         <label>Vendor name <span>*</span><input value={form.name} onChange={e => update('name', e.target.value)} placeholder="Vendor name" /></label>
         <label>Category <span>*</span><select value={form.category} onChange={e => update('category', e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select></label>
+        <label>Default Check # / Account<input value={form.default_check_number || ''} onChange={e => update('default_check_number', e.target.value)} placeholder="Optional check/account ref" /></label>
         <label>Contact<input value={form.contact} onChange={e => update('contact', e.target.value)} placeholder="Contact person" /></label>
         <label>Phone<input value={form.phone} onChange={e => update('phone', e.target.value)} placeholder="Phone" /></label>
         <label>Email<input value={form.email} onChange={e => update('email', e.target.value)} placeholder="Email" /></label>
@@ -151,7 +152,7 @@ export default function Vendors({ data, setData }) {
     <section className="table-card compact-table-card employee-table-card">
       <header><h2>Vendor List</h2><span>{filtered.length} vendors · Sorted A-Z</span></header>
       {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button onClick={() => bulkSetActive(true)}>Set Active</button><button onClick={() => bulkSetActive(false)}>Set Inactive</button><select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select><button onClick={bulkApplyCategory}>Apply Category</button><button className="delete-link" onClick={bulkDelete}>Delete Selected</button></div>}
-      <table><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every(v => selectedIds.includes(v.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Category</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th>Action</th></tr></thead><tbody>{filtered.map(v => <tr key={v.id}>
+      <table><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every(v => selectedIds.includes(v.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Category</th><th>Default Check #</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th>Action</th></tr></thead><tbody>{filtered.map(v => <tr key={v.id}>
         <td><input type="checkbox" checked={selectedIds.includes(v.id)} onChange={() => toggleSelected(v.id)} /></td>
         <td><b>{v.name}</b><small>{v.notes || 'No notes'}</small></td>
         <td>{(() => { const meta = categoryMeta(v.category); return <span className={`tag category-tag ${meta.cls}`}><Icon name={meta.icon} size={13} /> {v.category}</span> })()}</td>
