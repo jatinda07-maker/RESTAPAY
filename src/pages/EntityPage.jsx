@@ -17,9 +17,9 @@ const map = {
 function PriceIncreasePage() {
   const today = new Date().toISOString().slice(0, 10)
   const defaults = [
-    { id: 'pi-1', name: 'Beef Ribeye', oldPrice: 10.00, newPrice: 10.81, category: 'Food', vendor: '', date: today, lastDate: today, currentDate: today, source: 'manual' },
-    { id: 'pi-2', name: 'Chicken Case', oldPrice: 10.00, newPrice: 10.34, category: 'Food', vendor: '', date: today, lastDate: today, currentDate: today, source: 'manual' },
-    { id: 'pi-3', name: 'Beer Keg', oldPrice: 10.00, newPrice: 10.29, category: 'Beer', vendor: '', date: today, lastDate: today, currentDate: today, source: 'manual' }
+    { id: 'pi-1', name: 'Beef Ribeye', oldPrice: 10.00, newPrice: 10.81, category: 'Food', vendor: '', date: today, source: 'manual' },
+    { id: 'pi-2', name: 'Chicken Case', oldPrice: 10.00, newPrice: 10.34, category: 'Food', vendor: '', date: today, source: 'manual' },
+    { id: 'pi-3', name: 'Beer Keg', oldPrice: 10.00, newPrice: 10.29, category: 'Beer', vendor: '', date: today, source: 'manual' }
   ]
 
   const [rows, setRows] = React.useState(() => {
@@ -30,8 +30,8 @@ function PriceIncreasePage() {
   const [search, setSearch] = React.useState('')
   const [categoryFilter, setCategoryFilter] = React.useState('all')
   const [vendorFilter, setVendorFilter] = React.useState('all')
-  const [status, setStatus] = React.useState("Manual price tracking is ready. Pull from invoices to compare each item's previous invoice date against the latest invoice date.")
-  const [form, setForm] = React.useState({ name:'', oldPrice:'', newPrice:'', category:'Food', vendor:'', lastDate: today, currentDate: today })
+  const [status, setStatus] = React.useState('Manual price tracking is ready. You can also pull price changes from saved invoice line items.')
+  const [form, setForm] = React.useState({ name:'', oldPrice:'', newPrice:'', category:'Food', vendor:'', date: today })
 
   function readAppData() {
     try {
@@ -80,31 +80,9 @@ function PriceIncreasePage() {
     return Number(row.newPrice || 0) - Number(row.oldPrice || 0)
   }
 
-  function changeLabel(row) {
-    const change = dollarChange(row)
-    if (change > 0) return 'Increase'
-    if (change < 0) return 'Decrease'
-    return 'No change'
-  }
-
-  function changeClass(row) {
-    const change = dollarChange(row)
-    if (change > 0) return pct(row) >= 10 ? 'tag delete-link' : 'tag tips'
-    if (change < 0) return 'tag cash'
-    return 'tag neutral'
-  }
-
-  function compareDate(row, fallback = today) {
-    return String(row?.currentDate || row?.date || row?.invoice_date || row?.created_at || fallback).slice(0, 10)
-  }
-
-  function previousDate(row, fallback = today) {
-    return String(row?.lastDate || row?.previousDate || row?.firstDate || row?.date || fallback).slice(0, 10)
-  }
-
   function clear() {
     setEditingId(null)
-    setForm({ name:'', oldPrice:'', newPrice:'', category:'Food', vendor:'', lastDate: today, currentDate: today })
+    setForm({ name:'', oldPrice:'', newPrice:'', category:'Food', vendor:'', date: today })
   }
 
   function save() {
@@ -116,9 +94,7 @@ function PriceIncreasePage() {
       newPrice: Number(form.newPrice || 0),
       category: clean(form.category) || 'Other',
       vendor: clean(form.vendor),
-      date: form.currentDate || form.date || today,
-      lastDate: form.lastDate || form.date || today,
-      currentDate: form.currentDate || form.date || today,
+      date: form.date || today,
       source: 'manual'
     }
 
@@ -140,8 +116,7 @@ function PriceIncreasePage() {
       newPrice: row.newPrice ?? '',
       category: row.category || 'Food',
       vendor: row.vendor || '',
-      lastDate: row.lastDate || row.firstDate || row.previousDate || row.date || today,
-      currentDate: row.currentDate || row.date || today
+      date: row.date || today
     })
     setStatus(`Editing ${row.name}`)
     requestAnimationFrame(() => document.querySelector('.price-increase-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
@@ -194,12 +169,12 @@ function PriceIncreasePage() {
 
     const generated = []
     groups.forEach(records => {
-      records.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.invoice).localeCompare(String(b.invoice)))
-      if (records.length < 2) return
+      records.sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      if (!records.length) return
 
+      const first = records[0]
       const latest = records[records.length - 1]
-      const previous = records[records.length - 2]
-      const oldPrice = Number(previous.price || 0)
+      const oldPrice = Number(first.price || 0)
       const newPrice = Number(latest.price || 0)
       if (!oldPrice || !newPrice) return
 
@@ -208,27 +183,25 @@ function PriceIncreasePage() {
         name: latest.name,
         oldPrice,
         newPrice,
-        category: latest.category || previous.category || 'Other',
-        vendor: latest.vendor || previous.vendor || '',
+        category: latest.category || first.category || 'Other',
+        vendor: latest.vendor || first.vendor || '',
         date: latest.date || today,
-        lastDate: previous.date || today,
-        currentDate: latest.date || today,
-        previousInvoice: previous.invoice,
-        latestInvoice: latest.invoice,
+        firstDate: first.date,
         invoiceCount: records.length,
+        latestInvoice: latest.invoice,
         source: 'invoice'
       })
     })
 
     if (!generated.length) {
-      setStatus('Invoice line items were found, but each item needs at least two dated prices to compare last date vs current date.')
+      setStatus('Invoice line items were found, but no usable unit prices were detected.')
       return
     }
 
     const manualRows = rows.filter(row => row.source !== 'invoice')
     const merged = [...generated, ...manualRows]
     persist(merged)
-    setStatus(`Pulled ${generated.length} item comparisons from invoices. Each row compares the previous invoice date to the latest invoice date.`)
+    setStatus(`Pulled ${generated.length} price rows from saved invoice line items.`)
   }
 
   const appData = readAppData()
@@ -254,7 +227,6 @@ function PriceIncreasePage() {
 
   const biggest = sorted[0]
   const overTen = rows.filter(row => pct(row) >= 10).length
-  const decreased = rows.filter(row => dollarChange(row) < 0).length
   const livePct = pct({ oldPrice: form.oldPrice, newPrice: form.newPrice })
 
   return <>
@@ -264,7 +236,6 @@ function PriceIncreasePage() {
       <div><span>Tracked Items</span><b>{rows.length}</b></div>
       <div><span>Largest Increase</span><b>{biggest ? `${pct(biggest).toFixed(1)}%` : '0.0%'}</b></div>
       <div><span>Items Over 10%</span><b>{overTen}</b></div>
-      <div><span>Decreases</span><b>{decreased}</b></div>
       <div><span>Invoice Items</span><b>{(appData.invoiceItems || []).length}</b></div>
     </div>
 
@@ -285,11 +256,10 @@ function PriceIncreasePage() {
             {vendorOptions.map(vendor => <option key={vendor}>{vendor}</option>)}
           </select>
         </label>
-        <label>Last date <input type="date" value={form.lastDate} onChange={e=>setForm({...form,lastDate:e.target.value})} /></label>
-        <label>Current date <input type="date" value={form.currentDate} onChange={e=>setForm({...form,currentDate:e.target.value})} /></label>
+        <label>Date <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} /></label>
       </div>
 
-      <div className="status-pill">Live change: {Number.isFinite(livePct) ? livePct.toFixed(1) : '0.0'}% ({money(dollarChange({ oldPrice: form.oldPrice, newPrice: form.newPrice }))})</div>
+      <div className="status-pill">Live increase: {Number.isFinite(livePct) ? livePct.toFixed(1) : '0.0'}%</div>
 
       <div className="form-action-footer">
         <button className="btn secondary" onClick={clear}>{editingId ? 'Cancel Edit' : 'Clear'}</button>
@@ -326,20 +296,18 @@ function PriceIncreasePage() {
       </div>
 
       <table>
-        <thead><tr><th>Name</th><th>Last Date</th><th>Last Price</th><th>Current Date</th><th>Current Price</th><th>$ Change</th><th>% Change</th><th>Status</th><th>Category</th><th>Vendor</th><th>Source</th><th>Action</th></tr></thead>
+        <thead><tr><th>Name</th><th>Old Price</th><th>New Price</th><th>$ Change</th><th>Increase</th><th>Category</th><th>Vendor</th><th>Date</th><th>Source</th><th>Action</th></tr></thead>
         <tbody>{sorted.map(row => {
           const increase = pct(row)
           return <tr key={row.id}>
-            <td><b>{row.name}</b><small>{row.invoiceCount ? `${row.invoiceCount} invoice prices` : row.latestInvoice ? `Invoice ${row.latestInvoice}` : 'manual'}{row.previousInvoice ? ` | Previous ${row.previousInvoice}` : ''}</small></td>
-            <td>{previousDate(row)}</td>
+            <td><b>{row.name}</b><small>{row.invoiceCount ? `${row.invoiceCount} invoice prices` : row.latestInvoice ? `Invoice ${row.latestInvoice}` : 'manual'}</small></td>
             <td>${money(row.oldPrice)}</td>
-            <td>{compareDate(row)}</td>
             <td>${money(row.newPrice)}</td>
-            <td>{dollarChange(row) >= 0 ? '+' : '-'}${money(Math.abs(dollarChange(row)))}</td>
-            <td><span className={changeClass(row)}>{increase >= 0 ? '+' : ''}{increase.toFixed(1)}%</span></td>
-            <td><span className={changeClass(row)}>{changeLabel(row)}</span></td>
+            <td>${money(dollarChange(row))}</td>
+            <td><span className={increase >= 10 ? 'tag delete-link' : increase >= 0 ? 'tag tips' : 'tag cash'}>{increase.toFixed(1)}%</span></td>
             <td>{row.category || '-'}</td>
             <td>{row.vendor || '-'}</td>
+            <td>{row.date || '-'}</td>
             <td>{row.source || 'manual'}</td>
             <td className="row-actions"><button onClick={()=>edit(row)}>Edit</button><button className="delete-link" onClick={()=>remove(row.id)}>Delete</button></td>
           </tr>

@@ -1,7 +1,7 @@
 import { supabase, isSupabaseReady } from './supabase'
 
 export const RESTAPAY_KEY = 'restapay_v2_local_data'
-export const RESTAPAY_SUPABASE_STATE_ID = 'restaurant-payroll-vendor'
+export const RESTAPAY_SUPABASE_STATE_ID = 'main'
 
 export const defaultData = {
   employees: [],
@@ -61,6 +61,23 @@ export function saveData(data) {
   localStorage.setItem(RESTAPAY_KEY, JSON.stringify(mergeData(data)))
 }
 
+export function hasMeaningfulData(data) {
+  const merged = mergeData(data)
+  return [
+    merged.employees,
+    merged.payrollGroups,
+    merged.payrollEntries,
+    merged.payrollImports,
+    merged.vendors,
+    merged.expenses,
+    merged.invoices,
+    merged.invoiceItems,
+    merged.salesDays,
+    merged.salesImports,
+    merged.customReports
+  ].some(list => Array.isArray(list) && list.length > 0)
+}
+
 export async function loadCloudData() {
   if (!isSupabaseReady) return null
 
@@ -73,7 +90,7 @@ export async function loadCloudData() {
 
     if (error) throw error
 
-    const merged = data?.state ? mergeData(data.state) : null
+    const merged = data?.state && hasMeaningfulData(data.state) ? mergeData(data.state) : null
 
     if (merged) {
       localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
@@ -86,10 +103,18 @@ export async function loadCloudData() {
   }
 }
 
-function money(value) { return Number(value || 0) }
+function firstPresent(...values) {
+  return values.find(value => value !== undefined && value !== null && value !== '')
+}
+
+function money(value) {
+  const n = Number(String(value ?? 0).replace(/[$,()]/g, '').trim())
+  return Number.isFinite(n) ? n : 0
+}
 function text(value) { return String(value || '') }
 function dateOrNull(value) { return value || null }
 function slug(value) { return text(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `item-${Date.now()}` }
+function rowId(prefix, row, index) { return row.id || `${prefix}-${Date.now()}-${index}` }
 
 async function replaceTable(table, rows, deleteFirst = true) {
   if (deleteFirst) {
@@ -194,18 +219,24 @@ async function mirrorAppDataToTables(data) {
     updated_at: row.updated_at || now
   }))
 
-  const invoiceItems = (data.invoiceItems || []).filter(row => row.invoice_id || row.invoiceId).map(row => ({
-    id: row.id || createId('item'),
-    invoice_id: row.invoice_id || row.invoiceId,
-    description: text(row.description || row.item_name || row.name),
-    item_name: text(row.item_name || row.description || row.name),
-    quantity: money(row.quantity ?? row.qty),
-    unit: text(row.unit),
-    unit_price: money(row.unit_price ?? row.price),
-    line_total: money(row.line_total ?? row.total),
-    category: row.category || 'Other',
-    created_at: row.created_at || now
-  }))
+  const invoiceItems = (data.invoiceItems || []).filter(row => row.invoice_id).map((row, index) => {
+    const quantity = money(firstPresent(row.quantity, row.qty, row.count, 1))
+    const unitPrice = money(firstPresent(row.unit_price, row.price, row.rate, row.cost, 0))
+    const lineTotal = money(firstPresent(row.line_total, row.total, row.amount, quantity * unitPrice))
+
+    return {
+      id: rowId('invoice-item', row, index),
+      invoice_id: row.invoice_id,
+      description: text(firstPresent(row.description, row.item_name, row.name)),
+      item_name: text(firstPresent(row.item_name, row.description, row.name)),
+      quantity,
+      unit: text(row.unit),
+      unit_price: unitPrice,
+      line_total: lineTotal,
+      category: row.category || 'Other',
+      created_at: row.created_at || now
+    }
+  })
 
   const salesDays = (data.salesDays || []).map(row => ({
     id: row.id,
@@ -286,13 +317,14 @@ async function mirrorAppDataToTables(data) {
   await replaceTable('expense_categories', expenseCategories)
   await replaceTable('payment_methods', paymentMethods)
 
-  await supabase.from('settings').upsert({
+  const { error: settingsError } = await supabase.from('settings').upsert({
     id: 'main',
     tip_withholding_rate: money(data.settings?.tipWithholdingRate ?? 3.5),
     gemini_model: data.settings?.geminiModel || 'gemini-2.5-flash',
     app_settings: data.settings || {},
     updated_at: now
   }, { onConflict: 'id' })
+  if (settingsError) throw settingsError
 }
 
 export async function saveCloudData(data) {

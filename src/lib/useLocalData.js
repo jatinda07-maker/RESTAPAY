@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadCloudData, loadData, saveCloudData, saveData } from './localStore'
+import { hasMeaningfulData, loadCloudData, loadData, saveCloudData, saveData } from './localStore'
 
 export function useLocalData() {
   const [data, setData] = useState(() => loadData())
+  const initialLocalData = useRef(loadData())
   const hasLoadedCloud = useRef(false)
   const saveTimer = useRef(null)
 
@@ -10,19 +11,14 @@ export function useLocalData() {
     let cancelled = false
 
     async function hydrate() {
-      const localData = loadData()
       const cloudData = await loadCloudData()
       if (cancelled) return
-
       if (cloudData) {
         setData(cloudData)
         saveData(cloudData)
-      } else {
-        // If this browser already has invoices/items in localStorage but Supabase is empty,
-        // push the local data up once so existing saved items appear in Supabase tables.
-        await saveCloudData(localData)
+      } else if (hasMeaningfulData(initialLocalData.current)) {
+        await saveCloudData(initialLocalData.current)
       }
-
       hasLoadedCloud.current = true
     }
 
@@ -44,7 +40,16 @@ export function useLocalData() {
   }, [data])
 
   function updateData(updater) {
-    setData(prev => typeof updater === 'function' ? updater(prev) : updater)
+    setData(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      saveData(next)
+      if (hasLoadedCloud.current) {
+        saveCloudData(next).then(result => {
+          if (!result?.ok) console.error('RESTAPAY Supabase sync failed', result?.error || result?.reason)
+        })
+      }
+      return next
+    })
   }
 
   return [data, updateData]
