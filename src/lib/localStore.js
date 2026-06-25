@@ -219,24 +219,28 @@ async function mirrorAppDataToTables(data) {
     updated_at: row.updated_at || now
   }))
 
-  const invoiceItems = (data.invoiceItems || []).filter(row => row.invoice_id).map((row, index) => {
-    const quantity = money(firstPresent(row.quantity, row.qty, row.count, 1))
-    const unitPrice = money(firstPresent(row.unit_price, row.price, row.rate, row.cost, 0))
-    const lineTotal = money(firstPresent(row.line_total, row.total, row.amount, quantity * unitPrice))
+  const invoiceIds = new Set(invoices.map(invoice => invoice.id).filter(Boolean))
 
-    return {
-      id: rowId('invoice-item', row, index),
-      invoice_id: row.invoice_id,
-      description: text(firstPresent(row.description, row.item_name, row.name)),
-      item_name: text(firstPresent(row.item_name, row.description, row.name)),
-      quantity,
-      unit: text(row.unit),
-      unit_price: unitPrice,
-      line_total: lineTotal,
-      category: row.category || 'Other',
-      created_at: row.created_at || now
-    }
-  })
+  const invoiceItems = (data.invoiceItems || [])
+    .filter(row => row.invoice_id && invoiceIds.has(row.invoice_id))
+    .map((row, index) => {
+      const quantity = money(firstPresent(row.quantity, row.qty, row.count, 1))
+      const unitPrice = money(firstPresent(row.unit_price, row.price, row.rate, row.cost, 0))
+      const lineTotal = money(firstPresent(row.line_total, row.total, row.amount, quantity * unitPrice))
+
+      return {
+        id: rowId('invoice-item', row, index),
+        invoice_id: row.invoice_id,
+        description: text(firstPresent(row.description, row.item_name, row.name)),
+        item_name: text(firstPresent(row.item_name, row.description, row.name)),
+        quantity,
+        unit: text(row.unit),
+        unit_price: unitPrice,
+        line_total: lineTotal,
+        category: row.category || 'Other',
+        created_at: row.created_at || now
+      }
+    })
 
   const salesDays = (data.salesDays || []).map(row => ({
     id: row.id,

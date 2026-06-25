@@ -1045,3 +1045,74 @@ input[type="date"]::-webkit-calendar-picker-indicator,
     display: none !important;
   }
 }
+
+
+/* Dashboard card alignment fix */
+.kpi-grid{
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(180px,1fr))!important;
+  gap:14px!important;
+  align-items:stretch!important;
+}
+.kpi-card{
+  display:grid!important;
+  grid-template-columns:42px minmax(0,1fr)!important;
+  gap:12px!important;
+  align-items:start!important;
+  min-height:128px!important;
+  height:100%!important;
+  padding:14px!important;
+}
+.kpi-content{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  height:100%!important;
+}
+.kpi-content h3{
+  min-height:32px!important;
+  display:flex!important;
+  align-items:flex-start!important;
+  margin:0 0 6px!important;
+  line-height:1.18!important;
+}
+.kpi-content strong{
+  display:block!important;
+  min-height:26px!important;
+  line-height:1.15!important;
+  overflow-wrap:anywhere!important;
+}
+.kpi-content p{
+  min-height:18px!important;
+  margin:7px 0 0!important;
+  line-height:1.25!important;
+}
+.kpi-details{
+  margin-top:auto!important;
+  padding-top:8px!important;
+  border-top:1px solid #e5edf6!important;
+  display:grid!important;
+  gap:4px!important;
+}
+.kpi-details small{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:10px!important;
+  align-items:center!important;
+  color:#536984!important;
+  font-size:12px!important;
+  line-height:1.25!important;
+}
+.kpi-details span{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+.kpi-details b{
+  color:#001b3d!important;
+  white-space:nowrap!important;
+}
+@media(max-width:1400px){.kpi-grid{grid-template-columns:repeat(3,minmax(180px,1fr))!important}}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,minmax(160px,1fr))!important}}
+@media(max-width:620px){.kpi-grid{grid-template-columns:1fr!important}.kpi-card{min-height:112px!important}}

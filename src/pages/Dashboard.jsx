@@ -72,13 +72,13 @@ function KpiCard({ item, onClick }) {
   const [title, value, meta, icon, tone, , details = []] = item
   return <button className="kpi-card dashboard-click-card" onClick={onClick} type="button">
     <div className={`kpi-icon ${tone}`}><Icon name={icon} size={24} /></div>
-    <div>
+    <div className="kpi-content">
       <h3>{title}</h3>
       <strong>{value}</strong>
       <p className={title.includes('Loss') || title.includes('Refund') ? 'down' : ''}>{meta}</p>
-      {details.length ? <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e5edf6', display: 'grid', gap: 4 }}>
-        {details.map(([label, amount]) => <small key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#536984', fontSize: 12, lineHeight: 1.25 }}>
-          <span>{label}</span><b style={{ color: '#001b3d', whiteSpace: 'nowrap' }}>{amount}</b>
+      {details.length ? <div className="kpi-details">
+        {details.map(([label, amount]) => <small key={label}>
+          <span>{label}</span><b>{amount}</b>
         </small>)}
       </div> : null}
     </div>
