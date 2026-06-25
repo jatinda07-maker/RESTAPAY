@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
-import { createId, sortByName } from '../lib/localStore'
+import { createId, saveCloudData, sortByName } from '../lib/localStore'
 
 const blankInvoice = {
   vendor_id: '',
@@ -292,7 +292,7 @@ export default function Invoices({ data, setData }) {
     setLineItems(prev => prev.filter(item => item.id !== id))
   }
 
-  function saveInvoice(options = {}) {
+  async function saveInvoice(options = {}) {
     const vendorName = clean(form.vendor_name) || clean(vendors.find(v => v.id === form.vendor_id)?.name)
 
     if (!vendorName) return setStatus('Choose or enter vendor first')
@@ -314,6 +314,8 @@ export default function Invoices({ data, setData }) {
       setStatus(`Possible duplicate: invoice #${payload.invoice_number} from ${payload.vendor_name} already exists.`)
       return
     }
+
+    let nextDataForCloud = null
 
     setData(prev => {
       const currentInvoices = prev.invoices || []
@@ -352,15 +354,22 @@ export default function Invoices({ data, setData }) {
         const invoices = currentInvoices.map(inv => inv.id === editingId ? { ...inv, ...finalPayload, id: editingId } : inv)
         const items = [
           ...currentItems.filter(item => item.invoice_id !== editingId),
-          ...lineItems.map(item => ({ ...item, invoice_id: editingId }))
+          ...lineItems.map(item => ({
+            ...item,
+            id: item.id || createId('item'),
+            invoice_id: editingId,
+            quantity: Number(item.qty || item.quantity || 0),
+            line_total: Number(item.total || item.line_total || 0)
+          }))
         ]
 
-        return {
+        nextDataForCloud = {
           ...prev,
           vendors: nextVendors,
           invoices,
           invoiceItems: items
         }
+        return nextDataForCloud
       }
 
       const id = createId('inv')
@@ -370,18 +379,36 @@ export default function Invoices({ data, setData }) {
         created_at: new Date().toISOString()
       }
 
-      return {
+      nextDataForCloud = {
         ...prev,
         vendors: nextVendors,
         invoices: [...currentInvoices, invoice],
         invoiceItems: [
           ...currentItems,
-          ...lineItems.map(item => ({ ...item, invoice_id: id }))
+          ...lineItems.map(item => ({
+            ...item,
+            id: item.id || createId('item'),
+            invoice_id: id,
+            quantity: Number(item.qty || item.quantity || 0),
+            line_total: Number(item.total || item.line_total || 0)
+          }))
         ]
       }
+      return nextDataForCloud
     })
 
-    setStatus(editingId ? `Invoice updated: ${vendorName}` : `Invoice saved: ${vendorName}`)
+    if (nextDataForCloud) {
+      const cloudResult = await saveCloudData(nextDataForCloud)
+      if (!cloudResult?.ok) {
+        const message = cloudResult?.reason || cloudResult?.error?.message || 'Unknown Supabase error'
+        console.error('Invoice saved locally but Supabase did not save:', cloudResult)
+        setStatus(`Invoice saved locally, but Supabase failed: ${message}`)
+      } else {
+        setStatus(editingId ? `Invoice updated and synced: ${vendorName}` : `Invoice saved and synced: ${vendorName}`)
+      }
+    } else {
+      setStatus(editingId ? `Invoice updated locally: ${vendorName}` : `Invoice saved locally: ${vendorName}`)
+    }
     setDuplicateWarning(null)
     clearForm()
   }
