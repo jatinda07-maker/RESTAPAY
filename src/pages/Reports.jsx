@@ -148,6 +148,29 @@ function buildPriceInflationRows(data, start, end) {
 function titleCase(value) {
   return String(value || 'Other').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
+
+const SPEND_CATEGORY_ORDER = [
+  'Food', 'Beverage', 'Beer', 'Liquor', 'Supplies', 'Utilities',
+  'Maintenance', 'Insurance', 'Accounting Fees', 'Loans',
+  'Cash Expenses', 'Restaurant Expenses', 'Other'
+]
+
+function normalizeSpendCategory(value) {
+  const text = String(value || '').toLowerCase()
+  if (text.includes('food') || text.includes('meat') || text.includes('produce') || text.includes('grocery')) return 'Food'
+  if (text.includes('beer')) return 'Beer'
+  if (text.includes('liquor') || text.includes('wine') || text.includes('alcohol')) return 'Liquor'
+  if (text.includes('beverage') || text.includes('soda') || text.includes('drink') || text.includes('coffee')) return 'Beverage'
+  if (text.includes('suppl')) return 'Supplies'
+  if (text.includes('util') || text.includes('electric') || text.includes('gas') || text.includes('water')) return 'Utilities'
+  if (text.includes('maint') || text.includes('repair')) return 'Maintenance'
+  if (text.includes('insurance')) return 'Insurance'
+  if (text.includes('account')) return 'Accounting Fees'
+  if (text.includes('loan') || text.includes('mortgage')) return 'Loans'
+  if (text.includes('cash')) return 'Cash Expenses'
+  if (text.includes('restaurant')) return 'Restaurant Expenses'
+  return titleCase(value || 'Other')
+}
 function paymentMethod(row) {
   return titleCase(row.payment_method || row.payment || row.paid_by || row.method || 'Unknown')
 }
@@ -191,7 +214,7 @@ function buildWeeklyRestaurantReport(data, start, end) {
   const normalizeVendorExpense = (row, source) => ({
     date: rowDate(row),
     vendor: row.vendor || row.vendor_name || row.name || row.payee || 'Vendor / Expense',
-    category: titleCase(row.category || row.expense_category || 'Other'),
+    category: normalizeSpendCategory(row.category || row.expense_category || 'Other'),
     method: paymentMethod(row),
     amount: source === 'invoice' ? invoiceAmount(row) : num(row.amount || row.total),
     note: row.notes || row.invoice_number || row.description || source
@@ -225,7 +248,9 @@ function buildWeeklyRestaurantReport(data, start, end) {
     else rec.other += row.amount
     rec.total += row.amount
   })
-  const categoryRows = [...categoryMap.values()].sort((a,b) => b.total - a.total)
+  SPEND_CATEGORY_ORDER.forEach(category => { if (!categoryMap.has(category)) categoryMap.set(category, { category, cash: 0, check: 0, credit: 0, ach: 0, other: 0, total: 0 }) })
+  const categoryRows = [...categoryMap.values()]
+    .sort((a, b) => SPEND_CATEGORY_ORDER.indexOf(a.category) - SPEND_CATEGORY_ORDER.indexOf(b.category))
     .map(row => [row.category, money(row.cash), money(row.check), money(row.credit), money(row.ach), money(row.other), money(row.total)])
 
   const totalCashSpending = cashPayrollSubtotal + cashVendorSubtotal
@@ -294,14 +319,14 @@ function buildProfitLossReport(data, start, end) {
   const opExpenseMap = new Map()
 
   invoiceRows.forEach(row => {
-    const category = titleCase(row.category || 'Other')
+    const category = normalizeSpendCategory(row.category || 'Other')
     const amount = invoiceAmount(row)
     const matched = Object.entries(cogsCategories).find(([, words]) => isCategoryMatch(category, words))
     if (matched) cogs[matched[0]] += amount
     else opExpenseMap.set(category, (opExpenseMap.get(category) || 0) + amount)
   })
   expenseRows.forEach(row => {
-    const category = titleCase(row.category || 'Other')
+    const category = normalizeSpendCategory(row.category || 'Other')
     const amount = num(row.amount || row.total)
     opExpenseMap.set(category, (opExpenseMap.get(category) || 0) + amount)
   })
@@ -321,7 +346,7 @@ function buildProfitLossReport(data, start, end) {
       { title: 'Labor', tone: 'payroll', headers: ['Metric', 'Amount'], rows: [['Cash Payroll', money(cashPayroll)], ['Check Payroll', money(checkPayroll)], ['Tips Paid', money(tipsPaid)], ['Extra Pay', money(extraPay)], ['Total Labor', money(totalLabor)]], subtotal: totalLabor },
       { title: 'COGS / Vendor Purchases', tone: 'vendors', headers: ['Category', 'Amount'], rows: cogsRows.length ? cogsRows : [['No COGS Data', money(0)]], subtotal: totalCogs },
       { title: 'Operating Expenses', tone: 'expenses', headers: ['Category', 'Amount'], rows: operatingRows.length ? operatingRows : [['No Operating Expense Data', money(0)]], subtotal: totalOperating },
-      { title: 'Financial Summary', tone: netProfit >= 0 ? 'balance' : 'profit', headers: ['Metric', 'Amount'], rows: [['Total Revenue', money(netSales)], ['Total Labor', money(totalLabor)], ['Total COGS', money(totalCogs)], ['Total Operating Expenses', money(totalOperating)], ['Prime Cost', money(primeCost)], ['Net Profit / Loss', money(netProfit)], ['Labor Cost %', pct(totalLabor)], ['Food / COGS Cost %', pct(totalCogs)], ['Prime Cost %', pct(primeCost)], ['Profit Margin %', pct(netProfit)]], subtotal: netProfit }
+      { title: 'Financial Summary', tone: netProfit >= 0 ? 'balance' : 'profit', headers: ['Metric', 'Amount'], rows: [['Total Revenue', money(netSales)], ['Total Labor', money(totalLabor)], ['Total COGS', money(totalCogs)], ['Total Operating Expenses', money(totalOperating)], ['Prime Cost', money(primeCost)], ['Net Profit / Loss', money(netProfit)], ['Labor Cost %', pct(totalLabor)], ['Food Cost %', pct(cogs.Food || 0)], ['Total COGS %', pct(totalCogs)], ['Prime Cost %', pct(primeCost)], ['Profit Margin %', pct(netProfit)]], subtotal: netProfit }
     ]
   }
 }
