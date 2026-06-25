@@ -10,12 +10,19 @@ export function useLocalData() {
     let cancelled = false
 
     async function hydrate() {
+      const localData = loadData()
       const cloudData = await loadCloudData()
       if (cancelled) return
+
       if (cloudData) {
         setData(cloudData)
         saveData(cloudData)
+      } else {
+        // If this browser already has invoices/items in localStorage but Supabase is empty,
+        // push the local data up once so existing saved items appear in Supabase tables.
+        await saveCloudData(localData)
       }
+
       hasLoadedCloud.current = true
     }
 

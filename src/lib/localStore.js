@@ -194,15 +194,15 @@ async function mirrorAppDataToTables(data) {
     updated_at: row.updated_at || now
   }))
 
-  const invoiceItems = (data.invoiceItems || []).filter(row => row.invoice_id).map(row => ({
-    id: row.id,
-    invoice_id: row.invoice_id,
-    description: text(row.description || row.item_name),
-    item_name: text(row.item_name || row.description),
-    quantity: money(row.quantity),
+  const invoiceItems = (data.invoiceItems || []).filter(row => row.invoice_id || row.invoiceId).map(row => ({
+    id: row.id || createId('item'),
+    invoice_id: row.invoice_id || row.invoiceId,
+    description: text(row.description || row.item_name || row.name),
+    item_name: text(row.item_name || row.description || row.name),
+    quantity: money(row.quantity ?? row.qty),
     unit: text(row.unit),
-    unit_price: money(row.unit_price || row.price),
-    line_total: money(row.line_total || row.total),
+    unit_price: money(row.unit_price ?? row.price),
+    line_total: money(row.line_total ?? row.total),
     category: row.category || 'Other',
     created_at: row.created_at || now
   }))
