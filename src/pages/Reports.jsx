@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import { createId } from '../lib/localStore'
 
@@ -23,13 +24,40 @@ function downloadCsv(filename, rows) {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+function safeSheetName(name) {
+  return String(name || 'Report').replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31) || 'Report'
+}
+function downloadXlsx(filename, sheets) {
+  const workbook = XLSX.utils.book_new()
+  sheets.forEach(sheet => {
+    const rows = sheet.rows && sheet.rows.length ? sheet.rows : [['No data']]
+    const worksheet = XLSX.utils.aoa_to_sheet(rows)
+    const maxCols = rows.reduce((max, row) => Math.max(max, row.length), 0)
+    worksheet['!cols'] = Array.from({ length: maxCols }, (_, index) => {
+      const width = rows.reduce((max, row) => Math.max(max, String(row[index] ?? '').length), 10)
+      return { wch: Math.min(Math.max(width + 2, 10), 34) }
+    })
+    XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(sheet.name))
+  })
+  XLSX.writeFile(workbook, filename)
+}
+function plainReportRows(title, rangeLabel, headers, rows) {
+  return [[title], [rangeLabel], [], headers, ...(rows.length ? rows : [headers.map((_, index) => index === 0 ? 'No data' : '')])]
+}
+function weeklySheets(weekly, rangeLabel) {
+  return weekly.sections.map(section => ({
+    name: section.title,
+    rows: [[weekly.title], [rangeLabel], [], [section.title], section.headers, ...(section.rows || []), ...(section.footer || []), ...(section.subtotal !== undefined ? [['Subtotal', money(section.subtotal)]] : [])]
+  }))
+}
 function exportPdf(title, headers, rows, rangeLabel) {
   const htmlRows = rows.map(row => `<tr>${row.map(cell => `<td>${String(cell ?? '')}</td>`).join('')}</tr>`).join('')
   const win = window.open('', '_blank')
   win.document.write(`<!doctype html><html><head><title>${title}</title><style>
-    body{font-family:Inter,Arial,sans-serif;color:#172033;padding:24px;background:#fff}
-    h1{font-size:22px;margin:0 0 4px}p{margin:0 0 18px;color:#5d6b82;font-size:12px}
-    table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #d8e1ea;padding:7px;text-align:left}th{background:#f5f8fb;font-weight:700}
+    body{font-family:Arial,sans-serif;color:#111827;padding:24px;background:#fff}
+    h1{font-size:20px;margin:0 0 4px;font-weight:700}p{margin:0 0 18px;color:#374151;font-size:12px}
+    table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #9ca3af;padding:6px;text-align:left;vertical-align:top}th{background:#fff;font-weight:700}
   </style></head><body><h1>${title}</h1><p>${rangeLabel}</p><table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${htmlRows || `<tr><td colspan="${headers.length}">No data</td></tr>`}</tbody></table><script>window.onload=()=>{window.print()}</script></body></html>`)
   win.document.close()
 }
@@ -419,7 +447,7 @@ function exportWeeklyPdf(weekly, rangeLabel) {
   }).join('')
   const win = window.open('', '_blank')
   win.document.write(`<!doctype html><html><head><title>${weekly.title}</title><style>
-    body{font-family:Inter,Arial,sans-serif;color:#172033;padding:24px;background:#fff}h1{font-size:24px;margin:0 0 4px}p{margin:0 0 18px;color:#5d6b82;font-size:12px}.report-section{border:1px solid #cbd7e5;border-radius:12px;margin:0 0 16px;overflow:hidden}.report-section h2{margin:0;padding:10px 12px;background:#23344d;color:#fff;font-size:14px}.report-section.sales h2{background:#123c69}.report-section.payroll h2{background:#31572c}.report-section.tips h2{background:#674188}.report-section.vendors h2{background:#7c3f1d}.report-section.cash h2{background:#74512d}.report-section.checks h2{background:#293462}.report-section.profit h2{background:#1f4e5f}.report-section.balance h2{background:#0f5960}.report-section.categories h2{background:#4a5568}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border-bottom:1px solid #e1e8f0;padding:7px;text-align:left}th{background:#f4f7fb;font-weight:700}.subtotal{padding:9px 12px;background:#f8fafc;font-weight:700;text-align:right}
+    body{font-family:Arial,sans-serif;color:#111827;padding:24px;background:#fff}h1{font-size:20px;margin:0 0 4px;font-weight:700}p{margin:0 0 18px;color:#374151;font-size:12px}.report-section{margin:0 0 18px;break-inside:avoid}.report-section h2{margin:0 0 8px;padding:0;color:#111827;font-size:14px;font-weight:700}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #9ca3af;padding:6px;text-align:left;vertical-align:top}th{background:#fff;font-weight:700}.subtotal{padding:8px 0;font-weight:700;text-align:right}
   </style></head><body><h1>${weekly.title}</h1><p>${rangeLabel}</p>${sectionHtml}<script>window.onload=()=>{window.print()}</script></body></html>`)
   win.document.close()
 }
@@ -506,13 +534,13 @@ export default function Reports({ data, setData }) {
   }
 
   function exportExcelReport() {
+    const slug = (activeReport.label || 'report').toLowerCase().replace(/\s+/g, '-')
     const reportObject = activeReport.source === 'weeklyRestaurant' ? weeklyRestaurant : activeReport.source === 'profitLoss' ? profitLossReport : null
     if (reportObject) {
-      const rowsForExport = flattenWeeklyReport(reportObject)
-      downloadCsv(`restapay-${reportObject.title.toLowerCase().replace(/\s+/g, '-')}-${dateStart || 'all'}-${dateEnd || 'latest'}.csv`, rowsForExport)
+      downloadXlsx(`restapay-${reportObject.title.toLowerCase().replace(/\s+/g, '-')}-${dateStart || 'all'}-${dateEnd || 'latest'}.xlsx`, weeklySheets(reportObject, rangeLabel))
       return
     }
-    downloadCsv(`restapay-${(activeReport.label || 'report').toLowerCase().replace(/\s+/g, '-')}-${dateStart || 'all'}-${dateEnd || 'latest'}.csv`, [headers, ...rows])
+    downloadXlsx(`restapay-${slug}-${dateStart || 'all'}-${dateEnd || 'latest'}.xlsx`, [{ name: activeReport.label || 'Report', rows: plainReportRows(activeReport.label || 'RestaPay Report', rangeLabel, headers, rows) }])
   }
 
   function toggleField(field) {
