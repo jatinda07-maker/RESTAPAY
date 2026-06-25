@@ -222,7 +222,7 @@ export default function Payroll({ data, setData }) {
       tip_deduction: tipDeduction,
       extra_pay: extraPay,
       extra_reason: manualForm.extra_reason.trim(),
-      total_pay: regularPay + tips + extraPay
+      total_pay: regularPay + tips - tipDeduction + extraPay
     }
     setData(prev => ({ ...prev, payrollEntries: [row, ...(prev.payrollEntries || [])] }))
     clearManualForm()
@@ -249,7 +249,7 @@ export default function Payroll({ data, setData }) {
       const tips = num(entryForm.tips)
       const extraPay = num(entryForm.extra_pay)
       const deduction = num(entryForm.tip_deduction)
-      return { ...entry, pay_date: entryForm.pay_date || entry.pay_date || today(), hours: num(entryForm.hours), regular_pay: regularPay, tips, tip_deduction: deduction, extra_pay: extraPay, extra_reason: entryForm.extra_reason.trim(), total_pay: regularPay + tips + extraPay }
+      return { ...entry, pay_date: entryForm.pay_date || entry.pay_date || today(), hours: num(entryForm.hours), regular_pay: regularPay, tips, tip_deduction: deduction, extra_pay: extraPay, extra_reason: entryForm.extra_reason.trim(), total_pay: regularPay + tips - deduction + extraPay }
     }) }))
     setEditingEntryId(null)
     setStatus('Payroll row updated and saved locally')
@@ -289,11 +289,11 @@ export default function Payroll({ data, setData }) {
         regular_pay: money(regular),
         gross_pay: money(gross),
         total_tips: money(totalTips),
-        tips: money(tipsAfterWithholding),
+        tips: money(totalTips),
         tip_deduction: money(tipDeduction),
         extra_pay: '0.00',
         extra_reason: '',
-        total_pay: money(regular + tipsAfterWithholding),
+        total_pay: money(regular + totalTips - tipDeduction),
         payroll_type: employee?.payroll_type || 'Check',
         pay_type: employee?.pay_type || 'Tips'
       }
@@ -315,7 +315,7 @@ export default function Payroll({ data, setData }) {
       const tips = round2(num(next.tips))
       const deduction = round2(num(next.tip_deduction))
       const extra = round2(num(next.extra_pay))
-      return { ...next, tip_deduction: field === 'tip_deduction' ? value : money(deduction), total_pay: money(regular + tips + extra) }
+      return { ...next, tip_deduction: field === 'tip_deduction' ? value : money(deduction), total_pay: money(regular + tips - deduction + extra) }
     }))
   }
 
@@ -522,7 +522,7 @@ export default function Payroll({ data, setData }) {
           <col style={{ width: '110px' }} />
           <col style={{ width: '116px' }} />
         </colgroup>
-        <thead><tr><th>Date</th><th>Employee</th><th>Source</th><th>Pay</th><th>Method</th><th>Hrs</th><th>Regular</th><th>Tips Net</th><th>Tips W/H</th><th>Extra</th><th>Reason</th><th>Total</th><th>Action</th></tr></thead><tbody>{entries.map(entry => {
+        <thead><tr><th>Date</th><th>Employee</th><th>Source</th><th>Pay</th><th>Method</th><th>Hrs</th><th>Regular</th><th>Net Tips</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th>Action</th></tr></thead><tbody>{entries.map(entry => {
         const isEditing = editingEntryId === entry.id
         return <tr key={entry.id} className={isEditing ? 'editing-row' : ''}>
           <td className="date-cell">{isEditing ? <input className="inline-edit-input date" type="date" value={entryForm.pay_date} onChange={e => setEntryForm(prev => ({ ...prev, pay_date: e.target.value }))} /> : entry.pay_date}</td>
@@ -536,7 +536,7 @@ export default function Payroll({ data, setData }) {
           <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tip_deduction} onChange={e => setEntryForm(prev => ({ ...prev, tip_deduction: e.target.value }))} /> : `$${money(entry.tip_deduction)}`}</td>
           <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.extra_pay} onChange={e => setEntryForm(prev => ({ ...prev, extra_pay: e.target.value }))} /> : `$${money(entry.extra_pay)}`}</td>
           <td>{isEditing ? <input className="inline-edit-input reason" value={entryForm.extra_reason} onChange={e => setEntryForm(prev => ({ ...prev, extra_reason: e.target.value }))} placeholder="Optional" /> : (entry.extra_reason || '-')}</td>
-          <td className="total-cell"><b>${isEditing ? money(num(entryForm.regular_pay) + num(entryForm.tips) + num(entryForm.extra_pay)) : money(entry.total_pay)}</b></td>
+          <td className="total-cell"><b>${isEditing ? money(num(entryForm.regular_pay) + num(entryForm.tips) - num(entryForm.tip_deduction) + num(entryForm.extra_pay)) : money(entry.total_pay)}</b></td>
           <td className="row-actions">{isEditing ? <><button className="save-link" onClick={saveEntryEdit}>Save</button><button onClick={() => setEditingEntryId(null)}>Cancel</button></> : <><button onClick={() => startEdit(entry)}>Edit</button><button className="delete-link" onClick={() => deleteEntry(entry.id)}>Delete</button></>}</td>
         </tr>
       })}</tbody></table>
