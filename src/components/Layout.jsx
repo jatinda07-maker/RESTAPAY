@@ -48,10 +48,6 @@ export default function Layout({ active, setActive, children }) {
           <span className="nav-label">{label}</span>
         </button>)}
       </nav>
-      <div className="sidebar-footer">
-        <div className="restaurant-badge"><Icon name="store" size={18} /><div><b>Demo Restaurant</b><small>Admin</small></div></div>
-        <div className="version"><span></span> v2.0.0</div>
-      </div>
     </aside>
     <main className="main-panel">
       <header className="page-title-strip">

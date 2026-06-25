@@ -1169,3 +1169,100 @@ html,body,#root{background:linear-gradient(180deg,#fbfdff 0%,#f6f9fd 100%)!impor
   .strip-date-range{min-width:0!important;width:100%!important;grid-template-columns:18px minmax(0,1fr) auto minmax(0,1fr)!important}
   .strip-date-range input[type="date"]{width:100%!important;min-width:0!important}
 }
+
+
+/* === FINAL POLISH 2026-06-25: compact premium dashboard, hover sidebar, crisp reports === */
+:root{
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --ink:#0b1733!important;
+  --muted:#64748b!important;
+  --line:#dfe8f3!important;
+  --bg:#f8fbff!important;
+  --card:#ffffff!important;
+  --brand:#2563eb!important;
+  --brand-2:#6d5dfc!important;
+  --shadow:0 10px 26px rgba(15,23,42,.055)!important;
+}
+html,body,#root{font-family:var(--font-ui)!important;background:linear-gradient(180deg,#fbfdff 0%,#f7faff 100%)!important;-webkit-font-smoothing:antialiased!important;text-rendering:geometricPrecision!important}
+body{font-size:14px!important;font-weight:500!important;color:var(--ink)!important}
+
+/* Sidebar autohide: collapsed icons by default, expands on rollover. */
+.sidebar{
+  width:72px!important;
+  min-width:72px!important;
+  overflow:hidden!important;
+  background:rgba(255,255,255,.96)!important;
+  border-right:1px solid #e4edf7!important;
+  box-shadow:7px 0 24px rgba(15,23,42,.035)!important;
+  transition:width .18s ease, box-shadow .18s ease!important;
+}
+.sidebar:hover{
+  width:232px!important;
+  min-width:232px!important;
+  overflow:visible!important;
+  box-shadow:14px 0 34px rgba(15,23,42,.08)!important;
+}
+.main-panel{margin-left:72px!important;transition:margin-left .18s ease!important;background:transparent!important}
+.brand{min-width:232px!important;padding:20px 16px 16px!important;overflow:hidden!important}
+.brand-mark{width:42px!important;height:42px!important;min-width:42px!important;border-radius:14px!important;font-weight:800!important;font-size:25px!important;background:linear-gradient(135deg,#2563eb,#6d5dfc)!important;color:#fff!important;box-shadow:0 12px 24px rgba(37,99,235,.22)!important}
+.brand-name{opacity:0!important;transform:translateX(-6px)!important;transition:opacity .14s ease,transform .14s ease!important;font-size:22px!important;font-weight:800!important;color:#0b1733!important}
+.sidebar:hover .brand-name{opacity:1!important;transform:none!important}
+.nav-list{padding:8px 14px!important;gap:8px!important;width:232px!important}
+.nav-item{height:44px!important;width:204px!important;display:grid!important;grid-template-columns:42px 1fr!important;gap:10px!important;align-items:center!important;padding:0 10px!important;border-radius:13px!important;border:1px solid transparent!important;background:transparent!important;color:#0b1733!important;font-size:14px!important;font-weight:650!important;letter-spacing:-.01em!important;overflow:hidden!important}
+.nav-item:hover{background:#f1f6ff!important;color:#175cd3!important;border-color:#dbe8ff!important}
+.nav-item.active{background:linear-gradient(135deg,#eef5ff,#f4efff)!important;color:#155eef!important;border-color:#dbe8ff!important;box-shadow:0 8px 20px rgba(37,99,235,.075)!important}
+.nav-icon{width:42px!important;min-width:42px!important;height:42px!important;display:grid!important;place-items:center!important;color:inherit!important;overflow:visible!important}
+.nav-icon svg{width:21px!important;height:21px!important;stroke-width:2.1!important}
+.nav-label{opacity:0!important;transform:translateX(-6px)!important;transition:opacity .14s ease,transform .14s ease!important;white-space:nowrap!important;color:inherit!important}
+.sidebar:hover .nav-label{opacity:1!important;transform:none!important}
+.sidebar-footer,.restaurant-badge,.version{display:none!important}
+
+/* Header/date range no clipping. */
+.page-title-strip{min-height:76px!important;background:rgba(255,255,255,.9)!important;border:1px solid #e4edf7!important;border-radius:0 0 22px 22px!important;box-shadow:0 10px 28px rgba(15,23,42,.045)!important;padding:18px 28px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:18px!important;overflow:visible!important;position:sticky!important;top:0!important;z-index:8!important}
+.page-title-strip h1,.page-head h1{font-size:25px!important;line-height:1.1!important;letter-spacing:-.035em!important;font-weight:750!important;color:#0b1733!important;margin:0 0 4px!important}
+.page-title-strip p,.page-head p{font-size:13px!important;color:#607089!important;font-weight:500!important;margin:0!important}
+.strip-date-range{height:44px!important;min-width:368px!important;width:auto!important;display:grid!important;grid-template-columns:20px 138px auto 138px!important;align-items:center!important;gap:10px!important;background:#fff!important;color:#0b1733!important;border:1px solid #d7e2ee!important;border-radius:14px!important;padding:0 12px!important;box-shadow:0 8px 20px rgba(15,23,42,.04)!important;overflow:visible!important}
+.strip-date-range input[type="date"]{display:block!important;width:138px!important;min-width:138px!important;height:32px!important;border:0!important;background:#fff!important;color:#0b1733!important;-webkit-text-fill-color:#0b1733!important;padding:0 2px!important;font-size:12.5px!important;font-weight:700!important;color-scheme:light!important;line-height:32px!important}
+.strip-date-range span{font-size:11px!important;color:#64748b!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:.05em!important}
+.strip-date-range svg{color:#f97316!important;width:17px!important;height:17px!important}
+.strip-date-range input[type="date"]::-webkit-calendar-picker-indicator{opacity:1!important;margin-left:3px!important;cursor:pointer!important}
+
+/* Dashboard cards: smaller, crisper numbers; slightly bold, not oversized. */
+.content-area{padding:22px 28px 38px!important}
+.kpi-grid{display:grid!important;grid-template-columns:repeat(4,minmax(230px,1fr))!important;gap:18px!important;margin-bottom:20px!important}
+.kpi-card{display:grid!important;grid-template-columns:48px minmax(0,1fr)!important;gap:16px!important;min-height:134px!important;align-items:start!important;padding:20px!important;border:1px solid #e0e9f4!important;border-radius:18px!important;background:#fff!important;box-shadow:var(--shadow)!important;color:#0b1733!important;text-align:left!important;overflow:hidden!important}
+.kpi-card:hover{transform:translateY(-1px)!important;box-shadow:0 14px 30px rgba(15,23,42,.075)!important}
+.kpi-icon{width:48px!important;height:48px!important;border-radius:15px!important;display:grid!important;place-items:center!important;box-shadow:0 10px 20px rgba(15,23,42,.055)!important}
+.kpi-icon svg{width:22px!important;height:22px!important;stroke-width:2.2!important}
+.kpi-card h3{font-size:13.25px!important;font-weight:720!important;line-height:1.25!important;letter-spacing:-.012em!important;color:#0b1733!important;margin:2px 0 7px!important}
+.kpi-card strong{display:block!important;font-size:24px!important;line-height:1.08!important;font-weight:760!important;letter-spacing:-.035em!important;color:#050b18!important;font-variant-numeric:tabular-nums!important}
+.kpi-card p{font-size:12.5px!important;line-height:1.3!important;font-weight:720!important;color:#059669!important;margin:9px 0 0!important}
+.kpi-card p.down{color:#dc2626!important}
+.kpi-card small{display:grid!important;grid-template-columns:minmax(0,1fr) max-content!important;gap:14px!important;align-items:start!important;color:#5f7087!important;font-size:12.5px!important;line-height:1.28!important;font-weight:520!important}
+.kpi-card small span{min-width:0!important;white-space:normal!important}
+.kpi-card small b{text-align:right!important;white-space:nowrap!important;color:#07142d!important;font-weight:760!important;font-variant-numeric:tabular-nums!important}
+.kpi-card div[style*="border-top"]{border-top:1px solid #e7eef6!important;margin-top:13px!important;padding-top:13px!important;gap:7px!important}
+
+/* Reports: always visible plain export buttons and cleaner report header. */
+.employee-head{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:16px!important}
+.employee-head-actions{display:flex!important;flex-wrap:wrap!important;align-items:center!important;justify-content:flex-end!important;gap:10px!important;margin-left:auto!important}
+.employee-head-actions .btn{height:40px!important;min-width:128px!important;padding:0 14px!important;justify-content:center!important;font-size:13px!important;font-weight:720!important}
+.employee-head-actions .btn.ghost{background:#fff!important;border:1px solid #dce6f1!important;color:#10213d!important}
+.employee-head-actions .btn.primary{background:linear-gradient(135deg,#2563eb,#4f46e5)!important;border-color:#2563eb!important;color:#fff!important}
+.reports-mode-tabs{margin-top:4px!important;margin-bottom:12px!important}
+.reports-mode-tabs button{font-size:13px!important;font-weight:720!important;border-radius:12px!important;padding:0 14px!important;height:38px!important}
+.sales-filter-bar,.report-filter-bar{border-radius:18px!important;padding:14px!important;background:#fff!important;border:1px solid #e0e9f4!important;box-shadow:var(--shadow)!important;overflow:visible!important}
+.weekly-report-title{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;background:#fff!important;border:1px solid #e0e9f4!important;border-radius:18px!important;box-shadow:var(--shadow)!important;padding:16px 18px!important;margin:0 0 14px!important}
+.weekly-report-title h2{font-size:18px!important;font-weight:750!important;color:#0b1733!important;letter-spacing:-.025em!important;margin:0!important}
+.weekly-report-title span{font-size:13px!important;color:#64748b!important;font-weight:650!important}
+.weekly-report-section header{min-height:42px!important;padding:0 16px!important;background:linear-gradient(135deg,#10213d,#244165)!important;color:#fff!important}
+.weekly-report-section header h3{font-size:14px!important;font-weight:750!important;letter-spacing:-.01em!important}
+.weekly-report-section header b{font-size:14px!important;font-weight:750!important;font-variant-numeric:tabular-nums!important}
+.sales-table th{font-size:11.5px!important;font-weight:780!important;letter-spacing:.035em!important;color:#475569!important;background:#f8fbff!important}
+.sales-table td{font-size:12.8px!important;font-weight:500!important;color:#1e293b!important}
+.payroll-summary-row div b{font-size:18px!important;font-weight:760!important;font-variant-numeric:tabular-nums!important}
+.payroll-summary-row div span{font-size:12px!important;font-weight:650!important;color:#64748b!important}
+
+@media(max-width:1400px){.kpi-grid{grid-template-columns:repeat(3,minmax(220px,1fr))!important}}
+@media(max-width:1080px){.kpi-grid,.panel-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.employee-head{flex-direction:column!important}.employee-head-actions{justify-content:flex-start!important;width:100%!important}.main-panel{margin-left:72px!important}}
+@media(max-width:760px){.page-title-strip{padding:16px!important;flex-direction:column!important;align-items:flex-start!important}.strip-date-range{min-width:0!important;width:100%!important;grid-template-columns:20px minmax(0,1fr) auto minmax(0,1fr)!important}.strip-date-range input[type="date"]{width:100%!important;min-width:0!important}.content-area{padding:18px 14px 32px!important}.kpi-grid,.panel-grid{grid-template-columns:1fr!important}.kpi-card{grid-template-columns:46px minmax(0,1fr)!important;padding:18px!important;min-height:122px!important}.kpi-icon{width:46px!important;height:46px!important}.kpi-card strong{font-size:22px!important}.employee-head-actions .btn{flex:1 1 145px!important}}
