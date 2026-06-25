@@ -121,6 +121,9 @@ export default function Invoices({ data, setData }) {
   const localUploadRef = useRef(null)
   const aiUploadRef = useRef(null)
   const phoneRef = useRef(null)
+console.log("VITE_GEMINI_API_KEY =", import.meta.env.VITE_GEMINI_API_KEY)
+console.log("VITE_GEMINI_MODEL =", import.meta.env.VITE_GEMINI_MODEL)
+console.log("import.meta.env =", import.meta.env)
 
   const filtered = useMemo(() => invoices.filter(inv => {
     const q = search.toLowerCase().trim()
