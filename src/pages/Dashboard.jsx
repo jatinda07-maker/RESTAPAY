@@ -39,11 +39,49 @@ function isFoodCategory(value) {
 }
 function categoryKey(value) { return String(value || 'Uncategorized').trim() || 'Uncategorized' }
 
+const SPEND_CATEGORY_ORDER = [
+  'Food', 'Beverage', 'Beer', 'Liquor', 'Supplies', 'Utilities',
+  'Maintenance', 'Insurance', 'Accounting Fees', 'Loans',
+  'Cash Expenses', 'Restaurant Expenses', 'Other'
+]
+
+function normalizeSpendCategory(value) {
+  const text = String(value || '').toLowerCase()
+  if (text.includes('food') || text.includes('meat') || text.includes('produce') || text.includes('grocery') || text.includes('chicken') || text.includes('beef') || text.includes('fish') || text.includes('rice') || text.includes('oil') || text.includes('flour') || text.includes('cheese') || text.includes('sauce')) return 'Food'
+  if (text.includes('beer')) return 'Beer'
+  if (text.includes('liquor') || text.includes('wine') || text.includes('alcohol') || text.includes('vodka') || text.includes('tequila') || text.includes('whiskey') || text.includes('rum')) return 'Liquor'
+  if (text.includes('beverage') || text.includes('soda') || text.includes('drink') || text.includes('coffee') || text.includes('tea') || text.includes('juice') || text.includes('coke') || text.includes('pepsi')) return 'Beverage'
+  if (text.includes('suppl') || text.includes('glove') || text.includes('napkin') || text.includes('straw') || text.includes('bag') || text.includes('container') || text.includes('paper') || text.includes('chemical') || text.includes('soap')) return 'Supplies'
+  if (text.includes('util') || text.includes('electric') || text.includes('gas') || text.includes('water')) return 'Utilities'
+  if (text.includes('maint') || text.includes('repair') || text.includes('service')) return 'Maintenance'
+  if (text.includes('insurance')) return 'Insurance'
+  if (text.includes('account')) return 'Accounting Fees'
+  if (text.includes('loan') || text.includes('mortgage')) return 'Loans'
+  if (text.includes('cash')) return 'Cash Expenses'
+  if (text.includes('restaurant')) return 'Restaurant Expenses'
+  return categoryKey(value || 'Other')
+}
+
+function inferItemCategory(row, invoice = {}) {
+  const explicit = rowCategory(row) || row.category || invoice.category
+  const description = String(row.description || row.item_name || row.item || row.name || '').toLowerCase()
+  return normalizeSpendCategory(`${explicit || ''} ${description}`)
+}
+
 function KpiCard({ item, onClick }) {
-  const [title, value, meta, icon, tone] = item
+  const [title, value, meta, icon, tone, , details = []] = item
   return <button className="kpi-card dashboard-click-card" onClick={onClick} type="button">
     <div className={`kpi-icon ${tone}`}><Icon name={icon} size={24} /></div>
-    <div><h3>{title}</h3><strong>{value}</strong><p className={title.includes('Loss') || title.includes('Refund') ? 'down' : ''}>{meta}</p></div>
+    <div>
+      <h3>{title}</h3>
+      <strong>{value}</strong>
+      <p className={title.includes('Loss') || title.includes('Refund') ? 'down' : ''}>{meta}</p>
+      {details.length ? <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e5edf6', display: 'grid', gap: 4 }}>
+        {details.map(([label, amount]) => <small key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#536984', fontSize: 12, lineHeight: 1.25 }}>
+          <span>{label}</span><b style={{ color: '#001b3d', whiteSpace: 'nowrap' }}>{amount}</b>
+        </small>)}
+      </div> : null}
+    </div>
   </button>
 }
 
@@ -88,41 +126,77 @@ export default function Dashboard({ data, setActive }) {
     const cashPayrollRows = monthPayroll.filter(isCashPayroll)
     const checkPayrollRows = monthPayroll.filter(isCheckPayroll)
     const monthInvoices = invoices.filter(row => thisMonth(row.invoice_date || row.date))
-    const monthInvoiceItems = invoiceItems.filter(row => thisMonth(row.invoice_date || row.date || row.created_at))
+    const invoiceById = Object.fromEntries(invoices.map(inv => [inv.id, inv]))
+    const monthInvoiceItems = invoiceItems.filter(row => {
+      const inv = invoiceById[row.invoice_id] || {}
+      return thisMonth(row.invoice_date || row.date || row.created_at || inv.invoice_date || inv.date)
+    })
     const monthExpenses = expenseRows.filter(row => thisMonth(row.date || row.expense_date))
     const salesToday = todaySales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const salesWeek = weekSales.reduce((sum, row) => sum + num(row.net_sales), 0)
     const salesMonth = monthSales.reduce((sum, row) => sum + num(row.net_sales), 0)
+    const cashMonth = monthSales.reduce((sum, row) => sum + num(row.cash_sales), 0)
+    const taxMonth = monthSales.reduce((sum, row) => sum + num(row.tax), 0)
     const tipsMonth = monthSales.reduce((sum, row) => sum + num(row.tips), 0)
+    const tipsWithheldMonth = monthSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
+    const tipsAfterWithholdingMonth = tipsMonth
+    const trueNetSalesMonth = salesMonth - taxMonth - tipsAfterWithholdingMonth
     const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
     const payrollMonth = monthPayroll.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
     const invoiceSpend = monthInvoices.reduce((sum, row) => sum + invoiceTotal(row), 0)
     const expenseSpend = monthExpenses.reduce((sum, row) => sum + num(row.amount), 0)
-    const foodFromItems = monthInvoiceItems.filter(row => isFoodCategory(rowCategory(row))).reduce((sum, row) => sum + itemAmount(row), 0)
-    const foodFromInvoices = monthInvoices.filter(row => isFoodCategory(rowCategory(row))).reduce((sum, row) => sum + invoiceTotal(row), 0)
-    const foodSpend = foodFromItems || foodFromInvoices
-    const foodCostPercent = salesMonth > 0 ? (foodSpend / salesMonth) * 100 : 0
-    const expensesFromInvoiceCategories = [...monthInvoices.map(row => ({...row, source: 'Invoice', amount: invoiceTotal(row), category: categoryKey(rowCategory(row)), date: rowDate(row, ['invoice_date', 'date']) })), ...monthExpenses.map(row => ({...row, source: 'Expense', amount: num(row.amount), category: categoryKey(rowCategory(row)), date: rowDate(row, ['date', 'expense_date']) }))]
+    const invoicesWithLineItems = new Set(monthInvoiceItems.map(item => item.invoice_id).filter(Boolean))
+    const invoiceItemCategorySpend = monthInvoiceItems.map(row => {
+      const inv = invoiceById[row.invoice_id] || {}
+      return {
+        ...row,
+        source: 'Invoice Item',
+        vendor: inv.vendor || inv.vendor_name || row.vendor || row.vendor_name,
+        amount: itemAmount(row),
+        category: inferItemCategory(row, inv),
+        date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date'])
+      }
+    }).filter(row => num(row.amount) > 0)
+
+    const invoiceHeaderCategorySpend = monthInvoices
+      .filter(row => !invoicesWithLineItems.has(row.id))
+      .map(row => ({...row, source: 'Invoice', amount: invoiceTotal(row), category: normalizeSpendCategory(rowCategory(row)), date: rowDate(row, ['invoice_date', 'date']) }))
+
+    const expenseCategorySpend = monthExpenses.map(row => ({...row, source: 'Expense', amount: num(row.amount), category: normalizeSpendCategory(rowCategory(row)), date: rowDate(row, ['date', 'expense_date']) }))
+    const expensesFromInvoiceCategories = [...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend, ...expenseCategorySpend]
     const totalExpensesAll = expensesFromInvoiceCategories.reduce((sum, row) => sum + num(row.amount), 0)
     const profit = salesMonth - payrollMonth - totalExpensesAll
     const categoryMap = new Map()
     expensesFromInvoiceCategories.forEach(row => {
-      const key = categoryKey(row.category)
+      const key = normalizeSpendCategory(row.category)
       categoryMap.set(key, (categoryMap.get(key) || 0) + num(row.amount))
     })
-    const categoryRows = [...categoryMap.entries()].sort((a,b)=>b[1]-a[1]).map(([category, amount]) => ({ id: `cat-${category}`, category, amount }))
-    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, tipsMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, expensesFromInvoiceCategories }
+    SPEND_CATEGORY_ORDER.forEach(category => {
+      if (!categoryMap.has(category)) categoryMap.set(category, 0)
+    })
+    const categoryRows = [...categoryMap.entries()]
+      .sort((a, b) => {
+        const ai = SPEND_CATEGORY_ORDER.indexOf(a[0])
+        const bi = SPEND_CATEGORY_ORDER.indexOf(b[0])
+        if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+        return b[1] - a[1]
+      })
+      .map(([category, amount]) => ({ id: `cat-${category}`, category, amount }))
+    const foodSpend = categoryMap.get('Food') || 0
+    const foodCostPercent = salesMonth > 0 ? (foodSpend / salesMonth) * 100 : 0
+    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, expensesFromInvoiceCategories }
   }, [salesDays, payroll, invoices, invoiceItems, expenseRows])
 
   const kpiItems = [
     ['Sales Today', money(derived.salesToday), noThisPeriod(derived.todaySales, 'sales', 'today'), 'cart', 'green', 'sales-today'],
     ['Sales This Week', money(derived.salesWeek), noThisPeriod(derived.weekSales, 'sales', 'this week'), 'store', 'blue', 'sales-week'],
-    ['Sales This Month', money(derived.salesMonth), noThisPeriod(derived.monthSales, 'sales', 'this month'), 'calendar', 'purple', 'sales-month'],
+    ['Sales This Month', money(derived.trueNetSalesMonth), noThisPeriod(derived.monthSales, 'sales', 'this month'), 'calendar', 'purple', 'sales-month', [['Sales Tax', money(derived.taxMonth)], ['Tips After Withholding', money(derived.tipsAfterWithholdingMonth)], ['Tips Withheld', money(derived.tipsWithheldMonth)]]],
+    ['Cash Collected', money(derived.cashMonth), `${derived.monthSales.length} uploaded sales rows`, 'dollar', 'green', 'cash-collected'],
     ['Profit / Loss', money(derived.profit), 'Sales - payroll - expenses - invoices', 'dollar', 'teal', 'profit-loss'],
     ['Cash Payroll', money(derived.cashPayroll), emptyLabel(derived.cashPayrollRows, 'cash payroll'), 'payroll', 'orange', 'cash-payroll'],
     ['Check Payroll', money(derived.checkPayroll), emptyLabel(derived.checkPayrollRows, 'check payroll'), 'card', 'blue', 'check-payroll'],
-    ['Food Cost %', pct(derived.foodCostPercent), `${money(derived.foodSpend)} food invoices`, 'utensils', 'orange', 'food-cost'],
+    ['Food Cost %', pct(derived.foodCostPercent), `${money(derived.foodSpend)} food spend`, 'utensils', 'orange', 'food-cost'],
     ['Expenses by Category', money(derived.totalExpensesAll), `${derived.categoryRows.length} categories`, 'expenses', 'purple', 'expense-categories'],
     ['Invoice Spend', money(derived.invoiceSpend), emptyLabel(derived.monthInvoices, 'invoices this month'), 'invoices', 'red', 'invoices'],
     ['Tips', money(derived.tipsMonth), 'This month from sales', 'gift', 'green', 'sales-tips'],
@@ -151,6 +225,9 @@ export default function Dashboard({ data, setActive }) {
     'sales-tips': { title: 'Tips From Sales', open: 'sales', rows: derived.monthSales.filter(r => num(r.tips) > 0), columns: [
       { key: 'business_date', label: 'Date' }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }
     ]},
+    'cash-collected': { title: 'Cash Collected From Uploaded Sales', open: 'sales', rows: derived.monthSales.filter(r => num(r.cash_sales) > 0), message: `Cash collected this month = ${money(derived.cashMonth)}`, columns: [
+      { key: 'business_date', label: 'Date' }, { key: 'cash_sales', label: 'Cash Sales', render: r => money(num(r.cash_sales)) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }, { key: 'source_file', label: 'Source', render: r => r.source_file || '-' }
+    ]},
     'cash-payroll': { title: 'Cash Payroll Employees', open: 'payroll', rows: derived.cashPayrollRows, columns: [
       { key: 'pay_date', label: 'Date' }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'hours', label: 'Hours', render: r => num(r.hours).toFixed(2) }, { key: 'extra_pay', label: 'Extra Pay', render: r => money(num(r.extra_pay)) }, { key: 'total_pay', label: 'Total', render: r => money(num(r.total_pay || r.amount)) }
     ]},
@@ -162,8 +239,8 @@ export default function Dashboard({ data, setActive }) {
     ], columns: [
       { key: 'label', label: 'Line Item' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
-    'food-cost': { title: 'Food Cost From Invoice Categories', open: 'reports', rows: derived.monthInvoiceItems.filter(row => isFoodCategory(rowCategory(row))).length ? derived.monthInvoiceItems.filter(row => isFoodCategory(rowCategory(row))).map(row => ({...row, amount: itemAmount(row)})) : derived.monthInvoices.filter(row => isFoodCategory(rowCategory(row))).map(row => ({...row, amount: invoiceTotal(row)})), message: derived.foodSpend ? `Food Cost % = ${money(derived.foodSpend)} / ${money(derived.salesMonth)} = ${pct(derived.foodCostPercent)}` : 'No food invoice category entered this month.', columns: [
-      { key: 'date', label: 'Date', render: r => rowDate(r, ['invoice_date', 'date']) }, { key: 'vendor', label: 'Vendor', render: r => r.vendor || r.vendor_name || '-' }, { key: 'description', label: 'Item/Category', render: r => r.description || r.item_name || r.category || '-' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
+    'food-cost': { title: 'Food Cost Details', open: 'reports', rows: derived.expensesFromInvoiceCategories.filter(row => normalizeSpendCategory(row.category) === 'Food'), message: derived.foodSpend ? `Food Cost % = ${money(derived.foodSpend)} / ${money(derived.salesMonth)} = ${pct(derived.foodCostPercent)}` : 'No Food category spend entered this month.', columns: [
+      { key: 'date', label: 'Date', render: r => r.date || rowDate(r, ['invoice_date', 'date']) }, { key: 'vendor', label: 'Vendor', render: r => r.vendor || r.vendor_name || '-' }, { key: 'description', label: 'Item/Category', render: r => r.description || r.item_name || r.category || '-' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
     'expense-categories': { title: 'Expenses From Invoice Categories + Expenses', open: 'expenses', rows: derived.categoryRows, columns: [
       { key: 'category', label: 'Category' }, { key: 'amount', label: 'Total', render: r => money(num(r.amount)) }
