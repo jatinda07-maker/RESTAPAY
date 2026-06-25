@@ -15,52 +15,304 @@ const map = {
 }
 
 function PriceIncreasePage() {
+  const today = new Date().toISOString().slice(0, 10)
   const defaults = [
-    { id: 'pi-1', name: 'Beef Ribeye', oldPrice: 10.00, newPrice: 10.81, category: 'Food', vendor: '', date: new Date().toISOString().slice(0,10), source: 'manual' },
-    { id: 'pi-2', name: 'Chicken Case', oldPrice: 10.00, newPrice: 10.34, category: 'Food', vendor: '', date: new Date().toISOString().slice(0,10), source: 'manual' },
-    { id: 'pi-3', name: 'Beer Keg', oldPrice: 10.00, newPrice: 10.29, category: 'Beer', vendor: '', date: new Date().toISOString().slice(0,10), source: 'manual' }
+    { id: 'pi-1', name: 'Beef Ribeye', oldPrice: 10.00, newPrice: 10.81, category: 'Food', vendor: '', date: today, source: 'manual' },
+    { id: 'pi-2', name: 'Chicken Case', oldPrice: 10.00, newPrice: 10.34, category: 'Food', vendor: '', date: today, source: 'manual' },
+    { id: 'pi-3', name: 'Beer Keg', oldPrice: 10.00, newPrice: 10.29, category: 'Beer', vendor: '', date: today, source: 'manual' }
   ]
+
   const [rows, setRows] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('priceIncreases') || 'null') || defaults } catch { return defaults }
   })
-  const [sort, setSort] = React.useState('az')
+  const [sort, setSort] = React.useState('highest')
   const [editingId, setEditingId] = React.useState(null)
-  const [form, setForm] = React.useState({ name:'', oldPrice:'', newPrice:'', category:'Food', vendor:'', date:new Date().toISOString().slice(0,10) })
-  function persist(next) { setRows(next); localStorage.setItem('priceIncreases', JSON.stringify(next)) }
-  function pct(row) { const oldPrice = Number(row.oldPrice || 0); const newPrice = Number(row.newPrice || 0); return oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0 }
-  function clear() { setEditingId(null); setForm({ name:'', oldPrice:'', newPrice:'', category:'Food', vendor:'', date:new Date().toISOString().slice(0,10) }) }
+  const [search, setSearch] = React.useState('')
+  const [categoryFilter, setCategoryFilter] = React.useState('all')
+  const [vendorFilter, setVendorFilter] = React.useState('all')
+  const [status, setStatus] = React.useState('Manual price tracking is ready. You can also pull price changes from saved invoice line items.')
+  const [form, setForm] = React.useState({ name:'', oldPrice:'', newPrice:'', category:'Food', vendor:'', date: today })
+
+  function readAppData() {
+    try {
+      return JSON.parse(localStorage.getItem('restapay_v2_local_data') || '{}') || {}
+    } catch {
+      return {}
+    }
+  }
+
+  function persist(next) {
+    setRows(next)
+    localStorage.setItem('priceIncreases', JSON.stringify(next))
+  }
+
+  function money(value) {
+    return Number(value || 0).toFixed(2)
+  }
+
+  function clean(value) {
+    return String(value ?? '').trim()
+  }
+
+  function norm(value) {
+    return clean(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  }
+
+  function rowDate(row) {
+    return String(row?.invoice_date || row?.date || row?.created_at || today).slice(0, 10)
+  }
+
+  function unitPrice(item) {
+    const direct = Number(item.unit_price || item.price || item.unit || item.rate || 0)
+    if (direct) return direct
+    const qty = Number(item.qty || item.quantity || 0)
+    const total = Number(item.total || item.amount || item.line_total || 0)
+    return qty > 0 ? total / qty : total
+  }
+
+  function pct(row) {
+    const oldPrice = Number(row.oldPrice || 0)
+    const newPrice = Number(row.newPrice || 0)
+    return oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0
+  }
+
+  function dollarChange(row) {
+    return Number(row.newPrice || 0) - Number(row.oldPrice || 0)
+  }
+
+  function clear() {
+    setEditingId(null)
+    setForm({ name:'', oldPrice:'', newPrice:'', category:'Food', vendor:'', date: today })
+  }
+
   function save() {
-    if (!String(form.name || '').trim()) return
-    const payload = { ...form, name: form.name.trim(), oldPrice: Number(form.oldPrice || 0), newPrice: Number(form.newPrice || 0), source: 'manual' }
-    if (editingId) persist(rows.map(r => r.id === editingId ? { ...r, ...payload, id: editingId } : r))
-    else persist([...rows, { ...payload, id: `pi-${Date.now()}` }])
+    if (!clean(form.name)) return setStatus('Enter item name first')
+    const payload = {
+      ...form,
+      name: clean(form.name),
+      oldPrice: Number(form.oldPrice || 0),
+      newPrice: Number(form.newPrice || 0),
+      category: clean(form.category) || 'Other',
+      vendor: clean(form.vendor),
+      date: form.date || today,
+      source: 'manual'
+    }
+
+    if (editingId) {
+      persist(rows.map(r => r.id === editingId ? { ...r, ...payload, id: editingId } : r))
+      setStatus(`Updated price for ${payload.name}`)
+    } else {
+      persist([{ ...payload, id: `pi-${Date.now()}` }, ...rows])
+      setStatus(`Saved price increase for ${payload.name}`)
+    }
     clear()
   }
-  function edit(row) { setEditingId(row.id); setForm({ name: row.name || '', oldPrice: row.oldPrice ?? '', newPrice: row.newPrice ?? '', category: row.category || 'Food', vendor: row.vendor || '', date: row.date || new Date().toISOString().slice(0,10) }) }
-  function remove(id) { persist(rows.filter(r => r.id !== id)); if (editingId === id) clear() }
-  const sorted = [...rows].sort((a,b) => {
+
+  function edit(row) {
+    setEditingId(row.id)
+    setForm({
+      name: row.name || '',
+      oldPrice: row.oldPrice ?? '',
+      newPrice: row.newPrice ?? '',
+      category: row.category || 'Food',
+      vendor: row.vendor || '',
+      date: row.date || today
+    })
+    setStatus(`Editing ${row.name}`)
+    requestAnimationFrame(() => document.querySelector('.price-increase-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
+  function remove(id) {
+    const found = rows.find(r => r.id === id)
+    persist(rows.filter(r => r.id !== id))
+    if (editingId === id) clear()
+    setStatus(found ? `Deleted ${found.name}` : 'Deleted price row')
+  }
+
+  function pullFromInvoices() {
+    const appData = readAppData()
+    const invoices = appData.invoices || []
+    const invoiceItems = appData.invoiceItems || []
+
+    if (!invoiceItems.length) {
+      setStatus('No invoice line items found yet. Upload/save invoices with line items first.')
+      return
+    }
+
+    const invoicesById = Object.fromEntries(invoices.map(inv => [inv.id, inv]))
+    const groups = new Map()
+
+    invoiceItems.forEach(item => {
+      const name = clean(item.description || item.item || item.item_name || item.name)
+      if (!name) return
+
+      const inv = invoicesById[item.invoice_id] || {}
+      const price = unitPrice(item)
+      if (!price) return
+
+      const vendor = clean(inv.vendor_name || inv.vendor || item.vendor || item.vendor_name)
+      const category = clean(item.category || inv.category || 'Other')
+      const date = rowDate(inv)
+      const key = `${norm(vendor)}::${norm(name)}`
+
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push({
+        name,
+        vendor,
+        category,
+        date,
+        price,
+        invoice: inv.invoice_number || '',
+        source: 'invoice'
+      })
+    })
+
+    const generated = []
+    groups.forEach(records => {
+      records.sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      if (!records.length) return
+
+      const first = records[0]
+      const latest = records[records.length - 1]
+      const oldPrice = Number(first.price || 0)
+      const newPrice = Number(latest.price || 0)
+      if (!oldPrice || !newPrice) return
+
+      generated.push({
+        id: `pi-auto-${norm(latest.vendor)}-${norm(latest.name)}-${Date.now()}-${generated.length}`,
+        name: latest.name,
+        oldPrice,
+        newPrice,
+        category: latest.category || first.category || 'Other',
+        vendor: latest.vendor || first.vendor || '',
+        date: latest.date || today,
+        firstDate: first.date,
+        invoiceCount: records.length,
+        latestInvoice: latest.invoice,
+        source: 'invoice'
+      })
+    })
+
+    if (!generated.length) {
+      setStatus('Invoice line items were found, but no usable unit prices were detected.')
+      return
+    }
+
+    const manualRows = rows.filter(row => row.source !== 'invoice')
+    const merged = [...generated, ...manualRows]
+    persist(merged)
+    setStatus(`Pulled ${generated.length} price rows from saved invoice line items.`)
+  }
+
+  const appData = readAppData()
+  const vendorOptions = [...new Set([...(appData.vendors || []).map(v => v.name), ...rows.map(r => r.vendor)].filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const categoryOptions = [...new Set(['Food', 'Beverage', 'Beer', 'Liquor', 'Supplies', 'Utilities', 'Maintenance', 'Insurance', 'Other', ...(appData.vendorCategories || []), ...rows.map(r => r.category)].filter(Boolean))].sort((a, b) => a.localeCompare(b))
+
+  const filtered = rows.filter(row => {
+    const q = search.toLowerCase().trim()
+    if (q && ![row.name, row.vendor, row.category, row.source].join(' ').toLowerCase().includes(q)) return false
+    if (categoryFilter !== 'all' && row.category !== categoryFilter) return false
+    if (vendorFilter !== 'all' && row.vendor !== vendorFilter) return false
+    return true
+  })
+
+  const sorted = [...filtered].sort((a,b) => {
     if (sort === 'highest') return pct(b) - pct(a)
+    if (sort === 'dollars') return dollarChange(b) - dollarChange(a)
     if (sort === 'newest') return String(b.date || '').localeCompare(String(a.date || ''))
     if (sort === 'category') return String(a.category || '').localeCompare(String(b.category || '')) || String(a.name || '').localeCompare(String(b.name || ''))
     if (sort === 'vendor') return String(a.vendor || '').localeCompare(String(b.vendor || '')) || String(a.name || '').localeCompare(String(b.name || ''))
     return String(a.name || '').localeCompare(String(b.name || ''))
   })
+
+  const biggest = sorted[0]
+  const overTen = rows.filter(row => pct(row) >= 10).length
+  const livePct = pct({ oldPrice: form.oldPrice, newPrice: form.newPrice })
+
   return <>
-    <section className="form-card tight-card">
+    <div className="status-pill">{status}</div>
+
+    <div className="payroll-summary-row sales-summary-row">
+      <div><span>Tracked Items</span><b>{rows.length}</b></div>
+      <div><span>Largest Increase</span><b>{biggest ? `${pct(biggest).toFixed(1)}%` : '0.0%'}</b></div>
+      <div><span>Items Over 10%</span><b>{overTen}</b></div>
+      <div><span>Invoice Items</span><b>{(appData.invoiceItems || []).length}</b></div>
+    </div>
+
+    <section className="form-card tight-card price-increase-form">
       <h2>{editingId ? 'Edit Price Increase' : 'Add Price Increase'}</h2>
       <div className="employee-form-grid clean-grid">
         <label>Item name <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Item name" /></label>
         <label>Old price <input type="number" step="0.01" value={form.oldPrice} onChange={e=>setForm({...form,oldPrice:e.target.value})} placeholder="0.00" /></label>
         <label>New price <input type="number" step="0.01" value={form.newPrice} onChange={e=>setForm({...form,newPrice:e.target.value})} placeholder="0.00" /></label>
-        <label>Category <input value={form.category} onChange={e=>setForm({...form,category:e.target.value})} placeholder="Food" /></label>
-        <label>Vendor <input value={form.vendor} onChange={e=>setForm({...form,vendor:e.target.value})} placeholder="Vendor" /></label>
+        <label>Category
+          <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>
+            {categoryOptions.map(category => <option key={category}>{category}</option>)}
+          </select>
+        </label>
+        <label>Vendor
+          <select value={form.vendor} onChange={e=>setForm({...form,vendor:e.target.value})}>
+            <option value="">No vendor</option>
+            {vendorOptions.map(vendor => <option key={vendor}>{vendor}</option>)}
+          </select>
+        </label>
         <label>Date <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} /></label>
       </div>
-      <div className="form-action-footer"><button className="btn secondary" onClick={clear}>{editingId ? 'Cancel Edit' : 'Clear'}</button><button className="btn primary" onClick={save}><Icon name="save" /> {editingId ? 'Update Price' : 'Save Price'}</button></div>
+
+      <div className="status-pill">Live increase: {Number.isFinite(livePct) ? livePct.toFixed(1) : '0.0'}%</div>
+
+      <div className="form-action-footer">
+        <button className="btn secondary" onClick={clear}>{editingId ? 'Cancel Edit' : 'Clear'}</button>
+        <button className="btn secondary" onClick={pullFromInvoices}><Icon name="refresh" /> Pull From Invoices</button>
+        <button className="btn primary" onClick={save}><Icon name="save" /> {editingId ? 'Update Price' : 'Save Price'}</button>
+      </div>
     </section>
+
     <section className="table-card compact-table-card">
-      <header><h2>Price Increase List</h2><span><select className="header-select" value={sort} onChange={e=>setSort(e.target.value)}><option value="az">Sorted A-Z</option><option value="highest">Highest Increase</option><option value="newest">Newest</option><option value="category">Category</option><option value="vendor">Vendor</option></select></span></header>
-      <table><thead><tr><th>Name</th><th>Old Price</th><th>New Price</th><th>Increase</th><th>Category</th><th>Vendor</th><th>Date</th><th>Action</th></tr></thead><tbody>{sorted.map(row => <tr key={row.id}><td><b>{row.name}</b><small>{row.source || 'manual'}</small></td><td>${Number(row.oldPrice||0).toFixed(2)}</td><td>${Number(row.newPrice||0).toFixed(2)}</td><td><span className={pct(row) >= 0 ? 'tag tips' : 'tag cash'}>{pct(row).toFixed(1)}%</span></td><td>{row.category || '-'}</td><td>{row.vendor || '-'}</td><td>{row.date || '-'}</td><td className="row-actions"><button onClick={()=>edit(row)}>Edit</button><button className="delete-link" onClick={()=>remove(row.id)}>Delete</button></td></tr>)}</tbody></table>
+      <header>
+        <h2>Price Increase List</h2>
+        <span>
+          <select className="header-select" value={sort} onChange={e=>setSort(e.target.value)}>
+            <option value="highest">Highest Increase</option>
+            <option value="dollars">Largest $ Increase</option>
+            <option value="newest">Newest</option>
+            <option value="az">Sorted A-Z</option>
+            <option value="category">Category</option>
+            <option value="vendor">Vendor</option>
+          </select>
+        </span>
+      </header>
+
+      <div className="sales-filter-bar report-filter-bar">
+        <div className="search-box sales-search"><Icon name="search" size={18} /><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search item, vendor, category..." /></div>
+        <select className="filter-select" value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)}>
+          <option value="all">All Categories</option>
+          {categoryOptions.map(category => <option key={category}>{category}</option>)}
+        </select>
+        <select className="filter-select" value={vendorFilter} onChange={e=>setVendorFilter(e.target.value)}>
+          <option value="all">All Vendors</option>
+          {vendorOptions.map(vendor => <option key={vendor}>{vendor}</option>)}
+        </select>
+      </div>
+
+      <table>
+        <thead><tr><th>Name</th><th>Old Price</th><th>New Price</th><th>$ Change</th><th>Increase</th><th>Category</th><th>Vendor</th><th>Date</th><th>Source</th><th>Action</th></tr></thead>
+        <tbody>{sorted.map(row => {
+          const increase = pct(row)
+          return <tr key={row.id}>
+            <td><b>{row.name}</b><small>{row.invoiceCount ? `${row.invoiceCount} invoice prices` : row.latestInvoice ? `Invoice ${row.latestInvoice}` : 'manual'}</small></td>
+            <td>${money(row.oldPrice)}</td>
+            <td>${money(row.newPrice)}</td>
+            <td>${money(dollarChange(row))}</td>
+            <td><span className={increase >= 10 ? 'tag delete-link' : increase >= 0 ? 'tag tips' : 'tag cash'}>{increase.toFixed(1)}%</span></td>
+            <td>{row.category || '-'}</td>
+            <td>{row.vendor || '-'}</td>
+            <td>{row.date || '-'}</td>
+            <td>{row.source || 'manual'}</td>
+            <td className="row-actions"><button onClick={()=>edit(row)}>Edit</button><button className="delete-link" onClick={()=>remove(row.id)}>Delete</button></td>
+          </tr>
+        })}</tbody>
+      </table>
     </section>
   </>
 }
