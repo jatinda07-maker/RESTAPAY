@@ -567,18 +567,24 @@ export default function Reports({ data, setData }) {
   }
 
   return <>
-    <div className="page-head employee-head">
+    <div className="page-head employee-head reports-page-head">
       <div><h1>Reports</h1><p>Run standard reports or build custom reports with manual column order and date ranges.</p></div>
-      <div className="employee-head-actions">
-        <button className="btn ghost" onClick={exportPdfReport}><Icon name="download" /> Export PDF</button>
-        <button className="btn ghost" onClick={exportExcelReport}><Icon name="spreadsheet" /> Export Excel</button>
-        <button className="btn primary" onClick={exportCsv}><Icon name="download" /> Export CSV</button>
+      <div className="employee-head-actions report-export-actions">
+        <button className="btn export-excel" onClick={exportExcelReport}><Icon name="spreadsheet" /> Export Excel</button>
+        <button className="btn export-pdf" onClick={exportPdfReport}><Icon name="download" /> Export PDF</button>
+        <button className="btn ghost" onClick={exportCsv}><Icon name="download" /> Export CSV</button>
       </div>
     </div>
 
-    <div className="reports-mode-tabs">
-      <button className={mode === 'standard' ? 'active' : ''} onClick={() => setMode('standard')}>Standard Reports</button>
-      <button className={mode === 'custom' ? 'active' : ''} onClick={() => setMode('custom')}>Custom Report Builder</button>
+    <div className="reports-toolbar">
+      <div className="reports-mode-tabs">
+        <button className={mode === 'standard' ? 'active' : ''} onClick={() => setMode('standard')}>Standard Reports</button>
+        <button className={mode === 'custom' ? 'active' : ''} onClick={() => setMode('custom')}>Custom Report Builder</button>
+      </div>
+      <div className="employee-head-actions report-export-actions report-export-actions-inline">
+        <button className="btn export-excel" onClick={exportExcelReport}><Icon name="spreadsheet" /> Export Excel</button>
+        <button className="btn export-pdf" onClick={exportPdfReport}><Icon name="download" /> Export PDF</button>
+      </div>
     </div>
 
     <div className="sales-filter-bar report-filter-bar enhanced-report-filter">

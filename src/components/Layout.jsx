@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { navItems } from '../data/mockData'
 import { Icon } from './Icons'
 
-const dateAwarePages = new Set(['dashboard', 'payroll', 'reports'])
+const dateAwarePages = new Set(['dashboard', 'payroll'])
 const subtitles = {
   dashboard: 'Restaurant performance overview',
   sales: 'Sales imports, manual sales, and sales history',
