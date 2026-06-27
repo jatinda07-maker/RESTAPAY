@@ -8,19 +8,17 @@ function today() { return todayISO() }
 function money(value) { return Number(value || 0).toFixed(2) }
 function num(value) { return Number(String(value ?? '').replace(/[$,]/g, '')) || 0 }
 function rowDate(row) { return row.date || row.expense_date || row.created_at?.slice(0, 10) || today() }
-const blankExpense = { date: today(), name: '', category: 'Food', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
+const blankExpense = { date: today(), name: '', category: 'Restaurant Expenses', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
 
 export default function Expenses({ data, setData }) {
-  const vendorCategories = (data.vendorCategories?.length ? data.vendorCategories : ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other'])
-  const categories = Array.from(new Set(vendorCategories.filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  const categories = (data.vendorCategories?.length ? data.vendorCategories : ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other']).slice().sort((a, b) => a.localeCompare(b))
   const paymentMethods = data.paymentMethods || ['Cash', 'Check', 'Credit', 'ACH']
-  const vendors = uniqueSortedVendors(data.vendors || [])
-  const defaultCategory = categories[0] || 'Food'
-  const [form, setForm] = useState({ ...blankExpense, category: defaultCategory })
+  const vendors = getActiveSortedVendors(data.vendors || [])
+  const [form, setForm] = useState(blankExpense)
   const [editingId, setEditingId] = useState('')
   const [search, setSearch] = useState('')
-  const [dateStart, setDateStart] = useState('')
-  const [dateEnd, setDateEnd] = useState('')
+  const [dateStart, setDateStart] = useState(() => readGlobalDateRange().start)
+  const [dateEnd, setDateEnd] = useState(() => readGlobalDateRange().end)
   const [selected, setSelected] = useState([])
   const [vendorSearch, setVendorSearch] = useState('')
 
@@ -96,7 +94,7 @@ export default function Expenses({ data, setData }) {
 
   const rangeLabel = makeRangeLabel(dateStart, dateEnd)
 
-  function clearForm() { setForm({ ...blankExpense, category: defaultCategory }); setEditingId(''); setVendorSearch('') }); setEditingId(''); setVendorSearch('') }
+  function clearForm() { setForm({ ...blankExpense, category: categories[0] || 'Food' }); setEditingId(''); setVendorSearch('') }
 
   function addCategory() {
     const value = newCategory.trim()
@@ -136,7 +134,7 @@ export default function Expenses({ data, setData }) {
     setForm({
       date: row.date || today(),
       name: row.name || '',
-      category: row.category || categories[0] || 'Other',
+      category: categories.includes(row.category) ? row.category : (categories[0] || 'Food'),
       amount: row.amount || '',
       payment_method: row.payment_method || 'Cash',
       check_number: row.check_number || '',
@@ -219,7 +217,6 @@ export default function Expenses({ data, setData }) {
         <div className="search-box"><Icon name="search" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses..." /></div>
       </div>
     </div>
-    <div className="status-pill">Using Vendor Categories from Vendors page. Manage categories in Vendors.</div>
 
     <section className="card employee-form-card tight-card">
       <header><h2>{editingId ? 'Edit Expense' : 'Add Expense'}</h2><span>{expenses.length} saved</span></header>
