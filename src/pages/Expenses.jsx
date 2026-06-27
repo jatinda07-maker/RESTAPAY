@@ -11,14 +11,16 @@ function rowDate(row) { return row.date || row.expense_date || row.created_at?.s
 const blankExpense = { date: today(), name: '', category: 'Food', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
 
 export default function Expenses({ data, setData }) {
-  const categories = Array.from(new Set([...(data.vendorCategories?.length ? data.vendorCategories : ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other']), form?.category].filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  const vendorCategories = (data.vendorCategories?.length ? data.vendorCategories : ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other'])
+  const categories = Array.from(new Set(vendorCategories.filter(Boolean))).sort((a, b) => a.localeCompare(b))
   const paymentMethods = data.paymentMethods || ['Cash', 'Check', 'Credit', 'ACH']
-  const vendors = getActiveSortedVendors(data.vendors || [])
-  const [form, setForm] = useState(blankExpense)
+  const vendors = uniqueSortedVendors(data.vendors || [])
+  const defaultCategory = categories[0] || 'Food'
+  const [form, setForm] = useState({ ...blankExpense, category: defaultCategory })
   const [editingId, setEditingId] = useState('')
   const [search, setSearch] = useState('')
-  const [dateStart, setDateStart] = useState(() => readGlobalDateRange().start)
-  const [dateEnd, setDateEnd] = useState(() => readGlobalDateRange().end)
+  const [dateStart, setDateStart] = useState('')
+  const [dateEnd, setDateEnd] = useState('')
   const [selected, setSelected] = useState([])
   const [vendorSearch, setVendorSearch] = useState('')
 
@@ -94,7 +96,7 @@ export default function Expenses({ data, setData }) {
 
   const rangeLabel = makeRangeLabel(dateStart, dateEnd)
 
-  function clearForm() { setForm({ ...blankExpense, category: categories[0] || 'Food' }); setEditingId(''); setVendorSearch('') }
+  function clearForm() { setForm({ ...blankExpense, category: defaultCategory }); setEditingId(''); setVendorSearch('') }); setEditingId(''); setVendorSearch('') }
 
   function addCategory() {
     const value = newCategory.trim()
@@ -217,6 +219,7 @@ export default function Expenses({ data, setData }) {
         <div className="search-box"><Icon name="search" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses..." /></div>
       </div>
     </div>
+    <div className="status-pill">Using Vendor Categories from Vendors page. Manage categories in Vendors.</div>
 
     <section className="card employee-form-card tight-card">
       <header><h2>{editingId ? 'Edit Expense' : 'Add Expense'}</h2><span>{expenses.length} saved</span></header>
