@@ -1,53 +1,36 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
-import { createId, sortByName } from '../lib/localStore'
+import { createId } from '../lib/localStore'
+import { filterVendors, findVendorById, findVendorByName, getActiveSortedVendors } from '../engine/VendorEngine'
+import { isDateInRange, makeRangeLabel, readGlobalDateRange, saveGlobalDateRange, startOfMonthISO, todayISO } from '../engine/DateEngine'
 
-function today() { return new Date().toISOString().slice(0, 10) }
+function today() { return todayISO() }
 function money(value) { return Number(value || 0).toFixed(2) }
 function num(value) { return Number(String(value ?? '').replace(/[$,]/g, '')) || 0 }
 function rowDate(row) { return row.date || row.expense_date || row.created_at?.slice(0, 10) || today() }
-function inRange(row, start, end) {
-  const d = rowDate(row)
-  if (start && d < start) return false
-  if (end && d > end) return false
-  return true
-}
-function norm(value) {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
-}
-function uniqueSortedVendors(vendors = []) {
-  const seen = new Set()
-  return sortByName(vendors.filter(v => v && v.is_active !== false && v.name).filter(v => {
-    const key = norm(v.name)
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  }))
-}
 const blankExpense = { date: today(), name: '', category: 'Restaurant Expenses', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
 
 export default function Expenses({ data, setData }) {
   const categories = data.expenseCategories || []
   const paymentMethods = data.paymentMethods || ['Cash', 'Check', 'Credit', 'ACH']
-  const vendors = uniqueSortedVendors(data.vendors || [])
+  const vendors = getActiveSortedVendors(data.vendors || [])
   const [form, setForm] = useState(blankExpense)
   const [editingId, setEditingId] = useState('')
   const [newCategory, setNewCategory] = useState('')
   const [search, setSearch] = useState('')
-  const [dateStart, setDateStart] = useState('')
-  const [dateEnd, setDateEnd] = useState('')
+  const [dateStart, setDateStart] = useState(() => readGlobalDateRange().start)
+  const [dateEnd, setDateEnd] = useState(() => readGlobalDateRange().end)
   const [selected, setSelected] = useState([])
   const [vendorSearch, setVendorSearch] = useState('')
 
   const filteredVendorOptions = useMemo(() => {
     const q = vendorSearch.toLowerCase().trim()
-    if (!q) return vendors
-    return vendors.filter(v => [v.name, v.category, v.default_check_number, v.contact, v.phone, v.email].join(' ').toLowerCase().includes(q))
+    return filterVendors(vendors, q)
   }, [vendors, vendorSearch])
 
   const expenses = data.expenses || []
   const filtered = useMemo(() => expenses
-    .filter(row => inRange(row, dateStart, dateEnd))
+    .filter(row => isDateInRange(rowDate(row), dateStart, dateEnd))
     .filter(row => {
       const q = search.toLowerCase().trim()
       if (!q) return true
@@ -72,7 +55,7 @@ export default function Expenses({ data, setData }) {
       return
     }
 
-    const vendor = vendors.find(v => v.id === vendorId)
+    const vendor = findVendorById(vendors, vendorId)
     if (!vendor) {
       setForm(prev => ({ ...prev, vendor_id: '', vendor: '', manual_payee: '' }))
       return
@@ -91,6 +74,26 @@ export default function Expenses({ data, setData }) {
   function updateManualPayee(value) {
     setForm(prev => ({ ...prev, manual_payee: value, vendor: value, vendor_id: '' }))
   }
+
+  function applyDateRange() {
+    saveGlobalDateRange(dateStart, dateEnd)
+  }
+
+  function setThisMonth() {
+    const start = startOfMonthISO()
+    const end = todayISO()
+    setDateStart(start)
+    setDateEnd(end)
+    saveGlobalDateRange(start, end)
+  }
+
+  function setAllDates() {
+    setDateStart('')
+    setDateEnd('')
+    saveGlobalDateRange('', '')
+  }
+
+  const rangeLabel = makeRangeLabel(dateStart, dateEnd)
 
   function clearForm() { setForm(blankExpense); setEditingId(''); setVendorSearch('') }
 
@@ -128,7 +131,7 @@ export default function Expenses({ data, setData }) {
 
   function editExpense(row) {
     setEditingId(row.id)
-    const matchedVendor = vendors.find(v => v.id === row.vendor_id || norm(v.name) === norm(row.vendor))
+    const matchedVendor = findVendorById(vendors, row.vendor_id) || findVendorByName(vendors, row.vendor)
     setForm({
       date: row.date || today(),
       name: row.name || '',
@@ -193,7 +196,10 @@ export default function Expenses({ data, setData }) {
       <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} /></label>
       <span className="range-arrow">→</span>
       <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} /></label>
-      <button className="btn ghost" onClick={() => { setDateStart(''); setDateEnd('') }}>All Dates</button>
+      <button className="btn primary" onClick={applyDateRange}>Apply Date Range</button>
+      <button className="btn ghost" onClick={setThisMonth}>This Month</button>
+      <button className="btn ghost" onClick={setAllDates}>All Dates</button>
+      <span className="filter-note">Filtering expenses by {rangeLabel}</span>
       {selected.length > 0 && <button className="btn ghost delete-link" onClick={bulkDelete}>Delete Selected ({selected.length})</button>}
     </div>
 
