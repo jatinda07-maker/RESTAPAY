@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
-import { createId } from '../lib/localStore'
+import { createId, sortByName } from '../lib/localStore'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function money(value) { return Number(value || 0).toFixed(2) }
@@ -12,11 +12,24 @@ function inRange(row, start, end) {
   if (end && d > end) return false
   return true
 }
-const blankExpense = { date: today(), name: '', category: 'Restaurant Expenses', amount: '', payment_method: 'Cash', check_number: '', vendor: '', notes: '' }
+function norm(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+function uniqueSortedVendors(vendors = []) {
+  const seen = new Set()
+  return sortByName(vendors.filter(v => v && v.is_active !== false && v.name).filter(v => {
+    const key = norm(v.name)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  }))
+}
+const blankExpense = { date: today(), name: '', category: 'Restaurant Expenses', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
 
 export default function Expenses({ data, setData }) {
   const categories = data.expenseCategories || []
   const paymentMethods = data.paymentMethods || ['Cash', 'Check', 'Credit', 'ACH']
+  const vendors = uniqueSortedVendors(data.vendors || [])
   const [form, setForm] = useState(blankExpense)
   const [editingId, setEditingId] = useState('')
   const [newCategory, setNewCategory] = useState('')
@@ -24,6 +37,13 @@ export default function Expenses({ data, setData }) {
   const [dateStart, setDateStart] = useState('')
   const [dateEnd, setDateEnd] = useState('')
   const [selected, setSelected] = useState([])
+  const [vendorSearch, setVendorSearch] = useState('')
+
+  const filteredVendorOptions = useMemo(() => {
+    const q = vendorSearch.toLowerCase().trim()
+    if (!q) return vendors
+    return vendors.filter(v => [v.name, v.category, v.default_check_number, v.contact, v.phone, v.email].join(' ').toLowerCase().includes(q))
+  }, [vendors, vendorSearch])
 
   const expenses = data.expenses || []
   const filtered = useMemo(() => expenses
@@ -33,7 +53,7 @@ export default function Expenses({ data, setData }) {
       if (!q) return true
       return [row.name, row.category, row.vendor, row.payment_method, row.check_number, row.notes].some(v => String(v || '').toLowerCase().includes(q))
     })
-    .sort((a, b) => rowDate(b).localeCompare(rowDate(a)) || String(a.name || '').localeCompare(String(b.name || ''))), [expenses, search, dateStart, dateEnd])
+    .sort((a, b) => rowDate(b).localeCompare(rowDate(a)) || String(a.vendor || a.name || '').localeCompare(String(b.vendor || b.name || ''))), [expenses, search, dateStart, dateEnd])
 
   const summary = useMemo(() => {
     const total = filtered.reduce((sum, row) => sum + num(row.amount), 0)
@@ -45,7 +65,35 @@ export default function Expenses({ data, setData }) {
   }, [filtered])
 
   function updateForm(key, value) { setForm(prev => ({ ...prev, [key]: value })) }
-  function clearForm() { setForm(blankExpense); setEditingId('') }
+
+  function selectVendor(vendorId) {
+    if (vendorId === '__manual__') {
+      setForm(prev => ({ ...prev, vendor_id: '', vendor: prev.manual_payee || '', manual_payee: prev.manual_payee || '' }))
+      return
+    }
+
+    const vendor = vendors.find(v => v.id === vendorId)
+    if (!vendor) {
+      setForm(prev => ({ ...prev, vendor_id: '', vendor: '', manual_payee: '' }))
+      return
+    }
+
+    setForm(prev => ({
+      ...prev,
+      vendor_id: vendor.id,
+      vendor: vendor.name,
+      manual_payee: '',
+      category: vendor.category || prev.category,
+      check_number: vendor.default_check_number || prev.check_number
+    }))
+  }
+
+  function updateManualPayee(value) {
+    setForm(prev => ({ ...prev, manual_payee: value, vendor: value, vendor_id: '' }))
+  }
+
+  function clearForm() { setForm(blankExpense); setEditingId(''); setVendorSearch('') }
+
   function addCategory() {
     const value = newCategory.trim()
     if (!value || categories.includes(value)) return
@@ -53,20 +101,50 @@ export default function Expenses({ data, setData }) {
     setForm(prev => ({ ...prev, category: value }))
     setNewCategory('')
   }
+
   function saveExpense() {
-    if (!form.name.trim() && !form.category) return
-    const record = { ...form, id: editingId || createId('expense'), amount: num(form.amount), date: form.date || today(), updated_at: new Date().toISOString() }
+    const vendorName = form.vendor_id ? (vendors.find(v => v.id === form.vendor_id)?.name || form.vendor) : (form.manual_payee || form.vendor)
+    const expenseName = form.name.trim() || vendorName || form.category
+    if (!expenseName && !form.category) return
+
+    const record = {
+      ...form,
+      id: editingId || createId('expense'),
+      name: expenseName,
+      vendor: vendorName,
+      vendor_id: form.vendor_id || '',
+      manual_payee: form.vendor_id ? '' : (form.manual_payee || ''),
+      amount: num(form.amount),
+      date: form.date || today(),
+      updated_at: new Date().toISOString()
+    }
+
     setData(prev => ({
       ...prev,
       expenses: editingId ? (prev.expenses || []).map(row => row.id === editingId ? record : row) : [record, ...(prev.expenses || [])]
     }))
     clearForm()
   }
+
   function editExpense(row) {
     setEditingId(row.id)
-    setForm({ date: row.date || today(), name: row.name || '', category: row.category || categories[0] || 'Other', amount: row.amount || '', payment_method: row.payment_method || 'Cash', check_number: row.check_number || '', vendor: row.vendor || '', notes: row.notes || '' })
+    const matchedVendor = vendors.find(v => v.id === row.vendor_id || norm(v.name) === norm(row.vendor))
+    setForm({
+      date: row.date || today(),
+      name: row.name || '',
+      category: row.category || categories[0] || 'Other',
+      amount: row.amount || '',
+      payment_method: row.payment_method || 'Cash',
+      check_number: row.check_number || '',
+      vendor: row.vendor || matchedVendor?.name || '',
+      vendor_id: matchedVendor?.id || '',
+      manual_payee: matchedVendor ? '' : (row.vendor || ''),
+      notes: row.notes || ''
+    })
+    setVendorSearch('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
   function deleteExpense(id) { setData(prev => ({ ...prev, expenses: (prev.expenses || []).filter(row => row.id !== id) })); setSelected(prev => prev.filter(x => x !== id)) }
   function toggleAll() { setSelected(prev => prev.length === filtered.length ? [] : filtered.map(row => row.id)) }
   function toggleOne(id) { setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]) }
@@ -89,7 +167,18 @@ export default function Expenses({ data, setData }) {
         <label><small>Amount</small><input type="number" step="0.01" value={form.amount} onChange={e => updateForm('amount', e.target.value)} placeholder="0.00" /></label>
         <label><small>Paid By</small><select value={form.payment_method} onChange={e => updateForm('payment_method', e.target.value)}>{paymentMethods.map(method => <option key={method}>{method}</option>)}</select></label>
         <label><small>Check # / Ref</small><input value={form.check_number} onChange={e => updateForm('check_number', e.target.value)} placeholder="Check number" /></label>
-        <label><small>Vendor / Payee</small><input value={form.vendor} onChange={e => updateForm('vendor', e.target.value)} placeholder="Vendor or payee" /></label>
+
+        <label><small>Find Vendor / Payee</small><input value={vendorSearch} onChange={e => setVendorSearch(e.target.value)} placeholder="Type to search active vendors..." /></label>
+        <label><small>Vendor / Payee</small>
+          <select value={form.vendor_id || (form.manual_payee ? '__manual__' : '')} onChange={e => selectVendor(e.target.value)}>
+            <option value="">Select active vendor</option>
+            {filteredVendorOptions.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.category ? ` — ${vendor.category}` : ''}</option>)}
+            <option value="__manual__">Manual Payee / One-time</option>
+          </select>
+        </label>
+
+        {!form.vendor_id && <label><small>Manual Payee</small><input value={form.manual_payee || ''} onChange={e => updateManualPayee(e.target.value)} placeholder="Type payee name" /></label>}
+
         <label className="wide-2"><small>Notes</small><input value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Optional notes" /></label>
         <div className="form-actions-inline"><button className="btn primary" onClick={saveExpense}><Icon name="plus" /> {editingId ? 'Update' : 'Add Expense'}</button><button className="btn ghost" onClick={clearForm}>Clear</button></div>
       </div>

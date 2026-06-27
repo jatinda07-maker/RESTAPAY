@@ -156,6 +156,7 @@ export default function Vendors({ data, setData }) {
         <td><input type="checkbox" checked={selectedIds.includes(v.id)} onChange={() => toggleSelected(v.id)} /></td>
         <td><b>{v.name}</b><small>{v.notes || 'No notes'}</small></td>
         <td>{(() => { const meta = categoryMeta(v.category); return <span className={`tag category-tag ${meta.cls}`}><Icon name={meta.icon} size={13} /> {v.category}</span> })()}</td>
+        <td>{v.default_check_number || '-'}</td>
         <td>{v.contact || '-'}</td>
         <td>{v.phone || '-'}</td>
         <td>{v.email || '-'}</td>
