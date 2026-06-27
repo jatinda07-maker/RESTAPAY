@@ -8,10 +8,10 @@ function today() { return todayISO() }
 function money(value) { return Number(value || 0).toFixed(2) }
 function num(value) { return Number(String(value ?? '').replace(/[$,]/g, '')) || 0 }
 function rowDate(row) { return row.date || row.expense_date || row.created_at?.slice(0, 10) || today() }
-const blankExpense = { date: today(), name: '', category: 'Restaurant Expenses', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
+const blankExpense = { date: today(), name: '', category: 'Food', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
 
 export default function Expenses({ data, setData }) {
-  const categories = data.expenseCategories || []
+  const categories = Array.from(new Set([...(data.vendorCategories?.length ? data.vendorCategories : ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other']), form?.category].filter(Boolean))).sort((a, b) => a.localeCompare(b))
   const paymentMethods = data.paymentMethods || ['Cash', 'Check', 'Credit', 'ACH']
   const vendors = getActiveSortedVendors(data.vendors || [])
   const [form, setForm] = useState(blankExpense)
@@ -94,7 +94,7 @@ export default function Expenses({ data, setData }) {
 
   const rangeLabel = makeRangeLabel(dateStart, dateEnd)
 
-  function clearForm() { setForm(blankExpense); setEditingId(''); setVendorSearch('') }
+  function clearForm() { setForm({ ...blankExpense, category: categories[0] || 'Food' }); setEditingId(''); setVendorSearch('') }
 
   function addCategory() {
     const value = newCategory.trim()
@@ -223,7 +223,7 @@ export default function Expenses({ data, setData }) {
       <div className="expense-form-grid">
         <label><small>Date</small><input type="date" value={form.date} onChange={e => updateForm('date', e.target.value)} /></label>
         <label><small>Expense Name</small><input value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="Electric bill, accounting fee..." /></label>
-        <label><small>Category</small><select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
+        <label><small>Vendor Category</small><select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
         <label><small>Amount</small><input type="number" step="0.01" value={form.amount} onChange={e => updateForm('amount', e.target.value)} placeholder="0.00" /></label>
         <label><small>Paid By</small><select value={form.payment_method} onChange={e => updateForm('payment_method', e.target.value)}>{paymentMethods.map(method => <option key={method}>{method}</option>)}</select></label>
         <label><small>Check # / Ref</small><input value={form.check_number} onChange={e => updateForm('check_number', e.target.value)} placeholder="Check number" /></label>
