@@ -54,10 +54,7 @@ function categoryKey(value) { return String(value || 'Uncategorized').trim() || 
 const SPEND_CATEGORY_ORDER = [
   'Food', 'Beverage', 'Beer', 'Liquor', 'Supplies', 'Utilities',
   'Maintenance', 'Insurance', 'Accounting Fees', 'Loans',
-  'Cash Expenses', 'Credit Cards', 'Property Expenses', 'Cleaning', 'Paper Goods',
-  'Equipment', 'Rent', 'Lease', 'Bank Fees', 'Taxes', 'Licenses',
-  'Marketing', 'Professional Services', 'POS / Software', 'Vehicle Expenses',
-  'Restaurant Expenses', 'Other'
+  'Cash Expenses', 'Restaurant Expenses', 'Other'
 ]
 
 function normalizeSpendCategory(value) {
@@ -83,6 +80,34 @@ function inferItemCategory(row, invoice = {}) {
   return normalizeSpendCategory(`${explicit || ''} ${description}`)
 }
 
+
+function sumRowsByCategory(rows = []) {
+  const map = new Map()
+  rows.forEach(row => {
+    const key = normalizeSpendCategory(row.category || rowCategory(row) || 'Other')
+    map.set(key, (map.get(key) || 0) + num(row.amount))
+  })
+  return [...map.entries()].filter(([, amount]) => amount !== 0).sort((a, b) => b[1] - a[1]).map(([category, amount]) => ({ id: `sum-${category}`, label: category, amount }))
+}
+
+function EnterprisePanel({ icon, title, total, count, actionLabel = 'View All', rows = [], subtotalRows = [], grandLabel = 'Total', onViewAll }) {
+  return <section className="enterprise-panel">
+    <header className="enterprise-panel-head">
+      <div className="enterprise-panel-title"><span className="enterprise-panel-icon"><Icon name={icon} size={18} /></span><div><h2>{title}</h2><small>{count}</small></div></div>
+      <div className="enterprise-panel-total"><strong>{total}</strong><button type="button" onClick={onViewAll}>{actionLabel}</button></div>
+    </header>
+    <div className="enterprise-panel-body">
+      {rows.length ? rows.map((row, idx) => <button className="enterprise-row" key={row.id || `${title}-${idx}`} type="button" onClick={row.onClick || onViewAll}>
+        <div><b>{row.label}</b>{row.meta ? <small>{row.meta}</small> : null}</div><strong>{row.amount}</strong>
+      </button>) : <div className="enterprise-empty">No data in selected range.</div>}
+    </div>
+    {subtotalRows.length ? <div className="enterprise-subtotals">
+      {subtotalRows.map((row, idx) => <button className="enterprise-subtotal-row" key={row.id || `${title}-sub-${idx}`} type="button" onClick={row.onClick || onViewAll}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}
+    </div> : null}
+    <footer className="enterprise-panel-foot"><span>{grandLabel}</span><strong>{total}</strong></footer>
+  </section>
+}
+
 function KpiCard({ item, onClick }) {
   const [title, value, meta, icon, tone, , details = []] = item
   return <button className="kpi-card dashboard-click-card" onClick={onClick} type="button">
@@ -100,28 +125,15 @@ function KpiCard({ item, onClick }) {
   </button>
 }
 
-function SummaryPanel({ title, subtitle, total, icon, tone = 'blue', rows = [], footerRows = [], totalLabel = 'Total', onViewAll }) {
-  return <section className="enterprise-panel">
-    <header className="enterprise-panel-head">
-      <div className="enterprise-panel-title">
-        <span className={`enterprise-panel-icon ${tone}`}><Icon name={icon} size={22} /></span>
-        <div><h2>{title}</h2><small>{subtitle}</small></div>
-      </div>
-      <div className="enterprise-panel-total"><b>{total}</b><button onClick={onViewAll} type="button">View All</button></div>
-    </header>
-    <div className="enterprise-panel-rows">
-      {rows.length ? rows.map((row, idx) => <button className="enterprise-row" key={`${title}-${idx}`} onClick={row.onClick || onViewAll} type="button">
-        <div className="enterprise-row-main"><b>{row.label}</b>{row.meta ? <small>{row.meta}</small> : null}</div>
-        {row.badge ? <span className={`enterprise-badge ${String(row.badge).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{row.badge}</span> : null}
-        <strong>{row.amount}</strong>
+function ListPanel({ title, rows, type, onViewAll }) {
+  return <section className="list-panel">
+    <header><h2>{title}</h2><button onClick={onViewAll} type="button">View All</button></header>
+    <div className="rows">
+      {rows.length ? rows.map((row, idx) => <button className="data-row dashboard-row-button" key={idx} onClick={onViewAll} type="button">
+        <div className="row-left"><span className="mini-icon"><Icon name={type === 'expenses' ? 'expenses' : type === 'sales' ? 'dollar' : 'vendors'} size={16} /></span><div><b>{row[0]}</b><small>{row[1]}</small></div></div>
+        <div className="row-right"><b className={row[0] === 'Refunds' ? 'danger' : ''}>{row[2]}</b>{row[3] && <em className={String(row[3]).toLowerCase()}>{row[3]}</em>}</div>
       </button>) : <div className="empty-panel-note">No data entered yet.</div>}
     </div>
-    {footerRows.length ? <div className="enterprise-subtotals">
-      {footerRows.map((row, idx) => <button className="enterprise-subtotal-row" key={`${title}-footer-${idx}`} onClick={row.onClick || onViewAll} type="button">
-        <span>{row.label}</span><b>{row.amount}</b>
-      </button>)}
-    </div> : null}
-    <button className="enterprise-grand-total" onClick={onViewAll} type="button"><span>{totalLabel}</span><b>{total}</b></button>
   </section>
 }
 
@@ -145,8 +157,7 @@ export default function Dashboard({ data, setActive }) {
   const employees = data?.employees || []
   const vendors = data?.vendors || []
   const groups = data?.payrollGroups || []
-  const vendorCategories = data?.vendorCategories || []
-  const expenseCategories = data?.expenseCategories || []
+  const allConfiguredCategories = Array.from(new Set([...(data?.vendorCategories || []), ...(data?.expenseCategories || []), ...SPEND_CATEGORY_ORDER].filter(Boolean)))
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
 
@@ -229,37 +240,32 @@ export default function Dashboard({ data, setActive }) {
     const expensesFromInvoiceCategories = [...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend, ...expenseCategorySpend]
     const totalExpensesAll = expensesFromInvoiceCategories.reduce((sum, row) => sum + num(row.amount), 0)
     const profit = salesMonth - payrollMonth - totalExpensesAll
-    const categoryDefaults = Array.from(new Set([
-      ...SPEND_CATEGORY_ORDER,
-      ...vendorCategories,
-      ...expenseCategories,
-      ...expensesFromInvoiceCategories.map(row => row.category)
-    ].filter(Boolean).map(normalizeSpendCategory)))
-    const buildCategoryRows = (rows, prefix) => {
-      const map = new Map()
-      rows.forEach(row => {
-        const key = normalizeSpendCategory(row.category)
-        map.set(key, (map.get(key) || 0) + num(row.amount))
+    const categoryMap = new Map()
+    expensesFromInvoiceCategories.forEach(row => {
+      const key = normalizeSpendCategory(row.category)
+      categoryMap.set(key, (categoryMap.get(key) || 0) + num(row.amount))
+    })
+    allConfiguredCategories.forEach(category => {
+      if (!categoryMap.has(category)) categoryMap.set(category, 0)
+    })
+    const categoryRows = [...categoryMap.entries()]
+      .sort((a, b) => {
+        const ai = SPEND_CATEGORY_ORDER.indexOf(a[0])
+        const bi = SPEND_CATEGORY_ORDER.indexOf(b[0])
+        if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+        return b[1] - a[1]
       })
-      categoryDefaults.forEach(category => {
-        if (!map.has(category)) map.set(category, 0)
-      })
-      return [...map.entries()]
-        .sort((a, b) => {
-          const ai = SPEND_CATEGORY_ORDER.indexOf(a[0])
-          const bi = SPEND_CATEGORY_ORDER.indexOf(b[0])
-          if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-          return b[1] - a[1]
-        })
-        .map(([category, amount]) => ({ id: `${prefix}-${category}`, category, amount }))
-    }
-    const categoryRows = buildCategoryRows(expensesFromInvoiceCategories, 'cat')
-    const invoiceCategoryRows = buildCategoryRows([...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend], 'invoice-cat')
-    const expenseCategoryRows = buildCategoryRows(expenseCategorySpend, 'expense-cat')
-    const foodSpend = categoryRows.find(row => row.category === 'Food')?.amount || 0
+      .map(([category, amount]) => ({ id: `cat-${category}`, category, amount }))
+    const foodSpend = categoryMap.get('Food') || 0
     const foodCostPercent = salesMonth > 0 ? (foodSpend / salesMonth) * 100 : 0
-    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, invoiceCategoryRows, expenseCategoryRows, expensesFromInvoiceCategories }
-  }, [salesDays, payroll, invoices, invoiceItems, expenseRows, vendorCategories, expenseCategories, dateStart, dateEnd])
+    const grossSales = monthSales.reduce((sum, row) => sum + num(row.gross_sales || row.total_sales || row.net_sales), 0)
+    const creditSales = monthSales.reduce((sum, row) => sum + num(row.credit_sales), 0)
+    const giftSales = monthSales.reduce((sum, row) => sum + num(row.gift_card_sales), 0)
+    const onlineSales = monthSales.reduce((sum, row) => sum + num(row.online_orders), 0)
+    const invoiceCategoryRows = sumRowsByCategory([...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend])
+    const businessExpenseCategoryRows = sumRowsByCategory(expenseCategorySpend)
+    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, grossSales, creditSales, giftSales, onlineSales, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, invoiceCategoryRows, businessExpenseCategoryRows, expensesFromInvoiceCategories }
+  }, [salesDays, payroll, invoices, invoiceItems, expenseRows, dateStart, dateEnd])
 
   const kpiItems = [
     ['Sales Today', money(derived.salesToday), noThisPeriod(derived.todaySales, 'sales', 'today'), 'cart', 'green', 'sales-today'],
@@ -277,33 +283,13 @@ export default function Dashboard({ data, setActive }) {
   ]
 
   const salesSummary = [
-    { label: 'Cash Sales', meta: `${derived.monthSales.length} sales rows`, amount: money(derived.cashMonth), onClick: () => showDetail('cash-collected') },
-    { label: 'Credit Sales', meta: `${derived.monthSales.length} sales rows`, amount: money(derived.monthSales.reduce((s, r) => s + num(r.credit_sales), 0)), onClick: () => showDetail('sales-month') },
-    { label: 'Tips Before Withholding', meta: 'Imported tips', amount: money(derived.tipsMonth), onClick: () => showDetail('sales-tips') },
-    { label: 'Sales Tax', meta: 'Collected tax', amount: money(derived.taxMonth), onClick: () => showDetail('sales-month') }
+    ['Cash Sales', money(derived.monthSales.reduce((s, r) => s + num(r.cash_sales), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Credit Sales', money(derived.monthSales.reduce((s, r) => s + num(r.credit_sales), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Tips', money(derived.monthSales.reduce((s, r) => s + num(r.tips), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Total Sales', money(derived.monthSales.reduce((s, r) => s + num(r.net_sales), 0)), emptyLabel(derived.monthSales, 'sales')]
   ]
-  const salesFooterRows = [
-    { label: 'Tips Withheld', amount: money(derived.tipsWithheldMonth), onClick: () => showDetail('sales-tips') },
-    { label: 'Tips After Withholding', amount: money(derived.tipsAfterWithholdingMonth), onClick: () => showDetail('sales-tips') },
-    { label: 'Net Sales', amount: money(derived.trueNetSalesMonth), onClick: () => showDetail('sales-month') },
-    { label: 'Gross Sales', amount: money(derived.salesMonth), onClick: () => showDetail('sales-month') }
-  ]
-  const invoiceRows = derived.monthInvoices.slice(0, 6).map(row => ({
-    label: row.vendor || row.vendor_name || 'Invoice',
-    meta: rowDate(row, ['invoice_date', 'date']),
-    amount: money(invoiceTotal(row)),
-    badge: row.status || row.payment_status || '',
-    onClick: () => showDetail('invoices')
-  }))
-  const invoiceFooterRows = derived.invoiceCategoryRows.filter(row => num(row.amount) > 0).slice(0, 6).map(row => ({ label: row.category, amount: money(row.amount), onClick: () => showDetail('expense-categories') }))
-  const recentExpenses = derived.monthExpenses.slice(0, 6).map(row => ({
-    label: row.vendor || row.name || row.category || 'Expense',
-    meta: [rowDate(row, ['date', 'expense_date']), row.category, row.payment_method].filter(Boolean).join(' • '),
-    amount: money(num(row.amount)),
-    badge: row.payment_method || '',
-    onClick: () => showDetail('expense-categories')
-  }))
-  const expenseFooterRows = derived.expenseCategoryRows.filter(row => num(row.amount) > 0).slice(0, 6).map(row => ({ label: row.category, amount: money(row.amount), onClick: () => showDetail('expense-categories') }))
+  const invoiceRows = derived.monthInvoices.slice(0, 6).map(row => [row.vendor || row.vendor_name || 'Invoice', rowDate(row, ['invoice_date', 'date']), money(invoiceTotal(row))])
+  const recentExpenses = derived.monthExpenses.slice(0, 6).map(row => [row.name || row.category || 'Expense', rowDate(row, ['date', 'expense_date']), money(num(row.amount))])
 
   const detailConfig = {
     'sales-today': { title: 'Sales Today Details', open: 'sales', rows: derived.todaySales, message: derived.todaySales.length ? '' : 'No sales today.', columns: [
@@ -354,160 +340,173 @@ export default function Dashboard({ data, setActive }) {
 
   return <>
     <style>{`
-      .enterprise-summary-grid {
+      .enterprise-kpi-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(260px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
         gap: 14px;
-        margin-top: 16px;
+        margin-bottom: 18px;
+      }
+      .enterprise-kpi-card {
+        border: 1px solid #dbe5f1;
+        background: #fff;
+        border-radius: 18px;
+        padding: 18px;
+        display: grid;
+        gap: 8px;
+        text-align: left;
+        box-shadow: 0 12px 30px rgba(15, 30, 53, .06);
+        cursor: pointer;
+      }
+      .enterprise-kpi-card span {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+      }
+      .enterprise-kpi-card strong {
+        color: #0f1e35;
+        font-size: 26px;
+        line-height: 1;
+      }
+      .enterprise-kpi-card small {
+        color: #64748b;
+        font-size: 12px;
+      }
+      .enterprise-panel-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+        align-items: stretch;
+        margin-top: 18px;
       }
       .enterprise-panel {
-        background: #fff;
-        border: 1px solid #d8e4f2;
-        border-radius: 16px;
         overflow: hidden;
-        box-shadow: 0 8px 24px rgba(15, 30, 53, .06);
+        border: 1px solid #dbe5f1;
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 14px 34px rgba(15, 30, 53, .07);
+        display: flex;
+        flex-direction: column;
+        min-height: 360px;
       }
       .enterprise-panel-head {
-        min-height: 88px;
-        padding: 18px 20px;
-        background: linear-gradient(135deg, #071a33, #102a4e);
-        color: #fff;
+        background: #0f1e35;
+        color: #ffffff;
+        padding: 16px 18px;
         display: flex;
+        align-items: center;
         justify-content: space-between;
-        gap: 16px;
-        align-items: flex-start;
+        gap: 14px;
       }
       .enterprise-panel-title {
         display: flex;
-        gap: 12px;
         align-items: center;
+        gap: 12px;
         min-width: 0;
       }
-      .enterprise-panel-title h2 {
-        margin: 0;
-        color: #fff;
-        font-size: 18px;
-        line-height: 1.1;
-      }
-      .enterprise-panel-title small,
-      .enterprise-panel-total button {
-        color: #b9cff0;
-        font-size: 12px;
-      }
       .enterprise-panel-icon {
-        width: 42px;
-        height: 42px;
+        width: 34px;
+        height: 34px;
         border-radius: 12px;
+        background: rgba(255,255,255,.12);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: rgba(255,255,255,.12);
+        flex: 0 0 auto;
       }
-      .enterprise-panel-icon.green { background: linear-gradient(135deg, #16a34a, #0f766e); }
-      .enterprise-panel-icon.blue { background: linear-gradient(135deg, #2563eb, #0ea5e9); }
-      .enterprise-panel-icon.purple { background: linear-gradient(135deg, #7c3aed, #6366f1); }
+      .enterprise-panel-title h2 {
+        margin: 0;
+        font-size: 16px;
+        color: #ffffff;
+        line-height: 1.15;
+      }
+      .enterprise-panel-title small,
+      .enterprise-panel-total button {
+        color: rgba(255,255,255,.76);
+        font-size: 12px;
+      }
       .enterprise-panel-total {
-        text-align: right;
         display: grid;
-        gap: 6px;
+        justify-items: end;
+        gap: 3px;
+        flex: 0 0 auto;
+      }
+      .enterprise-panel-total strong {
+        color: #ffffff;
+        font-size: 18px;
+        line-height: 1;
         white-space: nowrap;
       }
-      .enterprise-panel-total b {
-        font-size: 20px;
-        color: #fff;
+      .enterprise-panel-total button {
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        padding: 0;
       }
-      .enterprise-panel-total button,
-      .enterprise-grand-total,
+      .enterprise-panel-body {
+        display: grid;
+        gap: 0;
+        padding: 8px 14px 4px;
+      }
       .enterprise-row,
       .enterprise-subtotal-row {
         border: 0;
         background: transparent;
-        cursor: pointer;
-        font: inherit;
-      }
-      .enterprise-panel-rows {
-        display: grid;
-      }
-      .enterprise-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
-        align-items: center;
-        gap: 10px;
-        min-height: 62px;
-        padding: 12px 18px;
-        text-align: left;
-        border-bottom: 1px solid #edf2f8;
-      }
-      .enterprise-row:hover,
-      .enterprise-subtotal-row:hover,
-      .enterprise-grand-total:hover {
-        background: #f8fbff;
-      }
-      .enterprise-row-main {
-        display: grid;
-        gap: 3px;
-        min-width: 0;
-      }
-      .enterprise-row-main b {
-        color: #061a35;
-        font-size: 14px;
-      }
-      .enterprise-row-main small {
-        color: #60738c;
-        font-size: 12px;
-      }
-      .enterprise-row strong {
-        color: #061a35;
-        font-size: 14px;
-        white-space: nowrap;
-      }
-      .enterprise-badge {
-        padding: 4px 8px;
-        border-radius: 999px;
-        background: #e8f0ff;
-        color: #1d4ed8;
-        font-size: 11px;
-        font-weight: 800;
-        white-space: nowrap;
-      }
-      .enterprise-badge.cash, .enterprise-badge.paid { background: #dcfce7; color: #15803d; }
-      .enterprise-badge.check, .enterprise-badge.ach, .enterprise-badge.credit { background: #dbeafe; color: #1d4ed8; }
-      .enterprise-badge.partial { background: #ffedd5; color: #c2410c; }
-      .enterprise-subtotals {
-        padding: 10px 18px;
-        background: #fbfdff;
-        border-top: 1px solid #edf2f8;
-        display: grid;
-        gap: 6px;
-      }
-      .enterprise-subtotal-row,
-      .enterprise-grand-total {
         display: flex;
+        align-items: center;
         justify-content: space-between;
         gap: 12px;
-        align-items: center;
-        width: 100%;
-        color: #24415f;
+        padding: 10px 4px;
+        border-bottom: 1px solid #eef3f8;
+        text-align: left;
+        cursor: pointer;
       }
+      .enterprise-row b,
       .enterprise-subtotal-row span {
-        font-size: 12px;
+        color: #0f1e35;
+        font-size: 13px;
+        line-height: 1.2;
       }
+      .enterprise-row small {
+        display: block;
+        margin-top: 2px;
+        color: #718096;
+        font-size: 11px;
+      }
+      .enterprise-row strong,
       .enterprise-subtotal-row b {
-        font-size: 12px;
-        color: #061a35;
+        color: #0f1e35;
+        font-size: 13px;
+        white-space: nowrap;
       }
-      .enterprise-grand-total {
+      .enterprise-subtotals {
+        border-top: 1px solid #dfe8f2;
+        padding: 6px 14px;
+        margin-top: auto;
+        background: #f8fafc;
+      }
+      .enterprise-subtotal-row {
+        padding: 8px 4px;
+      }
+      .enterprise-panel-foot {
+        background: #f1f5f9;
+        border-top: 1px solid #dbe5f1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         padding: 14px 18px;
-        background: linear-gradient(135deg, #f8fbff, #eef6ff);
-        border-top: 1px solid #dbe7f5;
+        color: #0f1e35;
         font-weight: 900;
       }
-      .enterprise-grand-total b {
-        font-size: 17px;
-        color: #0f45a6;
+      .enterprise-empty {
+        padding: 26px 8px;
+        text-align: center;
+        color: #718096;
+        font-size: 13px;
       }
-      @media (max-width: 1200px) {
-        .enterprise-summary-grid { grid-template-columns: 1fr; }
+      @media (max-width: 1180px) {
+        .enterprise-panel-grid { grid-template-columns: 1fr; }
       }
     `}</style>
 
@@ -525,11 +524,57 @@ export default function Dashboard({ data, setActive }) {
       <button className="btn ghost" onClick={setAllDates}>All Dates</button>
       <span className="filter-note">Filtering dashboard by {rangeLabel}</span>
     </div>
-    <div className="kpi-grid">{kpiItems.map((item) => <KpiCard key={item[0]} item={item} onClick={() => showDetail(item[5])} />)}</div>
-    <div className="enterprise-summary-grid">
-      <SummaryPanel title="Sales Summary" subtitle={`${derived.monthSales.length} imported sales`} total={money(derived.salesMonth)} icon="dollar" tone="blue" rows={salesSummary} footerRows={salesFooterRows} totalLabel="Total Sales" onViewAll={() => showDetail('sales-month')} />
-      <SummaryPanel title="Vendor Invoices" subtitle={`${derived.monthInvoices.length} invoices`} total={money(derived.invoiceSpend)} icon="invoices" tone="purple" rows={invoiceRows} footerRows={invoiceFooterRows} totalLabel="Total Invoices" onViewAll={() => showDetail('invoices')} />
-      <SummaryPanel title="Business Expenses" subtitle={`${derived.monthExpenses.length} expenses`} total={money(derived.expenseSpend)} icon="expenses" tone="green" rows={recentExpenses} footerRows={expenseFooterRows} totalLabel="Total Expenses" onViewAll={() => showDetail('expense-categories')} />
+    <div className="enterprise-kpi-grid">
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('sales-month')}><span>Net Sales</span><strong>{money(derived.trueNetSalesMonth)}</strong><small>{derived.monthSales.length} sales rows</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('sales-month')}><span>Gross Sales</span><strong>{money(derived.grossSales)}</strong><small>Before tax/tips adjustments</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-collected')}><span>Cash Collected</span><strong>{money(derived.cashMonth)}</strong><small>Uploaded sales cash</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('profit-loss')}><span>Profit / Loss</span><strong>{money(derived.profit)}</strong><small>Sales - payroll - expenses</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('food-cost')}><span>Food Cost %</span><strong>{pct(derived.foodCostPercent)}</strong><small>{money(derived.foodSpend)} food spend</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-payroll')}><span>Payroll</span><strong>{money(derived.payrollMonth)}</strong><small>Cash {money(derived.cashPayroll)} • Check {money(derived.checkPayroll)}</small></button>
+    </div>
+
+    <div className="enterprise-panel-grid">
+      <EnterprisePanel
+        icon="dollar"
+        title="Sales Summary"
+        total={money(derived.grossSales)}
+        count={`${derived.monthSales.length} imported sales`}
+        onViewAll={() => showDetail('sales-month')}
+        rows={[
+          { label: 'Cash Sales', amount: money(derived.cashMonth) },
+          { label: 'Credit Sales', amount: money(derived.creditSales) },
+          { label: 'Gift Cards', amount: money(derived.giftSales) },
+          { label: 'Online Orders', amount: money(derived.onlineSales) },
+          { label: 'Sales Tax', amount: money(derived.taxMonth) },
+          { label: 'Tips Before Withholding', amount: money(derived.tipsMonth) },
+          { label: 'Tips Withheld', amount: money(derived.tipsWithheldMonth) },
+          { label: 'Tips After Withholding', amount: money(derived.tipsAfterWithholdingMonth) }
+        ]}
+        subtotalRows={[{ label: 'Net Sales', amount: derived.trueNetSalesMonth }, { label: 'Gross Sales', amount: derived.grossSales }]}
+        grandLabel="Total Sales"
+      />
+
+      <EnterprisePanel
+        icon="invoices"
+        title="Vendor Invoices"
+        total={money(derived.invoiceSpend)}
+        count={`${derived.monthInvoices.length} invoices`}
+        onViewAll={() => showDetail('invoices')}
+        rows={derived.monthInvoices.slice(0, 6).map(row => ({ label: row.vendor || row.vendor_name || 'Invoice', meta: rowDate(row, ['invoice_date', 'date']), amount: money(invoiceTotal(row)) }))}
+        subtotalRows={derived.invoiceCategoryRows.slice(0, 8)}
+        grandLabel="Invoice Total"
+      />
+
+      <EnterprisePanel
+        icon="expenses"
+        title="Business Expenses"
+        total={money(derived.expenseSpend)}
+        count={`${derived.monthExpenses.length} expenses`}
+        onViewAll={() => showDetail('expense-categories')}
+        rows={derived.monthExpenses.slice(0, 6).map(row => ({ label: row.vendor || row.name || row.category || 'Expense', meta: `${rowDate(row, ['date', 'expense_date'])} • ${row.category || row.payment_method || ''}`, amount: money(num(row.amount)) }))}
+        subtotalRows={derived.businessExpenseCategoryRows.slice(0, 8)}
+        grandLabel="Expense Total"
+      />
     </div>
     <div id="dashboard-details">
       {currentDetail ? <DetailTable title={currentDetail.title} rows={currentDetail.rows} columns={currentDetail.columns} onOpen={() => openScreen(currentDetail.open)} message={currentDetail.message} /> : null}
