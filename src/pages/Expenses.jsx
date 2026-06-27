@@ -153,6 +153,64 @@ export default function Expenses({ data, setData }) {
   function bulkDelete() { setData(prev => ({ ...prev, expenses: (prev.expenses || []).filter(row => !selected.includes(row.id)) })); setSelected([]) }
 
   return <>
+    <style>{`
+      .expense-form-grid {
+        display: grid;
+        grid-template-columns: 180px 180px 180px 170px 170px 170px 210px 180px minmax(220px, 1fr) 160px;
+        gap: 10px;
+        align-items: end;
+      }
+      .expense-form-grid label {
+        min-width: 0;
+        display: grid;
+        gap: 5px;
+      }
+      .expense-form-grid label small {
+        min-height: 16px;
+        line-height: 16px;
+        white-space: nowrap;
+      }
+      .expense-form-grid input,
+      .expense-form-grid select {
+        width: 100%;
+        min-width: 0;
+      }
+      .expense-form-grid .wide-2 {
+        grid-column: auto;
+      }
+      .expense-form-grid .form-actions-inline {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+        justify-content: flex-end;
+        align-self: end;
+      }
+      .expense-form-grid .form-actions-inline .btn {
+        height: 42px;
+        white-space: nowrap;
+      }
+      @media (max-width: 1500px) {
+        .expense-form-grid {
+          grid-template-columns: repeat(5, minmax(160px, 1fr));
+        }
+        .expense-form-grid .wide-2 {
+          grid-column: span 2;
+        }
+        .expense-form-grid .form-actions-inline {
+          justify-content: flex-start;
+        }
+      }
+      @media (max-width: 900px) {
+        .expense-form-grid {
+          grid-template-columns: repeat(2, minmax(150px, 1fr));
+        }
+        .expense-form-grid .wide-2 {
+          grid-column: span 2;
+        }
+      }
+    `}</style>
+
+
     <div className="page-head employee-head">
       <div><h1>Expenses Workspace</h1><p>Track restaurant expenses, loans, accounting fees, utilities, supplies, maintenance, insurance, cash expenses and more.</p></div>
       <div className="employee-head-actions">
@@ -165,7 +223,7 @@ export default function Expenses({ data, setData }) {
       <div className="expense-form-grid">
         <label><small>Date</small><input type="date" value={form.date} onChange={e => updateForm('date', e.target.value)} /></label>
         <label><small>Expense Name</small><input value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="Electric bill, accounting fee..." /></label>
-        <label><small>Category</small><select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select><small>Categories are managed from Vendors/Settings to avoid duplicates.</small></label>
+        <label><small>Category</small><select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
         <label><small>Amount</small><input type="number" step="0.01" value={form.amount} onChange={e => updateForm('amount', e.target.value)} placeholder="0.00" /></label>
         <label><small>Paid By</small><select value={form.payment_method} onChange={e => updateForm('payment_method', e.target.value)}>{paymentMethods.map(method => <option key={method}>{method}</option>)}</select></label>
         <label><small>Check # / Ref</small><input value={form.check_number} onChange={e => updateForm('check_number', e.target.value)} placeholder="Check number" /></label>
