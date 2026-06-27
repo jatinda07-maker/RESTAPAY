@@ -342,7 +342,7 @@ export default function Dashboard({ data, setActive }) {
     <style>{`
       .enterprise-kpi-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 14px;
         margin-bottom: 18px;
       }
@@ -350,7 +350,8 @@ export default function Dashboard({ data, setActive }) {
         border: 1px solid #dbe5f1;
         background: #fff;
         border-radius: 18px;
-        padding: 18px;
+        padding: 14px 16px;
+        min-height: 104px;
         display: grid;
         gap: 8px;
         text-align: left;
@@ -366,7 +367,7 @@ export default function Dashboard({ data, setActive }) {
       }
       .enterprise-kpi-card strong {
         color: #0f1e35;
-        font-size: 26px;
+        font-size: 24px;
         line-height: 1;
       }
       .enterprise-kpi-card small {
@@ -388,7 +389,7 @@ export default function Dashboard({ data, setActive }) {
         box-shadow: 0 14px 34px rgba(15, 30, 53, .07);
         display: flex;
         flex-direction: column;
-        min-height: 360px;
+        min-height: 520px;
       }
       .enterprise-panel-head {
         background: #0f1e35;
@@ -448,6 +449,8 @@ export default function Dashboard({ data, setActive }) {
         display: grid;
         gap: 0;
         padding: 8px 14px 4px;
+        max-height: 280px;
+        overflow: auto;
       }
       .enterprise-row,
       .enterprise-subtotal-row {
@@ -530,7 +533,13 @@ export default function Dashboard({ data, setActive }) {
       <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-collected')}><span>Cash Collected</span><strong>{money(derived.cashMonth)}</strong><small>Uploaded sales cash</small></button>
       <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('profit-loss')}><span>Profit / Loss</span><strong>{money(derived.profit)}</strong><small>Sales - payroll - expenses</small></button>
       <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('food-cost')}><span>Food Cost %</span><strong>{pct(derived.foodCostPercent)}</strong><small>{money(derived.foodSpend)} food spend</small></button>
-      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-payroll')}><span>Payroll</span><strong>{money(derived.payrollMonth)}</strong><small>Cash {money(derived.cashPayroll)} • Check {money(derived.checkPayroll)}</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-payroll')}><span>Total Payroll</span><strong>{money(derived.payrollMonth)}</strong><small>Cash {money(derived.cashPayroll)} • Check {money(derived.checkPayroll)}</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-payroll')}><span>Cash Payroll</span><strong>{money(derived.cashPayroll)}</strong><small>{derived.cashPayrollRows.length} cash payroll rows</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('check-payroll')}><span>Check Payroll</span><strong>{money(derived.checkPayroll)}</strong><small>{derived.checkPayrollRows.length} check payroll rows</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('invoices')}><span>Invoice Spend</span><strong>{money(derived.invoiceSpend)}</strong><small>{derived.monthInvoices.length} invoices</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('expense-categories')}><span>Business Expenses</span><strong>{money(derived.expenseSpend)}</strong><small>{derived.monthExpenses.length} expense rows</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('sales-tips')}><span>Tips</span><strong>{money(derived.tipsMonth)}</strong><small>{money(derived.tipsAfterWithholdingMonth)} after withholding</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('employees')}><span>Employees</span><strong>{String(employees.length)}</strong><small>{vendors.length} vendors • {groups.length} payroll groups</small></button>
     </div>
 
     <div className="enterprise-panel-grid">
