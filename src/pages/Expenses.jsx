@@ -8,7 +8,7 @@ function today() { return todayISO() }
 function money(value) { return Number(value || 0).toFixed(2) }
 function num(value) { return Number(String(value ?? '').replace(/[$,]/g, '')) || 0 }
 function rowDate(row) { return row.date || row.expense_date || row.created_at?.slice(0, 10) || today() }
-const blankExpense = { date: today(), name: '', category: 'Restaurant Expenses', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
+const blankExpense = { date: today(), name: '', category: 'Food', amount: '', payment_method: 'Cash', check_number: '', vendor: '', vendor_id: '', manual_payee: '', notes: '' }
 
 export default function Expenses({ data, setData }) {
   const categories = (data.vendorCategories?.length ? data.vendorCategories : ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other']).slice().sort((a, b) => a.localeCompare(b))
@@ -96,13 +96,6 @@ export default function Expenses({ data, setData }) {
 
   function clearForm() { setForm({ ...blankExpense, category: categories[0] || 'Food' }); setEditingId(''); setVendorSearch('') }
 
-  function addCategory() {
-    const value = newCategory.trim()
-    if (!value || categories.includes(value)) return
-    setData(prev => ({ ...prev, expenseCategories: [...(prev.expenseCategories || []), value].sort((a, b) => a.localeCompare(b)) }))
-    setForm(prev => ({ ...prev, category: value }))
-    setNewCategory('')
-  }
 
   function saveExpense() {
     const vendorName = form.vendor_id ? (vendors.find(v => v.id === form.vendor_id)?.name || form.vendor) : (form.manual_payee || form.vendor)
