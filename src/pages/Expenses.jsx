@@ -16,7 +16,6 @@ export default function Expenses({ data, setData }) {
   const vendors = getActiveSortedVendors(data.vendors || [])
   const [form, setForm] = useState(blankExpense)
   const [editingId, setEditingId] = useState('')
-  const [newCategory, setNewCategory] = useState('')
   const [search, setSearch] = useState('')
   const [dateStart, setDateStart] = useState(() => readGlobalDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readGlobalDateRange().end)
@@ -166,7 +165,7 @@ export default function Expenses({ data, setData }) {
       <div className="expense-form-grid">
         <label><small>Date</small><input type="date" value={form.date} onChange={e => updateForm('date', e.target.value)} /></label>
         <label><small>Expense Name</small><input value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="Electric bill, accounting fee..." /></label>
-        <label><small>Category</small><select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
+        <label><small>Category</small><select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select><small>Categories are managed from Vendors/Settings to avoid duplicates.</small></label>
         <label><small>Amount</small><input type="number" step="0.01" value={form.amount} onChange={e => updateForm('amount', e.target.value)} placeholder="0.00" /></label>
         <label><small>Paid By</small><select value={form.payment_method} onChange={e => updateForm('payment_method', e.target.value)}>{paymentMethods.map(method => <option key={method}>{method}</option>)}</select></label>
         <label><small>Check # / Ref</small><input value={form.check_number} onChange={e => updateForm('check_number', e.target.value)} placeholder="Check number" /></label>
@@ -185,11 +184,6 @@ export default function Expenses({ data, setData }) {
         <label className="wide-2"><small>Notes</small><input value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Optional notes" /></label>
         <div className="form-actions-inline"><button className="btn primary" onClick={saveExpense}><Icon name="plus" /> {editingId ? 'Update' : 'Add Expense'}</button><button className="btn ghost" onClick={clearForm}>Clear</button></div>
       </div>
-      <div className="mini-add-row expense-category-row">
-        <input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Add expense category" />
-        <button className="btn ghost small-btn" onClick={addCategory}>Add Category</button>
-      </div>
-      <div className="chip-row">{categories.map(cat => <button key={cat} className={`chip ${form.category === cat ? 'selected' : ''}`} onClick={() => updateForm('category', cat)}>{cat}</button>)}</div>
     </section>
 
     <div className="sales-filter-bar report-filter-bar">
