@@ -81,13 +81,27 @@ function inferItemCategory(row, invoice = {}) {
 }
 
 
-function sumRowsByCategory(rows = []) {
+function sumRowsByCategory(rows = [], configuredCategories = []) {
   const map = new Map()
+
+  configuredCategories.filter(Boolean).forEach(category => {
+    const key = normalizeSpendCategory(category)
+    if (!map.has(key)) map.set(key, 0)
+  })
+
   rows.forEach(row => {
     const key = normalizeSpendCategory(row.category || rowCategory(row) || 'Other')
     map.set(key, (map.get(key) || 0) + num(row.amount))
   })
-  return [...map.entries()].filter(([, amount]) => amount !== 0).sort((a, b) => b[1] - a[1]).map(([category, amount]) => ({ id: `sum-${category}`, label: category, amount }))
+
+  return [...map.entries()]
+    .sort((a, b) => {
+      const ai = SPEND_CATEGORY_ORDER.indexOf(a[0])
+      const bi = SPEND_CATEGORY_ORDER.indexOf(b[0])
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+      return String(a[0]).localeCompare(String(b[0]))
+    })
+    .map(([category, amount]) => ({ id: `sum-${category}`, label: category, amount }))
 }
 
 function EnterprisePanel({ icon, title, total, count, actionLabel = 'View All', rows = [], subtotalRows = [], grandLabel = 'Total', onViewAll }) {
@@ -262,8 +276,8 @@ export default function Dashboard({ data, setActive }) {
     const creditSales = monthSales.reduce((sum, row) => sum + num(row.credit_sales), 0)
     const giftSales = monthSales.reduce((sum, row) => sum + num(row.gift_card_sales), 0)
     const onlineSales = monthSales.reduce((sum, row) => sum + num(row.online_orders), 0)
-    const invoiceCategoryRows = sumRowsByCategory([...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend])
-    const businessExpenseCategoryRows = sumRowsByCategory(expenseCategorySpend)
+    const invoiceCategoryRows = sumRowsByCategory([...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend], allConfiguredCategories)
+    const businessExpenseCategoryRows = sumRowsByCategory(expenseCategorySpend, allConfiguredCategories)
     return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, grossSales, creditSales, giftSales, onlineSales, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, invoiceCategoryRows, businessExpenseCategoryRows, expensesFromInvoiceCategories }
   }, [salesDays, payroll, invoices, invoiceItems, expenseRows, dateStart, dateEnd])
 
@@ -488,6 +502,8 @@ export default function Dashboard({ data, setActive }) {
         padding: 6px 14px;
         margin-top: auto;
         background: #f8fafc;
+        max-height: 230px;
+        overflow: auto;
       }
       .enterprise-subtotal-row {
         padding: 8px 4px;
@@ -570,7 +586,7 @@ export default function Dashboard({ data, setActive }) {
         count={`${derived.monthInvoices.length} invoices`}
         onViewAll={() => showDetail('invoices')}
         rows={derived.monthInvoices.slice(0, 6).map(row => ({ label: row.vendor || row.vendor_name || 'Invoice', meta: rowDate(row, ['invoice_date', 'date']), amount: money(invoiceTotal(row)) }))}
-        subtotalRows={derived.invoiceCategoryRows.slice(0, 8)}
+        subtotalRows={derived.invoiceCategoryRows}
         grandLabel="Invoice Total"
       />
 
@@ -581,7 +597,7 @@ export default function Dashboard({ data, setActive }) {
         count={`${derived.monthExpenses.length} expenses`}
         onViewAll={() => showDetail('expense-categories')}
         rows={derived.monthExpenses.slice(0, 6).map(row => ({ label: row.vendor || row.name || row.category || 'Expense', meta: `${rowDate(row, ['date', 'expense_date'])} • ${row.category || row.payment_method || ''}`, amount: money(num(row.amount)) }))}
-        subtotalRows={derived.businessExpenseCategoryRows.slice(0, 8)}
+        subtotalRows={derived.businessExpenseCategoryRows}
         grandLabel="Expense Total"
       />
     </div>
