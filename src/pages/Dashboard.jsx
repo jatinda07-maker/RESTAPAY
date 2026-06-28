@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { getAllCategories, inferCategory, sumRowsByCategory as sumByCategoryEngine, categoryGroup, categoriesForGroup, rollupCategoryRows } from '../engine/CategoryEngine'
+import { calculateBusinessMetrics } from '../engine/BusinessEngine'
 
 function num(value) { return Number(String(value ?? '').replace(/[$,%(),]/g, '').trim()) || 0 }
 function money(value) { return `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
@@ -211,75 +212,7 @@ export default function Dashboard({ data, setActive }) {
   }
   const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
 
-  const derived = useMemo(() => {
-    const todaySales = salesDays.filter(row => row.business_date === todayStr())
-    const weekSales = salesDays.filter(row => thisWeek(row.business_date))
-    const monthSales = salesDays.filter(row => inSelectedRange(rowDate(row, ['business_date', 'date'])))
-    const monthPayroll = payroll.filter(row => inSelectedRange(rowDate(row, ['pay_date', 'date'])))
-    const cashPayrollRows = monthPayroll.filter(isCashPayroll)
-    const checkPayrollRows = monthPayroll.filter(isCheckPayroll)
-    const monthInvoices = invoices.filter(row => inSelectedRange(rowDate(row, ['invoice_date', 'date'])))
-    const invoiceById = Object.fromEntries(invoices.map(inv => [inv.id, inv]))
-    const monthInvoiceItems = invoiceItems.filter(row => {
-      const inv = invoiceById[row.invoice_id] || {}
-      const itemDate = rowDate(row, ['invoice_date', 'date', 'created_at']) || rowDate(inv, ['invoice_date', 'date'])
-      return inSelectedRange(itemDate)
-    })
-    const monthExpenses = expenseRows.filter(row => inSelectedRange(rowDate(row, ['date', 'expense_date'])))
-    const salesToday = todaySales.reduce((sum, row) => sum + num(row.net_sales), 0)
-    const salesWeek = weekSales.reduce((sum, row) => sum + num(row.net_sales), 0)
-    const salesMonth = monthSales.reduce((sum, row) => sum + num(row.net_sales), 0)
-    const cashMonth = monthSales.reduce((sum, row) => sum + num(row.cash_sales), 0)
-    const taxMonth = monthSales.reduce((sum, row) => sum + num(row.tax), 0)
-    const tipsMonth = monthSales.reduce((sum, row) => sum + num(row.tips), 0)
-    const tipsWithheldMonth = monthSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
-    const tipsAfterWithholdingMonth = tipsMonth
-    const trueNetSalesMonth = salesMonth - taxMonth - tipsAfterWithholdingMonth
-    const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
-    const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
-    const payrollMonth = monthPayroll.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
-    const invoiceSpend = monthInvoices.reduce((sum, row) => sum + invoiceTotal(row), 0)
-    const expenseSpend = monthExpenses.reduce((sum, row) => sum + num(row.amount), 0)
-    const invoicesWithLineItems = new Set(monthInvoiceItems.map(item => item.invoice_id).filter(Boolean))
-    const invoiceItemCategorySpend = monthInvoiceItems.map(row => {
-      const inv = invoiceById[row.invoice_id] || {}
-      return {
-        ...row,
-        source: 'Invoice Item',
-        vendor: inv.vendor || inv.vendor_name || row.vendor || row.vendor_name,
-        amount: itemAmount(row),
-        category: inferCategory({ ...row, vendor: inv.vendor || inv.vendor_name || row.vendor || row.vendor_name, category: row.category || inv.category }),
-        date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date'])
-      }
-    }).filter(row => num(row.amount) > 0)
-
-    const invoiceHeaderCategorySpend = monthInvoices
-      .filter(row => !invoicesWithLineItems.has(row.id))
-      .map(row => ({...row, source: 'Invoice', amount: invoiceTotal(row), category: inferCategory(row), date: rowDate(row, ['invoice_date', 'date']) }))
-
-    const expenseCategorySpend = monthExpenses.map(row => ({...row, source: 'Expense', amount: num(row.amount), category: inferCategory(row), date: rowDate(row, ['date', 'expense_date']) }))
-    const expensesFromInvoiceCategories = [...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend, ...expenseCategorySpend]
-    const totalExpensesAll = expensesFromInvoiceCategories.reduce((sum, row) => sum + num(row.amount), 0)
-    const profit = salesMonth - payrollMonth - totalExpensesAll
-    const categoryRows = sumByCategoryEngine(expensesFromInvoiceCategories, data || {})
-    const vendorPurchaseRowsRaw = filterRowsByFinancialGroup(expensesFromInvoiceCategories, 'vendor')
-    const businessExpenseRowsRaw = filterRowsByFinancialGroup(expensesFromInvoiceCategories, 'business')
-    const vendorPurchaseCategoryRowsAll = sumByCategoryEngine(vendorPurchaseRowsRaw, categoriesForGroup(data || {}, 'vendor'))
-    const businessExpenseCategoryRowsAll = sumByCategoryEngine(businessExpenseRowsRaw, categoriesForGroup(data || {}, 'business'))
-    const vendorPurchaseCategoryRows = rollupCategoryRows(vendorPurchaseCategoryRowsAll, 'vendor', 8)
-    const businessExpenseCategoryRows = rollupCategoryRows(businessExpenseCategoryRowsAll, 'business', 8)
-    const vendorPurchaseSpend = rowsTotal(vendorPurchaseRowsRaw)
-    const businessExpenseSpend = rowsTotal(businessExpenseRowsRaw)
-    const foodSpend = categoryRows.find(row => row.category === 'Food')?.amount || 0
-    const foodCostPercent = salesMonth > 0 ? (foodSpend / salesMonth) * 100 : 0
-    const grossSales = monthSales.reduce((sum, row) => sum + num(row.gross_sales || row.total_sales || row.net_sales), 0)
-    const creditSales = monthSales.reduce((sum, row) => sum + num(row.credit_sales), 0)
-    const giftSales = monthSales.reduce((sum, row) => sum + num(row.gift_card_sales), 0)
-    const onlineSales = monthSales.reduce((sum, row) => sum + num(row.online_orders), 0)
-    const vendorPurchaseRecentRows = vendorPurchaseRowsRaw.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
-    const businessExpenseRecentRows = businessExpenseRowsRaw.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
-    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, grossSales, creditSales, giftSales, onlineSales, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, vendorPurchaseSpend, businessExpenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, vendorPurchaseCategoryRows, vendorPurchaseCategoryRowsAll, businessExpenseCategoryRows, businessExpenseCategoryRowsAll, vendorPurchaseRecentRows, businessExpenseRecentRows, expensesFromInvoiceCategories }
-  }, [salesDays, payroll, invoices, invoiceItems, expenseRows, dateStart, dateEnd])
+  const derived = useMemo(() => calculateBusinessMetrics(data || {}, { start: dateStart, end: dateEnd }), [data, dateStart, dateEnd])
 
   const kpiItems = [
     ['Sales Today', money(derived.salesToday), noThisPeriod(derived.todaySales, 'sales', 'today'), 'cart', 'green', 'sales-today'],
