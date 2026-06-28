@@ -1,8 +1,7 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { navItems } from '../data/mockData'
 import { Icon } from './Icons'
 
-const dateAwarePages = new Set(['dashboard', 'payroll'])
 const subtitles = {
   dashboard: 'Restaurant performance overview',
   sales: 'Sales imports, manual sales, and sales history',
@@ -15,27 +14,10 @@ const subtitles = {
   settings: 'Backup, restore, and application settings'
 }
 
-function todayISO() { return new Date().toISOString().slice(0, 10) }
-function weekStartISO() {
-  const d = new Date()
-  const day = d.getDay()
-  d.setDate(d.getDate() - day)
-  return d.toISOString().slice(0, 10)
-}
 
 export default function Layout({ active, setActive, children }) {
   const activeItem = navItems.find(([key]) => key === active)
   const title = activeItem?.[1] || 'RestaPay'
-  const [dateRange, setDateRange] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('restapayDateRange') || 'null') || { start: weekStartISO(), end: todayISO() } } catch { return { start: weekStartISO(), end: todayISO() } }
-  })
-  const showDate = dateAwarePages.has(active)
-  function updateRange(next) {
-    const fixed = { ...dateRange, ...next }
-    setDateRange(fixed)
-    localStorage.setItem('restapayDateRange', JSON.stringify(fixed))
-    window.dispatchEvent(new CustomEvent('restapay-date-range-change', { detail: fixed }))
-  }
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand">
@@ -55,12 +37,6 @@ export default function Layout({ active, setActive, children }) {
           <h1>{title}</h1>
           <p>{subtitles[active] || 'RestaPay workspace'}</p>
         </div>
-        {showDate ? <div className="strip-date-range" aria-label="Date range filter">
-          <Icon name="calendar" size={17} />
-          <input type="date" value={dateRange.start} onChange={event => updateRange({ start: event.target.value })} />
-          <span>to</span>
-          <input type="date" value={dateRange.end} onChange={event => updateRange({ end: event.target.value })} />
-        </div> : null}
       </header>
       <section className="content-area">{children}</section>
     </main>
