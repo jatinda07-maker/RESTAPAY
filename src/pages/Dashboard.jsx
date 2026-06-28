@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
+import { getAllCategories, inferCategory, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
 
 function num(value) { return Number(String(value ?? '').replace(/[$,%(),]/g, '').trim()) || 0 }
 function money(value) { return `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
@@ -163,6 +164,7 @@ function DetailTable({ title, rows, columns, onOpen, message }) {
 
 export default function Dashboard({ data, setActive }) {
   const [detail, setDetail] = useState('')
+  const [expensePanelMode, setExpensePanelMode] = useState('categories')
   const salesDays = data?.salesDays || []
   const payroll = data?.payrollEntries || []
   const invoices = data?.invoices || []
@@ -171,7 +173,7 @@ export default function Dashboard({ data, setActive }) {
   const employees = data?.employees || []
   const vendors = data?.vendors || []
   const groups = data?.payrollGroups || []
-  const allConfiguredCategories = Array.from(new Set([...(data?.vendorCategories || []), ...(data?.expenseCategories || []), ...SPEND_CATEGORY_ORDER].filter(Boolean)))
+  const allConfiguredCategories = getAllCategories(data || {})
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
 
@@ -241,43 +243,28 @@ export default function Dashboard({ data, setActive }) {
         source: 'Invoice Item',
         vendor: inv.vendor || inv.vendor_name || row.vendor || row.vendor_name,
         amount: itemAmount(row),
-        category: inferItemCategory(row, inv),
+        category: inferCategory({ ...row, vendor: inv.vendor || inv.vendor_name || row.vendor || row.vendor_name, category: row.category || inv.category }),
         date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date'])
       }
     }).filter(row => num(row.amount) > 0)
 
     const invoiceHeaderCategorySpend = monthInvoices
       .filter(row => !invoicesWithLineItems.has(row.id))
-      .map(row => ({...row, source: 'Invoice', amount: invoiceTotal(row), category: normalizeSpendCategory(rowCategory(row)), date: rowDate(row, ['invoice_date', 'date']) }))
+      .map(row => ({...row, source: 'Invoice', amount: invoiceTotal(row), category: inferCategory(row), date: rowDate(row, ['invoice_date', 'date']) }))
 
-    const expenseCategorySpend = monthExpenses.map(row => ({...row, source: 'Expense', amount: num(row.amount), category: normalizeSpendCategory(rowCategory(row)), date: rowDate(row, ['date', 'expense_date']) }))
+    const expenseCategorySpend = monthExpenses.map(row => ({...row, source: 'Expense', amount: num(row.amount), category: inferCategory(row), date: rowDate(row, ['date', 'expense_date']) }))
     const expensesFromInvoiceCategories = [...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend, ...expenseCategorySpend]
     const totalExpensesAll = expensesFromInvoiceCategories.reduce((sum, row) => sum + num(row.amount), 0)
     const profit = salesMonth - payrollMonth - totalExpensesAll
-    const categoryMap = new Map()
-    expensesFromInvoiceCategories.forEach(row => {
-      const key = normalizeSpendCategory(row.category)
-      categoryMap.set(key, (categoryMap.get(key) || 0) + num(row.amount))
-    })
-    allConfiguredCategories.forEach(category => {
-      if (!categoryMap.has(category)) categoryMap.set(category, 0)
-    })
-    const categoryRows = [...categoryMap.entries()]
-      .sort((a, b) => {
-        const ai = SPEND_CATEGORY_ORDER.indexOf(a[0])
-        const bi = SPEND_CATEGORY_ORDER.indexOf(b[0])
-        if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-        return b[1] - a[1]
-      })
-      .map(([category, amount]) => ({ id: `cat-${category}`, category, amount }))
-    const foodSpend = categoryMap.get('Food') || 0
+    const categoryRows = sumByCategoryEngine(expensesFromInvoiceCategories, data || {})
+    const foodSpend = categoryRows.find(row => row.category === 'Food')?.amount || 0
     const foodCostPercent = salesMonth > 0 ? (foodSpend / salesMonth) * 100 : 0
     const grossSales = monthSales.reduce((sum, row) => sum + num(row.gross_sales || row.total_sales || row.net_sales), 0)
     const creditSales = monthSales.reduce((sum, row) => sum + num(row.credit_sales), 0)
     const giftSales = monthSales.reduce((sum, row) => sum + num(row.gift_card_sales), 0)
     const onlineSales = monthSales.reduce((sum, row) => sum + num(row.online_orders), 0)
-    const invoiceCategoryRows = sumRowsByCategory([...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend], allConfiguredCategories)
-    const businessExpenseCategoryRows = sumRowsByCategory(expenseCategorySpend, allConfiguredCategories)
+    const invoiceCategoryRows = sumByCategoryEngine([...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend], data || {})
+    const businessExpenseCategoryRows = sumByCategoryEngine(expenseCategorySpend, data || {})
     return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, grossSales, creditSales, giftSales, onlineSales, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, invoiceCategoryRows, businessExpenseCategoryRows, expensesFromInvoiceCategories }
   }, [salesDays, payroll, invoices, invoiceItems, expenseRows, dateStart, dateEnd])
 
@@ -518,6 +505,25 @@ export default function Dashboard({ data, setActive }) {
         color: #0f1e35;
         font-weight: 900;
       }
+      .enterprise-panel-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 10px 14px 0;
+      }
+      .enterprise-panel-tab {
+        border: 1px solid #dbe5f1;
+        background: #fff;
+        color: #0f1e35;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .enterprise-panel-tab.active {
+        background: #0f1e35;
+        color: #fff;
+      }
       .enterprise-empty {
         padding: 26px 8px;
         text-align: center;
@@ -590,16 +596,24 @@ export default function Dashboard({ data, setActive }) {
         grandLabel="Invoice Total"
       />
 
-      <EnterprisePanel
-        icon="expenses"
-        title="Business Expenses"
-        total={money(derived.expenseSpend)}
-        count={`${derived.monthExpenses.length} expenses`}
-        onViewAll={() => showDetail('expense-categories')}
-        rows={derived.monthExpenses.slice(0, 6).map(row => ({ label: row.vendor || row.name || row.category || 'Expense', meta: `${rowDate(row, ['date', 'expense_date'])} • ${row.category || row.payment_method || ''}`, amount: money(num(row.amount)) }))}
-        subtotalRows={derived.businessExpenseCategoryRows}
-        grandLabel="Expense Total"
-      />
+      <section className="enterprise-panel">
+        <header className="enterprise-panel-head">
+          <div className="enterprise-panel-title"><span className="enterprise-panel-icon"><Icon name="expenses" size={18} /></span><div><h2>Business Expenses</h2><small>{derived.monthExpenses.length} expenses</small></div></div>
+          <div className="enterprise-panel-total"><strong>{money(derived.expenseSpend)}</strong><button type="button" onClick={() => showDetail('expense-categories')}>View All</button></div>
+        </header>
+        <div className="enterprise-panel-tabs">
+          <button type="button" className={`enterprise-panel-tab ${expensePanelMode === 'recent' ? 'active' : ''}`} onClick={() => setExpensePanelMode('recent')}>Recent</button>
+          <button type="button" className={`enterprise-panel-tab ${expensePanelMode === 'categories' ? 'active' : ''}`} onClick={() => setExpensePanelMode('categories')}>Categories</button>
+        </div>
+        {expensePanelMode === 'recent' ? <div className="enterprise-panel-body">
+          {derived.monthExpenses.length ? derived.monthExpenses.slice(0, 8).map((row, idx) => <button className="enterprise-row" key={row.id || `expense-${idx}`} type="button" onClick={() => showDetail('expense-categories')}>
+            <div><b>{row.vendor || row.name || row.category || 'Expense'}</b><small>{rowDate(row, ['date', 'expense_date'])} • {row.category || row.payment_method || ''}</small></div><strong>{money(num(row.amount))}</strong>
+          </button>) : <div className="enterprise-empty">No expenses in selected range.</div>}
+        </div> : <div className="enterprise-subtotals" style={{ borderTop: 0, marginTop: 0, background: '#fff' }}>
+          {derived.businessExpenseCategoryRows.map((row, idx) => <button className="enterprise-subtotal-row" key={row.id || `expense-cat-${idx}`} type="button" onClick={() => showDetail('expense-categories')}><span>{row.label || row.category}</span><b>{money(row.amount)}</b></button>)}
+        </div>}
+        <footer className="enterprise-panel-foot"><span>Expense Total</span><strong>{money(derived.expenseSpend)}</strong></footer>
+      </section>
     </div>
     <div id="dashboard-details">
       {currentDetail ? <DetailTable title={currentDetail.title} rows={currentDetail.rows} columns={currentDetail.columns} onOpen={() => openScreen(currentDetail.open)} message={currentDetail.message} /> : null}

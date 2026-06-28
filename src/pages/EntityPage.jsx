@@ -1,4 +1,5 @@
 import React from 'react'
+import * as XLSX from 'xlsx'
 import { employees, vendors, invoices, expenses } from '../data/mockData'
 import { Icon } from '../components/Icons'
 
@@ -229,6 +230,49 @@ function PriceIncreasePage() {
   const overTen = rows.filter(row => pct(row) >= 10).length
   const livePct = pct({ oldPrice: form.oldPrice, newPrice: form.newPrice })
 
+  const exportRows = sorted.map(row => ({
+    Name: row.name || '',
+    Vendor: row.vendor || '',
+    Category: row.category || '',
+    Date: row.date || '',
+    'Old Price': Number(row.oldPrice || 0),
+    'New Price': Number(row.newPrice || 0),
+    '$ Change': Number(dollarChange(row).toFixed(2)),
+    'Increase %': Number(pct(row).toFixed(2)),
+    Source: row.source || 'manual',
+    'Invoice Count': row.invoiceCount || '',
+    'Latest Invoice': row.latestInvoice || ''
+  }))
+
+  function downloadBlob(content, filename, type) {
+    const blob = new Blob([content], { type })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportCSV() {
+    const headers = Object.keys(exportRows[0] || { Name: '', Vendor: '', Category: '', Date: '', 'Old Price': '', 'New Price': '', '$ Change': '', 'Increase %': '', Source: '' })
+    const csv = [headers.join(','), ...exportRows.map(row => headers.map(key => `"${String(row[key] ?? '').replace(/"/g, '""')}"`).join(','))].join('\\n')
+    downloadBlob(csv, `price-increase-${today}.csv`, 'text/csv;charset=utf-8;')
+  }
+
+  function exportExcel() {
+    const workbook = XLSX.utils.book_new()
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Price Increases')
+    XLSX.writeFile(workbook, `price-increase-${today}.xlsx`)
+  }
+
+  function printReport() {
+    window.print()
+  }
+
   return <>
     <div className="status-pill">{status}</div>
 
@@ -271,7 +315,10 @@ function PriceIncreasePage() {
     <section className="table-card compact-table-card">
       <header>
         <h2>Price Increase List</h2>
-        <span>
+        <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button className="btn ghost small-btn" type="button" onClick={exportCSV}>CSV</button>
+          <button className="btn ghost small-btn" type="button" onClick={exportExcel}>Excel</button>
+          <button className="btn ghost small-btn" type="button" onClick={printReport}>Print / PDF</button>
           <select className="header-select" value={sort} onChange={e=>setSort(e.target.value)}>
             <option value="highest">Highest Increase</option>
             <option value="dollars">Largest $ Increase</option>
