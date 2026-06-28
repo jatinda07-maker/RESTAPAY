@@ -90,6 +90,77 @@ export function inferCategory(row = {}, fallback = 'Other') {
   return normalizeCategory(text || fallback, fallback)
 }
 
+
+export const CATEGORY_GROUPS = {
+  vendor: [
+    'Food', 'Beverage', 'Beer', 'Liquor', 'Supplies', 'Cleaning', 'Paper Goods',
+    'Equipment', 'Smallwares', 'Packaging', 'Produce', 'Meat', 'Dairy', 'Frozen Foods', 'Other Vendor Purchases'
+  ],
+  business: [
+    'Utilities', 'Maintenance', 'Repairs', 'Insurance', 'Accounting Fees', 'Loans',
+    'Rent / Lease', 'Marketing', 'Taxes & Licenses', 'Bank Fees', 'Credit Cards',
+    'POS / Software', 'Delivery Fees', 'Vehicle Expenses', 'Cash Expenses',
+    'Restaurant Expenses', 'Property Expenses', 'Office Supplies', 'Professional Fees', 'Other Business Expenses', 'Other'
+  ]
+}
+
+export function categoryGroup(category) {
+  const normalized = normalizeCategory(category)
+  const text = String(category || normalized || '').toLowerCase()
+  if (text.includes('lease') || text.includes('rent')) return 'business'
+  if (text.includes('pos') || text.includes('software')) return 'business'
+  if (text.includes('loan') || text.includes('insurance') || text.includes('utility') || text.includes('utilities')) return 'business'
+  if (text.includes('account') || text.includes('tax') || text.includes('license') || text.includes('bank') || text.includes('marketing')) return 'business'
+  if (text.includes('property') || text.includes('maintenance') || text.includes('repair') || text.includes('vehicle')) return 'business'
+  if (CATEGORY_GROUPS.vendor.some(cat => normalizeCategory(cat).toLowerCase() === normalized.toLowerCase())) return 'vendor'
+  if (CATEGORY_GROUPS.business.some(cat => normalizeCategory(cat).toLowerCase() === normalized.toLowerCase())) return 'business'
+  return 'business'
+}
+
+export function categoryGroupLabel(group) {
+  return group === 'vendor' ? 'Vendor Purchases' : 'Business Expenses'
+}
+
+export function categoriesForGroup(data = {}, group = 'business') {
+  const all = getAllCategories(data)
+  const base = CATEGORY_GROUPS[group] || []
+  const combined = [...base, ...all.filter(category => categoryGroup(category) === group)]
+  const seen = new Map()
+  combined.filter(Boolean).forEach(category => {
+    const normalized = normalizeCategory(category)
+    if (!seen.has(normalized.toLowerCase())) seen.set(normalized.toLowerCase(), normalized)
+  })
+  return [...seen.values()]
+}
+
+export function rollupCategoryRows(rows = [], group = 'business', maxVisible = 8) {
+  const filtered = rows
+    .filter(row => categoryGroup(row.category || row.label) === group)
+    .map(row => ({ ...row, label: row.label || row.category, category: row.category || row.label, amount: Number(row.amount || 0) }))
+
+  const total = filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+  const nonZero = filtered.filter(row => Number(row.amount || 0) !== 0).sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
+  const zero = filtered.filter(row => Number(row.amount || 0) === 0).sort((a, b) => String(a.label || a.category).localeCompare(String(b.label || b.category)))
+  const ordered = [...nonZero, ...zero]
+
+  if (ordered.length <= maxVisible) return ordered
+
+  const visibleCount = Math.max(1, maxVisible - 1)
+  const visible = ordered.slice(0, visibleCount)
+  const rest = ordered.slice(visibleCount)
+  const restTotal = rest.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+  return [
+    ...visible,
+    {
+      id: `cat-other-${group}`,
+      category: group === 'vendor' ? 'Other Vendor Purchases' : 'Other Business Expenses',
+      label: group === 'vendor' ? 'Other Vendor Purchases' : 'Other Business Expenses',
+      amount: restTotal,
+      rolledUp: rest
+    }
+  ]
+}
+
 export function sumRowsByCategory(rows = [], dataOrCategories = {}) {
   const categories = Array.isArray(dataOrCategories) ? dataOrCategories : getAllCategories(dataOrCategories)
   const map = new Map()
