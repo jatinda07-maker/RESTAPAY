@@ -444,18 +444,114 @@ export default function Payroll({ data, setData }) {
 
     <style>{`
       .payroll-table-card {
-        overflow-x: auto;
+        overflow: visible;
       }
       .payroll-entries-fit-table {
-        min-width: 1265px;
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
+        font-size: 11px;
+      }
+      .payroll-entries-list {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+      }
+      .payroll-entry-card {
+        display: grid;
+        grid-template-columns: minmax(180px, 1.15fr) repeat(6, minmax(86px, .72fr)) minmax(122px, .85fr);
+        gap: 8px;
+        align-items: stretch;
+        border: 1px solid #dbe5f1;
+        border-radius: 16px;
+        background: #fff;
+        padding: 10px;
+      }
+      .payroll-entry-card.editing-row {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+      }
+      .payroll-entry-main {
+        min-width: 0;
+      }
+      .payroll-entry-main b,
+      .payroll-entry-cell b {
+        display: block;
+        color: #0f172a;
         font-size: 13px;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+      }
+      .payroll-entry-main small,
+      .payroll-entry-cell span {
+        display: block;
+        color: #64748b;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        margin-bottom: 3px;
+      }
+      .payroll-entry-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 6px;
+      }
+      .payroll-entry-cell {
+        min-width: 0;
+        border-left: 1px solid #eef2f7;
+        padding-left: 8px;
+      }
+      .payroll-entry-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        justify-content: center;
+      }
+      .payroll-entry-actions button {
+        width: 100%;
+        min-height: 31px;
+        padding: 6px 8px;
+        font-size: 11px;
+      }
+      .payroll-entry-card .inline-edit-input {
+        width: 100%;
+        min-width: 0;
+        height: 32px;
+        padding: 6px 8px;
+        font-size: 12px;
+      }
+      .payroll-entry-card .inline-edit-input.reason {
+        min-width: 0;
+      }
+      @media (max-width: 1380px) {
+        .payroll-entry-card {
+          grid-template-columns: minmax(165px, 1.05fr) repeat(4, minmax(78px, .7fr)) minmax(94px, .72fr) minmax(112px, .8fr);
+          gap: 7px;
+          padding: 9px;
+        }
+        .payroll-entry-cell { padding-left: 7px; }
+        .payroll-entry-main b, .payroll-entry-cell b { font-size: 12px; }
+      }
+      @media (max-width: 1120px) {
+        .payroll-entry-card {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .payroll-entry-cell {
+          border-left: 0;
+          border-top: 1px solid #eef2f7;
+          padding-left: 0;
+          padding-top: 8px;
+        }
+        .payroll-entry-actions {
+          grid-column: 1 / -1;
+          flex-direction: row;
+        }
       }
       .payroll-entries-fit-table th,
       .payroll-entries-fit-table td {
-        padding: 8px 8px;
+        padding: 6px 5px;
         vertical-align: middle;
         line-height: 1.2;
       }
@@ -632,42 +728,29 @@ export default function Payroll({ data, setData }) {
 
     <section className="table-card payroll-table-card compact-table-card">
       <header><h2>Payroll Entries</h2><span>{filteredEntries.length} rows • Total ${money(totals.total)} • {rangeLabel}</span></header>
-      <table className="payroll-entries-fit-table">
-        <colgroup>
-          <col style={{ width: '110px' }} />
-          <col style={{ width: '140px' }} />
-          <col style={{ width: '125px' }} />
-          <col style={{ width: '82px' }} />
-          <col style={{ width: '82px' }} />
-          <col style={{ width: '90px' }} />
-          <col style={{ width: '65px' }} />
-          <col style={{ width: '95px' }} />
-          <col style={{ width: '95px' }} />
-          <col style={{ width: '95px' }} />
-          <col style={{ width: '85px' }} />
-          <col style={{ width: '65px' }} />
-          <col style={{ width: '110px' }} />
-          <col style={{ width: '116px' }} />
-        </colgroup>
-        <thead><tr><th>Date</th><th>Employee</th><th>Source</th><th>Pay</th><th>Method</th><th>Check #</th><th>Hrs</th><th>Regular</th><th>Net Tips</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th>Action</th></tr></thead><tbody>{filteredEntries.map(entry => {
-        const isEditing = editingEntryId === entry.id
-        return <tr key={entry.id} className={isEditing ? 'editing-row' : ''}>
-          <td className="date-cell">{isEditing ? <input className="inline-edit-input date" type="date" value={entryForm.pay_date} onChange={e => setEntryForm(prev => ({ ...prev, pay_date: e.target.value }))} /> : entry.pay_date}</td>
-          <td className="employee-name-cell"><b>{entry.employee_name}</b></td>
-          <td className="source-cell">{entry.group_name}</td>
-          <td><span className={`tag ${String(entry.pay_type).toLowerCase()}`}>{entry.pay_type}</span></td>
-          <td><span className={entry.payroll_type === 'Cash' ? 'tag cash' : 'tag check'}>{entry.payroll_type}</span></td>
-          <td>{isEditing ? <input className="inline-edit-input short" value={entryForm.check_number || ''} onChange={e => setEntryForm(prev => ({ ...prev, check_number: e.target.value }))} placeholder="Check #" /> : (entry.check_number || '-')}</td>
-          <td className="money-cell">{isEditing ? <input className="inline-edit-input short" type="number" step="0.01" value={entryForm.hours} onChange={e => setEntryForm(prev => ({ ...prev, hours: e.target.value }))} /> : money(entry.hours)}</td>
-          <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.regular_pay} onChange={e => setEntryForm(prev => ({ ...prev, regular_pay: e.target.value }))} /> : `$${money(entry.regular_pay)}`}</td>
-          <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tips} onChange={e => setEntryForm(prev => ({ ...prev, tips: e.target.value }))} /> : `$${money(entry.tips)}`}</td>
-          <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tip_deduction} onChange={e => setEntryForm(prev => ({ ...prev, tip_deduction: e.target.value }))} /> : `$${money(entry.tip_deduction)}`}</td>
-          <td className="money-cell">{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.extra_pay} onChange={e => setEntryForm(prev => ({ ...prev, extra_pay: e.target.value }))} /> : `$${money(entry.extra_pay)}`}</td>
-          <td>{isEditing ? <input className="inline-edit-input reason" value={entryForm.extra_reason} onChange={e => setEntryForm(prev => ({ ...prev, extra_reason: e.target.value }))} placeholder="Optional" /> : (entry.extra_reason || '-')}</td>
-          <td className="total-cell"><b>${isEditing ? money(num(entryForm.regular_pay) + num(entryForm.tips) - num(entryForm.tip_deduction) + num(entryForm.extra_pay)) : money(entry.total_pay)}</b></td>
-          <td className="row-actions">{isEditing ? <><button className="save-link" onClick={saveEntryEdit}>Save</button><button onClick={() => setEditingEntryId(null)}>Cancel</button></> : <><button onClick={() => startEdit(entry)}>Edit</button><button className="delete-link" onClick={() => deleteEntry(entry.id)}>Delete</button></>}</td>
-        </tr>
-      })}</tbody></table>
+      <div className="payroll-entries-list">
+        {filteredEntries.length ? filteredEntries.map(entry => {
+          const isEditing = editingEntryId === entry.id
+          const editTotal = money(num(entryForm.regular_pay) + num(entryForm.tips) - num(entryForm.tip_deduction) + num(entryForm.extra_pay))
+          return <article key={entry.id} className={`payroll-entry-card ${isEditing ? 'editing-row' : ''}`}>
+            <div className="payroll-entry-main">
+              <span>Employee / Date</span>
+              <b>{entry.employee_name}</b>
+              {isEditing ? <input className="inline-edit-input date" type="date" value={entryForm.pay_date} onChange={e => setEntryForm(prev => ({ ...prev, pay_date: e.target.value }))} /> : <small>{entry.pay_date || '-'}</small>}
+              <div className="payroll-entry-tags"><span className={`tag ${String(entry.pay_type).toLowerCase()}`}>{entry.pay_type}</span><span className={entry.payroll_type === 'Cash' ? 'tag cash' : 'tag check'}>{entry.payroll_type}</span></div>
+            </div>
+            <div className="payroll-entry-cell"><span>Source</span><b>{entry.group_name || '-'}</b></div>
+            <div className="payroll-entry-cell"><span>Check #</span>{isEditing ? <input className="inline-edit-input short" value={entryForm.check_number || ''} onChange={e => setEntryForm(prev => ({ ...prev, check_number: e.target.value }))} placeholder="Check #" /> : <b>{entry.check_number || '-'}</b>}</div>
+            <div className="payroll-entry-cell"><span>Hours</span>{isEditing ? <input className="inline-edit-input short" type="number" step="0.01" value={entryForm.hours} onChange={e => setEntryForm(prev => ({ ...prev, hours: e.target.value }))} /> : <b>{money(entry.hours)}</b>}</div>
+            <div className="payroll-entry-cell"><span>Regular</span>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.regular_pay} onChange={e => setEntryForm(prev => ({ ...prev, regular_pay: e.target.value }))} /> : <b>${money(entry.regular_pay)}</b>}</div>
+            <div className="payroll-entry-cell"><span>Net Tips</span>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tips} onChange={e => setEntryForm(prev => ({ ...prev, tips: e.target.value }))} /> : <b>${money(entry.tips)}</b>}</div>
+            <div className="payroll-entry-cell"><span>Withheld</span>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tip_deduction} onChange={e => setEntryForm(prev => ({ ...prev, tip_deduction: e.target.value }))} /> : <b>${money(entry.tip_deduction)}</b>}</div>
+            <div className="payroll-entry-cell"><span>Extra / Reason</span>{isEditing ? <><input className="inline-edit-input" type="number" step="0.01" value={entryForm.extra_pay} onChange={e => setEntryForm(prev => ({ ...prev, extra_pay: e.target.value }))} /><input className="inline-edit-input reason" value={entryForm.extra_reason} onChange={e => setEntryForm(prev => ({ ...prev, extra_reason: e.target.value }))} placeholder="Reason" /></> : <b>${money(entry.extra_pay)} {entry.extra_reason ? `• ${entry.extra_reason}` : ''}</b>}</div>
+            <div className="payroll-entry-cell"><span>Total</span><b>${isEditing ? editTotal : money(entry.total_pay)}</b></div>
+            <div className="payroll-entry-actions">{isEditing ? <><button className="save-link" onClick={saveEntryEdit}>Save</button><button onClick={() => setEditingEntryId(null)}>Cancel</button></> : <><button onClick={() => startEdit(entry)}>Edit</button><button className="delete-link" onClick={() => deleteEntry(entry.id)}>Delete</button></>}</div>
+          </article>
+        }) : <div className="empty-cell">No payroll entries in the selected date range.</div>}
+      </div>
     </section>
   </>
 }
