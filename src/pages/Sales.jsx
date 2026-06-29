@@ -100,6 +100,27 @@ function extractRangeFromFileName(fileName) {
   if (!match) return ''
   return `${match[1]}-${match[2]}-${match[3]} to ${match[4]}-${match[5]}-${match[6]}`
 }
+function firstPresent(row, keys) {
+  for (const key of keys) {
+    const value = findValue(row, [key])
+    if (value !== '') return value
+  }
+  return ''
+}
+function calculateToastTips(tipSummary = {}) {
+  const totalRaw = firstPresent(tipSummary, ['Total tips', 'Total Tips', 'Tips', 'Non-cash tips', 'Non Cash Tips'])
+  const withheldRaw = firstPresent(tipSummary, ['Tips withheld', 'Tips Withheld', 'Tip withholding', 'Tip Withholding', 'Withheld tips'])
+  const afterRaw = firstPresent(tipSummary, ['Tips after withholding', 'Tips After Withholding', 'Tips after withheld', 'Tips Paid'])
+  const total = round2(num(totalRaw))
+  const withheldSigned = num(withheldRaw)
+  const withheld = round2(Math.abs(withheldSigned))
+  let after = afterRaw !== '' ? round2(num(afterRaw)) : 0
+  if (!after && total) {
+    after = withheldSigned < 0 ? round2(total + withheldSigned) : round2(total - withheld)
+  }
+  if (after < 0) after = 0
+  return { totalTips: total || after, tipsWithheld: withheld, tipsAfterWithholding: after }
+}
 
 function shortNote(value) {
   const text = String(value || '').trim()
@@ -114,7 +135,7 @@ function displayMoney(value) {
   return `$${money(value)}`
 }
 function makeEmptySalesRow(fileName = 'Manual') {
-  return { id: createId('sale'), business_date: today(), gross_sales: '0.00', net_sales: '0.00', cash_sales: '0.00', credit_sales: '0.00', gift_card_sales: '0.00', online_orders: '0.00', delivery_orders: '0.00', pickup_orders: '0.00', tips: '0.00', refunds: '0.00', voids: '0.00', discounts: '0.00', tax: '0.00', guest_count: '0.00', source_file: fileName, import_note: '' }
+  return { id: createId('sale'), business_date: today(), gross_sales: '0.00', net_sales: '0.00', cash_sales: '0.00', credit_sales: '0.00', gift_card_sales: '0.00', online_orders: '0.00', delivery_orders: '0.00', pickup_orders: '0.00', tips: '0.00', tips_before_withholding: '0.00', tips_withheld: '0.00', refunds: '0.00', voids: '0.00', discounts: '0.00', tax: '0.00', guest_count: '0.00', source_file: fileName, import_note: '' }
 }
 function makeGenericSalesRow(row, fileName = 'Manual') {
   const gross = round2(num(findValue(row, ['Gross Sales', 'Gross', 'Total Sales', 'Sales'])))
@@ -132,7 +153,7 @@ function makeGenericSalesRow(row, fileName = 'Manual') {
   const tax = round2(num(findValue(row, ['Tax', 'Taxes', 'Tax Collected', 'Sales Tax', 'Tax amount'])))
   const guests = round2(num(findValue(row, ['Guest Count', 'Guests', 'Covers', 'Guest', 'Total guests'])))
   const date = formatDate(findValue(row, ['Business Date', 'Date', 'Opened Date', 'Order Date', 'yyyyMMdd']))
-  return { ...makeEmptySalesRow(fileName), business_date: date, gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), delivery_orders: money(delivery), pickup_orders: money(pickup), tips: money(tips), refunds: money(refunds), voids: money(voids), discounts: money(discounts), tax: money(tax), guest_count: money(guests) }
+  return { ...makeEmptySalesRow(fileName), business_date: date, gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), delivery_orders: money(delivery), pickup_orders: money(pickup), tips: money(tips), tips_before_withholding: money(tips), tips_withheld: '0.00', refunds: money(refunds), voids: money(voids), discounts: money(discounts), tax: money(tax), guest_count: money(guests) }
 }
 function parseToastSalesWorkbook(workbook, fileName) {
   const hasToastSheets = workbook.SheetNames.includes('Revenue summary') || workbook.SheetNames.includes('Sales by day') || workbook.SheetNames.includes('Payments summary')
@@ -147,7 +168,10 @@ function parseToastSalesWorkbook(workbook, fileName) {
   const net = round2(num(findValue(netSummary, ['Net sales'])) || num(firstRowValue(workbook, 'Revenue summary', 'Net sales')))
   const discounts = absMoney(findValue(netSummary, ['Sales discounts']))
   const refunds = absMoney(findValue(netSummary, ['Sales refunds']))
-  const tipsAfterWithholding = round2(num(findValue(tipSummary, ['Tips after withholding'])) || (num(findValue(tipSummary, ['Total tips'])) + num(findValue(tipSummary, ['Tips withheld']))))
+  const toastTips = calculateToastTips(tipSummary)
+  const tipsBeforeWithholding = toastTips.totalTips
+  const tipsWithheld = toastTips.tipsWithheld
+  const tipsAfterWithholding = toastTips.tipsAfterWithholding
   const tax = round2(num(firstRowValue(workbook, 'Revenue summary', 'Tax amount')) || num(findValue(headerValueRow(workbook, 'Tax summary'), ['Tax amount'])))
   const cash = paymentAmount(payments, 'Cash')
   const credit = paymentAmount(payments, 'Credit/debit')
@@ -157,7 +181,7 @@ function parseToastSalesWorkbook(workbook, fileName) {
   const sourceRange = extractRangeFromFileName(fileName)
 
   if (!dayRows.length) {
-    return [{ ...makeEmptySalesRow(fileName), business_date: formatDate(sourceRange.split(' to ')[0] || today()), gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), tips: money(tipsAfterWithholding), refunds: money(refunds), discounts: money(discounts), tax: money(tax), guest_count: money(totalGuests), import_note: sourceRange ? `Toast range ${sourceRange}` : 'Toast summary row' }]
+    return [{ ...makeEmptySalesRow(fileName), business_date: formatDate(sourceRange.split(' to ')[0] || today()), gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), tips: money(tipsAfterWithholding), tips_before_withholding: money(tipsBeforeWithholding), tips_withheld: money(tipsWithheld), refunds: money(refunds), discounts: money(discounts), tax: money(tax), guest_count: money(totalGuests), import_note: sourceRange ? `Toast range ${sourceRange}` : 'Toast summary row' }]
   }
 
   const weights = dayRows.map(row => num(findValue(row, ['Net sales'])))
@@ -166,6 +190,8 @@ function parseToastSalesWorkbook(workbook, fileName) {
   const creditParts = distributeMoney(credit, weights)
   const giftParts = distributeMoney(gift, weights)
   const onlineParts = distributeMoney(online, weights)
+  const tipBeforeParts = distributeMoney(tipsBeforeWithholding, weights)
+  const tipWithheldParts = distributeMoney(tipsWithheld, weights)
   const tipParts = distributeMoney(tipsAfterWithholding, weights)
   const refundParts = distributeMoney(refunds, weights)
   const discountParts = distributeMoney(discounts, weights)
@@ -181,6 +207,8 @@ function parseToastSalesWorkbook(workbook, fileName) {
     gift_card_sales: money(giftParts[index]),
     online_orders: money(onlineParts[index]),
     tips: money(tipParts[index]),
+    tips_before_withholding: money(tipBeforeParts[index]),
+    tips_withheld: money(tipWithheldParts[index]),
     refunds: money(refundParts[index]),
     discounts: money(discountParts[index]),
     tax: money(taxParts[index]),
@@ -223,9 +251,9 @@ export default function Sales({ data, setData }) {
 
   const totals = useMemo(() => filteredSales.reduce((acc, row) => {
     acc.gross += num(row.gross_sales); acc.net += num(row.net_sales); acc.cash += num(row.cash_sales); acc.credit += num(row.credit_sales)
-    acc.gift += num(row.gift_card_sales); acc.online += num(row.online_orders); acc.tips += num(row.tips); acc.refunds += num(row.refunds); acc.discounts += num(row.discounts); acc.tax += num(row.tax); acc.guests += num(row.guest_count)
+    acc.gift += num(row.gift_card_sales); acc.online += num(row.online_orders); acc.tips += num(row.tips); acc.tipsWithheld += num(row.tips_withheld); acc.refunds += num(row.refunds); acc.discounts += num(row.discounts); acc.tax += num(row.tax); acc.guests += num(row.guest_count)
     return acc
-  }, { gross: 0, net: 0, cash: 0, credit: 0, gift: 0, online: 0, tips: 0, refunds: 0, discounts: 0, tax: 0, guests: 0 }), [filteredSales])
+  }, { gross: 0, net: 0, cash: 0, credit: 0, gift: 0, online: 0, tips: 0, tipsWithheld: 0, refunds: 0, discounts: 0, tax: 0, guests: 0 }), [filteredSales])
 
   async function handleSalesFile(event) {
     const file = event.target.files?.[0]
@@ -279,7 +307,7 @@ export default function Sales({ data, setData }) {
     setSelectedIds([])
   }
 
-  const numberFields = ['gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips','refunds','discounts','tax','guest_count']
+  const numberFields = ['gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips','tips_withheld','refunds','discounts','tax','guest_count']
   const checkedAll = filteredSales.length > 0 && filteredSales.every(row => selectedIds.includes(row.id))
 
   return <>
@@ -390,7 +418,7 @@ export default function Sales({ data, setData }) {
 
     {previewRows.length > 0 && <section className="table-card compact-table-card sales-preview-card">
       <header><h2>Sales Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreview}>Save Sales</button></span></header>
-      <table className="sales-table fit-sales-table"><thead><tr><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Online</th><th>Tips</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col"></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
+      <table className="sales-table fit-sales-table"><thead><tr><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Online</th><th>Tips After</th><th>Tips Withheld</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col"></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
         <td className="sales-date-cell"><input className="sales-date-input" type="date" value={row.business_date} onChange={e => updatePreview(row.id, 'business_date', e.target.value)} />{row.import_note && <small className="sales-note" title={row.import_note}>{shortNote(row.import_note)}</small>}</td>
         {numberFields.map(field => <td key={field}><input className="sales-data-input" type="number" step="0.01" value={row[field]} onChange={e => updatePreview(row.id, field, e.target.value)} onBlur={e => blurPreview(row.id, field, e.target.value)} /></td>)}
         <td><button className="delete-link" onClick={() => setPreviewRows(prev => prev.filter(item => item.id !== row.id))}>Remove</button></td>
@@ -399,7 +427,7 @@ export default function Sales({ data, setData }) {
 
     <section className="table-card compact-table-card sales-history-card">
       <header><h2>Sales History</h2><span>{filteredSales.length} rows {selectedIds.length ? <button className="delete-link small-btn" onClick={bulkDelete}>Delete {selectedIds.length}</button> : null}</span></header>
-      <table className="sales-table fit-sales-table"><thead><tr><th className="sales-check-col"><input type="checkbox" checked={checkedAll} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Online</th><th>Tips</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col">Action</th></tr></thead><tbody>{filteredSales.map(row => {
+      <table className="sales-table fit-sales-table"><thead><tr><th className="sales-check-col"><input type="checkbox" checked={checkedAll} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Online</th><th>Tips After</th><th>Tips Withheld</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col">Action</th></tr></thead><tbody>{filteredSales.map(row => {
         const isEditing = editingId === row.id
         const current = isEditing ? editRow : row
         return <tr key={row.id} className={isEditing ? 'editing-row' : ''}>
@@ -408,8 +436,8 @@ export default function Sales({ data, setData }) {
           {numberFields.map(field => <td key={field} className={field === 'guest_count' ? 'guest-cell' : 'money-cell'}>{isEditing ? <input className="sales-data-input" type="number" step="0.01" value={current[field]} onChange={e => setEditRow(prev => ({ ...prev, [field]: e.target.value }))} /> : (field === 'guest_count' ? money(current[field]) : displayMoney(current[field]))}</td>)}
           <td className="row-actions">{isEditing ? <><button className="save-link" onClick={saveEdit}>Save</button><button onClick={() => setEditingId(null)}>Cancel</button></> : <><button onClick={() => startEdit(row)}>Edit</button><button className="delete-link" onClick={() => deleteSale(row.id)}>Delete</button></>}</td>
         </tr>
-      })}{filteredSales.length === 0 && <tr><td colSpan="14"><small>No sales rows yet. Import a Toast Sales Summary CSV/XLSX.</small></td></tr>}</tbody>
-      {filteredSales.length > 0 && <tfoot><tr><th></th><th>Totals</th><th>{displayMoney(totals.gross)}</th><th>{displayMoney(totals.net)}</th><th>{displayMoney(totals.cash)}</th><th>{displayMoney(totals.credit)}</th><th>{displayMoney(totals.gift)}</th><th>{displayMoney(totals.online)}</th><th>{displayMoney(totals.tips)}</th><th>{displayMoney(totals.refunds)}</th><th>{displayMoney(totals.discounts)}</th><th>{displayMoney(totals.tax)}</th><th>{money(totals.guests)}</th><th></th></tr></tfoot>}
+      })}{filteredSales.length === 0 && <tr><td colSpan="15"><small>No sales rows yet. Import a Toast Sales Summary CSV/XLSX.</small></td></tr>}</tbody>
+      {filteredSales.length > 0 && <tfoot><tr><th></th><th>Totals</th><th>{displayMoney(totals.gross)}</th><th>{displayMoney(totals.net)}</th><th>{displayMoney(totals.cash)}</th><th>{displayMoney(totals.credit)}</th><th>{displayMoney(totals.gift)}</th><th>{displayMoney(totals.online)}</th><th>{displayMoney(totals.tips)}</th><th>{displayMoney(totals.tipsWithheld)}</th><th>{displayMoney(totals.refunds)}</th><th>{displayMoney(totals.discounts)}</th><th>{displayMoney(totals.tax)}</th><th>{money(totals.guests)}</th><th></th></tr></tfoot>}
       </table>
     </section>
 
