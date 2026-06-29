@@ -237,6 +237,44 @@ export default function Invoices({ data, setData }) {
     return [inv.vendor_name, inv.invoice_number, inv.category, inv.status, inv.file_name].join(' ').toLowerCase().includes(q)
   }), [invoices, search])
 
+  const spendingSummary = useMemo(() => {
+    const rows = filtered || []
+    const totalSpend = rows.reduce((sum, inv) => sum + parseAmount(inv.total), 0)
+    const paidSpend = rows
+      .filter(inv => String(inv.status || '').toLowerCase() === 'paid')
+      .reduce((sum, inv) => sum + parseAmount(inv.total), 0)
+    const openSpend = Math.max(0, totalSpend - paidSpend)
+    const checkSpend = rows
+      .filter(inv => clean(inv.check_number))
+      .reduce((sum, inv) => sum + parseAmount(inv.total), 0)
+
+    const categoryMap = new Map()
+    rows.forEach(inv => {
+      const category = clean(inv.category) || 'Other'
+      categoryMap.set(category, (categoryMap.get(category) || 0) + parseAmount(inv.total))
+    })
+
+    const topCategories = [...categoryMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([label, amount]) => ({ label, amount }))
+
+    const latestInvoice = [...rows].sort((a, b) => String(b.invoice_date || b.created_at || '').localeCompare(String(a.invoice_date || a.created_at || '')))[0]
+
+    return {
+      rows,
+      totalSpend,
+      paidSpend,
+      openSpend,
+      checkSpend,
+      topCategories,
+      latestInvoice
+    }
+  }, [filtered])
+
+  const topCategoryLabel = spendingSummary.topCategories[0]?.label || 'No category'
+  const topCategoryAmount = spendingSummary.topCategories[0]?.amount || 0
+
   function update(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
     setDuplicateWarning(null)
@@ -533,6 +571,35 @@ export default function Invoices({ data, setData }) {
       <button className="btn danger small-btn" onClick={() => saveInvoice({ saveAnyway: true })}>Save Anyway</button>
     </div> : null}
 
+    <section className="invoice-spend-grid" aria-label="Invoice spending totals">
+      <button type="button" className="invoice-spend-card primary">
+        <span className="invoice-spend-icon"><Icon name="invoices" size={19} /></span>
+        <span className="invoice-spend-copy"><small>Total Invoice Spend</small><strong>${money(spendingSummary.totalSpend)}</strong><em>{spendingSummary.rows.length} invoices in view</em></span>
+      </button>
+      <button type="button" className="invoice-spend-card">
+        <span className="invoice-spend-icon green"><Icon name="vendors" size={19} /></span>
+        <span className="invoice-spend-copy"><small>Top Category</small><strong>${money(topCategoryAmount)}</strong><em>{topCategoryLabel}</em></span>
+      </button>
+      <button type="button" className="invoice-spend-card">
+        <span className="invoice-spend-icon orange"><Icon name="expenses" size={19} /></span>
+        <span className="invoice-spend-copy"><small>Open / Unpaid</small><strong>${money(spendingSummary.openSpend)}</strong><em>Paid ${money(spendingSummary.paidSpend)}</em></span>
+      </button>
+      <button type="button" className="invoice-spend-card">
+        <span className="invoice-spend-icon blue"><Icon name="check" size={19} /></span>
+        <span className="invoice-spend-copy"><small>Check Payments</small><strong>${money(spendingSummary.checkSpend)}</strong><em>Invoices with check/ref #</em></span>
+      </button>
+    </section>
+
+    <section className="invoice-category-strip">
+      <div>
+        <strong>Spending by Category</strong>
+        <span>Based on current invoice search/filter</span>
+      </div>
+      <div className="invoice-category-pills">
+        {spendingSummary.topCategories.length ? spendingSummary.topCategories.map(row => <span key={row.label} className="invoice-category-pill"><b>{row.label}</b>${money(row.amount)}</span>) : <span className="invoice-category-pill muted">No invoice spending yet</span>}
+      </div>
+    </section>
+
     <section className="form-card tight-card invoice-form-card">
       <div className="invoice-toolbar">
         <div>
@@ -645,6 +712,109 @@ export default function Invoices({ data, setData }) {
         </tbody>
       </table>
     </section>
+
+    <style>{`
+      .invoice-spend-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(170px, 1fr));
+        gap: 12px;
+        margin: 14px 0 12px;
+      }
+      .invoice-spend-card {
+        border: 1px solid #dbe6f3;
+        border-radius: 16px;
+        background: #fff;
+        padding: 15px;
+        min-height: 116px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: 0 12px 28px rgba(15, 30, 53, .06);
+        transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      }
+      .invoice-spend-card:hover {
+        transform: translateY(-2px);
+        border-color: #b8cdf1;
+        box-shadow: 0 16px 32px rgba(15, 30, 53, .1);
+      }
+      .invoice-spend-card.primary {
+        background: linear-gradient(135deg, #f7fbff 0%, #ffffff 70%);
+      }
+      .invoice-spend-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #1649c7);
+        box-shadow: 0 10px 20px rgba(37, 99, 235, .22);
+      }
+      .invoice-spend-icon.green { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 10px 20px rgba(16, 185, 129, .2); }
+      .invoice-spend-icon.orange { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 10px 20px rgba(249, 115, 22, .2); }
+      .invoice-spend-icon.blue { background: linear-gradient(135deg, #38bdf8, #2563eb); box-shadow: 0 10px 20px rgba(37, 99, 235, .18); }
+      .invoice-spend-copy { display: grid; gap: 4px; min-width: 0; }
+      .invoice-spend-copy small {
+        color: #52677f;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+      .invoice-spend-copy strong {
+        color: #07172d;
+        font-size: 24px;
+        font-weight: 900;
+        letter-spacing: -.04em;
+        line-height: 1.08;
+      }
+      .invoice-spend-copy em {
+        color: #58708d;
+        font-size: 12px;
+        font-style: normal;
+        font-weight: 750;
+        line-height: 1.3;
+      }
+      .invoice-category-strip {
+        border: 1px solid #dbe6f3;
+        border-radius: 16px;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: center;
+        padding: 13px 15px;
+        margin-bottom: 14px;
+        box-shadow: 0 10px 24px rgba(15, 30, 53, .05);
+      }
+      .invoice-category-strip strong { display: block; color: #0f1e35; font-size: 14px; font-weight: 900; }
+      .invoice-category-strip span { color: #60758e; font-size: 12px; font-weight: 700; }
+      .invoice-category-pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+      .invoice-category-pill {
+        border: 1px solid #dbe6f3;
+        border-radius: 999px;
+        background: #f8fbff;
+        padding: 7px 10px;
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        color: #07172d;
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .invoice-category-pill b { color: #52677f; }
+      .invoice-category-pill.muted { color: #7a8da3; }
+      @media (max-width: 1200px) { .invoice-spend-grid { grid-template-columns: repeat(2, minmax(170px, 1fr)); } }
+      @media (max-width: 760px) {
+        .invoice-spend-grid { grid-template-columns: 1fr; }
+        .invoice-category-strip { flex-direction: column; align-items: flex-start; }
+        .invoice-category-pills { justify-content: flex-start; }
+      }
+    `}</style>
 
     <section className="table-card compact-table-card employee-table-card">
       <header>
