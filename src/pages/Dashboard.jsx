@@ -1,410 +1,633 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
-import { inferCategory, categoryGroup, categoriesForGroup, sumRowsByCategory, rollupCategoryRows } from '../engine/CategoryEngine'
+import { getAllCategories, inferCategory, sumRowsByCategory as sumByCategoryEngine, categoryGroup, categoriesForGroup, rollupCategoryRows } from '../engine/CategoryEngine'
 
-function num(value) {
-  if (typeof value === 'number') return value
-  const text = String(value ?? '').replace(/[$,%]/g, '').replace(/,/g, '').trim()
-  if (!text) return 0
-  if (/^\(.+\)$/.test(text)) return -Number(text.replace(/[()]/g, '')) || 0
-  return Number(text) || 0
-}
+function num(value) { return Number(String(value ?? '').replace(/[$,%(),]/g, '').trim()) || 0 }
 function money(value) { return `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
-function pct(value) { return `${Number(value || 0).toFixed(1)}%` }
-function todayISO() { return new Date().toISOString().slice(0, 10) }
+function pct(value) { return `${Number(value || 0).toFixed(2)}%` }
+function todayStr() { return new Date().toISOString().slice(0, 10) }
 function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
 function readSavedDateRange() {
   try {
     const saved = JSON.parse(localStorage.getItem('restapay_global_date_range') || '{}')
-    return { start: saved.start || startOfMonthISO(), end: saved.end || todayISO() }
+    return { start: saved.start || startOfMonthISO(), end: saved.end || todayStr() }
   } catch {
-    return { start: startOfMonthISO(), end: todayISO() }
+    return { start: startOfMonthISO(), end: todayStr() }
   }
 }
-function saveDateRange(start, end) {
+function saveGlobalDateRange(start, end) {
   try { localStorage.setItem('restapay_global_date_range', JSON.stringify({ start, end })) } catch {}
 }
 function rowDate(row, keys = []) {
   for (const key of keys) if (row?.[key]) return String(row[key]).slice(0, 10)
   return String(row?.business_date || row?.pay_date || row?.invoice_date || row?.date || row?.expense_date || row?.created_at || '').slice(0, 10)
 }
-function inRange(row, start, end, keys = []) {
-  const date = rowDate(row, keys)
-  if (!date) return false
-  if (start && date < start) return false
-  if (end && date > end) return false
-  return true
+function thisWeek(dateText) {
+  if (!dateText) return false
+  const d = new Date(dateText)
+  if (Number.isNaN(d.getTime())) return false
+  const n = new Date()
+  const start = new Date(n); start.setDate(n.getDate() - n.getDay()); start.setHours(0, 0, 0, 0)
+  const end = new Date(start); end.setDate(start.getDate() + 7)
+  return d >= start && d < end
 }
+function thisMonth(dateText) {
+  if (!dateText) return false
+  const d = new Date(dateText)
+  const n = new Date()
+  return !Number.isNaN(d.getTime()) && d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear()
+}
+function emptyLabel(rows, label) { return rows.length ? `${rows.length} rows` : `No ${label} entered yet` }
+function noThisPeriod(rows, label, period) { return rows.length ? `${rows.length} rows` : `No ${label} ${period}` }
+function payrollType(row) { return String(row.payment_method || row.payroll_type || row.type || row.pay_method || '').toLowerCase() }
+function isCashPayroll(row) { return payrollType(row).includes('cash') }
+function isCheckPayroll(row) { return payrollType(row).includes('check') }
 function invoiceTotal(row) { return num(row.total || row.amount || row.invoice_total || row.grand_total) }
 function itemUnit(row) { return num(row.unit_price || row.price || row.cost || row.item_price || row.rate) }
 function itemAmount(row) { return num(row.line_total || row.total || row.amount || row.extended_price || (num(row.qty || row.quantity) * itemUnit(row))) }
-function paymentText(row) { return String(row.payment_method || row.payment_type || row.pay_method || row.payroll_type || row.type || '').toLowerCase() }
-function isCash(row) { return paymentText(row).includes('cash') }
-function isCheck(row) { return paymentText(row).includes('check') }
-function payrollTotal(row) { return num(row.total_pay || row.amount || row.pay || row.regular_pay || row.base_pay) + num(row.extra_pay) }
-function payrollTipAmount(row) { return num(row.tips_after_withheld || row.tips_after_withholding || row.final_tips || row.net_tips || row.tips_paid || row.tips || row.tip_amount) }
-function restaurantPayrollCost(row) { return Math.max(payrollTotal(row) - payrollTipAmount(row), 0) }
-function salesTipsCollected(row) {
-  const explicit = num(row.tips_collected || row.total_tips || row.tips_before_withholding || row.actual_tips)
-  if (explicit) return explicit
-  const net = num(row.tips_after_withholding || row.net_tips || row.tips)
-  const withheld = num(row.tips_withheld || row.tips_withholding || row.tip_deduction)
-  if (net && withheld) return net + Math.abs(withheld)
-  if (net) return net / 0.965
-  return 0
+function rowCategory(row) { return String(row.category || row.expense_category || row.invoice_category || row.type || '').trim() }
+function isFoodCategory(value) {
+  const text = String(value || '').toLowerCase()
+  return ['food', 'meat', 'produce', 'grocery', 'restaurant food', 'food cost'].some(term => text.includes(term))
 }
-function salesTipsWithheld(row) {
-  const explicit = Math.abs(num(row.tips_withheld || row.tips_withholding || row.tip_deduction))
-  if (explicit) return explicit
-  const collected = salesTipsCollected(row)
-  return collected ? collected * 0.035 : 0
-}
-function salesTipsNet(row) {
-  const explicit = num(row.tips_after_withholding || row.net_tips || row.tips)
-  if (explicit) return explicit
-  const collected = salesTipsCollected(row)
-  return Math.max(collected - salesTipsWithheld(row), 0)
-}
-function categoryIsCogs(category) {
-  const normalized = inferCategory({ category })
-  return ['Food', 'Beverage', 'Beer', 'Liquor'].includes(normalized)
-}
-function rowsTotal(rows = [], key = 'amount') { return rows.reduce((sum, row) => sum + num(row[key]), 0) }
-function sortByAmount(rows = []) { return [...rows].sort((a, b) => num(b.amount) - num(a.amount)) }
-function clamp(value, min, max) { return Math.max(min, Math.min(max, value)) }
+function categoryKey(value) { return String(value || 'Uncategorized').trim() || 'Uncategorized' }
 
-function buildSpendRows(data, start, end) {
-  const invoices = data?.invoices || []
-  const invoiceItems = data?.invoiceItems || []
-  const expenses = data?.expenses || []
-  const invoiceById = Object.fromEntries(invoices.map(row => [row.id, row]))
-  const periodInvoices = invoices.filter(row => inRange(row, start, end, ['invoice_date', 'date']))
-  const periodItems = invoiceItems.filter(row => {
-    const inv = invoiceById[row.invoice_id] || {}
-    return inRange({ ...row, date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date']) }, start, end, ['date'])
+const SPEND_CATEGORY_ORDER = [
+  'Food', 'Beverage', 'Beer', 'Liquor', 'Supplies', 'Utilities',
+  'Maintenance', 'Insurance', 'Accounting Fees', 'Loans',
+  'Cash Expenses', 'Restaurant Expenses', 'Other'
+]
+
+function normalizeSpendCategory(value) {
+  const text = String(value || '').toLowerCase()
+  if (text.includes('food') || text.includes('meat') || text.includes('produce') || text.includes('grocery') || text.includes('chicken') || text.includes('beef') || text.includes('fish') || text.includes('rice') || text.includes('oil') || text.includes('flour') || text.includes('cheese') || text.includes('sauce')) return 'Food'
+  if (text.includes('beer')) return 'Beer'
+  if (text.includes('liquor') || text.includes('wine') || text.includes('alcohol') || text.includes('vodka') || text.includes('tequila') || text.includes('whiskey') || text.includes('rum')) return 'Liquor'
+  if (text.includes('beverage') || text.includes('soda') || text.includes('drink') || text.includes('coffee') || text.includes('tea') || text.includes('juice') || text.includes('coke') || text.includes('pepsi')) return 'Beverage'
+  if (text.includes('suppl') || text.includes('glove') || text.includes('napkin') || text.includes('straw') || text.includes('bag') || text.includes('container') || text.includes('paper') || text.includes('chemical') || text.includes('soap')) return 'Supplies'
+  if (text.includes('util') || text.includes('electric') || text.includes('gas') || text.includes('water')) return 'Utilities'
+  if (text.includes('maint') || text.includes('repair') || text.includes('service')) return 'Maintenance'
+  if (text.includes('insurance')) return 'Insurance'
+  if (text.includes('account')) return 'Accounting Fees'
+  if (text.includes('loan') || text.includes('mortgage')) return 'Loans'
+  if (text.includes('cash')) return 'Cash Expenses'
+  if (text.includes('restaurant')) return 'Restaurant Expenses'
+  return categoryKey(value || 'Other')
+}
+
+function inferItemCategory(row, invoice = {}) {
+  const explicit = rowCategory(row) || row.category || invoice.category
+  const description = String(row.description || row.item_name || row.item || row.name || '').toLowerCase()
+  return normalizeSpendCategory(`${explicit || ''} ${description}`)
+}
+
+
+function sumRowsByCategory(rows = [], configuredCategories = []) {
+  const map = new Map()
+
+  configuredCategories.filter(Boolean).forEach(category => {
+    const key = normalizeSpendCategory(category)
+    if (!map.has(key)) map.set(key, 0)
   })
-  const invoicesWithItems = new Set(periodItems.map(row => row.invoice_id).filter(Boolean))
 
-  const itemRows = periodItems.map(row => {
-    const inv = invoiceById[row.invoice_id] || {}
-    const vendor = inv.vendor || inv.vendor_name || row.vendor || row.vendor_name || 'Vendor'
-    const category = inferCategory({ ...row, category: row.category || inv.category, vendor })
-    return {
-      ...row,
-      source: 'Invoice Item',
-      vendor,
-      vendor_name: vendor,
-      category,
-      amount: itemAmount(row),
-      date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date']),
-      payment_method: inv.payment_method || row.payment_method
-    }
-  }).filter(row => num(row.amount) > 0)
+  rows.forEach(row => {
+    const key = normalizeSpendCategory(row.category || rowCategory(row) || 'Other')
+    map.set(key, (map.get(key) || 0) + num(row.amount))
+  })
 
-  const invoiceRows = periodInvoices
-    .filter(row => !invoicesWithItems.has(row.id))
-    .map(row => ({
-      ...row,
-      source: 'Invoice',
-      vendor: row.vendor || row.vendor_name || row.name || 'Vendor',
-      category: inferCategory(row),
-      amount: invoiceTotal(row),
-      date: rowDate(row, ['invoice_date', 'date'])
-    }))
-    .filter(row => num(row.amount) > 0)
-
-  const expenseRows = expenses
-    .filter(row => inRange(row, start, end, ['date', 'expense_date']))
-    .map(row => ({
-      ...row,
-      source: 'Expense',
-      vendor: row.vendor || row.name || row.category || 'Business Expense',
-      category: inferCategory(row),
-      amount: num(row.amount),
-      date: rowDate(row, ['date', 'expense_date'])
-    }))
-    .filter(row => num(row.amount) > 0)
-
-  return [...itemRows, ...invoiceRows, ...expenseRows]
+  return [...map.entries()]
+    .sort((a, b) => {
+      const ai = SPEND_CATEGORY_ORDER.indexOf(a[0])
+      const bi = SPEND_CATEGORY_ORDER.indexOf(b[0])
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+      return String(a[0]).localeCompare(String(b[0]))
+    })
+    .map(([category, amount]) => ({ id: `sum-${category}`, label: category, amount }))
 }
 
-function calculateDashboard(data, start, end) {
-  const sales = (data?.salesDays || []).filter(row => inRange(row, start, end, ['business_date', 'date']))
-  const payroll = (data?.payrollEntries || []).filter(row => inRange(row, start, end, ['pay_date', 'date']))
-  const spendRows = buildSpendRows(data, start, end)
-  const vendorRows = spendRows.filter(row => categoryGroup(row.category) === 'vendor')
-  const businessRows = spendRows.filter(row => categoryGroup(row.category) === 'business')
-  const cogsRows = spendRows.filter(row => categoryIsCogs(row.category))
-
-  const grossSales = sales.reduce((sum, row) => sum + num(row.gross_sales || row.total_sales || row.net_sales), 0)
-  const netSalesRaw = sales.reduce((sum, row) => sum + num(row.net_sales), 0)
-  const tax = sales.reduce((sum, row) => sum + num(row.tax), 0)
-  const discounts = sales.reduce((sum, row) => sum + Math.abs(num(row.discounts)), 0)
-  const refunds = sales.reduce((sum, row) => sum + Math.abs(num(row.refunds)), 0)
-  const netSales = netSalesRaw || Math.max(grossSales - discounts - refunds, 0)
-  const cashSales = sales.reduce((sum, row) => sum + num(row.cash_sales), 0)
-  const creditSales = sales.reduce((sum, row) => sum + num(row.credit_sales), 0)
-  const onlineSales = sales.reduce((sum, row) => sum + num(row.online_orders), 0)
-  const giftSales = sales.reduce((sum, row) => sum + num(row.gift_card_sales), 0)
-  const guests = sales.reduce((sum, row) => sum + num(row.guest_count), 0)
-  const averageTicket = guests > 0 ? netSales / guests : 0
-
-  const tipsCollected = sales.reduce((sum, row) => sum + salesTipsCollected(row), 0)
-  const tipsWithheld = sales.reduce((sum, row) => sum + salesTipsWithheld(row), 0)
-  const netTipsPaidFromSales = sales.reduce((sum, row) => sum + salesTipsNet(row), 0)
-
-  const payrollCost = payroll.reduce((sum, row) => sum + restaurantPayrollCost(row), 0)
-  const payrollTips = payroll.reduce((sum, row) => sum + payrollTipAmount(row), 0)
-  const tipsPaid = payrollTips || netTipsPaidFromSales
-  const cashPayroll = payroll.filter(isCash).reduce((sum, row) => sum + restaurantPayrollCost(row), 0)
-  const checkPayroll = payroll.filter(isCheck).reduce((sum, row) => sum + restaurantPayrollCost(row), 0)
-
-  const cogs = cogsRows.reduce((sum, row) => sum + num(row.amount), 0)
-  const vendorSpend = vendorRows.reduce((sum, row) => sum + num(row.amount), 0)
-  const businessExpenses = businessRows.reduce((sum, row) => sum + num(row.amount), 0)
-  const operatingExpenses = businessExpenses
-  const operatingProfit = netSales - cogs - payrollCost - operatingExpenses
-  const profitMargin = netSales > 0 ? (operatingProfit / netSales) * 100 : 0
-  const foodCostPct = netSales > 0 ? (cogs / netSales) * 100 : 0
-  const laborPct = netSales > 0 ? (payrollCost / netSales) * 100 : 0
-  const primeCost = cogs + payrollCost
-  const primeCostPct = netSales > 0 ? (primeCost / netSales) * 100 : 0
-
-  const cashVendor = vendorRows.filter(isCash).reduce((sum, row) => sum + num(row.amount), 0)
-  const cashExpenses = businessRows.filter(isCash).reduce((sum, row) => sum + num(row.amount), 0)
-  const cashRemaining = cashSales - cashPayroll - cashVendor - cashExpenses
-
-  const vendorCategoryRows = rollupCategoryRows(sumRowsByCategory(vendorRows, categoriesForGroup(data || {}, 'vendor')), 'vendor', 7)
-  const businessCategoryRows = rollupCategoryRows(sumRowsByCategory(businessRows, categoriesForGroup(data || {}, 'business')), 'business', 7)
-  const vendorRecentRows = [...vendorRows].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 7)
-  const expenseRecentRows = [...businessRows].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 7)
-
-  const healthScore = Math.round(clamp(
-    100
-    - Math.max(foodCostPct - 32, 0) * 1.5
-    - Math.max(laborPct - 28, 0) * 1.5
-    - Math.max(primeCostPct - 65, 0) * 1.2
-    + Math.max(profitMargin, 0) * 0.8
-    + (cashRemaining > 0 ? 6 : -10),
-    0,
-    100
-  ))
-
-  return {
-    sales, payroll, spendRows, vendorRows, businessRows, cogsRows,
-    grossSales, netSales, tax, discounts, refunds, cashSales, creditSales, onlineSales, giftSales, guests, averageTicket,
-    tipsCollected, tipsWithheld, netTipsPaidFromSales, tipsPaid,
-    payrollCost, payrollTips, cashPayroll, checkPayroll,
-    cogs, vendorSpend, businessExpenses, operatingExpenses, operatingProfit, profitMargin,
-    foodCostPct, laborPct, primeCost, primeCostPct, cashVendor, cashExpenses, cashRemaining,
-    vendorCategoryRows, businessCategoryRows, vendorRecentRows, expenseRecentRows, healthScore
-  }
+function filterRowsByFinancialGroup(rows = [], group = 'business') {
+  return rows.filter(row => categoryGroup(row.category || row.label) === group)
 }
+function rowsTotal(rows = []) { return rows.reduce((sum, row) => sum + num(row.amount), 0) }
 
-function Kpi({ icon, label, value, detail, tone = 'blue', onClick }) {
-  return <button className={`rc2-kpi rc2-${tone}`} type="button" onClick={onClick}>
-    <span className="rc2-kpi-icon"><Icon name={icon} size={18} /></span>
-    <span className="rc2-kpi-label">{label}</span>
-    <strong>{value}</strong>
-    <small>{detail}</small>
-  </button>
-}
-
-function Panel({ title, subtitle, icon, action, children, className = '' }) {
-  return <section className={`rc2-panel ${className}`}>
-    <header className="rc2-panel-head">
-      <div className="rc2-panel-title"><span><Icon name={icon} size={17} /></span><div><h2>{title}</h2><small>{subtitle}</small></div></div>
-      {action ? <button type="button" onClick={action.onClick}>{action.label}</button> : null}
+function EnterprisePanel({ icon, title, total, count, actionLabel = 'View All', rows = [], subtotalRows = [], grandLabel = 'Total', onViewAll }) {
+  return <section className="enterprise-panel">
+    <header className="enterprise-panel-head">
+      <div className="enterprise-panel-title"><span className="enterprise-panel-icon"><Icon name={icon} size={18} /></span><div><h2>{title}</h2><small>{count}</small></div></div>
+      <div className="enterprise-panel-total"><strong>{total}</strong><button type="button" onClick={onViewAll}>{actionLabel}</button></div>
     </header>
-    {children}
+    <div className="enterprise-panel-body">
+      {rows.length ? rows.map((row, idx) => <button className="enterprise-row" key={row.id || `${title}-${idx}`} type="button" onClick={row.onClick || onViewAll}>
+        <div><b>{row.label}</b>{row.meta ? <small>{row.meta}</small> : null}</div><strong>{row.amount}</strong>
+      </button>) : <div className="enterprise-empty">No data in selected range.</div>}
+    </div>
+    {subtotalRows.length ? <div className="enterprise-subtotals">
+      {subtotalRows.map((row, idx) => <button className="enterprise-subtotal-row" key={row.id || `${title}-sub-${idx}`} type="button" onClick={row.onClick || onViewAll}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}
+    </div> : null}
+    <footer className="enterprise-panel-foot"><span>{grandLabel}</span><strong>{total}</strong></footer>
   </section>
 }
 
-function MetricLine({ label, value, strong = false, negative = false }) {
-  return <div className={`rc2-metric-line ${strong ? 'strong' : ''} ${negative ? 'negative' : ''}`}><span>{label}</span><b>{value}</b></div>
+function KpiCard({ item, onClick }) {
+  const [title, value, meta, icon, tone, , details = []] = item
+  return <button className="kpi-card dashboard-click-card" onClick={onClick} type="button">
+    <div className={`kpi-icon ${tone}`}><Icon name={icon} size={24} /></div>
+    <div>
+      <h3>{title}</h3>
+      <strong>{value}</strong>
+      <p className={title.includes('Loss') || title.includes('Refund') ? 'down' : ''}>{meta}</p>
+      {details.length ? <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e5edf6', display: 'grid', gap: 4 }}>
+        {details.map(([label, amount]) => <small key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, color: '#536984', fontSize: 12, lineHeight: 1.25 }}>
+          <span>{label}</span><b style={{ color: '#001b3d', whiteSpace: 'nowrap' }}>{amount}</b>
+        </small>)}
+      </div> : null}
+    </div>
+  </button>
 }
 
-function CategoryList({ rows = [], onClick }) {
-  return <div className="rc2-category-list">
-    {rows.length ? rows.map((row, idx) => {
-      const amount = num(row.amount)
-      return <button type="button" key={row.id || `${row.label}-${idx}`} onClick={onClick}>
-        <span>{row.label || row.category}</span>
-        <b>{money(amount)}</b>
-      </button>
-    }) : <div className="rc2-empty">No rows in this period.</div>}
-  </div>
+function ListPanel({ title, rows, type, onViewAll }) {
+  return <section className="list-panel">
+    <header><h2>{title}</h2><button onClick={onViewAll} type="button">View All</button></header>
+    <div className="rows">
+      {rows.length ? rows.map((row, idx) => <button className="data-row dashboard-row-button" key={idx} onClick={onViewAll} type="button">
+        <div className="row-left"><span className="mini-icon"><Icon name={type === 'expenses' ? 'expenses' : type === 'sales' ? 'dollar' : 'vendors'} size={16} /></span><div><b>{row[0]}</b><small>{row[1]}</small></div></div>
+        <div className="row-right"><b className={row[0] === 'Refunds' ? 'danger' : ''}>{row[2]}</b>{row[3] && <em className={String(row[3]).toLowerCase()}>{row[3]}</em>}</div>
+      </button>) : <div className="empty-panel-note">No data entered yet.</div>}
+    </div>
+  </section>
 }
 
-function ActivityRows({ rows = [], onClick }) {
-  return <div className="rc2-activity-list">
-    {rows.length ? rows.map((row, idx) => <button type="button" key={row.id || idx} onClick={onClick}>
-      <div><b>{row.vendor || row.vendor_name || row.name || row.category || 'Item'}</b><small>{row.date || rowDate(row)} • {row.category || row.source || 'Other'}</small></div>
-      <strong>{money(row.amount)}</strong>
-    </button>) : <div className="rc2-empty">No recent rows in this period.</div>}
-  </div>
-}
-
-function BarTrend({ metrics }) {
-  const max = Math.max(...metrics.map(row => Math.abs(num(row.value))), 1)
-  return <div className="rc2-trend-grid">
-    {metrics.map(row => <div className="rc2-trend-row" key={row.label}>
-      <span>{row.label}</span>
-      <div><i style={{ width: `${Math.max(4, Math.abs(num(row.value)) / max * 100)}%` }} /></div>
-      <b>{row.display}</b>
-    </div>)}
-  </div>
-}
-
-function DetailTable({ title, rows, columns }) {
-  return <section className="rc2-detail-table">
-    <h3>{title}</h3>
+function DetailTable({ title, rows, columns, onOpen, message }) {
+  return <section className="table-card compact-table-card dashboard-detail-card focused-detail-card">
+    <header><h2>{title}</h2><button className="btn ghost small-btn" onClick={onOpen}>Open Screen</button></header>
+    {message ? <p className="dashboard-detail-message">{message}</p> : null}
     <table><thead><tr>{columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
-      {rows.length ? rows.slice(0, 14).map((row, index) => <tr key={row.id || index}>{columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={columns.length}>No detail rows for selected date range.</td></tr>}
+      {rows.length ? rows.slice(0, 12).map((row, idx) => <tr key={row.id || `${title}-${idx}`}>{columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={columns.length}><small>No details to show for this card yet.</small></td></tr>}
     </tbody></table>
   </section>
 }
 
-export default function Dashboard({ data = {}, setActive }) {
+export default function Dashboard({ data, setActive }) {
   const [detail, setDetail] = useState('')
-  const saved = readSavedDateRange()
-  const [dateStart, setDateStart] = useState(saved.start)
-  const [dateEnd, setDateEnd] = useState(saved.end)
-  const [vendorMode, setVendorMode] = useState('categories')
-  const [expenseMode, setExpenseMode] = useState('categories')
-  const metrics = useMemo(() => calculateDashboard(data, dateStart, dateEnd), [data, dateStart, dateEnd])
+  const [expensePanelMode, setExpensePanelMode] = useState('categories')
+  const salesDays = data?.salesDays || []
+  const payroll = data?.payrollEntries || []
+  const invoices = data?.invoices || []
+  const invoiceItems = data?.invoiceItems || []
+  const expenseRows = data?.expenses || []
+  const employees = data?.employees || []
+  const vendors = data?.vendors || []
+  const groups = data?.payrollGroups || []
+  const allConfiguredCategories = getAllCategories(data || {})
+  const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
+  const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
 
-  function changeStart(value) { setDateStart(value); saveDateRange(value, dateEnd) }
-  function changeEnd(value) { setDateEnd(value); saveDateRange(dateStart, value) }
-  function thisMonth() { const start = startOfMonthISO(); const end = todayISO(); setDateStart(start); setDateEnd(end); saveDateRange(start, end) }
-  function allTime() { setDateStart(''); setDateEnd(''); saveDateRange('', '') }
-  function openScreen(screen) { if (setActive) setActive(screen) }
-
-  const healthTone = metrics.healthScore >= 80 ? 'green' : metrics.healthScore >= 60 ? 'orange' : 'red'
-  const detailColumns = {
-    sales: [
-      { key: 'business_date', label: 'Date', render: row => rowDate(row, ['business_date', 'date']) },
-      { key: 'gross_sales', label: 'Gross', render: row => money(num(row.gross_sales || row.net_sales)) },
-      { key: 'net_sales', label: 'Net', render: row => money(num(row.net_sales)) },
-      { key: 'cash_sales', label: 'Cash', render: row => money(num(row.cash_sales)) },
-      { key: 'tips', label: 'Net Tips', render: row => money(salesTipsNet(row)) }
-    ],
-    payroll: [
-      { key: 'date', label: 'Date', render: row => rowDate(row, ['pay_date', 'date']) },
-      { key: 'employee', label: 'Employee', render: row => row.employee_name || row.name || '-' },
-      { key: 'cost', label: 'Restaurant Cost', render: row => money(restaurantPayrollCost(row)) },
-      { key: 'tips', label: 'Customer Tips', render: row => money(payrollTipAmount(row)) }
-    ],
-    spend: [
-      { key: 'date', label: 'Date', render: row => row.date || rowDate(row) },
-      { key: 'vendor', label: 'Vendor / Expense', render: row => row.vendor || row.vendor_name || row.name || row.category || '-' },
-      { key: 'category', label: 'Category', render: row => row.category || '-' },
-      { key: 'amount', label: 'Amount', render: row => money(row.amount) }
-    ]
+  function updateDateStart(value) {
+    setDateStart(value)
+    saveGlobalDateRange(value, dateEnd)
   }
+  function updateDateEnd(value) {
+    setDateEnd(value)
+    saveGlobalDateRange(dateStart, value)
+  }
+  function setThisMonth() {
+    const start = startOfMonthISO()
+    const end = todayStr()
+    setDateStart(start)
+    setDateEnd(end)
+    saveGlobalDateRange(start, end)
+  }
+  function setAllDates() {
+    setDateStart('')
+    setDateEnd('')
+    saveGlobalDateRange('', '')
+  }
+  function inSelectedRange(dateText) {
+    const d = String(dateText || '').slice(0, 10)
+    if (!d) return false
+    if (dateStart && d < dateStart) return false
+    if (dateEnd && d > dateEnd) return false
+    return true
+  }
+  const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
 
-  return <div className="rc2-dashboard">
-    <section className="rc2-hero">
-      <div className="rc2-hero-copy">
-        <span className="rc2-eyebrow">Restaurant Command Center</span>
-        <h1>Dashboard</h1>
-        <p>Profit, cash, payroll, vendor spend, tips, and restaurant health from one clean view.</p>
-      </div>
-      <div className="rc2-date-card">
-        <label><span>From</span><input type="date" value={dateStart} onChange={event => changeStart(event.target.value)} /></label>
-        <label><span>To</span><input type="date" value={dateEnd} onChange={event => changeEnd(event.target.value)} /></label>
-        <button type="button" onClick={thisMonth}>This Month</button>
-        <button type="button" onClick={allTime}>All</button>
-      </div>
-    </section>
+  const derived = useMemo(() => {
+    const todaySales = salesDays.filter(row => row.business_date === todayStr())
+    const weekSales = salesDays.filter(row => thisWeek(row.business_date))
+    const monthSales = salesDays.filter(row => inSelectedRange(rowDate(row, ['business_date', 'date'])))
+    const monthPayroll = payroll.filter(row => inSelectedRange(rowDate(row, ['pay_date', 'date'])))
+    const cashPayrollRows = monthPayroll.filter(isCashPayroll)
+    const checkPayrollRows = monthPayroll.filter(isCheckPayroll)
+    const monthInvoices = invoices.filter(row => inSelectedRange(rowDate(row, ['invoice_date', 'date'])))
+    const invoiceById = Object.fromEntries(invoices.map(inv => [inv.id, inv]))
+    const monthInvoiceItems = invoiceItems.filter(row => {
+      const inv = invoiceById[row.invoice_id] || {}
+      const itemDate = rowDate(row, ['invoice_date', 'date', 'created_at']) || rowDate(inv, ['invoice_date', 'date'])
+      return inSelectedRange(itemDate)
+    })
+    const monthExpenses = expenseRows.filter(row => inSelectedRange(rowDate(row, ['date', 'expense_date'])))
+    const salesToday = todaySales.reduce((sum, row) => sum + num(row.net_sales), 0)
+    const salesWeek = weekSales.reduce((sum, row) => sum + num(row.net_sales), 0)
+    const salesMonth = monthSales.reduce((sum, row) => sum + num(row.net_sales), 0)
+    const cashMonth = monthSales.reduce((sum, row) => sum + num(row.cash_sales), 0)
+    const taxMonth = monthSales.reduce((sum, row) => sum + num(row.tax), 0)
+    const tipsMonth = monthSales.reduce((sum, row) => sum + num(row.tips), 0)
+    const tipsWithheldMonth = monthSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
+    const tipsAfterWithholdingMonth = tipsMonth
+    const trueNetSalesMonth = salesMonth - taxMonth - tipsAfterWithholdingMonth
+    const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
+    const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
+    const payrollMonth = monthPayroll.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
+    const invoiceSpend = monthInvoices.reduce((sum, row) => sum + invoiceTotal(row), 0)
+    const expenseSpend = monthExpenses.reduce((sum, row) => sum + num(row.amount), 0)
+    const invoicesWithLineItems = new Set(monthInvoiceItems.map(item => item.invoice_id).filter(Boolean))
+    const invoiceItemCategorySpend = monthInvoiceItems.map(row => {
+      const inv = invoiceById[row.invoice_id] || {}
+      return {
+        ...row,
+        source: 'Invoice Item',
+        vendor: inv.vendor || inv.vendor_name || row.vendor || row.vendor_name,
+        amount: itemAmount(row),
+        category: inferCategory({ ...row, vendor: inv.vendor || inv.vendor_name || row.vendor || row.vendor_name, category: row.category || inv.category }),
+        date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date'])
+      }
+    }).filter(row => num(row.amount) > 0)
 
-    <section className="rc2-health-card">
-      <div className={`rc2-health-score rc2-${healthTone}`}><strong>{metrics.healthScore}</strong><span>Health Score</span></div>
-      <div className="rc2-health-summary">
-        <h2>{metrics.operatingProfit >= 0 ? 'Restaurant is profitable for this period' : 'Restaurant is running at a loss for this period'}</h2>
-        <p>Operating profit excludes customer-paid server tips so your profit is not understated.</p>
-      </div>
-      <div className="rc2-health-pills">
-        <span>Food {pct(metrics.foodCostPct)}</span><span>Labor {pct(metrics.laborPct)}</span><span>Prime {pct(metrics.primeCostPct)}</span><span>Cash {money(metrics.cashRemaining)}</span>
-      </div>
-    </section>
+    const invoiceHeaderCategorySpend = monthInvoices
+      .filter(row => !invoicesWithLineItems.has(row.id))
+      .map(row => ({...row, source: 'Invoice', amount: invoiceTotal(row), category: inferCategory(row), date: rowDate(row, ['invoice_date', 'date']) }))
 
-    <section className="rc2-kpi-grid">
-      <Kpi icon="dollar" label="Gross Sales" value={money(metrics.grossSales)} detail={`${metrics.sales.length} sales rows`} tone="blue" onClick={() => setDetail('sales')} />
-      <Kpi icon="pie" label="Net Sales" value={money(metrics.netSales)} detail={`Tax ${money(metrics.tax)}`} tone="green" onClick={() => setDetail('sales')} />
-      <Kpi icon="trending" label="Operating Profit" value={money(metrics.operatingProfit)} detail={`${pct(metrics.profitMargin)} margin`} tone={metrics.operatingProfit >= 0 ? 'green' : 'red'} onClick={() => setDetail('profit')} />
-      <Kpi icon="wallet" label="Cash Remaining" value={money(metrics.cashRemaining)} detail={`Cash sales ${money(metrics.cashSales)}`} tone={metrics.cashRemaining >= 0 ? 'green' : 'red'} onClick={() => setDetail('cash')} />
-      <Kpi icon="utensils" label="Food Cost" value={pct(metrics.foodCostPct)} detail={money(metrics.cogs)} tone="orange" onClick={() => setDetail('vendors')} />
-      <Kpi icon="payroll" label="Labor Cost" value={pct(metrics.laborPct)} detail={money(metrics.payrollCost)} tone="purple" onClick={() => setDetail('payroll')} />
-      <Kpi icon="shield" label="Prime Cost" value={pct(metrics.primeCostPct)} detail={money(metrics.primeCost)} tone="teal" onClick={() => setDetail('profit')} />
-      <Kpi icon="gift" label="Tips Paid" value={money(metrics.tipsPaid)} detail={`${money(metrics.tipsWithheld)} withheld`} tone="pink" onClick={() => setDetail('tips')} />
-    </section>
+    const expenseCategorySpend = monthExpenses.map(row => ({...row, source: 'Expense', amount: num(row.amount), category: inferCategory(row), date: rowDate(row, ['date', 'expense_date']) }))
+    const expensesFromInvoiceCategories = [...invoiceItemCategorySpend, ...invoiceHeaderCategorySpend, ...expenseCategorySpend]
+    const totalExpensesAll = expensesFromInvoiceCategories.reduce((sum, row) => sum + num(row.amount), 0)
+    const profit = salesMonth - payrollMonth - totalExpensesAll
+    const categoryRows = sumByCategoryEngine(expensesFromInvoiceCategories, data || {})
+    const vendorPurchaseRowsRaw = filterRowsByFinancialGroup(expensesFromInvoiceCategories, 'vendor')
+    const businessExpenseRowsRaw = filterRowsByFinancialGroup(expensesFromInvoiceCategories, 'business')
+    const vendorPurchaseCategoryRowsAll = sumByCategoryEngine(vendorPurchaseRowsRaw, categoriesForGroup(data || {}, 'vendor'))
+    const businessExpenseCategoryRowsAll = sumByCategoryEngine(businessExpenseRowsRaw, categoriesForGroup(data || {}, 'business'))
+    const vendorPurchaseCategoryRows = rollupCategoryRows(vendorPurchaseCategoryRowsAll, 'vendor', 8)
+    const businessExpenseCategoryRows = rollupCategoryRows(businessExpenseCategoryRowsAll, 'business', 8)
+    const vendorPurchaseSpend = rowsTotal(vendorPurchaseRowsRaw)
+    const businessExpenseSpend = rowsTotal(businessExpenseRowsRaw)
+    const foodSpend = categoryRows.find(row => row.category === 'Food')?.amount || 0
+    const foodCostPercent = salesMonth > 0 ? (foodSpend / salesMonth) * 100 : 0
+    const grossSales = monthSales.reduce((sum, row) => sum + num(row.gross_sales || row.total_sales || row.net_sales), 0)
+    const creditSales = monthSales.reduce((sum, row) => sum + num(row.credit_sales), 0)
+    const giftSales = monthSales.reduce((sum, row) => sum + num(row.gift_card_sales), 0)
+    const onlineSales = monthSales.reduce((sum, row) => sum + num(row.online_orders), 0)
+    const vendorPurchaseRecentRows = vendorPurchaseRowsRaw.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+    const businessExpenseRecentRows = businessExpenseRowsRaw.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+    return { todaySales, weekSales, monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, salesToday, salesWeek, salesMonth, grossSales, creditSales, giftSales, onlineSales, cashMonth, taxMonth, tipsMonth, tipsWithheldMonth, tipsAfterWithholdingMonth, trueNetSalesMonth, cashPayroll, checkPayroll, payrollMonth, invoiceSpend, expenseSpend, vendorPurchaseSpend, businessExpenseSpend, foodSpend, foodCostPercent, totalExpensesAll, profit, categoryRows, vendorPurchaseCategoryRows, vendorPurchaseCategoryRowsAll, businessExpenseCategoryRows, businessExpenseCategoryRowsAll, vendorPurchaseRecentRows, businessExpenseRecentRows, expensesFromInvoiceCategories }
+  }, [salesDays, payroll, invoices, invoiceItems, expenseRows, dateStart, dateEnd])
 
-    <section className="rc2-main-grid">
-      <Panel title="Restaurant Performance" subtitle="P&L from gross sales" icon="reports" action={{ label: 'Reports', onClick: () => openScreen('reports') }} className="rc2-span-2">
-        <div className="rc2-performance-grid">
-          <div className="rc2-statement">
-            <MetricLine label="Gross Sales" value={money(metrics.grossSales)} strong />
-            <MetricLine label="Sales Tax" value={money(metrics.tax)} negative />
-            <MetricLine label="Net Restaurant Sales" value={money(metrics.netSales)} strong />
-            <MetricLine label="COGS / Vendor Food & Beverage" value={money(metrics.cogs)} negative />
-            <MetricLine label="Restaurant Payroll" value={money(metrics.payrollCost)} negative />
-            <MetricLine label="Operating Expenses" value={money(metrics.operatingExpenses)} negative />
-            <MetricLine label="Operating Profit" value={money(metrics.operatingProfit)} strong />
-          </div>
-          <BarTrend metrics={[
-            { label: 'Food Cost', value: metrics.foodCostPct, display: pct(metrics.foodCostPct) },
-            { label: 'Labor Cost', value: metrics.laborPct, display: pct(metrics.laborPct) },
-            { label: 'Prime Cost', value: metrics.primeCostPct, display: pct(metrics.primeCostPct) },
-            { label: 'Profit Margin', value: Math.max(metrics.profitMargin, 0), display: pct(metrics.profitMargin) }
-          ]} />
+  const kpiItems = [
+    ['Sales Today', money(derived.salesToday), noThisPeriod(derived.todaySales, 'sales', 'today'), 'cart', 'green', 'sales-today'],
+    ['Sales This Week', money(derived.salesWeek), noThisPeriod(derived.weekSales, 'sales', 'this week'), 'store', 'blue', 'sales-week'],
+    ['Sales Selected Range', money(derived.trueNetSalesMonth), `${derived.monthSales.length} rows • ${rangeLabel}`, 'calendar', 'purple', 'sales-month', [['Sales Tax', money(derived.taxMonth)], ['Tips After Withholding', money(derived.tipsAfterWithholdingMonth)], ['Tips Withheld', money(derived.tipsWithheldMonth)]]],
+    ['Cash Collected', money(derived.cashMonth), `${derived.monthSales.length} uploaded sales rows • ${rangeLabel}`, 'dollar', 'green', 'cash-collected'],
+    ['Profit / Loss', money(derived.profit), 'Sales - payroll - expenses - invoices', 'dollar', 'teal', 'profit-loss'],
+    ['Cash Payroll', money(derived.cashPayroll), emptyLabel(derived.cashPayrollRows, 'cash payroll'), 'payroll', 'orange', 'cash-payroll'],
+    ['Check Payroll', money(derived.checkPayroll), emptyLabel(derived.checkPayrollRows, 'check payroll'), 'card', 'blue', 'check-payroll'],
+    ['Food Cost %', pct(derived.foodCostPercent), `${money(derived.foodSpend)} food spend`, 'utensils', 'orange', 'food-cost'],
+    ['All Expenses by Category', money(derived.totalExpensesAll), `${derived.categoryRows.length} categories`, 'expenses', 'purple', 'expense-categories'],
+    ['Vendor Purchases', money(derived.vendorPurchaseSpend), `${derived.vendorPurchaseRecentRows.length} purchase rows`, 'invoices', 'red', 'invoices'],
+    ['Tips', money(derived.tipsMonth), 'Selected range from sales', 'gift', 'green', 'sales-tips'],
+    ['Employees', String(employees.length), emptyLabel(employees, 'employees'), 'employees', 'teal', 'employees']
+  ]
+
+  const salesSummary = [
+    ['Cash Sales', money(derived.monthSales.reduce((s, r) => s + num(r.cash_sales), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Credit Sales', money(derived.monthSales.reduce((s, r) => s + num(r.credit_sales), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Tips', money(derived.monthSales.reduce((s, r) => s + num(r.tips), 0)), emptyLabel(derived.monthSales, 'sales')],
+    ['Total Sales', money(derived.monthSales.reduce((s, r) => s + num(r.net_sales), 0)), emptyLabel(derived.monthSales, 'sales')]
+  ]
+  const invoiceRows = derived.monthInvoices.slice(0, 6).map(row => [row.vendor || row.vendor_name || 'Invoice', rowDate(row, ['invoice_date', 'date']), money(invoiceTotal(row))])
+  const recentExpenses = derived.monthExpenses.slice(0, 6).map(row => [row.name || row.category || 'Expense', rowDate(row, ['date', 'expense_date']), money(num(row.amount))])
+
+  const detailConfig = {
+    'sales-today': { title: 'Sales Today Details', open: 'sales', rows: derived.todaySales, message: derived.todaySales.length ? '' : 'No sales today.', columns: [
+      { key: 'business_date', label: 'Date' }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'credit_sales', label: 'Credit', render: r => money(num(r.credit_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
+    ]},
+    'sales-week': { title: 'Sales This Week Details', open: 'sales', rows: derived.weekSales, message: derived.weekSales.length ? '' : 'No sales this week.', columns: [
+      { key: 'business_date', label: 'Date' }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'credit_sales', label: 'Credit', render: r => money(num(r.credit_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
+    ]},
+    'sales-month': { title: 'Sales Selected Range Details', open: 'sales', rows: derived.monthSales, message: derived.monthSales.length ? '' : 'No sales in selected range.', columns: [
+      { key: 'business_date', label: 'Date' }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'credit_sales', label: 'Credit', render: r => money(num(r.credit_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
+    ]},
+    'sales-tips': { title: 'Tips From Sales', open: 'sales', rows: derived.monthSales.filter(r => num(r.tips) > 0), columns: [
+      { key: 'business_date', label: 'Date' }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }
+    ]},
+    'cash-collected': { title: 'Cash Collected From Uploaded Sales', open: 'sales', rows: derived.monthSales.filter(r => num(r.cash_sales) > 0), message: `Cash collected this month = ${money(derived.cashMonth)}`, columns: [
+      { key: 'business_date', label: 'Date' }, { key: 'cash_sales', label: 'Cash Sales', render: r => money(num(r.cash_sales)) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }, { key: 'source_file', label: 'Source', render: r => r.source_file || '-' }
+    ]},
+    'cash-payroll': { title: 'Cash Payroll Employees', open: 'payroll', rows: derived.cashPayrollRows, columns: [
+      { key: 'pay_date', label: 'Date' }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'hours', label: 'Hours', render: r => num(r.hours).toFixed(2) }, { key: 'extra_pay', label: 'Extra Pay', render: r => money(num(r.extra_pay)) }, { key: 'total_pay', label: 'Total', render: r => money(num(r.total_pay || r.amount)) }
+    ]},
+    'check-payroll': { title: 'Check Payroll Employees', open: 'payroll', rows: derived.checkPayrollRows, columns: [
+      { key: 'pay_date', label: 'Date' }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'hours', label: 'Hours', render: r => num(r.hours).toFixed(2) }, { key: 'tips_after_withholding', label: 'Tips After Withheld', render: r => money(num(r.tips_after_withholding || r.final_tips || r.tips)) }, { key: 'total_pay', label: 'Total', render: r => money(num(r.total_pay || r.amount)) }
+    ]},
+    'profit-loss': { title: 'Profit / Loss Breakdown', open: 'reports', rows: [
+      { label: 'Sales Selected Range', amount: derived.salesMonth }, { label: 'Payroll Selected Range', amount: -derived.payrollMonth }, { label: 'Invoices Selected Range', amount: -derived.invoiceSpend }, { label: 'Manual Expenses Selected Range', amount: -derived.expenseSpend }, { label: 'Profit / Loss', amount: derived.profit }
+    ], columns: [
+      { key: 'label', label: 'Line Item' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
+    ]},
+    'food-cost': { title: 'Food Cost Details', open: 'reports', rows: derived.expensesFromInvoiceCategories.filter(row => normalizeSpendCategory(row.category) === 'Food'), message: derived.foodSpend ? `Food Cost % = ${money(derived.foodSpend)} / ${money(derived.salesMonth)} = ${pct(derived.foodCostPercent)}` : 'No Food category spend entered this month.', columns: [
+      { key: 'date', label: 'Date', render: r => r.date || rowDate(r, ['invoice_date', 'date']) }, { key: 'vendor', label: 'Vendor', render: r => r.vendor || r.vendor_name || '-' }, { key: 'description', label: 'Item/Category', render: r => r.description || r.item_name || r.category || '-' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
+    ]},
+    'expense-categories': { title: 'Expenses From Invoice Categories + Expenses', open: 'expenses', rows: derived.categoryRows, columns: [
+      { key: 'category', label: 'Category' }, { key: 'amount', label: 'Total', render: r => money(num(r.amount)) }
+    ]},
+    invoices: { title: 'Invoice Spend Details', open: 'invoices', rows: derived.monthInvoices, columns: [
+      { key: 'invoice_date', label: 'Date', render: r => rowDate(r, ['invoice_date', 'date']) }, { key: 'vendor', label: 'Vendor', render: r => r.vendor || r.vendor_name || '-' }, { key: 'category', label: 'Category', render: r => rowCategory(r) || '-' }, { key: 'total', label: 'Total', render: r => money(invoiceTotal(r)) }
+    ]},
+    employees: { title: 'Employee Details', open: 'employees', rows: employees, columns: [
+      { key: 'name', label: 'Name' }, { key: 'employee_type', label: 'Type', render: r => r.employee_type || r.type || '-' }, { key: 'job_type', label: 'Job', render: r => r.job_type || '-' }, { key: 'pay_type', label: 'Pay Type', render: r => r.pay_type || '-' }
+    ]},
+    vendors: { title: 'Vendor Details', open: 'vendors', rows: vendors, columns: [
+      { key: 'name', label: 'Vendor' }, { key: 'category', label: 'Category' }, { key: 'phone', label: 'Phone' }, { key: 'status', label: 'Status', render: r => r.status || 'Active' }
+    ]}
+  }
+  const currentDetail = detailConfig[detail]
+  function openScreen(key) { if (setActive) setActive(key) }
+  function showDetail(key) { setDetail(key); setTimeout(() => document.getElementById('dashboard-details')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0) }
+
+  return <>
+    <style>{`
+      .enterprise-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+      .enterprise-kpi-card {
+        border: 1px solid #dbe5f1;
+        background: #fff;
+        border-radius: 18px;
+        padding: 14px 16px;
+        min-height: 104px;
+        display: grid;
+        gap: 8px;
+        text-align: left;
+        box-shadow: 0 12px 30px rgba(15, 30, 53, .06);
+        cursor: pointer;
+      }
+      .enterprise-kpi-card span {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+      }
+      .enterprise-kpi-card strong {
+        color: #0f1e35;
+        font-size: 24px;
+        line-height: 1;
+      }
+      .enterprise-kpi-card small {
+        color: #64748b;
+        font-size: 12px;
+      }
+      .enterprise-panel-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+        align-items: stretch;
+        margin-top: 18px;
+      }
+      .enterprise-panel {
+        overflow: hidden;
+        border: 1px solid #dbe5f1;
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 14px 34px rgba(15, 30, 53, .07);
+        display: flex;
+        flex-direction: column;
+        min-height: 520px;
+      }
+      .enterprise-panel-head {
+        background: #0f1e35;
+        color: #ffffff;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      .enterprise-panel-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+      .enterprise-panel-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: rgba(255,255,255,.12);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+      }
+      .enterprise-panel-title h2 {
+        margin: 0;
+        font-size: 16px;
+        color: #ffffff;
+        line-height: 1.15;
+      }
+      .enterprise-panel-title small,
+      .enterprise-panel-total button {
+        color: rgba(255,255,255,.76);
+        font-size: 12px;
+      }
+      .enterprise-panel-total {
+        display: grid;
+        justify-items: end;
+        gap: 3px;
+        flex: 0 0 auto;
+      }
+      .enterprise-panel-total strong {
+        color: #ffffff;
+        font-size: 18px;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .enterprise-panel-total button {
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        padding: 0;
+      }
+      .enterprise-panel-body {
+        display: grid;
+        gap: 0;
+        padding: 8px 14px 4px;
+        flex: 0 0 auto;
+      }
+      .enterprise-row,
+      .enterprise-subtotal-row {
+        border: 0;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 4px;
+        border-bottom: 1px solid #eef3f8;
+        text-align: left;
+        cursor: pointer;
+      }
+      .enterprise-row b,
+      .enterprise-subtotal-row span {
+        color: #0f1e35;
+        font-size: 13px;
+        line-height: 1.2;
+      }
+      .enterprise-row small {
+        display: block;
+        margin-top: 2px;
+        color: #718096;
+        font-size: 11px;
+      }
+      .enterprise-row strong,
+      .enterprise-subtotal-row b {
+        color: #0f1e35;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+      .enterprise-subtotals {
+        border-top: 1px solid #dfe8f2;
+        padding: 6px 14px;
+        margin-top: auto;
+        background: #f8fafc;
+
+      }
+      .enterprise-subtotal-row {
+        padding: 8px 4px;
+      }
+      .enterprise-panel-foot {
+        background: #f1f5f9;
+        border-top: 1px solid #dbe5f1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        color: #0f1e35;
+        font-weight: 900;
+      }
+      .enterprise-panel-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 10px 14px 0;
+      }
+      .enterprise-panel-tab {
+        border: 1px solid #dbe5f1;
+        background: #fff;
+        color: #0f1e35;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .enterprise-panel-tab.active {
+        background: #0f1e35;
+        color: #fff;
+      }
+      .enterprise-empty {
+        padding: 26px 8px;
+        text-align: center;
+        color: #718096;
+        font-size: 13px;
+      }
+      @media (max-width: 1180px) {
+        .enterprise-panel-grid { grid-template-columns: 1fr; }
+      }
+    `}</style>
+
+    <div className="page-head">
+      <div><h1>Good morning, Admin 👋</h1><p>Live dashboard using only data entered/imported in RestaPay.</p></div>
+      <div className="actions"><button className="btn secondary" onClick={() => openScreen('sales')}><Icon name="upload" /> Import Sales</button><button className="btn secondary" onClick={() => openScreen('invoices')}><Icon name="invoices" /> Add Invoice</button><button className="btn primary" onClick={() => openScreen('expenses')}><Icon name="plus" /> Add Expense</button></div>
+    </div>
+
+    <div className="sales-filter-bar report-filter-bar">
+      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => updateDateStart(e.target.value)} /></label>
+      <span className="range-arrow">→</span>
+      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => updateDateEnd(e.target.value)} /></label>
+      <button className="btn primary" onClick={() => { saveGlobalDateRange(dateStart, dateEnd); setDetail('') }}>Apply Date Range</button>
+      <button className="btn ghost" onClick={setThisMonth}>This Month</button>
+      <button className="btn ghost" onClick={setAllDates}>All Dates</button>
+      <span className="filter-note">Filtering dashboard by {rangeLabel}</span>
+    </div>
+    <div className="enterprise-kpi-grid">
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('sales-month')}><span>Net Sales</span><strong>{money(derived.trueNetSalesMonth)}</strong><small>{derived.monthSales.length} sales rows</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('sales-month')}><span>Gross Sales</span><strong>{money(derived.grossSales)}</strong><small>Before tax/tips adjustments</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-collected')}><span>Cash Collected</span><strong>{money(derived.cashMonth)}</strong><small>Uploaded sales cash</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('profit-loss')}><span>Profit / Loss</span><strong>{money(derived.profit)}</strong><small>Sales - payroll - expenses</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('food-cost')}><span>Food Cost %</span><strong>{pct(derived.foodCostPercent)}</strong><small>{money(derived.foodSpend)} food spend</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-payroll')}><span>Total Payroll</span><strong>{money(derived.payrollMonth)}</strong><small>Cash {money(derived.cashPayroll)} • Check {money(derived.checkPayroll)}</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('cash-payroll')}><span>Cash Payroll</span><strong>{money(derived.cashPayroll)}</strong><small>{derived.cashPayrollRows.length} cash payroll rows</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('check-payroll')}><span>Check Payroll</span><strong>{money(derived.checkPayroll)}</strong><small>{derived.checkPayrollRows.length} check payroll rows</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('invoices')}><span>Invoice Spend</span><strong>{money(derived.invoiceSpend)}</strong><small>{derived.monthInvoices.length} invoices</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('expense-categories')}><span>Business Expenses</span><strong>{money(derived.businessExpenseSpend)}</strong><small>{derived.businessExpenseRecentRows.length} business rows</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('sales-tips')}><span>Tips</span><strong>{money(derived.tipsMonth)}</strong><small>{money(derived.tipsAfterWithholdingMonth)} after withholding</small></button>
+      <button className="enterprise-kpi-card" type="button" onClick={() => showDetail('employees')}><span>Employees</span><strong>{String(employees.length)}</strong><small>{vendors.length} vendors • {groups.length} payroll groups</small></button>
+    </div>
+
+    <div className="enterprise-panel-grid">
+      <EnterprisePanel
+        icon="dollar"
+        title="Sales Summary"
+        total={money(derived.grossSales)}
+        count={`${derived.monthSales.length} imported sales`}
+        onViewAll={() => showDetail('sales-month')}
+        rows={[
+          { label: 'Cash Sales', amount: money(derived.cashMonth) },
+          { label: 'Credit Sales', amount: money(derived.creditSales) },
+          { label: 'Gift Cards', amount: money(derived.giftSales) },
+          { label: 'Online Orders', amount: money(derived.onlineSales) },
+          { label: 'Sales Tax', amount: money(derived.taxMonth) },
+          { label: 'Tips Before Withholding', amount: money(derived.tipsMonth) },
+          { label: 'Tips Withheld', amount: money(derived.tipsWithheldMonth) },
+          { label: 'Tips After Withholding', amount: money(derived.tipsAfterWithholdingMonth) }
+        ]}
+        subtotalRows={[{ label: 'Net Sales', amount: derived.trueNetSalesMonth }, { label: 'Gross Sales', amount: derived.grossSales }]}
+        grandLabel="Total Sales"
+      />
+
+      <EnterprisePanel
+        icon="invoices"
+        title="Vendor Purchases"
+        total={money(derived.vendorPurchaseSpend)}
+        count={`${derived.vendorPurchaseRecentRows.length} purchase rows`}
+        onViewAll={() => showDetail('invoices')}
+        rows={derived.vendorPurchaseRecentRows.slice(0, 6).map(row => ({ label: row.vendor || row.vendor_name || row.name || 'Vendor Purchase', meta: `${row.date || rowDate(row, ['invoice_date', 'date'])} • ${row.category || 'Other'}`, amount: money(num(row.amount)) }))}
+        subtotalRows={derived.vendorPurchaseCategoryRows}
+        grandLabel="Vendor Purchases Total"
+      />
+
+      <section className="enterprise-panel">
+        <header className="enterprise-panel-head">
+          <div className="enterprise-panel-title"><span className="enterprise-panel-icon"><Icon name="expenses" size={18} /></span><div><h2>Business Expenses</h2><small>{derived.businessExpenseRecentRows.length} operating rows</small></div></div>
+          <div className="enterprise-panel-total"><strong>{money(derived.businessExpenseSpend)}</strong><button type="button" onClick={() => showDetail('expense-categories')}>View All</button></div>
+        </header>
+        <div className="enterprise-panel-tabs">
+          <button type="button" className={`enterprise-panel-tab ${expensePanelMode === 'recent' ? 'active' : ''}`} onClick={() => setExpensePanelMode('recent')}>Recent</button>
+          <button type="button" className={`enterprise-panel-tab ${expensePanelMode === 'categories' ? 'active' : ''}`} onClick={() => setExpensePanelMode('categories')}>Categories</button>
         </div>
-      </Panel>
-
-      <Panel title="Cash Position" subtitle="Cash available after cash obligations" icon="wallet" action={{ label: 'Sales', onClick: () => openScreen('sales') }}>
-        <div className="rc2-statement compact">
-          <MetricLine label="Cash Collected" value={money(metrics.cashSales)} strong />
-          <MetricLine label="Cash Payroll" value={money(metrics.cashPayroll)} negative />
-          <MetricLine label="Cash Vendor Payments" value={money(metrics.cashVendor)} negative />
-          <MetricLine label="Cash Business Expenses" value={money(metrics.cashExpenses)} negative />
-          <MetricLine label="Remaining Cash" value={money(metrics.cashRemaining)} strong />
-        </div>
-      </Panel>
-
-      <Panel title="Vendor Intelligence" subtitle={`${metrics.vendorRows.length} purchase rows`} icon="vendors" action={{ label: 'Vendors', onClick: () => openScreen('vendors') }}>
-        <div className="rc2-tabs"><button className={vendorMode === 'categories' ? 'active' : ''} onClick={() => setVendorMode('categories')} type="button">Categories</button><button className={vendorMode === 'recent' ? 'active' : ''} onClick={() => setVendorMode('recent')} type="button">Recent</button></div>
-        {vendorMode === 'categories' ? <CategoryList rows={metrics.vendorCategoryRows} onClick={() => setDetail('vendors')} /> : <ActivityRows rows={metrics.vendorRecentRows} onClick={() => setDetail('vendors')} />}
-      </Panel>
-
-      <Panel title="Business Expenses" subtitle={`${metrics.businessRows.length} operating rows`} icon="expenses" action={{ label: 'Expenses', onClick: () => openScreen('expenses') }}>
-        <div className="rc2-tabs"><button className={expenseMode === 'categories' ? 'active' : ''} onClick={() => setExpenseMode('categories')} type="button">Categories</button><button className={expenseMode === 'recent' ? 'active' : ''} onClick={() => setExpenseMode('recent')} type="button">Recent</button></div>
-        {expenseMode === 'categories' ? <CategoryList rows={metrics.businessCategoryRows} onClick={() => setDetail('expenses')} /> : <ActivityRows rows={metrics.expenseRecentRows} onClick={() => setDetail('expenses')} />}
-      </Panel>
-
-      <Panel title="Payroll & Tips" subtitle="Server tips shown separately from profit" icon="payroll" action={{ label: 'Payroll', onClick: () => openScreen('payroll') }}>
-        <div className="rc2-statement compact">
-          <MetricLine label="Restaurant Payroll Cost" value={money(metrics.payrollCost)} strong />
-          <MetricLine label="Cash Payroll" value={money(metrics.cashPayroll)} />
-          <MetricLine label="Check Payroll" value={money(metrics.checkPayroll)} />
-          <MetricLine label="Tips Collected" value={money(metrics.tipsCollected)} />
-          <MetricLine label="3.5% Withheld" value={money(metrics.tipsWithheld)} />
-          <MetricLine label="Net Tips Paid" value={money(metrics.tipsPaid)} strong />
-        </div>
-      </Panel>
-
-      <Panel title="Manager Action Center" subtitle="Alerts and next actions" icon="alert" action={{ label: 'Reports', onClick: () => openScreen('reports') }}>
-        <div className="rc2-alert-list">
-          <button type="button" className={metrics.foodCostPct > 32 ? 'danger' : 'good'}><Icon name={metrics.foodCostPct > 32 ? 'alert' : 'shield'} size={16} /><span>Food cost {metrics.foodCostPct > 32 ? 'above target' : 'within target'}</span><b>{pct(metrics.foodCostPct)}</b></button>
-          <button type="button" className={metrics.laborPct > 28 ? 'danger' : 'good'}><Icon name={metrics.laborPct > 28 ? 'alert' : 'shield'} size={16} /><span>Labor cost {metrics.laborPct > 28 ? 'needs review' : 'looks good'}</span><b>{pct(metrics.laborPct)}</b></button>
-          <button type="button" className={metrics.cashRemaining < 0 ? 'danger' : 'good'}><Icon name={metrics.cashRemaining < 0 ? 'alert' : 'shield'} size={16} /><span>{metrics.cashRemaining < 0 ? 'Cash shortage projected' : 'Cash position positive'}</span><b>{money(metrics.cashRemaining)}</b></button>
-        </div>
-      </Panel>
-    </section>
-
-    {detail ? <DetailTable
-      title={detail === 'sales' ? 'Sales Detail' : detail === 'payroll' || detail === 'tips' ? 'Payroll & Tips Detail' : detail === 'profit' || detail === 'cash' ? 'Profit / Cash Supporting Rows' : detail === 'vendors' ? 'Vendor Purchase Detail' : 'Business Expense Detail'}
-      rows={detail === 'sales' ? metrics.sales : detail === 'payroll' || detail === 'tips' ? metrics.payroll : detail === 'vendors' ? metrics.vendorRows : detail === 'expenses' ? metrics.businessRows : metrics.spendRows}
-      columns={detail === 'sales' ? detailColumns.sales : detail === 'payroll' || detail === 'tips' ? detailColumns.payroll : detailColumns.spend}
-    /> : null}
-  </div>
+        {expensePanelMode === 'recent' ? <div className="enterprise-panel-body">
+          {derived.businessExpenseRecentRows.length ? derived.businessExpenseRecentRows.slice(0, 8).map((row, idx) => <button className="enterprise-row" key={row.id || `expense-${idx}`} type="button" onClick={() => showDetail('expense-categories')}>
+            <div><b>{row.vendor || row.name || row.category || 'Expense'}</b><small>{row.date || rowDate(row, ['date', 'expense_date'])} • {row.category || row.payment_method || ''}</small></div><strong>{money(num(row.amount))}</strong>
+          </button>) : <div className="enterprise-empty">No business expenses in selected range.</div>}
+        </div> : <div className="enterprise-subtotals" style={{ borderTop: 0, marginTop: 0, background: '#fff' }}>
+          {derived.businessExpenseCategoryRows.map((row, idx) => <button className="enterprise-subtotal-row" key={row.id || `expense-cat-${idx}`} type="button" onClick={() => showDetail('expense-categories')}><span>{row.label || row.category}</span><b>{money(row.amount)}</b></button>)}
+        </div>}
+        <footer className="enterprise-panel-foot"><span>Business Expense Total</span><strong>{money(derived.businessExpenseSpend)}</strong></footer>
+      </section>
+    </div>
+    <div id="dashboard-details">
+      {currentDetail ? <DetailTable title={currentDetail.title} rows={currentDetail.rows} columns={currentDetail.columns} onOpen={() => openScreen(currentDetail.open)} message={currentDetail.message} /> : null}
+    </div>
+  </>
 }
