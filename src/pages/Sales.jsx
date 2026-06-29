@@ -95,6 +95,18 @@ function distributeMoney(total, weights) {
     return round2(share / 100)
   })
 }
+
+function toastTipBreakdown(tipSummary = {}) {
+  const collected = round2(
+    num(findValue(tipSummary, ['Total tips', 'Total Tips', 'Tips collected', 'Tips Collected', 'Actual tips', 'Actual Tips', 'Non-Cash Tips', 'Tips']))
+  )
+  const explicitWithheld = Math.abs(num(findValue(tipSummary, ['Tips withheld', 'Tips Withheld', 'Tip withholding', 'Tips withholding', 'Tip Deduction'])))
+  const withheld = round2(explicitWithheld || (collected * 0.035))
+  const explicitNet = round2(num(findValue(tipSummary, ['Tips after withholding', 'Tips After Withholding', 'Net tips', 'Net Tips', 'Final tips', 'Final Tips'])))
+  const net = round2(explicitNet || Math.max(collected - withheld, 0))
+  return { collected, withheld, net }
+}
+
 function extractRangeFromFileName(fileName) {
   const match = String(fileName || '').match(/(\d{4})[-_ ]?(\d{2})[-_ ]?(\d{2}).*?(\d{4})[-_ ]?(\d{2})[-_ ]?(\d{2})/)
   if (!match) return ''
@@ -114,7 +126,7 @@ function displayMoney(value) {
   return `$${money(value)}`
 }
 function makeEmptySalesRow(fileName = 'Manual') {
-  return { id: createId('sale'), business_date: today(), gross_sales: '0.00', net_sales: '0.00', cash_sales: '0.00', credit_sales: '0.00', gift_card_sales: '0.00', online_orders: '0.00', delivery_orders: '0.00', pickup_orders: '0.00', tips: '0.00', actual_tips: '0.00', tips_withheld: '0.00', tips_after_withholding: '0.00', refunds: '0.00', voids: '0.00', discounts: '0.00', tax: '0.00', guest_count: '0.00', source_file: fileName, import_note: '' }
+  return { id: createId('sale'), business_date: today(), gross_sales: '0.00', net_sales: '0.00', cash_sales: '0.00', credit_sales: '0.00', gift_card_sales: '0.00', online_orders: '0.00', delivery_orders: '0.00', pickup_orders: '0.00', tips: '0.00', tips_collected: '0.00', tips_withheld: '0.00', tips_after_withholding: '0.00', refunds: '0.00', voids: '0.00', discounts: '0.00', tax: '0.00', guest_count: '0.00', source_file: fileName, import_note: '' }
 }
 function makeGenericSalesRow(row, fileName = 'Manual') {
   const gross = round2(num(findValue(row, ['Gross Sales', 'Gross', 'Total Sales', 'Sales'])))
@@ -125,17 +137,20 @@ function makeGenericSalesRow(row, fileName = 'Manual') {
   const online = round2(num(findValue(row, ['Online Orders', 'Online Sales', 'Online Ordering', 'Other', 'DoorDash'])))
   const delivery = round2(num(findValue(row, ['Delivery', 'Delivery Orders', 'Delivery Sales'])))
   const pickup = round2(num(findValue(row, ['Pickup', 'Pickup Orders', 'Takeout', 'Take Out'])))
-  const actualTips = round2(num(findValue(row, ['Actual Tips', 'Total Tips', 'Tips', 'Tips Collected', 'Non-Cash Tips'])))
-  const explicitAfterTips = round2(num(findValue(row, ['Tips after withholding', 'Final Tips', 'Tips Payable'])))
-  const tipsWithheld = round2(Math.abs(num(findValue(row, ['Tips withheld', 'Tip Withheld', 'Withholding']))) || (actualTips ? actualTips * 0.035 : 0))
-  const tips = explicitAfterTips || round2(Math.max(actualTips - tipsWithheld, 0))
+  const genericTipSummary = {
+    'Total tips': findValue(row, ['Total Tips', 'Tips Collected', 'Actual Tips', 'Non-Cash Tips', 'Tips']),
+    'Tips withheld': findValue(row, ['Tips Withheld', 'Tips withholding', 'Tip Deduction']),
+    'Tips after withholding': findValue(row, ['Tips after withholding', 'Net Tips', 'Final Tips'])
+  }
+  const tipBreakdown = toastTipBreakdown(genericTipSummary)
+  const tips = tipBreakdown.net
   const refunds = absMoney(findValue(row, ['Refunds', 'Refund Amount', 'Sales Refunds', 'Returns']))
   const voids = absMoney(findValue(row, ['Voids', 'Void Amount']))
   const discounts = absMoney(findValue(row, ['Discounts', 'Discount Amount', 'Sales Discounts']))
   const tax = round2(num(findValue(row, ['Tax', 'Taxes', 'Tax Collected', 'Sales Tax', 'Tax amount'])))
   const guests = round2(num(findValue(row, ['Guest Count', 'Guests', 'Covers', 'Guest', 'Total guests'])))
   const date = formatDate(findValue(row, ['Business Date', 'Date', 'Opened Date', 'Order Date', 'yyyyMMdd']))
-  return { ...makeEmptySalesRow(fileName), business_date: date, gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), delivery_orders: money(delivery), pickup_orders: money(pickup), tips: money(tips), actual_tips: money(actualTips || tips + tipsWithheld), tips_withheld: money(tipsWithheld), tips_after_withholding: money(tips), refunds: money(refunds), voids: money(voids), discounts: money(discounts), tax: money(tax), guest_count: money(guests) }
+  return { ...makeEmptySalesRow(fileName), business_date: date, gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), delivery_orders: money(delivery), pickup_orders: money(pickup), tips: money(tips), tips_collected: money(tipBreakdown.collected), tips_withheld: money(tipBreakdown.withheld), tips_after_withholding: money(tipBreakdown.net), refunds: money(refunds), voids: money(voids), discounts: money(discounts), tax: money(tax), guest_count: money(guests) }
 }
 function parseToastSalesWorkbook(workbook, fileName) {
   const hasToastSheets = workbook.SheetNames.includes('Revenue summary') || workbook.SheetNames.includes('Sales by day') || workbook.SheetNames.includes('Payments summary')
@@ -150,11 +165,8 @@ function parseToastSalesWorkbook(workbook, fileName) {
   const net = round2(num(findValue(netSummary, ['Net sales'])) || num(firstRowValue(workbook, 'Revenue summary', 'Net sales')))
   const discounts = absMoney(findValue(netSummary, ['Sales discounts']))
   const refunds = absMoney(findValue(netSummary, ['Sales refunds']))
-  const totalTips = round2(num(findValue(tipSummary, ['Total tips', 'Total Tips', 'Tips'])))
-  const tipsWithheld = round2(Math.abs(num(findValue(tipSummary, ['Tips withheld', 'Tip withheld', 'Withholding']))))
-  const explicitTipsAfterWithholding = round2(num(findValue(tipSummary, ['Tips after withholding', 'Tips After Withholding'])))
-  const calculatedTipsWithheld = tipsWithheld || (totalTips ? round2(totalTips * 0.035) : 0)
-  const tipsAfterWithholding = explicitTipsAfterWithholding || round2(Math.max(totalTips - calculatedTipsWithheld, 0))
+  const toastTips = toastTipBreakdown(tipSummary)
+  const tipsAfterWithholding = toastTips.net
   const tax = round2(num(firstRowValue(workbook, 'Revenue summary', 'Tax amount')) || num(findValue(headerValueRow(workbook, 'Tax summary'), ['Tax amount'])))
   const cash = paymentAmount(payments, 'Cash')
   const credit = paymentAmount(payments, 'Credit/debit')
@@ -164,7 +176,7 @@ function parseToastSalesWorkbook(workbook, fileName) {
   const sourceRange = extractRangeFromFileName(fileName)
 
   if (!dayRows.length) {
-    return [{ ...makeEmptySalesRow(fileName), business_date: formatDate(sourceRange.split(' to ')[0] || today()), gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), tips: money(tipsAfterWithholding), actual_tips: money(totalTips || tipsAfterWithholding + calculatedTipsWithheld), tips_withheld: money(calculatedTipsWithheld), tips_after_withholding: money(tipsAfterWithholding), refunds: money(refunds), discounts: money(discounts), tax: money(tax), guest_count: money(totalGuests), import_note: sourceRange ? `Toast range ${sourceRange}` : 'Toast summary row' }]
+    return [{ ...makeEmptySalesRow(fileName), business_date: formatDate(sourceRange.split(' to ')[0] || today()), gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), tips: money(tipsAfterWithholding), tips_collected: money(toastTips.collected), tips_withheld: money(toastTips.withheld), tips_after_withholding: money(toastTips.net), refunds: money(refunds), discounts: money(discounts), tax: money(tax), guest_count: money(totalGuests), import_note: sourceRange ? `Toast range ${sourceRange}; tips use 3.5% withholding` : 'Toast summary row; tips use 3.5% withholding' }]
   }
 
   const weights = dayRows.map(row => num(findValue(row, ['Net sales'])))
@@ -174,8 +186,8 @@ function parseToastSalesWorkbook(workbook, fileName) {
   const giftParts = distributeMoney(gift, weights)
   const onlineParts = distributeMoney(online, weights)
   const tipParts = distributeMoney(tipsAfterWithholding, weights)
-  const actualTipParts = distributeMoney(totalTips || tipsAfterWithholding + calculatedTipsWithheld, weights)
-  const withheldTipParts = distributeMoney(calculatedTipsWithheld, weights)
+  const tipCollectedParts = distributeMoney(toastTips.collected, weights)
+  const tipWithheldParts = distributeMoney(toastTips.withheld, weights)
   const refundParts = distributeMoney(refunds, weights)
   const discountParts = distributeMoney(discounts, weights)
   const taxParts = distributeMoney(tax, weights)
@@ -190,8 +202,8 @@ function parseToastSalesWorkbook(workbook, fileName) {
     gift_card_sales: money(giftParts[index]),
     online_orders: money(onlineParts[index]),
     tips: money(tipParts[index]),
-    actual_tips: money(actualTipParts[index]),
-    tips_withheld: money(withheldTipParts[index]),
+    tips_collected: money(tipCollectedParts[index]),
+    tips_withheld: money(tipWithheldParts[index]),
     tips_after_withholding: money(tipParts[index]),
     refunds: money(refundParts[index]),
     discounts: money(discountParts[index]),
@@ -235,9 +247,9 @@ export default function Sales({ data, setData }) {
 
   const totals = useMemo(() => filteredSales.reduce((acc, row) => {
     acc.gross += num(row.gross_sales); acc.net += num(row.net_sales); acc.cash += num(row.cash_sales); acc.credit += num(row.credit_sales)
-    acc.gift += num(row.gift_card_sales); acc.online += num(row.online_orders); acc.tips += num(row.tips_after_withholding || row.tips); acc.tipsWithheld += num(row.tips_withheld); acc.actualTips += num(row.actual_tips || (num(row.tips_after_withholding || row.tips) + num(row.tips_withheld))); acc.refunds += num(row.refunds); acc.discounts += num(row.discounts); acc.tax += num(row.tax); acc.guests += num(row.guest_count)
+    acc.gift += num(row.gift_card_sales); acc.online += num(row.online_orders); acc.tips += num(row.tips); acc.refunds += num(row.refunds); acc.discounts += num(row.discounts); acc.tax += num(row.tax); acc.guests += num(row.guest_count)
     return acc
-  }, { gross: 0, net: 0, cash: 0, credit: 0, gift: 0, online: 0, tips: 0, tipsWithheld: 0, actualTips: 0, refunds: 0, discounts: 0, tax: 0, guests: 0 }), [filteredSales])
+  }, { gross: 0, net: 0, cash: 0, credit: 0, gift: 0, online: 0, tips: 0, refunds: 0, discounts: 0, tax: 0, guests: 0 }), [filteredSales])
 
   async function handleSalesFile(event) {
     const file = event.target.files?.[0]
@@ -278,7 +290,7 @@ export default function Sales({ data, setData }) {
   }
   function startEdit(row) { setEditingId(row.id); setEditRow({ ...row }) }
   function saveEdit() {
-    setData(prev => ({ ...prev, salesDays: (prev.salesDays || []).map(row => row.id === editingId ? { ...editRow, gross_sales: money(editRow.gross_sales), net_sales: money(editRow.net_sales), cash_sales: money(editRow.cash_sales), credit_sales: money(editRow.credit_sales), gift_card_sales: money(editRow.gift_card_sales), online_orders: money(editRow.online_orders), tips: money(editRow.tips), refunds: money(editRow.refunds), discounts: money(editRow.discounts), tax: money(editRow.tax), guest_count: money(editRow.guest_count) } : row) }))
+    setData(prev => ({ ...prev, salesDays: (prev.salesDays || []).map(row => row.id === editingId ? { ...editRow, gross_sales: money(editRow.gross_sales), net_sales: money(editRow.net_sales), cash_sales: money(editRow.cash_sales), credit_sales: money(editRow.credit_sales), gift_card_sales: money(editRow.gift_card_sales), online_orders: money(editRow.online_orders), tips: money(editRow.tips), tips_collected: money(editRow.tips_collected), tips_withheld: money(editRow.tips_withheld), tips_after_withholding: money(editRow.tips_after_withholding || editRow.tips), refunds: money(editRow.refunds), discounts: money(editRow.discounts), tax: money(editRow.tax), guest_count: money(editRow.guest_count) } : row) }))
     setEditingId(null); setStatus('Sales row updated locally')
   }
   function deleteSale(id) { setData(prev => ({ ...prev, salesDays: (prev.salesDays || []).filter(row => row.id !== id) })); setSelectedIds(prev => prev.filter(item => item !== id)); setStatus('Sales row deleted locally') }
@@ -291,7 +303,7 @@ export default function Sales({ data, setData }) {
     setSelectedIds([])
   }
 
-  const numberFields = ['gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips','refunds','discounts','tax','guest_count']
+  const numberFields = ['gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips','tips_collected','tips_withheld','tips_after_withholding','refunds','discounts','tax','guest_count']
   const checkedAll = filteredSales.length > 0 && filteredSales.every(row => selectedIds.includes(row.id))
 
   return <>
@@ -397,7 +409,7 @@ export default function Sales({ data, setData }) {
     {(dateStart || dateEnd) && <p className="filter-note">Showing data from {dateStart || 'first record'} to {dateEnd || 'latest record'}</p>}
 
     <div className="payroll-summary-row sales-summary-row">
-      <div><span>Net Sales</span><b>${money(totals.net)}</b></div><div><span>Cash</span><b>${money(totals.cash)}</b></div><div><span>Credit</span><b>${money(totals.credit)}</b></div><div><span>Tips After Withholding</span><b>${money(totals.tips)}</b><small>Actual ${money(totals.actualTips)} • Withheld ${money(totals.tipsWithheld)}</small></div>
+      <div><span>Net Sales</span><b>${money(totals.net)}</b></div><div><span>Cash</span><b>${money(totals.cash)}</b></div><div><span>Credit</span><b>${money(totals.credit)}</b></div><div><span>Tips After Withholding</span><b>${money(totals.tips)}</b></div>
     </div>
 
     {previewRows.length > 0 && <section className="table-card compact-table-card sales-preview-card">
