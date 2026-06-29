@@ -170,7 +170,6 @@ function DetailTable({ title, rows, columns, onOpen, message }) {
 
 export default function Dashboard({ data, setActive }) {
   const [detail, setDetail] = useState('')
-  const [expensePanelMode, setExpensePanelMode] = useState('categories')
   const salesDays = data?.salesDays || []
   const payroll = data?.payrollEntries || []
   const invoices = data?.invoices || []
@@ -533,31 +532,23 @@ export default function Dashboard({ data, setActive }) {
         icon="invoices"
         title="Vendor Purchases"
         total={money(derived.vendorPurchaseSpend)}
-        count={`${derived.vendorPurchaseRecentRows.length} purchase rows`}
+        count={`${derived.vendorPurchaseCategoryRows.filter(row => num(row.amount) > 0).length} categories`}
         onViewAll={() => showDetail('invoices')}
-        rows={derived.vendorPurchaseRecentRows.slice(0, 6).map(row => ({ label: row.vendor || row.vendor_name || row.name || 'Vendor Purchase', meta: `${row.date || rowDate(row, ['invoice_date', 'date'])} • ${row.category || 'Other'}`, amount: money(num(row.amount)) }))}
-        subtotalRows={derived.vendorPurchaseCategoryRows}
+        rows={derived.vendorPurchaseCategoryRows.map(row => ({ label: row.label || row.category, amount: money(num(row.amount)), onClick: () => showDetail('invoices') }))}
+        subtotalRows={[]}
         grandLabel="Vendor Purchases Total"
       />
 
-      <section className="enterprise-panel">
-        <header className="enterprise-panel-head">
-          <div className="enterprise-panel-title"><span className="enterprise-panel-icon"><Icon name="expenses" size={18} /></span><div><h2>Business Expenses</h2><small>{derived.businessExpenseRecentRows.length} operating rows</small></div></div>
-          <div className="enterprise-panel-total"><strong>{money(derived.businessExpenseSpend)}</strong><button type="button" onClick={() => showDetail('expense-categories')}>View All</button></div>
-        </header>
-        <div className="enterprise-panel-tabs">
-          <button type="button" className={`enterprise-panel-tab ${expensePanelMode === 'recent' ? 'active' : ''}`} onClick={() => setExpensePanelMode('recent')}>Recent</button>
-          <button type="button" className={`enterprise-panel-tab ${expensePanelMode === 'categories' ? 'active' : ''}`} onClick={() => setExpensePanelMode('categories')}>Categories</button>
-        </div>
-        {expensePanelMode === 'recent' ? <div className="enterprise-panel-body">
-          {derived.businessExpenseRecentRows.length ? derived.businessExpenseRecentRows.slice(0, 8).map((row, idx) => <button className="enterprise-row" key={row.id || `expense-${idx}`} type="button" onClick={() => showDetail('expense-categories')}>
-            <div><b>{row.vendor || row.name || row.category || 'Expense'}</b><small>{row.date || rowDate(row, ['date', 'expense_date'])} • {row.category || row.payment_method || ''}</small></div><strong>{money(num(row.amount))}</strong>
-          </button>) : <div className="enterprise-empty">No business expenses in selected range.</div>}
-        </div> : <div className="enterprise-subtotals" style={{ borderTop: 0, marginTop: 0, background: '#fff' }}>
-          {derived.businessExpenseCategoryRows.map((row, idx) => <button className="enterprise-subtotal-row" key={row.id || `expense-cat-${idx}`} type="button" onClick={() => showDetail('expense-categories')}><span>{row.label || row.category}</span><b>{money(row.amount)}</b></button>)}
-        </div>}
-        <footer className="enterprise-panel-foot"><span>Business Expense Total</span><strong>{money(derived.businessExpenseSpend)}</strong></footer>
-      </section>
+      <EnterprisePanel
+        icon="expenses"
+        title="Business Expenses"
+        total={money(derived.businessExpenseSpend)}
+        count={`${derived.businessExpenseCategoryRows.filter(row => num(row.amount) > 0).length} categories`}
+        onViewAll={() => showDetail('expense-categories')}
+        rows={derived.businessExpenseCategoryRows.map(row => ({ label: row.label || row.category, amount: money(num(row.amount)), onClick: () => showDetail('expense-categories') }))}
+        subtotalRows={[]}
+        grandLabel="Business Expense Total"
+      />
     </div>
     <div id="dashboard-details">
       {currentDetail ? <DetailTable title={currentDetail.title} rows={currentDetail.rows} columns={currentDetail.columns} onOpen={() => openScreen(currentDetail.open)} message={currentDetail.message} /> : null}

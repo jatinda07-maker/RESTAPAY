@@ -134,8 +134,10 @@ export function categoriesForGroup(data = {}, group = 'business') {
 }
 
 export function rollupCategoryRows(rows = [], group = 'business', maxVisible = 8) {
+  const otherLabel = group === 'vendor' ? 'Other Vendor Purchases' : 'Other Business Expenses'
   const filtered = rows
     .filter(row => categoryGroup(row.category || row.label) === group)
+    .filter(row => String(row.category || row.label || '').trim().toLowerCase() !== otherLabel.toLowerCase())
     .map(row => ({ ...row, label: row.label || row.category, category: row.category || row.label, amount: Number(row.amount || 0) }))
 
   const total = filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0)
@@ -153,8 +155,8 @@ export function rollupCategoryRows(rows = [], group = 'business', maxVisible = 8
     ...visible,
     {
       id: `cat-other-${group}`,
-      category: group === 'vendor' ? 'Other Vendor Purchases' : 'Other Business Expenses',
-      label: group === 'vendor' ? 'Other Vendor Purchases' : 'Other Business Expenses',
+      category: otherLabel,
+      label: otherLabel,
       amount: restTotal,
       rolledUp: rest
     }
