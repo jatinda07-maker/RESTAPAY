@@ -14,6 +14,7 @@ const subtitles = {
   settings: 'Backup, restore, and application settings'
 }
 
+
 export default function Layout({ active, setActive, children }) {
   const activeItem = navItems.find(([key]) => key === active)
   const title = activeItem?.[1] || 'RestaPay'
