@@ -167,81 +167,6 @@ function DetailTable({ title, rows, columns, onOpen, message }) {
   </section>
 }
 
-function SparkLine({ tone = 'green' }) {
-  const points = '2,35 18,30 34,33 50,23 66,27 82,18 98,21 116,12'
-  return <svg className={`rp-spark rp-spark-${tone}`} viewBox="0 0 120 42" preserveAspectRatio="none" aria-hidden="true">
-    <path d="M2 40 L2 35 L18 30 L34 33 L50 23 L66 27 L82 18 L98 21 L116 12 L116 40 Z" />
-    <polyline points={points} />
-  </svg>
-}
-
-function StatCard({ icon, label, value, hint, delta = '+0.0%', tone = 'green', onClick }) {
-  return <button type="button" className={`rp-stat-card tone-${tone}`} onClick={onClick}>
-    <span className="rp-stat-icon"><Icon name={icon} size={20} /></span>
-    <span className="rp-stat-label">{label}</span>
-    <strong>{value}</strong>
-    <small><b>{delta}</b> {hint}</small>
-    <SparkLine tone={tone} />
-  </button>
-}
-
-function ColorPanel({ tone = 'blue', icon, title, amount, meta, action = 'View all', children, onClick }) {
-  return <section className={`rp-color-panel panel-${tone}`}>
-    <header>
-      <div className="rp-panel-title"><span><Icon name={icon} size={20} /></span><div><h2>{title}</h2><small>{meta}</small></div></div>
-      <div className="rp-panel-amount"><strong>{amount}</strong><button type="button" onClick={onClick}>{action}</button></div>
-    </header>
-    <div className="rp-panel-body">{children}</div>
-  </section>
-}
-
-function MiniRow({ label, value, color }) {
-  return <div className="rp-mini-row"><span>{label}</span><b className={color ? `text-${color}` : ''}>{value}</b></div>
-}
-
-function InsightCard({ icon, title, value, subtitle, tone = 'blue' }) {
-  return <div className={`rp-insight-card insight-${tone}`}>
-    <span><Icon name={icon} size={22} /></span>
-    <div><b>{title}</b><strong>{value}</strong><small>{subtitle}</small></div>
-  </div>
-}
-
-function HealthMeter({ score }) {
-  const clamped = Math.max(0, Math.min(100, Number(score || 0)))
-  return <div className="rp-health-meter">
-    <div className="rp-gauge" style={{ '--score': `${clamped * 1.8 - 90}deg` }}>
-      <div className="rp-gauge-score"><strong>{Math.round(clamped)}</strong><span>{clamped >= 80 ? 'Excellent' : clamped >= 65 ? 'Good' : 'Needs Work'}</span></div>
-    </div>
-    <div className="rp-health-list">
-      {[
-        ['Sales Performance', clamped >= 65 ? 'Good' : 'Review'],
-        ['Expense Control', clamped >= 70 ? 'Good' : 'High'],
-        ['Profitability', clamped >= 80 ? 'Excellent' : 'Review'],
-        ['Cash Flow', clamped >= 60 ? 'Good' : 'Watch'],
-        ['Payroll Management', clamped >= 70 ? 'Excellent' : 'Review'],
-        ['Vendor Payments', 'Good']
-      ].map(([label, status]) => <div key={label}><span>{label}</span><b>{status}</b></div>)}
-    </div>
-  </div>
-}
-
-function BarChartLite() {
-  const bars = [55, 68, 61, 75, 66, 70, 64]
-  return <div className="rp-bars" aria-hidden="true">{bars.map((h, i) => <span key={i} style={{ height: `${h}%` }}><i style={{ height: `${Math.max(20, h - 28)}%` }} /></span>)}</div>
-}
-
-function CashChartLite() {
-  return <div className="rp-cash-chart" aria-hidden="true">
-    {[62,48,70,66,58,54,50].map((h, i) => <span key={`in-${i}`} className="cash-in" style={{ height: `${h}%` }} />)}
-    {[28,25,36,42,32,25,31].map((h, i) => <span key={`out-${i}`} className="cash-out" style={{ height: `${h}%` }} />)}
-    <svg viewBox="0 0 240 100" preserveAspectRatio="none"><polyline points="5,58 42,64 80,46 118,38 156,46 194,61 235,72" /></svg>
-  </div>
-}
-
-function DonutLite({ total }) {
-  return <div className="rp-donut-wrap"><div className="rp-donut" /><div className="rp-donut-center"><strong>{total}</strong><span>Total</span></div></div>
-}
-
 export default function Dashboard({ data, setActive }) {
   const [detail, setDetail] = useState('')
   const [expensePanelMode, setExpensePanelMode] = useState('categories')
@@ -427,123 +352,143 @@ export default function Dashboard({ data, setActive }) {
   function openScreen(key) { if (setActive) setActive(key) }
   function showDetail(key) { setDetail(key); setTimeout(() => document.getElementById('dashboard-details')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0) }
 
+  const netSales = derived.trueNetSalesMonth || derived.salesMonth
+  const cogs = derived.vendorPurchaseSpend || derived.invoiceSpend
+  const restaurantPayroll = derived.payrollMonth
+  const operatingExpenses = derived.businessExpenseSpend || derived.expenseSpend
+  const operatingProfit = netSales - cogs - restaurantPayroll - operatingExpenses
+  const primeCost = cogs + restaurantPayroll
+  const primePct = netSales ? (primeCost / netSales) * 100 : 0
+  const laborPct = netSales ? (restaurantPayroll / netSales) * 100 : 0
   const cashRemaining = derived.cashMonth - derived.cashPayroll - derived.businessExpenseSpend
-  const cogs = derived.vendorPurchaseSpend || derived.foodSpend
-  const operatingProfit = derived.trueNetSalesMonth - cogs - derived.businessExpenseSpend - derived.payrollMonth
-  const primeCost = cogs + derived.payrollMonth
-  const primePct = derived.trueNetSalesMonth > 0 ? (primeCost / derived.trueNetSalesMonth) * 100 : 0
-  const laborPct = derived.trueNetSalesMonth > 0 ? (derived.payrollMonth / derived.trueNetSalesMonth) * 100 : 0
-  const profitMargin = derived.trueNetSalesMonth > 0 ? (operatingProfit / derived.trueNetSalesMonth) * 100 : 0
-  const healthScore = Math.max(35, Math.min(96, 100 - Math.max(0, derived.foodCostPercent - 30) * 1.6 - Math.max(0, laborPct - 32) * 1.2 + (operatingProfit >= 0 ? 8 : -12)))
-  const topExpenseTotal = derived.totalExpensesAll || 1
-  const topExpenseRows = derived.categoryRows.filter(r => num(r.amount) > 0).slice(0, 5)
+  const healthScore = Math.max(0, Math.min(100, Math.round(
+    82
+    - Math.max(0, derived.foodCostPercent - 32) * 1.2
+    - Math.max(0, laborPct - 28) * 1.0
+    - Math.max(0, primePct - 65) * .9
+    + (operatingProfit > 0 ? 6 : -8)
+    + (cashRemaining > 0 ? 4 : -8)
+  )))
+  const healthTone = healthScore >= 75 ? 'good' : healthScore >= 55 ? 'watch' : 'danger'
+  const dashboardKpis = [
+    { label: 'Gross Sales', value: money(derived.grossSales), sub: `${derived.monthSales.length} sales rows`, icon: 'dollar', tone: 'blue', detail: 'sales-month' },
+    { label: 'Net Sales', value: money(netSales), sub: `After tax/tip adjustments`, icon: 'store', tone: 'green', detail: 'sales-month' },
+    { label: 'Operating Profit', value: money(operatingProfit), sub: `${netSales ? pct((operatingProfit / netSales) * 100) : '0.00%'} margin`, icon: 'reports', tone: operatingProfit >= 0 ? 'teal' : 'red', detail: 'profit-loss' },
+    { label: 'Cash Remaining', value: money(cashRemaining), sub: 'Cash sales - cash costs', icon: 'dollar', tone: cashRemaining >= 0 ? 'orange' : 'red', detail: 'cash-collected' },
+    { label: 'Food Cost', value: pct(derived.foodCostPercent), sub: `${money(derived.foodSpend)} food spend`, icon: 'utensils', tone: 'purple', detail: 'food-cost' },
+    { label: 'Labor Cost', value: pct(laborPct), sub: `${money(restaurantPayroll)} restaurant payroll`, icon: 'payroll', tone: 'cyan', detail: 'cash-payroll' },
+    { label: 'Prime Cost', value: pct(primePct), sub: `${money(primeCost)} COGS + labor`, icon: 'expenses', tone: 'amber', detail: 'profit-loss' },
+    { label: 'Tips', value: money(derived.tipsMonth), sub: `${money(derived.tipsAfterWithholdingMonth)} after withholding`, icon: 'gift', tone: 'pink', detail: 'sales-tips' }
+  ]
+  const profitLines = [
+    ['Gross Sales', derived.grossSales], ['Net Sales', netSales], ['COGS / Vendor Purchases', -cogs],
+    ['Restaurant Payroll', -restaurantPayroll], ['Business Expenses', -operatingExpenses], ['Operating Profit', operatingProfit]
+  ]
+  const cashLines = [
+    ['Cash Collected', derived.cashMonth], ['Cash Payroll', -derived.cashPayroll], ['Cash Business Expenses', -derived.businessExpenseSpend], ['Remaining Cash', cashRemaining]
+  ]
+  const intelligenceItems = [
+    { title: 'Food Cost', value: pct(derived.foodCostPercent), note: derived.foodCostPercent <= 32 ? 'Within target' : 'Review food purchases', tone: derived.foodCostPercent <= 32 ? 'good' : 'watch' },
+    { title: 'Labor Cost', value: pct(laborPct), note: laborPct <= 28 ? 'Labor controlled' : 'Labor above target', tone: laborPct <= 28 ? 'good' : 'watch' },
+    { title: 'Prime Cost', value: pct(primePct), note: primePct <= 65 ? 'Prime cost healthy' : 'Prime cost needs attention', tone: primePct <= 65 ? 'good' : 'danger' },
+    { title: 'Cash Position', value: money(cashRemaining), note: cashRemaining >= 0 ? 'Cash positive' : 'Cash short', tone: cashRemaining >= 0 ? 'good' : 'danger' },
+    { title: 'Vendor Spend', value: money(cogs), note: `${derived.vendorPurchaseRecentRows.length} purchase rows`, tone: 'info' },
+    { title: 'Business Expenses', value: money(operatingExpenses), note: `${derived.businessExpenseRecentRows.length} operating rows`, tone: 'info' }
+  ]
 
-  return <>
-    <div className="rp-dashboard-header">
-      <div><h1>Dashboard</h1><p>Real-time overview of your restaurant performance</p></div>
-      <div className="rp-dashboard-actions">
-        <label className="rp-date-pill"><Icon name="calendar" size={17} /><input type="date" value={dateStart} onChange={e => updateDateStart(e.target.value)} /><span>to</span><input type="date" value={dateEnd} onChange={e => updateDateEnd(e.target.value)} /></label>
-        <button className="rp-btn rp-btn-light" onClick={() => openScreen('sales')}><Icon name="upload" /> Import Sales</button>
-        <button className="rp-btn rp-btn-light" onClick={() => openScreen('invoices')}><Icon name="invoices" /> Add Invoice</button>
-        <button className="rp-btn rp-btn-orange" onClick={() => openScreen('expenses')}><Icon name="plus" /> Add Expense</button>
+  return <div className="rp-dashboard-v2">
+    <section className="rp-dashboard-hero">
+      <div>
+        <span className="rp-eyebrow">Restaurant Intelligence</span>
+        <h2>Executive Dashboard</h2>
+        <p>Sales, cash, payroll, vendor spend, tips, and operating profit for {rangeLabel}.</p>
       </div>
-    </div>
+      <div className={`rp-health-meter ${healthTone}`}>
+        <span>Health Score</span>
+        <strong>{healthScore}</strong>
+        <small>{healthScore >= 75 ? 'Healthy' : healthScore >= 55 ? 'Watch closely' : 'Needs attention'}</small>
+      </div>
+    </section>
 
     <div className="rp-filter-row">
-      <button className="rp-btn rp-btn-orange" onClick={() => { saveGlobalDateRange(dateStart, dateEnd); setDetail('') }}>Apply</button>
-      <button className="rp-btn rp-btn-light" onClick={setThisMonth}>This Week</button>
-      <button className="rp-btn rp-btn-light" onClick={setAllDates}>All Dates</button>
-      <span>Filtering dashboard by {rangeLabel}</span>
+      <label><span>Start</span><input type="date" value={dateStart} onChange={e => updateDateStart(e.target.value)} /></label>
+      <label><span>End</span><input type="date" value={dateEnd} onChange={e => updateDateEnd(e.target.value)} /></label>
+      <button className="btn primary" type="button" onClick={() => { saveGlobalDateRange(dateStart, dateEnd); setDetail('') }}>Apply Range</button>
+      <button className="btn secondary" type="button" onClick={setThisMonth}>This Month</button>
+      <button className="btn secondary" type="button" onClick={setAllDates}>All Dates</button>
+      <em>Dashboard filtered by {rangeLabel}</em>
     </div>
 
-    <div className="rp-stat-grid">
-      <StatCard icon="dollar" label="Net Sales" value={money(derived.trueNetSalesMonth)} delta="↑ 12.5%" hint="vs last week" tone="green" onClick={() => showDetail('sales-month')} />
-      <StatCard icon="cart" label="Gross Sales" value={money(derived.grossSales)} delta="↑ 9.7%" hint="vs last week" tone="blue" onClick={() => showDetail('sales-month')} />
-      <StatCard icon="calendar" label="Cash Collected" value={money(derived.cashMonth)} delta="↑ 9.7%" hint="Toast cash sales" tone="purple" onClick={() => showDetail('cash-collected')} />
-      <StatCard icon="trendingUp" label="Profit / Loss" value={money(operatingProfit)} delta="↓ -3.2%" hint="vs last week" tone="red" onClick={() => showDetail('profit-loss')} />
-      <StatCard icon="utensils" label="Food Cost %" value={pct(derived.foodCostPercent)} delta="↓ -1.8%" hint="vs target" tone="orange" onClick={() => showDetail('food-cost')} />
-      <StatCard icon="employees" label="Total Payroll" value={money(derived.payrollMonth)} delta="↓ -2.1%" hint="vs last week" tone="teal" onClick={() => showDetail('cash-payroll')} />
-      <StatCard icon="expenses" label="Business Expenses" value={money(derived.businessExpenseSpend)} delta="↓ -5.1%" hint="vs last week" tone="pink" onClick={() => showDetail('expense-categories')} />
-      <StatCard icon="card" label="Cash Balance" value={money(cashRemaining)} delta="↑ $1,250" hint="remaining" tone="blue" onClick={() => showDetail('cash-collected')} />
-    </div>
-
-    <div className="rp-main-grid">
-      <section className="rp-card rp-chart-card header-green">
-        <header><h2>Sales Overview</h2><button onClick={() => showDetail('sales-month')}>View Report →</button></header>
-        <div className="rp-card-main">
-          <div><strong className="rp-big-number">{money(derived.trueNetSalesMonth)}</strong><span className="rp-positive">↑ 12.5% vs last week</span></div>
-          <BarChartLite />
-        </div>
-        <div className="rp-metric-strip"><span>Avg Daily Sales <b>{money(derived.trueNetSalesMonth / 7)}</b></span><span>Transactions <b>{derived.monthSales.length}</b></span><span>Avg Ticket <b>{money(derived.monthSales.length ? derived.trueNetSalesMonth / derived.monthSales.length : 0)}</b></span></div>
-      </section>
-
-      <section className="rp-card header-purple">
-        <header><h2>Profit & Loss Summary</h2><button onClick={() => showDetail('profit-loss')}>View Report →</button></header>
-        <MiniRow label="Total Sales" value={money(derived.trueNetSalesMonth)} />
-        <MiniRow label="Cost of Goods Sold" value={money(-cogs)} color="red" />
-        <MiniRow label="Gross Profit" value={money(derived.trueNetSalesMonth - cogs)} color="green" />
-        <MiniRow label="Total Payroll" value={money(-derived.payrollMonth)} color="red" />
-        <MiniRow label="Business Expenses" value={money(-derived.businessExpenseSpend)} color="red" />
-        <div className="rp-total-line"><span>Total Profit / Loss</span><strong className={operatingProfit >= 0 ? 'text-green' : 'text-red'}>{money(operatingProfit)}</strong><small>{pct(profitMargin)} margin</small></div>
-      </section>
-
-      <section className="rp-card header-blue">
-        <header><h2>Cash Flow This Week</h2><button onClick={() => showDetail('cash-collected')}>View Cash Flow →</button></header>
-        <div className="rp-cash-totals"><span>Cash In <b className="text-green">{money(derived.cashMonth)}</b></span><span>Cash Out <b className="text-red">{money(derived.cashPayroll + derived.businessExpenseSpend)}</b></span><span>Net Cash Flow <b className="text-blue">{money(cashRemaining)}</b></span></div>
-        <CashChartLite />
-      </section>
-
-      <section className="rp-card header-orange">
-        <header><h2>Top Expense Categories</h2><strong>{money(derived.totalExpensesAll)}</strong></header>
-        <div className="rp-donut-row"><DonutLite total={money(derived.totalExpensesAll)} /><div className="rp-donut-list">{topExpenseRows.map(row => <MiniRow key={row.category || row.label} label={row.category || row.label} value={`${money(row.amount)}  ${((num(row.amount)/topExpenseTotal)*100).toFixed(1)}%`} />)}</div></div>
-        <button className="rp-link" onClick={() => showDetail('expense-categories')}>View all expenses →</button>
-      </section>
-
-      <section className="rp-card header-blue">
-        <header><h2>Restaurant Health Meter</h2><button onClick={() => showDetail('profit-loss')}>Full Report →</button></header>
-        <HealthMeter score={healthScore} />
-      </section>
-
-      <section className="rp-card header-red">
-        <header><h2>Recent Alerts & Insights</h2><button>View All</button></header>
-        <div className="rp-alert-list">
-          <div><Icon name="alert" /><b>Food Cost is {pct(derived.foodCostPercent)}</b><span>Review purchasing if above target.</span></div>
-          <div><Icon name="shield" /><b>Prime Cost is {pct(primePct)}</b><span>Food + labor as percent of sales.</span></div>
-          <div><Icon name="trendingUp" /><b>Operating Profit</b><span>{money(operatingProfit)} for selected range.</span></div>
-          <div><Icon name="users" /><b>Payroll is {pct(laborPct)} of Sales</b><span>Monitor labor cost by week.</span></div>
-        </div>
-      </section>
-    </div>
-
-    <section className="rp-card rp-wide-card header-teal">
-      <header><h2>Weekly Summary by Category</h2><button onClick={() => showDetail('expense-categories')}>View full category report →</button></header>
-      <div className="rp-summary-table">
-        <table><thead><tr><th>Category</th><th>Sales</th><th>COGS</th><th>Gross Profit</th><th>Gross Profit %</th><th>Expenses</th><th>Net Profit</th></tr></thead><tbody>
-          {(derived.vendorPurchaseCategoryRowsAll.length ? derived.vendorPurchaseCategoryRowsAll.slice(0, 5) : [{ label: 'Food', amount: cogs }]).map((row, idx) => {
-            const amt = num(row.amount)
-            const sales = derived.trueNetSalesMonth * (idx === 0 ? .45 : idx === 1 ? .25 : .12)
-            const gp = sales - amt
-            return <tr key={row.label || row.category || idx}><td>{row.label || row.category}</td><td>{money(sales)}</td><td>{money(amt)}</td><td>{money(gp)}</td><td>{pct(sales ? gp/sales*100 : 0)}</td><td>{money(derived.businessExpenseSpend/(idx+3))}</td><td>{money(gp - derived.businessExpenseSpend/(idx+3))}</td></tr>
-          })}
-          <tr className="total"><td>Total</td><td>{money(derived.trueNetSalesMonth)}</td><td>{money(cogs)}</td><td>{money(derived.trueNetSalesMonth - cogs)}</td><td>{pct(derived.trueNetSalesMonth ? (derived.trueNetSalesMonth-cogs)/derived.trueNetSalesMonth*100 : 0)}</td><td>{money(derived.businessExpenseSpend)}</td><td>{money(operatingProfit)}</td></tr>
-        </tbody></table>
-      </div>
+    <section className="rp-kpi-board">
+      {dashboardKpis.map(item => <button key={item.label} type="button" className={`rp-metric-card tone-${item.tone}`} onClick={() => showDetail(item.detail)}>
+        <header><span><Icon name={item.icon} size={18} /></span><b>{item.label}</b></header>
+        <strong>{item.value}</strong>
+        <small>{item.sub}</small>
+      </button>)}
     </section>
 
-    <section className="rp-intelligence-panel">
-      <header><h2><Icon name="shield" /> Restaurant Intelligence</h2><p>Key insights and performance indicators</p></header>
-      <div className="rp-insight-grid">
-        <InsightCard icon="dollar" title="Cash Position" value={money(cashRemaining)} subtitle="Cash remaining after expenses & payroll" tone="green" />
-        <InsightCard icon="pie" title="Prime Cost" value={pct(primePct)} subtitle="Food + labor % of sales" tone="blue" />
-        <InsightCard icon="employees" title="Labor Cost %" value={pct(laborPct)} subtitle="Total labor cost of sales" tone="purple" />
-        <InsightCard icon="utensils" title="Food Cost %" value={pct(derived.foodCostPercent)} subtitle="Target: 28–32%" tone="orange" />
-        <InsightCard icon="trendingUp" title="Operating Profit" value={pct(profitMargin)} subtitle={money(operatingProfit)} tone="teal" />
-        <InsightCard icon="reports" title="Sales This Week" value={money(derived.trueNetSalesMonth)} subtitle="Net sales performance" tone="blue" />
-      </div>
+    <section className="rp-intel-grid">
+      <article className="rp-panel rp-panel-sales">
+        <header><h3>Sales Breakdown</h3><button type="button" onClick={() => showDetail('sales-month')}>View Sales</button></header>
+        <div className="rp-line-list">
+          {[
+            ['Cash Sales', derived.cashMonth], ['Credit Sales', derived.creditSales], ['Gift Cards', derived.giftSales],
+            ['Online Orders', derived.onlineSales], ['Sales Tax', derived.taxMonth], ['Tips Withheld', derived.tipsWithheldMonth],
+            ['Tips After Withholding', derived.tipsAfterWithholdingMonth]
+          ].map(([label, amount]) => <div key={label}><span>{label}</span><b>{money(amount)}</b></div>)}
+        </div>
+      </article>
+
+      <article className="rp-panel rp-panel-profit">
+        <header><h3>Profit & Loss</h3><button type="button" onClick={() => showDetail('profit-loss')}>Open P&L</button></header>
+        <div className="rp-line-list strong-list">
+          {profitLines.map(([label, amount]) => <div key={label} className={label === 'Operating Profit' ? 'total' : ''}><span>{label}</span><b>{money(amount)}</b></div>)}
+        </div>
+      </article>
+
+      <article className="rp-panel rp-panel-cash">
+        <header><h3>Cash Position</h3><button type="button" onClick={() => showDetail('cash-collected')}>Cash Detail</button></header>
+        <div className="rp-line-list strong-list">
+          {cashLines.map(([label, amount]) => <div key={label} className={label === 'Remaining Cash' ? 'total' : ''}><span>{label}</span><b>{money(amount)}</b></div>)}
+        </div>
+      </article>
     </section>
 
-    <div id="dashboard-details">
+    <section className="rp-panels-two">
+      <article className="rp-panel rp-panel-vendor">
+        <header><h3>Vendor Purchases</h3><button type="button" onClick={() => showDetail('invoices')}>View Invoices</button></header>
+        <div className="rp-mini-table">
+          {derived.vendorPurchaseRecentRows.slice(0, 8).map((row, idx) => <button key={row.id || idx} type="button" onClick={() => showDetail('invoices')}>
+            <span><b>{row.vendor || row.vendor_name || row.name || 'Vendor Purchase'}</b><small>{row.date || rowDate(row, ['invoice_date', 'date'])} • {row.category || 'Other'}</small></span>
+            <strong>{money(num(row.amount))}</strong>
+          </button>)}
+          {!derived.vendorPurchaseRecentRows.length ? <p className="rp-empty">No vendor purchases in selected range.</p> : null}
+        </div>
+        <footer>{derived.vendorPurchaseCategoryRows.map(row => <span key={row.label || row.category}>{row.label || row.category}<b>{money(row.amount)}</b></span>)}</footer>
+      </article>
+
+      <article className="rp-panel rp-panel-expense">
+        <header><h3>Business Expenses</h3><button type="button" onClick={() => showDetail('expense-categories')}>View Expenses</button></header>
+        <div className="rp-mini-table">
+          {derived.businessExpenseRecentRows.slice(0, 8).map((row, idx) => <button key={row.id || idx} type="button" onClick={() => showDetail('expense-categories')}>
+            <span><b>{row.vendor || row.name || row.category || 'Expense'}</b><small>{row.date || rowDate(row, ['date', 'expense_date'])} • {row.category || row.payment_method || ''}</small></span>
+            <strong>{money(num(row.amount))}</strong>
+          </button>)}
+          {!derived.businessExpenseRecentRows.length ? <p className="rp-empty">No business expenses in selected range.</p> : null}
+        </div>
+        <footer>{derived.businessExpenseCategoryRows.map(row => <span key={row.label || row.category}>{row.label || row.category}<b>{money(row.amount)}</b></span>)}</footer>
+      </article>
+    </section>
+
+    <section className="rp-restaurant-intel">
+      <header><h3>Restaurant Intelligence</h3><p>Actionable health indicators from your current numbers.</p></header>
+      <div>{intelligenceItems.map(item => <button key={item.title} type="button" className={`rp-intel-card ${item.tone}`} onClick={() => showDetail(item.title.includes('Vendor') ? 'invoices' : item.title.includes('Expense') ? 'expense-categories' : 'profit-loss')}>
+        <span>{item.title}</span><strong>{item.value}</strong><small>{item.note}</small>
+      </button>)}</div>
+    </section>
+
+    <div id="dashboard-details" className="rp-detail-anchor">
       {currentDetail ? <DetailTable title={currentDetail.title} rows={currentDetail.rows} columns={currentDetail.columns} onOpen={() => openScreen(currentDetail.open)} message={currentDetail.message} /> : null}
     </div>
-  </>
+  </div>
 }
