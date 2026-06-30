@@ -61,8 +61,6 @@ export const iconMap = {
   store: Store,
   calendar: Calendar,
   dollar: DollarSign,
-  wallet: WalletCards,
-  trendingUp: TrendingUp,
   gift: Gift,
   users: Users,
   userCheck: UserCheck,
