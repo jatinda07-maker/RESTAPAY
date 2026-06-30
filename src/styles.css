@@ -1406,3 +1406,392 @@ input[type="file"]{height:36px!important;min-width:210px!important;padding:5px 8
 
 @media(max-width:1200px){.form-grid,.compact-form,.invoice-form-grid,.expense-form-grid,.employee-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.payroll-grid,.clean-payroll-grid,.employee-workspace,.workspace-grid,.settings-grid{grid-template-columns:1fr!important}.content-area{padding:16px!important}}
 @media(max-width:720px){.form-grid,.compact-form,.invoice-form-grid,.expense-form-grid,.employee-form-grid{grid-template-columns:1fr!important}.page-head,.employee-head{align-items:flex-start!important;flex-direction:column!important}.actions,.employee-head-actions{justify-content:flex-start!important;width:100%!important}.btn,.file-button,.link-btn{flex:0 0 auto!important}.main-panel{margin-left:72px!important}}
+
+/* =========================================================
+   V3 FINAL ALIGNMENT CLEANUP - no legacy hover/glow, compact
+   Applies across Dashboard, Sales, Payroll, Employees, Vendors,
+   Invoices, Expenses, Reports, Price Increase and Settings.
+   ========================================================= */
+em, i { font-style: normal !important; }
+
+:root{
+  --rp-sidebar:#06182b;
+  --rp-sidebar-2:#071f38;
+  --rp-blue:#2563eb;
+  --rp-orange:#f97316;
+  --rp-red:#dc2626;
+  --rp-navy:#071f38;
+  --rp-line:#dbe5f1;
+  --rp-text:#0b1f3a;
+  --rp-muted:#60718a;
+}
+
+/* Stable icon-only collapsed sidebar, overlay expands on hover without pushing content */
+.app-shell.v3-shell,
+.app-shell{ background:#eef5fb !important; min-height:100vh; }
+.sidebar,
+.v3-sidebar{
+  position:fixed !important;
+  left:0 !important; top:0 !important; bottom:0 !important;
+  width:86px !important;
+  min-width:86px !important;
+  height:100vh !important;
+  overflow:hidden !important;
+  background:var(--rp-sidebar) !important;
+  background-image:none !important;
+  border-right:1px solid #102b49 !important;
+  padding:14px 0 !important;
+  z-index:100 !important;
+  transition:width .16s ease !important;
+  box-shadow:none !important;
+}
+.sidebar:hover,
+.v3-sidebar:hover{
+  width:230px !important;
+  min-width:230px !important;
+  box-shadow:18px 0 34px rgba(15,23,42,.16) !important;
+}
+.main-panel,
+.v3-main{
+  margin-left:86px !important;
+  min-width:0 !important;
+  width:calc(100% - 86px) !important;
+  background:#eef5fb !important;
+}
+.content-area,
+.v3-content{
+  width:100% !important;
+  max-width:none !important;
+  padding:18px 24px 28px !important;
+  overflow-x:hidden !important;
+}
+.brand,
+.v3-brand{
+  height:58px !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:12px !important;
+  padding:0 14px 12px !important;
+  min-width:230px !important;
+  border-bottom:1px solid rgba(255,255,255,.08) !important;
+}
+.brand-mark{
+  width:48px !important; height:48px !important;
+  flex:0 0 48px !important;
+  border-radius:16px !important;
+  background:var(--rp-orange) !important;
+  color:#fff !important;
+  font-size:22px !important;
+  font-weight:900 !important;
+  display:grid !important; place-items:center !important;
+  box-shadow:none !important;
+}
+.brand-name{
+  opacity:0 !important;
+  transform:translateX(-4px) !important;
+  color:#fff !important;
+  font-size:23px !important;
+  font-weight:900 !important;
+  letter-spacing:-.6px !important;
+  white-space:nowrap !important;
+  transition:opacity .12s ease, transform .12s ease !important;
+}
+.sidebar:hover .brand-name{ opacity:1 !important; transform:none !important; }
+.brand-name span{ color:var(--rp-orange) !important; }
+.nav-list{ padding:12px 8px !important; gap:6px !important; display:flex !important; flex-direction:column !important; }
+.nav-item{
+  position:relative !important;
+  height:44px !important;
+  width:100% !important;
+  border:0 !important;
+  border-radius:12px !important;
+  padding:0 !important;
+  background:transparent !important;
+  color:#d7e4f4 !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:10px !important;
+  text-align:left !important;
+  font-size:13px !important;
+  font-weight:800 !important;
+  box-shadow:none !important;
+  outline:0 !important;
+}
+.nav-item::before{
+  content:"";
+  position:absolute; left:0; top:9px; bottom:9px;
+  width:0; border-radius:0 6px 6px 0;
+  background:var(--rp-orange);
+  transition:width .12s ease;
+}
+.nav-item:hover{
+  background:rgba(249,115,22,.14) !important;
+  color:#fff !important;
+  box-shadow:none !important;
+  transform:none !important;
+}
+.nav-item.active{
+  background:var(--rp-blue) !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+.nav-item.active::before{ width:4px; }
+.nav-icon{
+  width:70px !important;
+  height:44px !important;
+  display:grid !important;
+  place-items:center !important;
+  flex:0 0 70px !important;
+  color:inherit !important;
+}
+.nav-icon svg{ width:21px !important; height:21px !important; stroke-width:2.25 !important; }
+.nav-label{
+  opacity:0 !important;
+  transform:translateX(-6px) !important;
+  white-space:nowrap !important;
+  color:inherit !important;
+  transition:opacity .12s ease, transform .12s ease !important;
+}
+.sidebar:hover .nav-label{ opacity:1 !important; transform:none !important; }
+.sidebar-footer,.restaurant-badge,.version{ display:none !important; }
+
+/* Remove old page banner top chrome if present */
+.page-head > div:first-child > p:first-child,
+.page-head .eyebrow,
+.workspace-label,
+[data-label="workspace"]{ display:none !important; }
+.page-head{
+  background:#fff !important;
+  border:1px solid var(--rp-line) !important;
+  border-radius:18px !important;
+  box-shadow:0 8px 24px rgba(15,30,53,.05) !important;
+  padding:18px 20px !important;
+  margin:0 0 16px !important;
+  align-items:center !important;
+}
+.page-head h1{ margin:0 0 4px !important; font-size:25px !important; line-height:1.05 !important; font-weight:900 !important; color:var(--rp-text) !important; }
+.page-head p{ margin:0 !important; font-size:13px !important; color:var(--rp-muted) !important; font-weight:700 !important; }
+.actions{ display:flex !important; align-items:center !important; gap:8px !important; flex-wrap:wrap !important; }
+
+/* Buttons: compact, same height, solid colors; delete same size as edit */
+button,.btn,.row-actions button,.payroll-entry-actions button,.save-link,.delete-link{
+  font-style:normal !important;
+  line-height:1 !important;
+}
+.btn,
+.row-actions button,
+.payroll-entry-actions button,
+.save-link,
+.delete-link,
+.form-actions-inline button,
+.report-builder-actions button,
+.bulk-bar button{
+  min-height:34px !important;
+  height:34px !important;
+  min-width:72px !important;
+  padding:0 12px !important;
+  border-radius:8px !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:6px !important;
+  font-size:12px !important;
+  font-weight:900 !important;
+  white-space:nowrap !important;
+  box-shadow:none !important;
+  transform:none !important;
+}
+.btn.primary,.save-link{ background:var(--rp-blue) !important; border:1px solid var(--rp-blue) !important; color:#fff !important; }
+.btn.secondary,.btn.ghost,.row-actions button:not(.delete-link),.payroll-entry-actions button:not(.delete-link){ background:#fff !important; border:1px solid #9aa9bb !important; color:var(--rp-text) !important; }
+.btn.danger,.delete-link,.row-actions button.delete-link,.payroll-entry-actions button.delete-link{
+  background:#fff !important;
+  border:1px solid #ef4444 !important;
+  color:#dc2626 !important;
+}
+.row-actions,.payroll-entry-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  min-width:158px !important;
+  white-space:nowrap !important;
+}
+.row-actions .btn.small-btn,
+.row-actions button,
+.payroll-entry-actions button{
+  width:72px !important;
+  max-width:72px !important;
+}
+
+/* Cards and sections */
+.form-card,.table-card,.list-panel,.enterprise-panel,.summary-card,.kpi-card{
+  border:1px solid var(--rp-line) !important;
+  border-radius:18px !important;
+  background:#fff !important;
+  box-shadow:0 8px 22px rgba(15,30,53,.055) !important;
+  overflow:hidden !important;
+}
+.form-card > header,
+.table-card > header,
+.list-panel > header,
+.enterprise-panel-head{
+  min-height:48px !important;
+  background:var(--rp-navy) !important;
+  color:#fff !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:12px !important;
+  padding:0 16px !important;
+  border-bottom:0 !important;
+}
+.form-card > header h2,.table-card > header h2,.list-panel > header h2,.enterprise-panel-head h2{ color:#fff !important; font-size:17px !important; font-weight:900 !important; margin:0 !important; }
+.form-card > header span,.table-card > header span,.list-panel > header span{ color:#dbeafe !important; font-size:12px !important; font-weight:800 !important; }
+
+/* Forms: align labels, inputs and upload rows */
+.form-grid,.vendor-form-grid,.invoice-form-grid,.employee-form-grid,.expense-form-grid,.payroll-row{
+  display:grid !important;
+  gap:12px !important;
+  align-items:end !important;
+}
+.form-grid{ grid-template-columns:repeat(4,minmax(160px,1fr)) !important; }
+.employee-form-grid,.invoice-form-grid{ grid-template-columns:repeat(4,minmax(160px,1fr)) !important; }
+.vendor-form-grid{ grid-template-columns:repeat(3,minmax(180px,1fr)) !important; }
+.form-grid label,.employee-form-grid label,.invoice-form-grid label,.expense-form-grid label,.vendor-form-grid label{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:6px !important;
+  font-size:12px !important;
+  font-weight:900 !important;
+  color:#42536d !important;
+  letter-spacing:.02em !important;
+  min-width:0 !important;
+}
+input,select,textarea,.filter-select,.date-range-field{
+  height:40px !important;
+  border:1px solid #cfdbe9 !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  color:var(--rp-text) !important;
+  padding:0 12px !important;
+  font-size:13px !important;
+  font-weight:700 !important;
+  min-width:0 !important;
+  box-shadow:none !important;
+}
+textarea{ height:72px !important; padding-top:10px !important; resize:vertical !important; }
+input[type="checkbox"]{ width:16px !important; height:16px !important; padding:0 !important; }
+.file-action,.invoice-toolbar .file-action,label.file-action{
+  height:36px !important;
+  min-width:132px !important;
+  padding:0 12px !important;
+  border-radius:9px !important;
+  background:var(--rp-navy) !important;
+  color:#fff !important;
+  border:1px solid var(--rp-navy) !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:7px !important;
+  font-size:12px !important;
+  font-weight:900 !important;
+  overflow:hidden !important;
+  vertical-align:middle !important;
+}
+input[type="file"]{
+  height:36px !important;
+  max-width:245px !important;
+  padding:6px !important;
+  border-radius:9px !important;
+  font-size:12px !important;
+  background:#fff !important;
+}
+.invoice-toolbar,.sales-top-actions,.employee-head-actions{
+  display:flex !important;
+  align-items:center !important;
+  gap:10px !important;
+  flex-wrap:wrap !important;
+}
+.sales-filter-bar,.report-filter-bar{
+  display:grid !important;
+  grid-template-columns:minmax(220px,1fr) 170px 16px 170px 140px 86px !important;
+  gap:10px !important;
+  align-items:center !important;
+  padding:14px !important;
+  border-radius:16px !important;
+  overflow:hidden !important;
+}
+.date-range-field{ display:flex !important; align-items:center !important; gap:8px !important; }
+.date-range-field input{ height:30px !important; padding:0 !important; border:0 !important; }
+
+/* Tables: prevent old card layout, keep action column visible */
+.table-card{ overflow:hidden !important; }
+.table-card table{ width:100% !important; border-collapse:collapse !important; table-layout:auto !important; }
+th,td{ padding:11px 12px !important; border-bottom:1px solid #edf2f7 !important; vertical-align:middle !important; }
+th{ background:#f3f7fb !important; color:#52657f !important; font-size:11px !important; text-transform:uppercase !important; letter-spacing:.05em !important; font-weight:900 !important; }
+td{ color:var(--rp-text) !important; font-size:13px !important; font-weight:700 !important; }
+.sales-history-card,.employee-table-card,.invoice-items-card,.table-scroll{ overflow-x:auto !important; }
+.sales-table{ min-width:1280px !important; }
+.sales-table .row-actions{ position:sticky !important; right:0 !important; background:#fff !important; z-index:2 !important; }
+.sales-table th:last-child{ position:sticky !important; right:0 !important; z-index:3 !important; }
+
+/* Payroll entries: convert oversized old cards into compact rows */
+.payroll-entry-card{
+  display:grid !important;
+  grid-template-columns:1.4fr 1.2fr .75fr .8fr .9fr .9fr .9fr 1.2fr 164px !important;
+  gap:0 !important;
+  align-items:stretch !important;
+  min-height:72px !important;
+  border:1px solid var(--rp-line) !important;
+  border-radius:14px !important;
+  background:#fff !important;
+  margin:0 0 10px !important;
+  overflow:hidden !important;
+}
+.payroll-entry-cell,.payroll-entry-main{
+  padding:10px 12px !important;
+  border-right:1px solid #edf2f7 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  justify-content:center !important;
+  gap:4px !important;
+  min-width:0 !important;
+}
+.payroll-entry-cell span,.payroll-entry-main span{
+  color:#60718a !important;
+  font-size:11px !important;
+  text-transform:uppercase !important;
+  font-weight:900 !important;
+  letter-spacing:.04em !important;
+}
+.payroll-entry-cell b,.payroll-entry-main b{ font-size:13px !important; color:var(--rp-text) !important; font-weight:900 !important; }
+.payroll-entry-actions{ padding:10px 12px !important; justify-content:center !important; flex-direction:row !important; }
+.payroll-entry-actions button{ width:70px !important; min-width:70px !important; }
+
+/* Tags/chips compact */
+.tag,.chip,.category-chip{
+  min-height:24px !important;
+  border-radius:999px !important;
+  padding:4px 9px !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:6px !important;
+  font-size:12px !important;
+  font-weight:900 !important;
+  line-height:1 !important;
+}
+.chip-row{ display:flex !important; flex-wrap:wrap !important; gap:8px !important; }
+
+/* Responsive guardrails */
+@media(max-width:1180px){
+  .panel-grid,.enterprise-panel-grid,.workspace-grid{ grid-template-columns:1fr !important; }
+  .form-grid,.employee-form-grid,.invoice-form-grid,.vendor-form-grid,.expense-form-grid{ grid-template-columns:1fr 1fr !important; }
+  .payroll-entry-card{ grid-template-columns:1fr 1fr !important; }
+  .payroll-entry-actions{ grid-column:1/-1 !important; justify-content:flex-start !important; }
+}
+@media(max-width:720px){
+  .main-panel,.v3-main{ margin-left:72px !important; width:calc(100% - 72px) !important; }
+  .sidebar,.v3-sidebar{ width:72px !important; min-width:72px !important; }
+  .form-grid,.employee-form-grid,.invoice-form-grid,.vendor-form-grid,.expense-form-grid,.sales-filter-bar,.report-filter-bar{ grid-template-columns:1fr !important; }
+  .page-head{ align-items:flex-start !important; flex-direction:column !important; }
+}
