@@ -894,3 +894,214 @@ button.delete-link,
   .payroll-entry-card { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .payroll-entry-actions { grid-column: 1 / -1 !important; justify-content: flex-start !important; border-left: 0 !important; border-top: 1px solid #eef2f7 !important; padding-top: 10px !important; }
 }
+
+/* V3 page alignment repair - invoices, payroll, price increase, reports */
+.sidebar:focus-within { width: 72px !important; }
+.sidebar:hover { width: 220px !important; }
+.sidebar .nav-list { gap: 2px !important; }
+.sidebar .nav-item { height: 34px !important; min-height: 34px !important; max-height: 34px !important; }
+.sidebar .nav-item:hover { background: rgba(249,115,22,.16) !important; }
+.sidebar .nav-item.active { background: #2563eb !important; }
+
+/* Better page width with less dead side space */
+.content-area { padding-left: 18px !important; padding-right: 18px !important; }
+@media (min-width: 1600px) { .content-area { padding-left: 22px !important; padding-right: 22px !important; } }
+
+/* Compact file upload buttons: hide native file text and keep action buttons aligned */
+.file-action,
+.invoice-upload-actions .file-action,
+.sales-action-bar .file-action,
+.toast-import-row .file-action {
+  position: relative !important;
+  overflow: hidden !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 128px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 13px !important;
+}
+.file-action input[type="file"] {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0 !important;
+  cursor: pointer !important;
+}
+.invoice-upload-actions,
+.sales-action-bar,
+.toast-import-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+/* Invoice form: use one clean row and keep buttons attached to the right */
+.invoice-form-grid {
+  display: grid !important;
+  grid-template-columns: minmax(170px, 1.3fr) minmax(170px, 1.2fr) minmax(140px, 1fr) minmax(150px, 1fr) minmax(130px, .8fr) minmax(120px, .7fr) minmax(130px, .8fr) minmax(160px, 1fr) minmax(170px, 1.1fr) auto !important;
+  align-items: end !important;
+  gap: 10px !important;
+}
+.invoice-form-grid label { min-width: 0 !important; }
+.invoice-form-grid .wide-2 { grid-column: auto !important; }
+.form-actions-inline {
+  display: inline-flex !important;
+  align-items: end !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  min-width: 150px !important;
+  white-space: nowrap !important;
+}
+.form-actions-inline .btn { min-width: 66px !important; }
+@media (max-width: 1500px) {
+  .invoice-form-grid { grid-template-columns: repeat(5, minmax(150px, 1fr)) !important; }
+  .form-actions-inline { justify-content: flex-start !important; }
+}
+@media (max-width: 900px) { .invoice-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+
+/* Invoice tables: readable vendor text, no broken words, aligned action column */
+.invoice-items-card table,
+.employee-table-card table,
+.invoice-list-card table { table-layout: auto !important; }
+.employee-table-card th:nth-child(1), .employee-table-card td:nth-child(1) { width: 22% !important; min-width: 170px !important; white-space: normal !important; }
+.employee-table-card th:nth-child(2), .employee-table-card td:nth-child(2) { width: 10% !important; }
+.employee-table-card th:nth-child(9), .employee-table-card td:nth-child(9) { width: 150px !important; text-align: right !important; }
+.employee-table-card td b,
+.employee-table-card td small,
+.compact-table-card td b,
+.compact-table-card td small { word-break: normal !important; overflow-wrap: normal !important; }
+.invoice-items-card .empty-state,
+.invoice-items-card tbody:empty::after {
+  content: 'No line items added yet.';
+  display: block;
+  padding: 18px;
+  text-align: center;
+  color: #64748b;
+}
+
+/* Universal table buttons: outline edit/delete, compact but readable */
+.row-actions,
+.table-card .row-actions,
+.sales-table .row-actions,
+.payroll-entry-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 7px !important;
+  min-width: 132px !important;
+  white-space: nowrap !important;
+}
+.row-actions button,
+.row-actions .delete-link,
+button.delete-link,
+.payroll-entry-actions button,
+.payroll-entry-actions .delete-link,
+.payroll-entry-actions .save-link {
+  height: 30px !important;
+  min-height: 30px !important;
+  min-width: 58px !important;
+  width: auto !important;
+  max-width: none !important;
+  padding: 0 11px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+}
+.row-actions button:not(.delete-link),
+.payroll-entry-actions button:not(.delete-link) {
+  background: #fff !important;
+  color: #2563eb !important;
+  border: 1px solid #2563eb !important;
+}
+.row-actions .delete-link,
+button.delete-link,
+.payroll-entry-actions .delete-link {
+  background: #fff !important;
+  color: #dc2626 !important;
+  border: 1px solid #dc2626 !important;
+}
+
+/* Payroll entries: compact row, actions at the far right, no stacked giant buttons */
+.payroll-entry-card {
+  display: grid !important;
+  grid-template-columns: minmax(145px, 1.1fr) minmax(150px, 1fr) 74px 74px 90px 90px 90px minmax(120px, .9fr) 86px 132px !important;
+  min-height: 76px !important;
+  padding: 8px 10px !important;
+  align-items: center !important;
+}
+.payroll-entry-main,
+.payroll-entry-cell { padding: 6px 8px !important; }
+.payroll-entry-main b,
+.payroll-entry-cell b { font-size: 12px !important; line-height: 1.2 !important; }
+.payroll-entry-main small,
+.payroll-entry-cell span { font-size: 10px !important; line-height: 1.15 !important; margin-bottom: 2px !important; }
+.payroll-entry-actions { min-width: 132px !important; padding-left: 8px !important; }
+.payroll-entry-actions button,
+.payroll-entry-actions .delete-link,
+.payroll-entry-actions .save-link { min-width: 58px !important; height: 30px !important; }
+@media (max-width: 1380px) {
+  .payroll-entry-card { grid-template-columns: minmax(130px, 1fr) minmax(130px, .9fr) 62px 62px 78px 78px 78px minmax(100px, .8fr) 74px 126px !important; }
+  .payroll-entry-actions { min-width: 126px !important; }
+}
+
+/* Group member table: stop name/job from colliding */
+.group-editor-card table { table-layout: fixed !important; }
+.group-editor-card th:nth-child(1), .group-editor-card td:nth-child(1) { width: 30% !important; }
+.group-editor-card th:nth-child(2), .group-editor-card td:nth-child(2) { width: 25% !important; }
+.group-editor-card th:nth-child(3), .group-editor-card td:nth-child(3) { width: 18% !important; }
+.group-editor-card th:nth-child(4), .group-editor-card td:nth-child(4) { width: 17% !important; }
+.group-editor-card th:nth-child(5), .group-editor-card td:nth-child(5) { width: 10% !important; text-align: right !important; }
+.group-editor-card td { white-space: normal !important; }
+.group-editor-card td b, .group-editor-card td small { display: block !important; }
+.group-editor-card .row-actions { justify-content: flex-end !important; min-width: 80px !important; }
+.group-payroll-action-row,
+.group-payroll-controls,
+.group-editor-card footer,
+.group-editor-card .form-action-footer {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+}
+.group-editor-card input[type="date"] { max-width: 180px !important; }
+.group-editor-card .btn { min-width: 145px !important; max-width: none !important; }
+
+/* Price increase list: use page width and keep item names readable */
+.price-increase-form + .table-card table,
+.table-card:has(.header-select) table { table-layout: fixed !important; }
+.price-increase-form + .table-card th:nth-child(1),
+.price-increase-form + .table-card td:nth-child(1),
+.table-card:has(.header-select) th:nth-child(1),
+.table-card:has(.header-select) td:nth-child(1) { width: 22% !important; white-space: normal !important; }
+.price-increase-form + .table-card th:nth-child(10),
+.price-increase-form + .table-card td:nth-child(10),
+.table-card:has(.header-select) th:nth-child(10),
+.table-card:has(.header-select) td:nth-child(10) { width: 150px !important; text-align: right !important; }
+.price-increase-form + .table-card td,
+.table-card:has(.header-select) td { line-height: 1.35 !important; }
+.price-increase-form + .table-card td b,
+.table-card:has(.header-select) td b { white-space: normal !important; word-break: normal !important; overflow-wrap: anywhere !important; }
+.header-select { min-width: 240px !important; max-width: 320px !important; }
+
+/* Metric/value report tables: two clean columns with more readable text */
+.report-table-card table,
+.table-card.metric-value-table table { table-layout: fixed !important; }
+.report-table-card th:first-child,
+.report-table-card td:first-child,
+.table-card.metric-value-table th:first-child,
+.table-card.metric-value-table td:first-child { width: 70% !important; text-align: left !important; }
+.report-table-card th:nth-child(2),
+.report-table-card td:nth-child(2),
+.table-card.metric-value-table th:nth-child(2),
+.table-card.metric-value-table td:nth-child(2) { width: 30% !important; text-align: right !important; white-space: nowrap !important; }
+.report-table-card td,
+.table-card.metric-value-table td { font-size: 13px !important; padding: 12px 16px !important; }
+
+/* General readability bump for pages that were too tiny */
+.table-card td, .sales-table td { font-size: 12.5px !important; }
+.table-card th, .sales-table th { font-size: 11.5px !important; }
