@@ -459,13 +459,14 @@ export default function Payroll({ data, setData }) {
       }
       .payroll-entry-card {
         display: grid;
-        grid-template-columns: minmax(180px, 1.15fr) repeat(6, minmax(86px, .72fr)) minmax(122px, .85fr);
-        gap: 8px;
-        align-items: stretch;
+        grid-template-columns: minmax(150px, 1.1fr) minmax(145px, 1fr) 76px 76px 92px 92px 92px minmax(140px, 1fr) 92px 150px;
+        gap: 0;
+        align-items: center;
         border: 1px solid #dbe5f1;
-        border-radius: 16px;
+        border-radius: 14px;
         background: #fff;
-        padding: 10px;
+        padding: 10px 12px;
+        min-height: 86px;
       }
       .payroll-entry-card.editing-row {
         border-color: #2563eb;
@@ -505,15 +506,24 @@ export default function Payroll({ data, setData }) {
       }
       .payroll-entry-actions {
         display: flex;
-        flex-direction: column;
-        gap: 6px;
-        justify-content: center;
+        flex-direction: row;
+        gap: 8px;
+        justify-content: flex-end;
+        align-items: center;
+        min-width: 145px;
+        border-left: 1px solid #eef2f7;
+        padding-left: 10px;
       }
-      .payroll-entry-actions button {
-        width: 100%;
-        min-height: 31px;
-        padding: 6px 8px;
-        font-size: 11px;
+      .payroll-entry-actions button,
+      .payroll-entry-actions .delete-link,
+      .payroll-entry-actions .save-link {
+        width: auto;
+        min-width: 62px;
+        min-height: 32px;
+        height: 32px;
+        padding: 0 12px;
+        font-size: 12px;
+        border-radius: 8px;
       }
       .payroll-entry-card .inline-edit-input {
         width: 100%;
@@ -527,12 +537,13 @@ export default function Payroll({ data, setData }) {
       }
       @media (max-width: 1380px) {
         .payroll-entry-card {
-          grid-template-columns: minmax(165px, 1.05fr) repeat(4, minmax(78px, .7fr)) minmax(94px, .72fr) minmax(112px, .8fr);
-          gap: 7px;
+          grid-template-columns: minmax(135px, 1fr) minmax(130px, .95fr) 68px 68px 82px 82px 82px minmax(115px, .9fr) 82px 138px;
+          gap: 0;
           padding: 9px;
         }
         .payroll-entry-cell { padding-left: 7px; }
         .payroll-entry-main b, .payroll-entry-cell b { font-size: 12px; }
+        .payroll-entry-actions { min-width: 132px; }
       }
       @media (max-width: 1120px) {
         .payroll-entry-card {

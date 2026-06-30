@@ -643,3 +643,254 @@ button.delete-link:disabled {
   .payroll-entry-cell, .payroll-entry-actions { border-left: 0 !important; border-top: 1px solid #eef2f7 !important; }
   .payroll-entry-actions { grid-column: 1 / -1 !important; justify-content: flex-start !important; padding-top: 8px !important; }
 }
+
+/* V3 readability and alignment correction - final pass */
+.content-area {
+  max-width: none !important;
+  width: 100% !important;
+  padding: 18px 22px 30px !important;
+}
+.dashboard-shell,
+.dashboard-grid,
+.dashboard-panels,
+.dashboard-bottom-row {
+  max-width: none !important;
+}
+
+/* Sidebar: keep compact and remove tall vertical gaps */
+.sidebar { justify-content: flex-start !important; }
+.sidebar .nav-list {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-content: flex-start !important;
+  align-items: stretch !important;
+  flex: 0 1 auto !important;
+  gap: 4px !important;
+  padding: 8px 8px 4px !important;
+  margin: 0 !important;
+  overflow-y: auto !important;
+}
+.sidebar .nav-item {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+  border-radius: 10px !important;
+}
+.sidebar .nav-label {
+  font-size: 13px !important;
+  font-weight: 650 !important;
+}
+.sidebar .nav-icon svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+.sidebar-footer { margin-top: auto !important; }
+
+/* Slightly larger, lighter, crisper type across content pages */
+body, input, select, textarea, button {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+.content-area, .content-area * {
+  letter-spacing: 0 !important;
+}
+.table-card td,
+.table-card td *,
+.sales-table td,
+.sales-table td *,
+.payroll-entry-card,
+.payroll-entry-card * {
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+}
+.table-card td b,
+.sales-table td b,
+.payroll-entry-main b,
+.payroll-entry-cell b {
+  font-weight: 650 !important;
+}
+.table-card th,
+.sales-table th {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+}
+.table-card table,
+.sales-table {
+  table-layout: auto !important;
+  width: 100% !important;
+}
+.table-card th,
+.table-card td,
+.sales-table th,
+.sales-table td {
+  padding: 10px 12px !important;
+  vertical-align: middle !important;
+}
+.table-card tbody tr,
+.sales-table tbody tr {
+  min-height: 48px !important;
+}
+
+/* Checkboxes: small and consistent everywhere */
+input[type="checkbox"],
+table input[type="checkbox"],
+.table-card input[type="checkbox"],
+.sales-table input[type="checkbox"],
+.check-line input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  border-radius: 3px !important;
+  display: inline-block !important;
+  flex: 0 0 16px !important;
+  box-shadow: none !important;
+}
+th:first-child,
+td:first-child {
+  width: 54px !important;
+  min-width: 54px !important;
+  max-width: 64px !important;
+  text-align: center !important;
+}
+
+/* Buttons: small enough for tables, large enough for text */
+.btn,
+button.btn,
+.row-actions button,
+.row-actions .delete-link,
+button.delete-link,
+.delete-link,
+.small-btn,
+.save-link {
+  height: 32px !important;
+  min-height: 32px !important;
+  min-width: 66px !important;
+  width: auto !important;
+  max-width: none !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+}
+.row-actions,
+.table-card .row-actions,
+.sales-table .row-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 150px !important;
+}
+.row-actions button:not(.delete-link) {
+  min-width: 62px !important;
+}
+.row-actions .delete-link,
+button.delete-link,
+.delete-link {
+  min-width: 68px !important;
+}
+
+/* Payroll entry cards: restore action buttons to the right, but keep them compact */
+.payroll-entries-list {
+  gap: 10px !important;
+  padding: 12px !important;
+}
+.payroll-entry-card {
+  display: grid !important;
+  grid-template-columns: minmax(150px, 1.1fr) minmax(145px, 1fr) 76px 76px 92px 92px 92px minmax(140px, 1fr) 92px 150px !important;
+  gap: 0 !important;
+  align-items: center !important;
+  min-height: 86px !important;
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+}
+.payroll-entry-main,
+.payroll-entry-cell {
+  padding: 8px 10px !important;
+}
+.payroll-entry-main b,
+.payroll-entry-cell b {
+  font-size: 12.5px !important;
+  line-height: 1.25 !important;
+}
+.payroll-entry-main small,
+.payroll-entry-cell span {
+  font-size: 10.5px !important;
+  margin-bottom: 3px !important;
+  color: #64748b !important;
+}
+.payroll-entry-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 145px !important;
+  padding-left: 10px !important;
+  border-left: 1px solid #eef2f7 !important;
+}
+.payroll-entry-actions button,
+.payroll-entry-actions .delete-link,
+.payroll-entry-actions .save-link {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 62px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+}
+.payroll-entry-actions .delete-link {
+  min-width: 70px !important;
+}
+
+/* Group tables and invoice/metric pages: improve readable spacing */
+.group-table table td,
+.group-table table th,
+.invoice-list-card table td,
+.invoice-list-card table th,
+.report-table-card table td,
+.report-table-card table th {
+  font-size: 12.5px !important;
+  padding: 10px 12px !important;
+}
+.metric-value-table td,
+.metric-value-table th,
+.table-card td,
+.table-card th {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+@media (max-width: 1500px) {
+  .payroll-entry-card {
+    grid-template-columns: minmax(135px, 1fr) minmax(130px, .95fr) 68px 68px 82px 82px 82px minmax(115px, .9fr) 82px 138px !important;
+  }
+  .payroll-entry-actions { min-width: 132px !important; }
+  .payroll-entry-actions button,
+  .payroll-entry-actions .delete-link { min-width: 58px !important; padding: 0 10px !important; }
+}
+
+@media (max-width: 1080px) {
+  .payroll-entry-card { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .payroll-entry-actions { grid-column: 1 / -1 !important; justify-content: flex-start !important; border-left: 0 !important; border-top: 1px solid #eef2f7 !important; padding-top: 10px !important; }
+}
