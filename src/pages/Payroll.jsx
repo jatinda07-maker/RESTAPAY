@@ -629,13 +629,12 @@ export default function Payroll({ data, setData }) {
       }
     `}</style>
 
-    <div className="page-head employee-head">
+    <div className="page-head employee-head compact-page-head">
       <div><h1>Payroll</h1><p>Persistent payroll groups, editable members, one-click group payroll, and Toast Labor CSV/XLSX import.</p></div>
-      <div className="employee-head-actions"><div className="date-pill"><Icon name="calendar" /> <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} /></div></div>
     </div>
     <div className="status-pill">{status}</div>
 
-    <div className="sales-filter-bar report-filter-bar">
+    <div className="sales-filter-bar report-filter-bar payroll-filter-bar">
       <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => updateDateStart(e.target.value)} /></label>
       <span className="range-arrow">→</span>
       <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => updateDateEnd(e.target.value)} /></label>
