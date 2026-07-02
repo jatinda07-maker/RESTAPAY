@@ -220,3 +220,89 @@ b,strong{font-weight:680}.topbar h1,.page-head h1,.dashboard-hero h1{font-size:2
   .health-block{grid-template-columns:1fr;}
   .health-score{width:144px !important;height:144px !important;}
 }
+
+/* 2026-07-02 totals, expense, and dashboard interaction fixes */
+.payroll-summary-row > div,
+.sales-summary-row > div,
+.stat-row-clean > div,
+.metric-lite,
+.command-tile{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:10px !important;
+  min-height:46px !important;
+  padding:10px 14px !important;
+}
+.payroll-summary-row span,
+.sales-summary-row span,
+.stat-row-clean span,
+.metric-lite span,
+.command-tile span{
+  font-size:12px !important;
+  line-height:1.1 !important;
+  font-weight:650 !important;
+  color:#59687e !important;
+  letter-spacing:.01em !important;
+  white-space:nowrap !important;
+  text-transform:none !important;
+}
+.payroll-summary-row b,
+.sales-summary-row b,
+.stat-row-clean b,
+.metric-lite b,
+.command-tile strong{
+  display:inline-block !important;
+  margin-left:2px !important;
+  font-size:18px !important;
+  line-height:1.05 !important;
+  font-weight:720 !important;
+  letter-spacing:-.025em !important;
+  color:#0b162a !important;
+}
+.payroll-summary-row > div:nth-child(1) b,
+.sales-summary-row > div:nth-child(1) b,
+.stat-row-clean > div:nth-child(1) b{color:var(--blue) !important;}
+.payroll-summary-row > div:nth-child(2) b,
+.sales-summary-row > div:nth-child(2) b,
+.stat-row-clean > div:nth-child(2) b{color:var(--green) !important;}
+.payroll-summary-row > div:nth-child(3) b,
+.sales-summary-row > div:nth-child(3) b,
+.stat-row-clean > div:nth-child(3) b{color:#3346c9 !important;}
+.payroll-summary-row > div:nth-child(4) b,
+.sales-summary-row > div:nth-child(4) b,
+.stat-row-clean > div:nth-child(4) b{color:var(--orange) !important;}
+
+.table-header-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:14px !important;
+}
+.compact-search{width:min(360px,34vw) !important;min-width:240px !important;}
+.compact-search input{min-height:36px !important;}
+.employee-form-card.tight-card{margin-top:0 !important;}
+.employee-form-card.tight-card header h2{font-size:19px !important;font-weight:720 !important;}
+
+.category-pills button{
+  cursor:pointer !important;
+  transition:background .14s ease,border-color .14s ease,transform .14s ease !important;
+}
+.category-pills button:hover{
+  background:#eaf8ef !important;
+  border-color:#a7e2bd !important;
+  transform:translateY(-1px) !important;
+}
+.detail-section header h2{font-size:20px !important;font-weight:730 !important;}
+.detail-section .notice-line{font-weight:550;color:#64748b;}
+
+.metric-card strong{overflow-wrap:anywhere;}
+.metric-card .metric-label{line-height:1.15;}
+
+@media (min-width:1500px){
+  .payroll-summary-row,.sales-summary-row{grid-template-columns:repeat(4,1fr) !important;}
+}
+@media (max-width:900px){
+  .table-header-actions{align-items:stretch !important;flex-direction:column !important;}
+  .compact-search{width:100% !important;min-width:0 !important;}
+}

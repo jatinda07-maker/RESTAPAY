@@ -181,10 +181,13 @@ export default function Dashboard({ data, setActive }) {
     const end = todayStr()
     setDateStart(start); setDateEnd(end); saveGlobalDateRange(start, end)
   }
-  function showDetail(key) {
-    setDetail(key)
+  function showDetail(key, category = '') {
+    setDetail(category ? `${key}:${category}` : key)
     setTimeout(() => document.getElementById('dashboard-details')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0)
   }
+
+  const detailKey = String(detail || '').split(':')[0]
+  const detailCategory = String(detail || '').split(':').slice(1).join(':')
 
   const derived = useMemo(() => {
     const inRange = date => isDateInRange(date, dateStart, dateEnd)
@@ -208,7 +211,7 @@ export default function Dashboard({ data, setActive }) {
     const tax = monthSales.reduce((sum, row) => sum + num(row.tax), 0)
     const tips = monthSales.reduce((sum, row) => sum + num(row.tips || row.tips_after_withholding), 0)
     const tipsWithheld = monthSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
-    const trueNetSales = Math.max(0, netSales - tax - tips)
+    const trueNetSales = netSales || Math.max(0, grossSales - tax)
 
     const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
@@ -270,13 +273,16 @@ export default function Dashboard({ data, setActive }) {
       cashPayroll, checkPayroll, payrollTotal, invoiceSpend, manualExpenseSpend, totalSpend,
       vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining,
       foodCostPct, laborPct, primeCostPct, profitMargin, healthScore,
-      categoryRows, vendorCategories, businessCategories, allSpendRows,
+      categoryRows, vendorCategories, businessCategories, allSpendRows, vendorRaw, businessRaw,
       vendorRecent: vendorRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
       businessRecent: businessRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
       salesTrend: trendRows(monthSales, 'business_date', row => num(row.net_sales)),
       expenseTrend: trendRows(allSpendRows, 'date', row => num(row.amount))
     }
   }, [data, salesDays, payroll, invoices, invoiceItems, expenseRows, dateStart, dateEnd])
+
+  const detailVendorRows = detailCategory ? derived.allSpendRows.filter(row => normalizeCategory(row.category) === normalizeCategory(detailCategory) || String(row.category || '').toLowerCase() === detailCategory.toLowerCase()) : derived.allSpendRows
+  const detailExpenseRows = detailCategory ? derived.businessRaw?.filter(row => normalizeCategory(row.category) === normalizeCategory(detailCategory) || String(row.category || '').toLowerCase() === detailCategory.toLowerCase()) : derived.businessRecent
 
   const detailConfig = {
     sales: { title: 'Sales Details', open: 'sales', rows: derived.monthSales, columns: [
@@ -285,10 +291,10 @@ export default function Dashboard({ data, setActive }) {
     payroll: { title: 'Payroll Details', open: 'payroll', rows: derived.monthPayroll, columns: [
       { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
     ]},
-    vendors: { title: 'Vendor Spending Details', open: 'invoices', rows: derived.allSpendRows, columns: [
+    vendors: { title: detailCategory ? `${detailCategory} Spending Details` : 'Vendor Spending Details', open: 'invoices', rows: detailVendorRows, columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
-    expenses: { title: 'Business Expense Details', open: 'expenses', rows: derived.businessRecent, columns: [
+    expenses: { title: detailCategory ? `${detailCategory} Expense Details` : 'Business Expense Details', open: 'expenses', rows: detailExpenseRows, columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
     health: { title: 'Restaurant Health Inputs', open: 'reports', rows: [
@@ -382,12 +388,12 @@ export default function Dashboard({ data, setActive }) {
 
         <SectionCard title="Vendor Purchases" icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">
           <RowList rows={derived.vendorRecent.map(row => ({ label: row.vendor || 'Vendor Purchase', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
-          <div className="category-pills">{derived.vendorCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('vendors')}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
+          <div className="category-pills">{derived.vendorCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('vendors', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
         </SectionCard>
 
         <SectionCard title="Business Expenses" icon="expenses" tone="red" total={money(derived.businessSpend)} subtitle="Operating expenses">
           <RowList rows={derived.businessRecent.map(row => ({ label: row.vendor || row.description || 'Expense', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
-          <div className="category-pills">{derived.businessCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('expenses')}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
+          <div className="category-pills">{derived.businessCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('expenses', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
         </SectionCard>
       </div>
 
@@ -407,7 +413,7 @@ export default function Dashboard({ data, setActive }) {
         </SectionCard>
       </div>
 
-      <DetailTable config={detailConfig[detail]} setActive={setActive} />
+      <DetailTable config={detailConfig[detailKey]} setActive={setActive} />
     </div>
   )
 }
