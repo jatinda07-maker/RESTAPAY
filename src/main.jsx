@@ -11,6 +11,7 @@ import Settings from './pages/Settings'
 import Sales from './pages/Sales'
 import Reports from './pages/Reports'
 import Expenses from './pages/Expenses'
+import BankStatementImport from './pages/BankStatementImport'
 import { useLocalData } from './lib/useLocalData'
 import './styles.css'
 
@@ -27,6 +28,7 @@ function App() {
       : active === 'invoices' ? <Invoices {...shared} />
       : active === 'payroll' ? <Payroll {...shared} />
       : active === 'expenses' ? <Expenses {...shared} />
+      : active === 'bank-import' ? <BankStatementImport {...shared} />
       : active === 'reports' ? <Reports {...shared} />
       : active === 'settings' ? <Settings {...shared} />
       : <EntityPage page={active} />}

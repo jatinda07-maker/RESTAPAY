@@ -57,6 +57,7 @@ export const iconMap = {
   employees: Users,
   payroll: WalletCards,
   expenses: CreditCard,
+  'bank-import': Landmark,
   reports: TrendingUp,
   'price-increase': AlertTriangle,
   settings: Settings,
