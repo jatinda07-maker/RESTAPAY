@@ -224,7 +224,15 @@ async function readPdfText(file) {
     const pageText = content.items.map(item => item.str).join('\n')
     text += `\n--- PAGE ${p} ---\n${pageText}`
   }
-  return text
+  return { text, pages: pdf.numPages }
+}
+
+function getAiEngineStatus() {
+  const provider = import.meta.env?.VITE_AI_CHECK_ENGINE || ''
+  const enabled = import.meta.env?.VITE_AI_CHECK_ENABLED === 'true' && provider
+  return enabled
+    ? { mode: 'AI Vision', state: 'Connected', provider }
+    : { mode: 'Local Text Extraction', state: 'AI Offline', provider: 'Browser PDF/CSV parser' }
 }
 
 export default function BankStatements({ data, setData }) {
@@ -234,6 +242,9 @@ export default function BankStatements({ data, setData }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [reviewId, setReviewId] = useState('')
+  const [engineStatus, setEngineStatus] = useState(getAiEngineStatus())
+  const [processing, setProcessing] = useState({ stage: 'Waiting for upload', progress: 0, pages: 0, found: 0, matched: 0, review: 0, duplicates: 0 })
+  const [processingLog, setProcessingLog] = useState(['Waiting for statement upload'])
   const categories = Array.from(new Set([...(data.vendorCategories || []), ...(data.expenseCategories || []), 'Payroll', 'Merchant Fees', 'Taxes', 'Loans', 'Needs Review'])).filter(Boolean)
 
   const selectedRows = useMemo(() => rows.filter(r => r.selected && !r.duplicate), [rows])
@@ -246,39 +257,84 @@ export default function BankStatements({ data, setData }) {
     review: rows.filter(r => r.category === 'Needs Review').length
   }), [rows, selectedRows])
 
+  function addLog(entry) {
+    setProcessingLog(prev => [entry, ...prev].slice(0, 10))
+  }
+
+  function updateProcessing(patch) {
+    setProcessing(prev => ({ ...prev, ...patch }))
+  }
+
   async function analyzeFile(file) {
     if (!file) return
+    const engine = getAiEngineStatus()
+    setEngineStatus(engine)
     setBusy(true)
-    setMessage('Reading statement locally in your browser...')
+    setRows([])
+    setReviewId('')
+    setProcessingLog([])
+    updateProcessing({ stage: 'Loading file', progress: 8, pages: 0, found: 0, matched: 0, review: 0, duplicates: 0 })
+    addLog(`File selected: ${file.name}`)
+    setMessage(engine.state === 'Connected' ? 'AI engine connected. Preparing document analysis...' : 'AI engine is not connected yet. Using local browser text extraction only.')
     try {
       const name = file.name.toLowerCase()
       let text = ''
+      let pages = 0
       if (name.endsWith('.pdf')) {
-        text = await readPdfText(file)
+        addLog('Reading PDF text locally with PDF.js')
+        updateProcessing({ stage: 'Reading PDF pages', progress: 22 })
+        const result = await readPdfText(file)
+        text = result.text
+        pages = result.pages
+        addLog(`${pages} PDF pages read`)
       } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        addLog('Reading Excel workbook')
+        updateProcessing({ stage: 'Reading spreadsheet', progress: 28 })
         const buffer = await file.arrayBuffer()
         const wb = XLSX.read(buffer, { type: 'array' })
         text = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]])
+        addLog('Spreadsheet converted to review text')
       } else {
+        addLog('Reading text/CSV file')
+        updateProcessing({ stage: 'Reading text file', progress: 28 })
         text = await file.text()
       }
       setRawText(text)
-      analyzeText(text)
+      updateProcessing({ pages, stage: 'Detecting bank', progress: 45 })
+      addLog('Detecting bank and statement layout')
+      analyzeText(text, { pages, engine })
     } catch (error) {
       console.error(error)
+      updateProcessing({ stage: 'Extraction failed', progress: 0 })
+      addLog('Extraction failed before review')
       setMessage('Could not read this file automatically. Paste statement text below, or use CSV/Excel export. PDF reading uses local browser PDF.js and may be blocked if offline.')
     } finally {
       setBusy(false)
     }
   }
 
-  function analyzeText(text = rawText) {
+  function analyzeText(text = rawText, meta = {}) {
+    const engine = meta.engine || engineStatus || getAiEngineStatus()
+    setEngineStatus(engine)
     const detectedBank = detectBank(text)
     setBank(detectedBank)
+    addLog(`${detectedBank} detected`)
+    updateProcessing({ stage: 'Extracting check/debit rows', progress: 62, pages: meta.pages || processing.pages })
     const parsed = detectedBank === 'Union State Bank' ? parseUnionState(text, data) : parseGenericText(text, data)
+    const matched = parsed.filter(r => r.vendor || r.employee).length
+    const review = parsed.filter(r => r.category === 'Needs Review').length
+    const duplicates = parsed.filter(r => r.duplicate).length
     setRows(parsed)
     setReviewId(parsed[0]?.id || '')
-    setMessage(parsed.length ? `${detectedBank} detected. ${parsed.length} debit/check rows found for review.` : 'No check/debit rows found. Try pasting Activity in Date Order text or uploading a CSV/Excel export.')
+    updateProcessing({ stage: parsed.length ? 'Ready for review' : 'No check rows found', progress: parsed.length ? 100 : 0, found: parsed.length, matched, review, duplicates })
+    if (parsed.length) {
+      addLog(`${parsed.length} rows extracted for review`)
+      addLog(`${matched} vendor/employee matches, ${review} need review, ${duplicates} possible duplicates`)
+      addLog('Privacy cleanup complete: balances, account/routing/MICR/signatures are not saved')
+    } else {
+      addLog('No check/debit rows found')
+    }
+    setMessage(parsed.length ? `${detectedBank} detected. ${parsed.length} rows are ready for review. Engine: ${engine.mode}.` : 'No check/debit rows found. Try pasting Activity in Date Order text or uploading a CSV/Excel export.')
   }
 
   function updateRow(id, key, value) {
@@ -346,11 +402,41 @@ export default function BankStatements({ data, setData }) {
       <div className="bank-upload-row">
         <label className="file-drop"><Icon name="upload" /><span>Choose statement or export</span><input type="file" accept=".pdf,.csv,.txt,.xlsx,.xls" onChange={e => analyzeFile(e.target.files?.[0])} /></label>
         <button className="btn primary" disabled={busy} onClick={() => analyzeText(rawText)}><Icon name="refresh" /> Analyze Text</button>
-        <button className="btn ghost" onClick={() => { setRows([]); setRawText(''); setBank(''); setMessage('') }}>Clear</button>
+        <button className="btn ghost" onClick={() => { setRows([]); setRawText(''); setBank(''); setMessage(''); setProcessing({ stage: 'Waiting for upload', progress: 0, pages: 0, found: 0, matched: 0, review: 0, duplicates: 0 }); setProcessingLog(['Waiting for statement upload']) }}>Clear</button>
         {bank && <span className="tag green">{bank}</span>}
       </div>
       <textarea className="bank-textarea" value={rawText} onChange={e => setRawText(e.target.value)} placeholder="Optional: paste statement text here if PDF extraction is blocked..." />
       {message && <div className="bank-message">{message}</div>}
+    </section>
+
+    <section className="card ai-processing-center">
+      <header>
+        <div><span className="eyebrow">Processing Transparency</span><h2>AI Check Processing Center</h2></div>
+        <span className={`engine-pill ${engineStatus.state === 'Connected' ? 'connected' : 'offline'}`}>{engineStatus.state}</span>
+      </header>
+      <div className="ai-processing-grid">
+        <div className="engine-status-card">
+          <span>Engine</span>
+          <b>{engineStatus.mode}</b>
+          <small>{engineStatus.provider}</small>
+          <div className="progress-track"><i style={{ width: `${processing.progress}%` }} /></div>
+          <em>{processing.stage}</em>
+        </div>
+        <div className="ai-stat-card"><span>Pages Read</span><b>{processing.pages}</b></div>
+        <div className="ai-stat-card"><span>Rows Found</span><b>{processing.found}</b></div>
+        <div className="ai-stat-card"><span>Matched</span><b>{processing.matched}</b></div>
+        <div className="ai-stat-card warning"><span>Needs Review</span><b>{processing.review}</b></div>
+        <div className="ai-stat-card danger"><span>Duplicates</span><b>{processing.duplicates}</b></div>
+      </div>
+      <div className="privacy-processing-grid">
+        <div className="privacy-safe-card">
+          <Icon name="shield" />
+          <div><b>Privacy Protection Active</b><small>RestaPay saves only approved bookkeeping fields. Account/routing/MICR/signature/check images are discarded and not saved.</small></div>
+        </div>
+        <div className="processing-log-card">
+          {processingLog.map((item, index) => <span key={`${item}-${index}`}>✓ {item}</span>)}
+        </div>
+      </div>
     </section>
 
     <div className="payroll-summary-row sales-summary-row stat-row-clean bank-summary-row">
