@@ -1,6 +1,7 @@
 export const navItems = [
-  ['dashboard', 'Dashboard'], ['sales', 'Sales'], ['vendors', 'Vendors'], ['invoices', 'Invoices'],
-  ['employees', 'Employees'], ['payroll', 'Payroll'], ['expenses', 'Expenses'], ['bank-statements', 'Bank Statements'], ['reports', 'Reports'],
+  ['dashboard', 'Dashboard'], ['ai-import-center', 'AI Import Center'], ['bank-statements', 'AI Check Processing'], ['ai-rules', 'Rules Manager'],
+  ['sales', 'Sales'], ['vendors', 'Vendors'], ['invoices', 'Invoices'],
+  ['employees', 'Employees'], ['payroll', 'Payroll'], ['expenses', 'Expenses'], ['reports', 'Reports'],
   ['price-increase', 'Price Increase'], ['settings', 'Settings']
 ]
 

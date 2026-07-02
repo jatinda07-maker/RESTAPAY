@@ -12,6 +12,8 @@ import Sales from './pages/Sales'
 import Reports from './pages/Reports'
 import Expenses from './pages/Expenses'
 import BankStatements from './pages/BankStatements'
+import ImportCenter from './pages/ImportCenter'
+import RulesManager from './pages/RulesManager'
 import { useLocalData } from './lib/useLocalData'
 import './styles.css'
 
@@ -28,7 +30,9 @@ function App() {
       : active === 'invoices' ? <Invoices {...shared} />
       : active === 'payroll' ? <Payroll {...shared} />
       : active === 'expenses' ? <Expenses {...shared} />
+      : active === 'ai-import-center' ? <ImportCenter {...shared} setActive={setActive} />
       : active === 'bank-statements' ? <BankStatements {...shared} />
+      : active === 'ai-rules' ? <RulesManager {...shared} />
       : active === 'reports' ? <Reports {...shared} />
       : active === 'settings' ? <Settings {...shared} />
       : <EntityPage page={active} />}

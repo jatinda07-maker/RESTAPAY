@@ -10,7 +10,9 @@ const subtitles = {
   employees: 'Manage employees, roles, pay types, and status',
   payroll: 'Process payroll groups, manual payroll, tips, and history',
   expenses: 'Track restaurant expenses, payment methods, and categories',
-  'bank-statements': 'Upload bank statements, review extracted checks, and import selected expenses',
+  'ai-import-center': 'AI-powered review center for Toast, invoices, statements, checks, and rules',
+  'bank-statements': 'AI Check Processing: read check data, review, approve, and import selected expenses',
+  'ai-rules': 'Manage learned payee, vendor, employee, and category rules',
   reports: 'Generate weekly reports, exports, and custom business analysis',
   'price-increase': 'Review vendor item increases and pricing risk',
   settings: 'Manage business info, categories, backup, and app settings'

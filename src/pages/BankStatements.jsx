@@ -8,6 +8,15 @@ function money(value) { return Number(value || 0).toFixed(2) }
 function amountNumber(value) { return Math.abs(Number(String(value ?? '').replace(/[$,()]/g, '')) || 0) }
 function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim() }
 function vendorKey(value) { return normalizeText(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() }
+function scrubSensitiveText(value) {
+  return normalizeText(value)
+    .replace(/\b(?:routing|account|acct|trace|micr|aba|id)\s*#?[-:]?\s*[A-Z0-9-]{4,}\b/ig, '')
+    .replace(/#-?[A-Z0-9-]{6,}/ig, '')
+    .replace(/\b\d{9,17}\b/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+function safePayee(value) { return scrubSensitiveText(value).replace(/^(VENDOR PAY|PAYMENT|ACH Debit|DIRECT DBT|PURCHASE|TAX DEBIT)\s+/i, '').trim() }
 function toISODate(value, fallbackYear = new Date().getFullYear()) {
   const raw = String(value || '').trim()
   const mmddyy = raw.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?$/)
@@ -108,7 +117,7 @@ function parseUnionState(text, data) {
       const date = toISODate(m[1], year)
       const description = normalizeText(m[2])
       const amount = amountNumber(m[3])
-      let payee = description
+      let payee = safePayee(description)
         .replace(/\b\d{6,}\b.*$/g, '')
         .replace(/\b\d{2}\/\d{2}\/\d{2}\b.*$/g, '')
         .replace(/^(VENDOR PAY|PAYMENT|ACH Debit|DIRECT DBT|PURCHASE|TAX DEBIT)\s+/i, '')
@@ -158,7 +167,7 @@ function parseGenericText(text, data) {
     const key = `${date}-${check}-${payee}-${amount}`
     if (!seen.has(key)) {
       seen.add(key)
-      out.push({ id: createId('bankrow'), selected: true, date, checkNumber: check, payee, amount, sourceType: check ? 'paper_check' : 'electronic_debit', confidence: check ? 82 : 76 })
+      out.push({ id: createId('bankrow'), selected: true, date, checkNumber: check, payee: safePayee(payee), amount, sourceType: check ? 'paper_check' : 'electronic_debit', confidence: check ? 82 : 76 })
     }
   }
   return finalizeRows(out, data)
@@ -178,7 +187,7 @@ function parseCsvText(text, data) {
     selected: true,
     date: toISODate(cols[dateIdx]),
     checkNumber: checkIdx >= 0 ? cols[checkIdx] : (cols[descIdx]?.match(/check\s*#?\s*(\d+)/i)?.[1] || ''),
-    payee: cols[descIdx] || 'Bank Transaction',
+    payee: safePayee(cols[descIdx]) || 'Bank Transaction',
     amount: amountNumber(cols[amountIdx]),
     sourceType: 'csv_import',
     confidence: 90
@@ -224,9 +233,11 @@ export default function BankStatements({ data, setData }) {
   const [rows, setRows] = useState([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [reviewId, setReviewId] = useState('')
   const categories = Array.from(new Set([...(data.vendorCategories || []), ...(data.expenseCategories || []), 'Payroll', 'Merchant Fees', 'Taxes', 'Loans', 'Needs Review'])).filter(Boolean)
 
   const selectedRows = useMemo(() => rows.filter(r => r.selected && !r.duplicate), [rows])
+  const activeReview = useMemo(() => rows.find(r => r.id === reviewId) || rows[0] || null, [rows, reviewId])
   const totals = useMemo(() => ({
     extracted: rows.length,
     selected: selectedRows.length,
@@ -266,6 +277,7 @@ export default function BankStatements({ data, setData }) {
     setBank(detectedBank)
     const parsed = detectedBank === 'Union State Bank' ? parseUnionState(text, data) : parseGenericText(text, data)
     setRows(parsed)
+    setReviewId(parsed[0]?.id || '')
     setMessage(parsed.length ? `${detectedBank} detected. ${parsed.length} debit/check rows found for review.` : 'No check/debit rows found. Try pasting Activity in Date Order text or uploading a CSV/Excel export.')
   }
 
@@ -306,34 +318,33 @@ export default function BankStatements({ data, setData }) {
       vendor: row.vendor || row.payee || '',
       vendor_id: row.vendorId || '',
       manual_payee: row.vendorId ? '' : (row.payee || ''),
-      notes: `Imported from ${bank || 'bank statement'}${row.memo ? ` — ${row.memo}` : ''}`,
-      source: 'bank_statement_import',
-      bank_name: bank,
+      notes: row.checkNumber ? `Imported approved check ${row.checkNumber}` : 'Imported approved bank transaction',
+      source: 'ai_check_processing',
       imported_at: new Date().toISOString()
     }))
     setData(prev => ({
       ...prev,
       expenses: [...expenses, ...(prev.expenses || [])],
       bankPayeeRules: rememberRules(toImport),
-      bankImports: [{ id: createId('bankimport'), bank, date: todayISO(), rows: toImport.length, total: toImport.reduce((s, r) => s + amountNumber(r.amount), 0), created_at: new Date().toISOString() }, ...(prev.bankImports || [])]
+      bankImports: [{ id: createId('bankimport'), module: 'AI Check Processing', date: todayISO(), rows: toImport.length, total: toImport.reduce((s, r) => s + amountNumber(r.amount), 0), created_at: new Date().toISOString() }, ...(prev.bankImports || [])]
     }))
     setRows(prev => prev.map(row => toImport.some(x => x.id === row.id) ? { ...row, selected: false, duplicate: true, status: 'Imported' } : row))
-    setMessage(`${toImport.length} selected bank transactions imported into Expenses. Payee category memory updated.`)
+    setMessage(`${toImport.length} approved check/payment rows imported into Expenses. Payee category memory updated.`)
   }
 
   return <>
     <section className="bank-hero card">
       <div>
-        <h2>AI Bank Statement Import</h2>
-        <p>Supports Union State Bank and Valley Bank style statements. PDF text is read locally in the browser; only reviewed payee, check number, date, amount, and category are saved.</p>
+        <h2>AI Check Processing</h2>
+        <p>Upload bank statements or check files, review extracted check rows, and import selected payments only. Account numbers, routing numbers, MICR lines, balances, signatures, and original images are not saved.</p>
       </div>
       <div className="bank-badges"><span>Union State Bank</span><span>Valley Bank</span><span>Generic CSV / Excel</span></div>
     </section>
 
     <section className="card bank-upload-card">
-      <header><h2>Upload Statement</h2><span className="inline-count">PDF / CSV / Excel / TXT</span></header>
+      <header><h2>Upload Statement / Checks</h2><span className="inline-count">PDF / CSV / Excel / TXT</span></header>
       <div className="bank-upload-row">
-        <label className="file-drop"><Icon name="upload" /><span>Choose bank statement</span><input type="file" accept=".pdf,.csv,.txt,.xlsx,.xls" onChange={e => analyzeFile(e.target.files?.[0])} /></label>
+        <label className="file-drop"><Icon name="upload" /><span>Choose statement or export</span><input type="file" accept=".pdf,.csv,.txt,.xlsx,.xls" onChange={e => analyzeFile(e.target.files?.[0])} /></label>
         <button className="btn primary" disabled={busy} onClick={() => analyzeText(rawText)}><Icon name="refresh" /> Analyze Text</button>
         <button className="btn ghost" onClick={() => { setRows([]); setRawText(''); setBank(''); setMessage('') }}>Clear</button>
         {bank && <span className="tag green">{bank}</span>}
@@ -350,13 +361,39 @@ export default function BankStatements({ data, setData }) {
       <div><span>Needs Review</span><b>{totals.review}</b></div>
     </div>
 
+
+    {activeReview && <section className="card check-review-workspace">
+      <header><div><span className="eyebrow">AI Review Workspace</span><h2>Check Review</h2></div><span className="tag green">Privacy Safe</span></header>
+      <div className="check-workspace-grid">
+        <div className="check-preview-panel">
+          <div className="check-preview-box">
+            <Icon name="shield" size={34} />
+            <b>Check image not stored</b>
+            <small>The original PDF/check image is used only during processing. Account, routing, MICR, signatures, and balances are discarded before saving.</small>
+          </div>
+          <div className="privacy-list">
+            <span>Not saved: account #</span><span>Not saved: routing #</span><span>Not saved: MICR</span><span>Not saved: signature</span>
+          </div>
+        </div>
+        <div className="check-fields-panel">
+          <div className="field-pair"><span>Check #</span><b>{activeReview.checkNumber || 'ACH / Debit'}</b></div>
+          <label><span>Date</span><input type="date" value={activeReview.date} onChange={e => updateRow(activeReview.id, 'date', e.target.value)} /></label>
+          <label><span>Payee</span><input value={activeReview.payee} onChange={e => updateRow(activeReview.id, 'payee', e.target.value)} /></label>
+          <label><span>Amount</span><input value={activeReview.amount} onChange={e => updateRow(activeReview.id, 'amount', e.target.value)} /></label>
+          <label><span>Category</span><select value={activeReview.category} onChange={e => updateRow(activeReview.id, 'category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
+          <div className="field-pair"><span>Match</span><b>{activeReview.employee ? `Employee: ${activeReview.employee}` : activeReview.vendor ? `Vendor: ${activeReview.vendor}` : 'Manual review'}</b></div>
+          <div className="check-actions"><button className="btn ghost" onClick={() => updateRow(activeReview.id, 'selected', false)}>Skip</button><button className="btn primary" onClick={() => updateRow(activeReview.id, 'selected', true)}>Approve Row</button></div>
+        </div>
+      </div>
+    </section>}
+
     <section className="table-card compact-table-card bank-review-card">
       <header className="table-header-actions">
         <h2>Review Bank Transactions <span className="inline-count">{rows.length} rows</span></h2>
         <div className="header-actions"><button className="btn ghost" onClick={toggleAll}>Select All</button><button className="btn primary" onClick={importSelected}><Icon name="save" /> Import Selected</button></div>
       </header>
       <div className="table-scroll"><table className="sales-table bank-table"><thead><tr><th><input type="checkbox" checked={rows.length > 0 && rows.every(r => r.selected)} onChange={toggleAll} /></th><th>Date</th><th>Check #</th><th>Payee / Memo</th><th>Amount</th><th>Category</th><th>Vendor / Employee</th><th>Status</th><th>Confidence</th></tr></thead><tbody>
-        {rows.map(row => <tr key={row.id} className={row.duplicate ? 'duplicate-row' : ''}>
+        {rows.map(row => <tr key={row.id} onClick={() => setReviewId(row.id)} className={`${row.duplicate ? 'duplicate-row' : ''} ${activeReview?.id === row.id ? 'active-review-row' : ''}`}>
           <td><input type="checkbox" checked={row.selected} disabled={row.duplicate} onChange={() => updateRow(row.id, 'selected', !row.selected)} /></td>
           <td><input className="inline-input small" type="date" value={row.date} onChange={e => updateRow(row.id, 'date', e.target.value)} /></td>
           <td><input className="inline-input tiny" value={row.checkNumber} onChange={e => updateRow(row.id, 'checkNumber', e.target.value)} placeholder="ACH" /></td>
