@@ -63,12 +63,26 @@ function PriceIncreasePage() {
     return String(row?.invoice_date || row?.date || row?.created_at || today).slice(0, 10)
   }
 
+  function parseMoney(value) {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+    const text = String(value ?? '').replace(/[$,]/g, '').trim()
+    if (!text) return 0
+    const n = Number(text)
+    return Number.isFinite(n) ? n : 0
+  }
+
   function unitPrice(item) {
-    const direct = Number(item.unit_price || item.price || item.unit || item.rate || 0)
-    if (direct) return direct
-    const qty = Number(item.qty || item.quantity || 0)
-    const total = Number(item.total || item.amount || item.line_total || 0)
-    return qty > 0 ? total / qty : total
+    const qty = parseMoney(item.qty || item.quantity || item.case_qty || item.units)
+    const total = parseMoney(item.total || item.amount || item.line_total || item.extended_price)
+    const direct = parseMoney(item.unit_price || item.unitPrice || item.unit || item.rate || item.price || item.cost)
+
+    if (qty > 0 && total > 0) {
+      const computed = total / qty
+      // Some invoice imports place the full line total in the unit price column.
+      if (!direct || Math.abs(direct - total) < 0.01 || direct > computed * 8) return computed
+    }
+
+    return direct || total || 0
   }
 
   function pct(row) {
@@ -170,8 +184,22 @@ function PriceIncreasePage() {
 
     const generated = []
     groups.forEach(records => {
-      records.sort((a, b) => String(a.date).localeCompare(String(b.date)))
-      if (!records.length) return
+      records = records
+        .filter(r => Number(r.price || 0) > 0)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+
+      if (records.length < 2) return
+
+      const prices = records.map(r => Number(r.price || 0)).sort((a, b) => a - b)
+      const median = prices[Math.floor(prices.length / 2)] || 0
+      if (median > 0) {
+        records = records.filter(r => {
+          const price = Number(r.price || 0)
+          return price >= median * 0.2 && price <= median * 5
+        })
+      }
+
+      if (records.length < 2) return
 
       const first = records[0]
       const latest = records[records.length - 1]
@@ -276,7 +304,7 @@ function PriceIncreasePage() {
   return <>
     <div className="status-pill">{status}</div>
 
-    <div className="payroll-summary-row sales-summary-row">
+    <div className="payroll-summary-row sales-summary-row stat-row-clean">
       <div><span>Tracked Items</span><b>{rows.length}</b></div>
       <div><span>Largest Increase</span><b>{biggest ? `${pct(biggest).toFixed(1)}%` : '0.0%'}</b></div>
       <div><span>Items Over 10%</span><b>{overTen}</b></div>
@@ -312,7 +340,7 @@ function PriceIncreasePage() {
       </div>
     </section>
 
-    <section className="table-card compact-table-card">
+    <section className="table-card compact-table-card price-list-card">
       <header>
         <h2>Price Increase List</h2>
         <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -342,7 +370,7 @@ function PriceIncreasePage() {
         </select>
       </div>
 
-      <table>
+      <div className="table-scroll"><table className="price-increase-table">
         <thead><tr><th>Name</th><th>Old Price</th><th>New Price</th><th>$ Change</th><th>Increase</th><th>Category</th><th>Vendor</th><th>Date</th><th>Source</th><th>Action</th></tr></thead>
         <tbody>{sorted.map(row => {
           const increase = pct(row)
@@ -359,7 +387,7 @@ function PriceIncreasePage() {
             <td className="row-actions"><button onClick={()=>edit(row)}>Edit</button><button className="delete-link" onClick={()=>remove(row.id)}>Delete</button></td>
           </tr>
         })}</tbody>
-      </table>
+      </table></div>
     </section>
   </>
 }

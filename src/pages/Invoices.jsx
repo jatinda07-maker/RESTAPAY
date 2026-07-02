@@ -571,20 +571,20 @@ export default function Invoices({ data, setData }) {
       <button className="btn danger small-btn" onClick={() => saveInvoice({ saveAnyway: true })}>Save Anyway</button>
     </div> : null}
 
-    <section className="invoice-spend-grid" aria-label="Invoice spending totals">
-      <button type="button" className="invoice-spend-card primary">
+    <section className="invoice-spend-grid compact-invoice-grid" aria-label="Invoice spending totals">
+      <button type="button" className="invoice-spend-card primary flat-summary-card">
         <span className="invoice-spend-icon"><Icon name="invoices" size={19} /></span>
         <span className="invoice-spend-copy"><small>Total Invoice Spend</small><strong>${money(spendingSummary.totalSpend)}</strong><em>{spendingSummary.rows.length} invoices in view</em></span>
       </button>
-      <button type="button" className="invoice-spend-card">
+      <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon green"><Icon name="vendors" size={19} /></span>
         <span className="invoice-spend-copy"><small>Top Category</small><strong>${money(topCategoryAmount)}</strong><em>{topCategoryLabel}</em></span>
       </button>
-      <button type="button" className="invoice-spend-card">
+      <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon orange"><Icon name="expenses" size={19} /></span>
         <span className="invoice-spend-copy"><small>Open / Unpaid</small><strong>${money(spendingSummary.openSpend)}</strong><em>Paid ${money(spendingSummary.paidSpend)}</em></span>
       </button>
-      <button type="button" className="invoice-spend-card">
+      <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon blue"><Icon name="check" size={19} /></span>
         <span className="invoice-spend-copy"><small>Check Payments</small><strong>${money(spendingSummary.checkSpend)}</strong><em>Invoices with check/ref #</em></span>
       </button>
@@ -606,7 +606,7 @@ export default function Invoices({ data, setData }) {
           <h2>{editingId ? 'Edit Invoice' : 'Invoice Review / Manual Entry'}</h2>
           <span className="ai-env-note">AI OCR uses Gemini from Render environment variables.</span>
         </div>
-        <div className="invoice-upload-actions">
+        <div className="invoice-upload-actions compact-upload-actions">
           <label className="btn secondary file-action">
             <Icon name="upload" /> Local Upload
             <input ref={localUploadRef} type="file" accept=".csv,.xlsx,.xls" onChange={e => handleFile(e.target.files?.[0], 'local')} />
@@ -808,6 +808,19 @@ export default function Invoices({ data, setData }) {
       }
       .invoice-category-pill b { color: #52677f; }
       .invoice-category-pill.muted { color: #7a8da3; }
+      .compact-invoice-grid { gap: 10px; margin: 10px 0; }
+      .flat-summary-card { min-height: 82px; padding: 12px 14px; border-radius: 13px; box-shadow: none; align-items: center; }
+      .flat-summary-card:hover { transform: none; box-shadow: none; border-color: #b9c9dd; }
+      .invoice-spend-icon, .invoice-spend-icon.green, .invoice-spend-icon.orange, .invoice-spend-icon.blue { width: 38px; height: 38px; border-radius: 11px; box-shadow: none; background: #eff6ff; color: #1666d7; }
+      .invoice-spend-icon.green { background: #ecfdf3; color: #0b8a44; }
+      .invoice-spend-icon.orange { background: #fff7ed; color: #ea580c; }
+      .invoice-spend-copy small { font-size: 10.5px; font-weight: 760; }
+      .invoice-spend-copy strong { font-size: 21px; font-weight: 760; }
+      .invoice-spend-copy em { font-size: 12px; font-weight: 600; }
+      .invoice-category-strip { border-radius: 13px; padding: 10px 12px; box-shadow: none; margin-bottom: 12px; }
+      .invoice-toolbar { align-items: center; gap: 10px; }
+      .compact-upload-actions { gap: 7px; }
+      .compact-upload-actions .btn { min-height: 34px; padding: 0 11px; }
       @media (max-width: 1200px) { .invoice-spend-grid { grid-template-columns: repeat(2, minmax(170px, 1fr)); } }
       @media (max-width: 760px) {
         .invoice-spend-grid { grid-template-columns: 1fr; }

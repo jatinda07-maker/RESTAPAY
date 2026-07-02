@@ -204,15 +204,15 @@ export default function Expenses({ data, setData }) {
     `}</style>
 
 
-    <div className="page-head employee-head">
-      <div><h1>Expenses Workspace</h1><p>Track restaurant expenses, loans, accounting fees, utilities, supplies, maintenance, insurance, cash expenses and more.</p></div>
+    <div className="page-head employee-head compact-page-head">
+      <div><h1>Expenses</h1></div>
       <div className="employee-head-actions">
         <div className="search-box"><Icon name="search" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses..." /></div>
       </div>
     </div>
 
     <section className="card employee-form-card tight-card">
-      <header><h2>{editingId ? 'Edit Expense' : 'Add Expense'}</h2><span>{expenses.length} saved</span></header>
+      <header><h2>{editingId ? 'Edit Expense' : 'Add Expense'} <span className="inline-count">{expenses.length} saved</span></h2></header>
       <div className="expense-form-grid">
         <label><small>Date</small><input type="date" value={form.date} onChange={e => updateForm('date', e.target.value)} /></label>
         <label><small>Expense Name</small><input value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="Electric bill, accounting fee..." /></label>
@@ -248,7 +248,7 @@ export default function Expenses({ data, setData }) {
       {selected.length > 0 && <button className="btn ghost delete-link" onClick={bulkDelete}>Delete Selected ({selected.length})</button>}
     </div>
 
-    <div className="payroll-summary-row sales-summary-row">
+    <div className="payroll-summary-row sales-summary-row stat-row-clean">
       <div><span>Total Expenses</span><b>${money(summary.total)}</b></div>
       <div><span>Cash</span><b>${money(summary.cash)}</b></div>
       <div><span>Check / Credit</span><b>${money(summary.check + summary.credit)}</b></div>
@@ -257,10 +257,10 @@ export default function Expenses({ data, setData }) {
 
     <section className="table-card compact-table-card sales-history-card">
       <header><h2>Expenses</h2><span>{filtered.length} rows</span></header>
-      <table className="sales-table"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={toggleAll} /></th><th>Date</th><th>Name</th><th>Category</th><th>Paid By</th><th>Check #</th><th>Vendor</th><th>Amount</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
+      <div className="table-scroll"><table className="sales-table"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={toggleAll} /></th><th>Date</th><th>Name</th><th>Category</th><th>Paid By</th><th>Check #</th><th>Vendor</th><th>Amount</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
         {filtered.map(row => <tr key={row.id}><td><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} /></td><td>{rowDate(row)}</td><td><b>{row.name || row.category}</b></td><td><span className="tag neutral">{row.category}</span></td><td><span className={`tag ${String(row.payment_method || '').toLowerCase()}`}>{row.payment_method}</span></td><td>{row.check_number || '-'}</td><td>{row.vendor || '-'}</td><td>${money(row.amount)}</td><td><small>{row.notes || '-'}</small></td><td className="row-actions"><button className="btn ghost small-btn" onClick={() => editExpense(row)}>Edit</button><button className="btn ghost small-btn delete-link" onClick={() => deleteExpense(row.id)}>Delete</button></td></tr>)}
         {filtered.length === 0 && <tr><td colSpan="10"><small>No expenses found. Add an expense above.</small></td></tr>}
-      </tbody></table>
+      </tbody></table></div>
     </section>
   </>
 }
