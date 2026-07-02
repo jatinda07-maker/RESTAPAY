@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
 
@@ -16,9 +16,9 @@ function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear()
 function readSavedDateRange() {
   try {
     const saved = JSON.parse(localStorage.getItem('restapay_dashboard_date_range') || '{}')
-    return { start: saved.start || startOfMonthISO(), end: saved.end || todayStr() }
+    return { start: saved.start || '', end: saved.end || '' }
   } catch {
-    return { start: startOfMonthISO(), end: todayStr() }
+    return { start: '', end: '' }
   }
 }
 function saveGlobalDateRange(start, end) {
@@ -35,6 +35,22 @@ function isDateInRange(dateText, start, end) {
   if (end && d > end) return false
   return true
 }
+
+function collectDashboardDates(data = {}) {
+  const dates = []
+  ;(data.salesDays || []).forEach(row => dates.push(rowDate(row, ['business_date', 'date'])))
+  ;(data.payrollEntries || []).forEach(row => dates.push(rowDate(row, ['pay_date', 'payroll_date', 'date'])))
+  ;(data.invoices || []).forEach(row => dates.push(rowDate(row, ['invoice_date', 'date'])))
+  ;(data.invoiceItems || []).forEach(row => dates.push(rowDate(row, ['invoice_date', 'date', 'created_at'])))
+  ;(data.expenses || []).forEach(row => dates.push(rowDate(row, ['expense_date', 'date'])))
+  return dates.filter(Boolean).sort()
+}
+function hasDashboardRowsInRange(data = {}, start = '', end = '') {
+  const dates = collectDashboardDates(data)
+  if (!dates.length) return true
+  return dates.some(date => isDateInRange(date, start, end))
+}
+
 function payrollType(row) { return String(row.payment_method || row.payroll_type || row.method || row.type || row.pay_method || '').toLowerCase() }
 function isCashPayroll(row) { return payrollType(row).includes('cash') }
 function isCheckPayroll(row) { return payrollType(row).includes('check') }
@@ -149,6 +165,15 @@ export default function Dashboard({ data, setActive }) {
   const expenseRows = data?.expenses || []
   const employees = data?.employees || []
   const vendors = data?.vendors || []
+
+  useEffect(() => {
+    if (!(dateStart || dateEnd)) return
+    if (!hasDashboardRowsInRange(data || {}, dateStart, dateEnd)) {
+      setDateStart('')
+      setDateEnd('')
+      saveGlobalDateRange('', '')
+    }
+  }, [data, dateStart, dateEnd])
 
   function applyRange() { saveGlobalDateRange(dateStart, dateEnd); setDetail('') }
   function setThisMonth() {
@@ -279,7 +304,7 @@ export default function Dashboard({ data, setActive }) {
         <button type="button" className="btn primary" onClick={applyRange}>Apply Range</button>
         <button type="button" className="btn secondary" onClick={setThisMonth}>This Month</button>
         <button type="button" className="btn secondary" onClick={() => { setDateStart(''); setDateEnd(''); saveGlobalDateRange('', '') }}>All Dates</button>
-        <span className="filter-note">{dateStart || 'First record'} to {dateEnd || 'Latest record'}</span>
+        <span className="filter-note">Showing {dateStart || 'all'} to {dateEnd || 'all'} records</span>
       </section>
 
       <section className="dashboard-command-row" aria-label="Dashboard quick operating summary">

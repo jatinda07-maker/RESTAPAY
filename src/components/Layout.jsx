@@ -16,7 +16,7 @@ const subtitles = {
 }
 
 export default function Layout({ active, setActive, children }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('restapay_sidebar_collapsed') !== 'false')
   const activeItem = navItems.find(([key]) => key === active)
   const title = activeItem?.[1] || 'RestaPay'
 
@@ -49,7 +49,7 @@ export default function Layout({ active, setActive, children }) {
         <button
           type="button"
           className="collapse-control"
-          onClick={() => setCollapsed(value => !value)}
+          onClick={() => setCollapsed(value => { const next = !value; localStorage.setItem('restapay_sidebar_collapsed', String(next)); return next })}
           aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
         >
           <Icon name={collapsed ? 'chevronsRight' : 'chevronsLeft'} size={19} />
@@ -59,7 +59,7 @@ export default function Layout({ active, setActive, children }) {
 
       <main className="main-panel">
         <header className="topbar">
-          <button type="button" className="top-menu" onClick={() => setCollapsed(value => !value)} aria-label="Toggle navigation">
+          <button type="button" className="top-menu" onClick={() => setCollapsed(value => { const next = !value; localStorage.setItem('restapay_sidebar_collapsed', String(next)); return next })} aria-label="Toggle navigation">
             <Icon name="menu" size={22} />
           </button>
           <div className="topbar-title-block">
