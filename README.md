@@ -162,11 +162,11 @@ which runs `server.js`, serves the built React app from `dist`, and exposes the 
 Set these in Render or your server `.env`:
 
 ```bash
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_CHECK_MODEL=gpt-4o-mini
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_CHECK_MODEL=gemini-2.5-flash
 ```
 
-If `OPENAI_API_KEY` is missing, RestaPay will clearly show `AI Offline` and use backend local text extraction only. Local extraction can find structured statement rows, but true check-image payee extraction requires the AI provider.
+If `GEMINI_API_KEY` or `VITE_GEMINI_API_KEY` is missing, RestaPay will clearly show `AI Offline` and use backend local text extraction only. Local extraction can find structured statement rows, but true check-image payee extraction requires Gemini.
 
 ### Privacy behavior
 

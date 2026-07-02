@@ -4,7 +4,6 @@ import multer from 'multer'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import pdfParse from 'pdf-parse/lib/pdf-parse.js'
-import OpenAI from 'openai'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -181,28 +180,101 @@ function sanitizeAiRows(rows = []) {
   }, 'ai_provider')).filter(row => row.amount > 0 && row.payee && !/(routing|account|micr|balance)/i.test(`${row.payee} ${row.memo}`))
 }
 
-async function analyzeWithOpenAI(safeText, bank, pages) {
-  if (!process.env.OPENAI_API_KEY) return null
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  const model = process.env.OPENAI_CHECK_MODEL || 'gpt-4o-mini'
-  const prompt = `You are extracting bookkeeping check payment data for a restaurant back-office app.\n\nPrivacy rules: Do NOT return account numbers, routing numbers, MICR data, balances, trace IDs, ACH IDs, signatures, or bank login/contact data. Return only check/payment bookkeeping rows.\n\nFor every paper check you can identify, return: date, checkNumber, payee, amount, memo if useful, suggestedCategory, vendor or employee if obvious, confidence 0-100.\n\nIf payee is unknown from statement text, return payee as "Check <number>" and confidence below 75.\n\nBank detected: ${bank}. Pages read: ${pages}.\n\nReturn only valid JSON with shape: {"checks":[...]}. No markdown.`
+function getGeminiKey() {
+  return process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || ''
+}
 
-  const response = await client.chat.completions.create({
-    model,
-    temperature: 0,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: prompt },
-      { role: 'user', content: safeText.slice(0, 90000) }
-    ]
+function getGeminiModel() {
+  return process.env.GEMINI_CHECK_MODEL || process.env.GEMINI_MODEL || process.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash'
+}
+
+function extractJsonObject(text = '') {
+  const raw = String(text || '').trim()
+  if (!raw) return {}
+  try { return JSON.parse(raw) } catch {}
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fenced) {
+    try { return JSON.parse(fenced[1]) } catch {}
+  }
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
+  if (start >= 0 && end > start) {
+    try { return JSON.parse(raw.slice(start, end + 1)) } catch {}
+  }
+  return {}
+}
+
+async function analyzeWithGemini({ fileBuffer, mimeType, safeText, bank, pages }) {
+  const key = getGeminiKey()
+  if (!key) return null
+  const model = getGeminiModel()
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
+  const prompt = `You are RestaPay AI Check Processing for a restaurant back-office app.
+
+Task: analyze the uploaded bank statement/check image document and return ONLY bookkeeping rows for checks and useful business debit payments. Focus especially on cleared check images and check transaction rows.
+
+Return fields for each row:
+- date in YYYY-MM-DD
+- checkNumber if visible, otherwise empty string
+- payee
+- amount as a positive number
+- memo only if useful for bookkeeping
+- suggestedCategory such as Food, Beverage, Beer, Liquor, Payroll, Utilities, Taxes, Loans, Supplies, Merchant Fees, Accounting Fees, Needs Review
+- vendor if it is clearly a vendor
+- employee if it is clearly an employee/payroll check
+- confidence from 0 to 100
+
+Strict privacy rules:
+- DO NOT return account numbers, routing numbers, MICR lines, trace IDs, ACH IDs, balances, statement summary data, bank login/contact data, or signature data.
+- DO NOT return full OCR text.
+- DO NOT include deposits unless they are clearly needed as bookkeeping debit/check records.
+- If a payee is not readable, use "Check <number>" and confidence below 75.
+
+Bank detected locally: ${bank || 'Unknown Bank'}
+Pages detected locally: ${pages || 0}
+
+Return only valid JSON with this exact shape: {"checks":[{"date":"YYYY-MM-DD","checkNumber":"","payee":"","amount":0,"memo":"","suggestedCategory":"Needs Review","vendor":"","employee":"","confidence":0}]}`
+
+  const parts = [{ text: prompt }]
+
+  // Gemini can read native PDFs/images directly. Sending the file is required
+  // for check-image payee extraction. RestaPay does not persist the file or
+  // sensitive fields; only approved bookkeeping rows are saved.
+  if (fileBuffer?.length && mimeType) {
+    parts.push({ inlineData: { mimeType, data: fileBuffer.toString('base64') } })
+  }
+
+  if (safeText) {
+    parts.push({ text: `Privacy-scrubbed statement text preview for cross-checking only:\n${safeText.slice(0, 50000)}` })
+  }
+
+  const body = {
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: 'application/json'
+    }
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
   })
-  const content = response.choices?.[0]?.message?.content || '{}'
-  const parsed = JSON.parse(content)
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Gemini extraction failed: ${response.status} ${detail.slice(0, 500)}`)
+  }
+
+  const json = await response.json()
+  const content = json.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('') || '{}'
+  const parsed = extractJsonObject(content)
   return sanitizeAiRows(parsed.checks || parsed.rows || [])
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, aiConnected: Boolean(process.env.OPENAI_API_KEY), provider: process.env.OPENAI_API_KEY ? 'OpenAI' : 'Local extraction only' })
+  res.json({ ok: true, aiConnected: Boolean(getGeminiKey()), provider: getGeminiKey() ? 'Gemini' : 'Local extraction only', model: getGeminiKey() ? getGeminiModel() : null })
 })
 
 app.post('/api/ai/check-processing/analyze', upload.single('statement'), async (req, res) => {
@@ -227,16 +299,22 @@ app.post('/api/ai/check-processing/analyze', upload.single('statement'), async (
     const localRows = parseLocalStatement(safeText)
     let aiRows = null
     let engine = 'Backend Local Text Extraction'
-    let aiMessage = 'OPENAI_API_KEY not configured. Used privacy-safe backend local extraction.'
+    let aiMessage = 'GEMINI_API_KEY / VITE_GEMINI_API_KEY not configured. Used privacy-safe backend local extraction.'
 
-    if (process.env.OPENAI_API_KEY) {
+    if (getGeminiKey()) {
       try {
-        aiRows = await analyzeWithOpenAI(safeText, bank, pages)
-        engine = 'AI Document Extraction'
-        aiMessage = 'AI provider connected. Sensitive statement data scrubbed before response and not stored.'
+        aiRows = await analyzeWithGemini({
+          fileBuffer: req.file.buffer,
+          mimeType: req.file.mimetype || (isPdf ? 'application/pdf' : 'text/plain'),
+          safeText,
+          bank,
+          pages
+        })
+        engine = 'Gemini AI Document Extraction'
+        aiMessage = 'Gemini connected. RestaPay returned only privacy-safe bookkeeping rows; sensitive fields are not saved.'
       } catch (error) {
-        console.error('AI extraction failed:', error)
-        aiMessage = 'AI provider failed; used privacy-safe backend local extraction fallback.'
+        console.error('Gemini extraction failed:', error)
+        aiMessage = 'Gemini failed; used privacy-safe backend local extraction fallback.'
       }
     }
 
@@ -246,7 +324,9 @@ app.post('/api/ai/check-processing/analyze', upload.single('statement'), async (
       ok: true,
       bank,
       engine,
-      aiConnected: Boolean(process.env.OPENAI_API_KEY),
+      aiConnected: Boolean(getGeminiKey()),
+      provider: getGeminiKey() ? 'Gemini' : 'Local extraction only',
+      model: getGeminiKey() ? getGeminiModel() : null,
       message: aiMessage,
       privacy: {
         storedSensitiveFields: false,

@@ -237,7 +237,7 @@ async function getBackendHealth() {
     if (!res.ok) throw new Error('Backend unavailable')
     const json = await res.json()
     return json.aiConnected
-      ? { mode: 'AI Document Extraction', state: 'Connected', provider: json.provider || 'OpenAI' }
+      ? { mode: 'Gemini AI Document Extraction', state: 'Connected', provider: json.provider || 'Gemini' }
       : { mode: 'Backend Local Text Extraction', state: 'AI Offline', provider: json.provider || 'Local backend parser' }
   } catch {
     return { mode: 'Browser Local Text Extraction', state: 'Backend Offline', provider: 'Browser PDF/CSV parser' }
@@ -307,8 +307,8 @@ export default function BankStatements({ data, setData }) {
       addLog(`Backend status: ${backendStatus.state}`)
       updateProcessing({ stage: 'Backend analyzing statement', progress: 24 })
       setMessage(backendStatus.state === 'Connected'
-        ? 'AI backend connected. Analyzing statement with privacy-safe extraction...'
-        : 'AI key is not configured. Backend will use local privacy-safe text extraction fallback.')
+        ? 'Gemini backend connected. Analyzing statement with privacy-safe extraction...'
+        : 'Gemini key is not configured. Backend will use local privacy-safe text extraction fallback.')
 
       const result = await analyzeWithBackend(file)
       const finalized = finalizeRows((result.rows || []).map(row => ({
@@ -326,7 +326,7 @@ export default function BankStatements({ data, setData }) {
       setReviewId(finalized[0]?.id || '')
       setRawText(result.safePreview || '')
       setEngineStatus(result.aiConnected
-        ? { mode: result.engine || 'AI Document Extraction', state: 'Connected', provider: 'OpenAI backend' }
+        ? { mode: result.engine || 'AI Document Extraction', state: 'Connected', provider: result.provider || 'Gemini backend' }
         : { mode: result.engine || 'Backend Local Text Extraction', state: 'AI Offline', provider: 'Backend parser' })
       updateProcessing({
         stage: finalized.length ? 'Ready for review' : 'No check rows found',
@@ -340,7 +340,7 @@ export default function BankStatements({ data, setData }) {
       addLog(`${result.bank || 'Bank'} detected`)
       addLog(`${result.stats?.pages || 0} pages processed by backend`)
       addLog(`${finalized.length} check/payment rows returned for review`)
-      addLog(result.aiConnected ? 'AI provider completed extraction' : 'AI provider offline; backend fallback used')
+      addLog(result.aiConnected ? 'Gemini completed extraction' : 'Gemini offline; backend fallback used')
       addLog('Privacy cleanup complete: account/routing/MICR/balances/signatures are not saved')
       setMessage(result.message || `${finalized.length} rows are ready for review.`)
       setBusy(false)
