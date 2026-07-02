@@ -306,3 +306,77 @@ b,strong{font-weight:680}.topbar h1,.page-head h1,.dashboard-hero h1{font-size:2
   .table-header-actions{align-items:stretch !important;flex-direction:column !important;}
   .compact-search{width:100% !important;min-width:0 !important;}
 }
+
+/* Final alignment pass: invoice/payroll upload controls and inline search filters */
+.sales-filter-bar.report-filter-bar,
+.invoice-filter-bar,
+.vendor-filter-actions {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.range-search { min-width: 240px; flex: 1 1 240px; }
+.invoice-filter-bar { margin-bottom: 12px; }
+.polished-invoice-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.invoice-toolbar-title { min-width: 260px; }
+.invoice-upload-actions.compact-upload-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.file-action { position: relative; overflow: hidden; cursor: pointer; }
+.file-action input,
+.payroll-file-action input,
+.file-button input {
+  position: absolute !important;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.polished-import-row {
+  display: grid !important;
+  grid-template-columns: minmax(190px, 230px) auto minmax(280px, 1fr);
+  align-items: end !important;
+  gap: 12px !important;
+}
+.polished-import-row .group-payroll-date-label {
+  display: grid !important;
+  gap: 5px !important;
+  align-items: stretch !important;
+}
+.payroll-file-action {
+  min-height: 36px !important;
+  align-self: end;
+}
+.import-help-text {
+  color: #536276;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  align-self: center;
+}
+.form-actions-inline {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  align-self: end;
+  min-height: 36px;
+}
+.form-actions-inline .btn { min-height: 36px; }
+.manual-payroll-grid { align-items: end; }
+@media (max-width: 900px) {
+  .polished-import-row { grid-template-columns: 1fr; }
+  .range-search { min-width: 100%; }
+  .invoice-upload-actions.compact-upload-actions { width: 100%; }
+}
