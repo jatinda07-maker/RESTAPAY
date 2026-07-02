@@ -6,22 +6,17 @@ export function startOfMonthISO(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10)
 }
 
-export function readGlobalDateRange() {
+export function readPageDateRange(page = 'workspace') {
   try {
-    const saved = JSON.parse(localStorage.getItem('restapay_global_date_range') || '{}')
-    return {
-      start: saved.start || startOfMonthISO(),
-      end: saved.end || todayISO()
-    }
+    const saved = JSON.parse(localStorage.getItem(`restapay_${page}_date_range`) || '{}')
+    return { start: saved.start || startOfMonthISO(), end: saved.end || todayISO() }
   } catch {
     return { start: startOfMonthISO(), end: todayISO() }
   }
 }
 
-export function saveGlobalDateRange(start, end) {
-  try {
-    localStorage.setItem('restapay_global_date_range', JSON.stringify({ start, end }))
-  } catch {}
+export function savePageDateRange(page = 'workspace', start, end) {
+  try { localStorage.setItem(`restapay_${page}_date_range`, JSON.stringify({ start, end })) } catch {}
 }
 
 export function isDateInRange(dateText, start, end) {

@@ -21,6 +21,9 @@ import {
   Landmark,
   Megaphone,
   Menu,
+  ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   Package,
   PieChart,
   PlusCircle,
@@ -94,6 +97,10 @@ export const iconMap = {
   ellipsis: Ellipsis,
   x: X,
   menu: Menu,
+  chevronDown: ChevronDown,
+  chevronsLeft: ChevronsLeft,
+  chevronsRight: ChevronsRight,
+  trending: TrendingUp,
   spreadsheet: FileSpreadsheet,
   pie: PieChart
 }

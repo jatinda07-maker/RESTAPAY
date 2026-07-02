@@ -6,14 +6,14 @@ function today() { return new Date().toISOString().slice(0, 10) }
 function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
 function readSavedDateRange() {
   try {
-    const saved = JSON.parse(localStorage.getItem('restapay_global_date_range') || '{}')
+    const saved = JSON.parse(localStorage.getItem('restapay_reports_date_range') || '{}')
     return { start: saved.start || startOfMonthISO(), end: saved.end || today() }
   } catch {
     return { start: startOfMonthISO(), end: today() }
   }
 }
 function saveGlobalDateRange(start, end) {
-  try { localStorage.setItem('restapay_global_date_range', JSON.stringify({ start, end })) } catch {}
+  try { localStorage.setItem('restapay_reports_date_range', JSON.stringify({ start, end })) } catch {}
 }
 function money(value) { return Number(value || 0).toFixed(2) }
 function num(value) { return Number(String(value ?? '').replace(/[$,%]/g, '')) || 0 }

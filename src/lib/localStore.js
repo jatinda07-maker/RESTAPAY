@@ -1,6 +1,7 @@
 import { supabase, isSupabaseReady } from './supabase'
 
 export const RESTAPAY_KEY = 'restapay_v2_local_data'
+export const RESTAPAY_LEGACY_KEYS = ['restapay_app_data', 'restapay_data', 'restaPayData', 'restapayLocalData', 'restaurantPayData']
 export const RESTAPAY_SUPABASE_STATE_ID = 'main'
 
 export const defaultData = {
@@ -49,8 +50,15 @@ export function mergeData(data) {
 
 export function loadData() {
   try {
-    const raw = localStorage.getItem(RESTAPAY_KEY)
-    return raw ? mergeData(JSON.parse(raw)) : defaultData
+    const keys = [RESTAPAY_KEY, ...RESTAPAY_LEGACY_KEYS]
+    for (const key of keys) {
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      const merged = mergeData(JSON.parse(raw))
+      if (key !== RESTAPAY_KEY) localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
+      return merged
+    }
+    return defaultData
   } catch (error) {
     console.error('Failed to read local data', error)
     return defaultData
@@ -78,6 +86,72 @@ export function hasMeaningfulData(data) {
   ].some(list => Array.isArray(list) && list.length > 0)
 }
 
+
+function normalizeTableData(tableData = {}) {
+  return mergeData({
+    employees: tableData.employees || [],
+    employeeTypes: (tableData.employee_types || []).map(row => row.name).filter(Boolean),
+    jobTypes: (tableData.job_types || []).map(row => row.name).filter(Boolean),
+    payrollGroups: (tableData.payroll_groups || []).map(row => ({
+      ...row,
+      memberIds: row.member_ids || row.memberIds || [],
+      payment_method: row.method || row.payment_method || 'Cash'
+    })),
+    payrollEntries: (tableData.payroll_entries || []).map(row => ({
+      ...row,
+      employee_name: row.employee_name,
+      payment_method: row.method || row.payment_method || row.payroll_type || 'Cash',
+      payroll_type: row.method || row.payment_method || row.payroll_type || 'Cash',
+      pay_date: row.payroll_date || row.pay_date || row.date,
+      tips_after_withholding: row.tips_after_withheld || row.tips_after_withholding || row.final_tips,
+      total_pay: row.total || row.total_pay || row.amount
+    })),
+    payrollImports: tableData.payroll_imports || [],
+    vendors: (tableData.vendors || []).map(row => ({ ...row, is_active: row.active !== false })),
+    vendorCategories: (tableData.vendor_categories || []).map(row => row.name).filter(Boolean),
+    expenses: (tableData.expenses || []).map(row => ({
+      ...row,
+      date: row.expense_date || row.date,
+      payment_method: row.payment_type || row.payment_method,
+      is_active: row.active !== false
+    })),
+    expenseCategories: (tableData.expense_categories || []).map(row => row.name).filter(Boolean),
+    paymentMethods: (tableData.payment_methods || []).map(row => row.name).filter(Boolean),
+    invoices: (tableData.invoices || []).map(row => ({
+      ...row,
+      vendor: row.vendor_name || row.vendor || row.name,
+      date: row.invoice_date || row.date,
+      payment_method: row.payment_type || row.payment_method
+    })),
+    invoiceItems: tableData.invoice_items || [],
+    salesDays: (tableData.sales_days || []).map(row => ({ ...row, date: row.business_date || row.date })),
+    salesImports: tableData.sales_imports || [],
+    customReports: tableData.custom_reports || [],
+    settings: tableData.settings?.[0]?.app_settings || defaultData.settings
+  })
+}
+
+async function loadCloudTables() {
+  if (!isSupabaseReady) return null
+  try {
+    const tableNames = [
+      'employees', 'employee_types', 'job_types', 'payroll_groups', 'payroll_entries', 'payroll_imports',
+      'vendors', 'vendor_categories', 'expenses', 'expense_categories', 'payment_methods',
+      'invoices', 'invoice_items', 'sales_days', 'sales_imports', 'custom_reports', 'settings'
+    ]
+    const entries = await Promise.all(tableNames.map(async table => {
+      const { data, error } = await supabase.from(table).select('*')
+      if (error) return [table, []]
+      return [table, data || []]
+    }))
+    const merged = normalizeTableData(Object.fromEntries(entries))
+    return hasMeaningfulData(merged) ? merged : null
+  } catch (error) {
+    console.error('Failed to read Supabase tables.', error)
+    return null
+  }
+}
+
 export async function loadCloudData() {
   if (!isSupabaseReady) return null
 
@@ -90,7 +164,7 @@ export async function loadCloudData() {
 
     if (error) throw error
 
-    const merged = data?.data && hasMeaningfulData(data.data) ? mergeData(data.data) : null
+    const merged = data?.data && hasMeaningfulData(data.data) ? mergeData(data.data) : await loadCloudTables()
 
     if (merged) {
       localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))

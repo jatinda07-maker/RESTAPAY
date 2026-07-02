@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { createId } from '../lib/localStore'
 import { filterVendors, findVendorById, findVendorByName, getActiveSortedVendors } from '../engine/VendorEngine'
-import { isDateInRange, makeRangeLabel, readGlobalDateRange, saveGlobalDateRange, startOfMonthISO, todayISO } from '../engine/DateEngine'
+import { isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange, startOfMonthISO, todayISO } from '../engine/DateEngine'
 
 function today() { return todayISO() }
 function money(value) { return Number(value || 0).toFixed(2) }
@@ -17,8 +17,8 @@ export default function Expenses({ data, setData }) {
   const [form, setForm] = useState(blankExpense)
   const [editingId, setEditingId] = useState('')
   const [search, setSearch] = useState('')
-  const [dateStart, setDateStart] = useState(() => readGlobalDateRange().start)
-  const [dateEnd, setDateEnd] = useState(() => readGlobalDateRange().end)
+  const [dateStart, setDateStart] = useState(() => readPageDateRange('expenses').start)
+  const [dateEnd, setDateEnd] = useState(() => readPageDateRange('expenses').end)
   const [selected, setSelected] = useState([])
   const [vendorSearch, setVendorSearch] = useState('')
 
@@ -75,7 +75,7 @@ export default function Expenses({ data, setData }) {
   }
 
   function applyDateRange() {
-    saveGlobalDateRange(dateStart, dateEnd)
+    savePageDateRange('expenses', dateStart, dateEnd)
   }
 
   function setThisMonth() {
@@ -83,13 +83,13 @@ export default function Expenses({ data, setData }) {
     const end = todayISO()
     setDateStart(start)
     setDateEnd(end)
-    saveGlobalDateRange(start, end)
+    savePageDateRange('expenses', start, end)
   }
 
   function setAllDates() {
     setDateStart('')
     setDateEnd('')
-    saveGlobalDateRange('', '')
+    savePageDateRange('expenses', '', '')
   }
 
   const rangeLabel = makeRangeLabel(dateStart, dateEnd)

@@ -1,32 +1,32 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { navItems } from '../data/mockData'
 import { Icon } from './Icons'
 
 const subtitles = {
-  dashboard: 'Restaurant intelligence, cash position, and operating performance',
-  sales: 'Toast imports, manual sales, payment mix, and sales history',
-  vendors: 'Vendor setup, categories, payment details, and spending control',
-  invoices: 'Invoice upload, AI extraction, line items, and vendor totals',
-  employees: 'Employee setup, job types, payroll method, and employee records',
-  payroll: 'Payroll groups, labor imports, tips, checks, cash, and payroll history',
-  expenses: 'Restaurant operating expenses, payment method, checks, and categories',
-  reports: 'Executive reports, weekly summaries, exports, and custom analysis',
-  'price-increase': 'Vendor price increases, item tracking, and margin risk',
-  settings: 'Backup, restore, Supabase, AI settings, and application controls'
+  dashboard: 'Overview of your restaurant business',
+  sales: 'Manage Toast imports, daily sales, payment methods, and sales history',
+  vendors: 'Manage vendors, categories, payment terms, and contacts',
+  invoices: 'Upload invoices, review totals, and organize vendor bills',
+  employees: 'Manage employees, roles, pay types, and status',
+  payroll: 'Process payroll groups, manual payroll, tips, and history',
+  expenses: 'Track restaurant expenses, payment methods, and categories',
+  reports: 'Generate weekly reports, exports, and custom business analysis',
+  'price-increase': 'Review vendor item increases and pricing risk',
+  settings: 'Manage business info, categories, backup, and app settings'
 }
 
 export default function Layout({ active, setActive, children }) {
+  const [collapsed, setCollapsed] = useState(false)
   const activeItem = navItems.find(([key]) => key === active)
   const title = activeItem?.[1] || 'RestaPay'
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${collapsed ? 'is-collapsed' : ''}`}>
       <aside className="sidebar" aria-label="RestaPay navigation">
-        <div className="brand">
+        <div className="brand-row">
           <div className="brand-mark">R</div>
-          <div className="brand-text">
-            <strong>RestaPay</strong>
-            <span>Enterprise</span>
+          <div className="brand-copy">
+            <strong>Resta<span>Pay</span></strong>
           </div>
         </div>
 
@@ -40,31 +40,45 @@ export default function Layout({ active, setActive, children }) {
               onClick={() => setActive(key)}
               className={`nav-item ${active === key ? 'active' : ''}`}
             >
-              <span className="nav-icon"><Icon name={key} size={19} /></span>
+              <span className="nav-icon"><Icon name={key} size={20} /></span>
               <span className="nav-label">{label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="sidebar-footer">
-          <div className="user-dot">JP</div>
-          <div className="sidebar-user-copy">
-            <strong>Jatin</strong>
-            <span>Owner workspace</span>
-          </div>
-        </div>
+        <button
+          type="button"
+          className="collapse-control"
+          onClick={() => setCollapsed(value => !value)}
+          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+        >
+          <Icon name={collapsed ? 'chevronsRight' : 'chevronsLeft'} size={19} />
+          <span>{collapsed ? 'Expand' : 'Collapse'}</span>
+        </button>
       </aside>
 
       <main className="main-panel">
         <header className="topbar">
-          <div>
-            <span className="eyebrow">RestaPay Workspace</span>
+          <button type="button" className="top-menu" onClick={() => setCollapsed(value => !value)} aria-label="Toggle navigation">
+            <Icon name="menu" size={22} />
+          </button>
+          <div className="topbar-title-block">
             <h1>{title}</h1>
             <p>{subtitles[active] || 'Restaurant management workspace'}</p>
           </div>
           <div className="topbar-actions">
-            <button type="button" className="btn secondary compact"><Icon name="bell" size={16} /> Alerts</button>
-            <button type="button" className="btn primary compact" onClick={() => setActive('sales')}><Icon name="upload" size={16} /> Import Toast</button>
+            <button type="button" className="icon-btn notification-btn" aria-label="Notifications">
+              <Icon name="bell" size={21} />
+              <span>3</span>
+            </button>
+            <div className="profile-pill">
+              <div className="profile-avatar">JP</div>
+              <div>
+                <strong>Jatin Patel</strong>
+                <small>Admin</small>
+              </div>
+              <Icon name="chevronDown" size={16} />
+            </div>
           </div>
         </header>
         <section className="content-area">{children}</section>

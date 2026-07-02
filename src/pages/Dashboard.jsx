@@ -15,14 +15,14 @@ function todayStr() { return new Date().toISOString().slice(0, 10) }
 function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
 function readSavedDateRange() {
   try {
-    const saved = JSON.parse(localStorage.getItem('restapay_global_date_range') || '{}')
+    const saved = JSON.parse(localStorage.getItem('restapay_dashboard_date_range') || '{}')
     return { start: saved.start || startOfMonthISO(), end: saved.end || todayStr() }
   } catch {
     return { start: startOfMonthISO(), end: todayStr() }
   }
 }
 function saveGlobalDateRange(start, end) {
-  try { localStorage.setItem('restapay_global_date_range', JSON.stringify({ start, end })) } catch {}
+  try { localStorage.setItem('restapay_dashboard_date_range', JSON.stringify({ start, end })) } catch {}
 }
 function rowDate(row, keys = []) {
   for (const key of keys) if (row?.[key]) return String(row[key]).slice(0, 10)
@@ -273,19 +273,6 @@ export default function Dashboard({ data, setActive }) {
 
   return (
     <div className="dashboard-v3">
-      <div className="dashboard-hero">
-        <div>
-          <span className="eyebrow">Executive Dashboard</span>
-          <h1>Restaurant Intelligence</h1>
-          <p>Clean view of sales, payroll, cash, vendors, business expenses, and restaurant health.</p>
-        </div>
-        <div className="dashboard-actions">
-          <button type="button" className="btn secondary" onClick={() => setActive('invoices')}><Icon name="invoices" size={16} /> Add Invoice</button>
-          <button type="button" className="btn secondary" onClick={() => setActive('expenses')}><Icon name="expenses" size={16} /> Add Expense</button>
-          <button type="button" className="btn primary" onClick={() => setActive('sales')}><Icon name="upload" size={16} /> Import Toast</button>
-        </div>
-      </div>
-
       <section className="filter-card">
         <label><small>Start Date</small><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} /></label>
         <label><small>End Date</small><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} /></label>
@@ -293,6 +280,29 @@ export default function Dashboard({ data, setActive }) {
         <button type="button" className="btn secondary" onClick={setThisMonth}>This Month</button>
         <button type="button" className="btn secondary" onClick={() => { setDateStart(''); setDateEnd(''); saveGlobalDateRange('', '') }}>All Dates</button>
         <span className="filter-note">{dateStart || 'First record'} to {dateEnd || 'Latest record'}</span>
+      </section>
+
+      <section className="dashboard-command-row" aria-label="Dashboard quick operating summary">
+        <div className="command-tile is-primary">
+          <span>Cash Flow</span>
+          <strong>{money(derived.cashRemaining)}</strong>
+          <small>Cash collected {money(derived.cashSales)} minus cash payroll and cash expenses</small>
+        </div>
+        <div className="command-tile">
+          <span>Prime Cost</span>
+          <strong>{pct(derived.primeCostPct)}</strong>
+          <small>Food + payroll against net restaurant sales</small>
+        </div>
+        <div className="command-tile">
+          <span>Labor Mix</span>
+          <strong>{pct(derived.laborPct)}</strong>
+          <small>Cash {money(derived.cashPayroll)} · Check {money(derived.checkPayroll)}</small>
+        </div>
+        <div className="command-tile">
+          <span>Food Cost</span>
+          <strong>{pct(derived.foodCostPct)}</strong>
+          <small>{money(derived.foodSpend)} food spend in selected range</small>
+        </div>
       </section>
 
       <div className="metric-grid">
