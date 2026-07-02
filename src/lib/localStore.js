@@ -22,7 +22,7 @@ export const defaultData = {
   salesImports: [],
   customReports: [],
   bankImports: [],
-  bankCheckRules: [],
+  bankPayeeRules: [],
   settings: { tipWithholdingRate: 3.5, geminiApiKey: '' }
 }
 
@@ -47,7 +47,7 @@ export function mergeData(data) {
     salesImports: data?.salesImports || defaultData.salesImports,
     customReports: data?.customReports || defaultData.customReports,
     bankImports: data?.bankImports || defaultData.bankImports,
-    bankCheckRules: data?.bankCheckRules || defaultData.bankCheckRules,
+    bankPayeeRules: data?.bankPayeeRules || defaultData.bankPayeeRules,
     settings: { ...defaultData.settings, ...(data?.settings || {}) }
   }
 }
@@ -88,7 +88,7 @@ export function hasMeaningfulData(data) {
     merged.salesImports,
     merged.customReports,
     merged.bankImports,
-    merged.bankCheckRules
+    merged.bankPayeeRules
   ].some(list => Array.isArray(list) && list.length > 0)
 }
 

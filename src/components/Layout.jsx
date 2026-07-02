@@ -10,7 +10,7 @@ const subtitles = {
   employees: 'Manage employees, roles, pay types, and status',
   payroll: 'Process payroll groups, manual payroll, tips, and history',
   expenses: 'Track restaurant expenses, payment methods, and categories',
-  'bank-import': 'Import bank checks for review without saving sensitive account details',
+  'bank-statements': 'Upload bank statements, review extracted checks, and import selected expenses',
   reports: 'Generate weekly reports, exports, and custom business analysis',
   'price-increase': 'Review vendor item increases and pricing risk',
   settings: 'Manage business info, categories, backup, and app settings'
