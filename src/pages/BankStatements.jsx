@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import { createId } from '../lib/localStore'
@@ -228,12 +228,33 @@ async function readPdfText(file) {
 }
 
 function getAiEngineStatus() {
-  const provider = import.meta.env?.VITE_AI_CHECK_ENGINE || ''
-  const enabled = import.meta.env?.VITE_AI_CHECK_ENABLED === 'true' && provider
-  return enabled
-    ? { mode: 'AI Vision', state: 'Connected', provider }
-    : { mode: 'Local Text Extraction', state: 'AI Offline', provider: 'Browser PDF/CSV parser' }
+  return { mode: 'Checking backend...', state: 'Unknown', provider: 'RestaPay AI service' }
 }
+
+async function getBackendHealth() {
+  try {
+    const res = await fetch('/api/health')
+    if (!res.ok) throw new Error('Backend unavailable')
+    const json = await res.json()
+    return json.aiConnected
+      ? { mode: 'AI Document Extraction', state: 'Connected', provider: json.provider || 'OpenAI' }
+      : { mode: 'Backend Local Text Extraction', state: 'AI Offline', provider: json.provider || 'Local backend parser' }
+  } catch {
+    return { mode: 'Browser Local Text Extraction', state: 'Backend Offline', provider: 'Browser PDF/CSV parser' }
+  }
+}
+
+async function analyzeWithBackend(file) {
+  const form = new FormData()
+  form.append('statement', file)
+  const res = await fetch('/api/ai/check-processing/analyze', { method: 'POST', body: form })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || 'Backend analysis failed')
+  }
+  return res.json()
+}
+
 
 export default function BankStatements({ data, setData }) {
   const [bank, setBank] = useState('')
@@ -246,6 +267,12 @@ export default function BankStatements({ data, setData }) {
   const [processing, setProcessing] = useState({ stage: 'Waiting for upload', progress: 0, pages: 0, found: 0, matched: 0, review: 0, duplicates: 0 })
   const [processingLog, setProcessingLog] = useState(['Waiting for statement upload'])
   const categories = Array.from(new Set([...(data.vendorCategories || []), ...(data.expenseCategories || []), 'Payroll', 'Merchant Fees', 'Taxes', 'Loans', 'Needs Review'])).filter(Boolean)
+
+  useEffect(() => {
+    let mounted = true
+    getBackendHealth().then(status => { if (mounted) setEngineStatus(status) })
+    return () => { mounted = false }
+  }, [])
 
   const selectedRows = useMemo(() => rows.filter(r => r.selected && !r.duplicate), [rows])
   const activeReview = useMemo(() => rows.find(r => r.id === reviewId) || rows[0] || null, [rows, reviewId])
@@ -267,26 +294,76 @@ export default function BankStatements({ data, setData }) {
 
   async function analyzeFile(file) {
     if (!file) return
-    const engine = getAiEngineStatus()
-    setEngineStatus(engine)
     setBusy(true)
     setRows([])
     setReviewId('')
     setProcessingLog([])
-    updateProcessing({ stage: 'Loading file', progress: 8, pages: 0, found: 0, matched: 0, review: 0, duplicates: 0 })
+    updateProcessing({ stage: 'Uploading to secure backend', progress: 8, pages: 0, found: 0, matched: 0, review: 0, duplicates: 0 })
     addLog(`File selected: ${file.name}`)
-    setMessage(engine.state === 'Connected' ? 'AI engine connected. Preparing document analysis...' : 'AI engine is not connected yet. Using local browser text extraction only.')
+
+    try {
+      const backendStatus = await getBackendHealth()
+      setEngineStatus(backendStatus)
+      addLog(`Backend status: ${backendStatus.state}`)
+      updateProcessing({ stage: 'Backend analyzing statement', progress: 24 })
+      setMessage(backendStatus.state === 'Connected'
+        ? 'AI backend connected. Analyzing statement with privacy-safe extraction...'
+        : 'AI key is not configured. Backend will use local privacy-safe text extraction fallback.')
+
+      const result = await analyzeWithBackend(file)
+      const finalized = finalizeRows((result.rows || []).map(row => ({
+        ...row,
+        id: row.id || createId('bankrow'),
+        selected: row.selected !== false,
+        checkNumber: row.checkNumber || row.check_number || '',
+        sourceType: row.sourceType || 'paper_check',
+      })), data)
+      const matched = finalized.filter(r => r.vendor || r.employee).length
+      const review = finalized.filter(r => r.category === 'Needs Review').length
+      const duplicates = finalized.filter(r => r.duplicate).length
+      setBank(result.bank || '')
+      setRows(finalized)
+      setReviewId(finalized[0]?.id || '')
+      setRawText(result.safePreview || '')
+      setEngineStatus(result.aiConnected
+        ? { mode: result.engine || 'AI Document Extraction', state: 'Connected', provider: 'OpenAI backend' }
+        : { mode: result.engine || 'Backend Local Text Extraction', state: 'AI Offline', provider: 'Backend parser' })
+      updateProcessing({
+        stage: finalized.length ? 'Ready for review' : 'No check rows found',
+        progress: finalized.length ? 100 : 0,
+        pages: result.stats?.pages || 0,
+        found: finalized.length,
+        matched,
+        review,
+        duplicates
+      })
+      addLog(`${result.bank || 'Bank'} detected`)
+      addLog(`${result.stats?.pages || 0} pages processed by backend`)
+      addLog(`${finalized.length} check/payment rows returned for review`)
+      addLog(result.aiConnected ? 'AI provider completed extraction' : 'AI provider offline; backend fallback used')
+      addLog('Privacy cleanup complete: account/routing/MICR/balances/signatures are not saved')
+      setMessage(result.message || `${finalized.length} rows are ready for review.`)
+      setBusy(false)
+      return
+    } catch (backendError) {
+      console.warn('Backend analysis failed, falling back to browser parser:', backendError)
+      addLog('Backend unavailable. Falling back to browser-only parser')
+      setMessage('Backend AI service is unavailable. Falling back to browser local extraction only; check images cannot be read in this mode.')
+    }
+
+    const engine = { mode: 'Browser Local Text Extraction', state: 'Backend Offline', provider: 'Browser PDF/CSV parser' }
+    setEngineStatus(engine)
     try {
       const name = file.name.toLowerCase()
       let text = ''
       let pages = 0
       if (name.endsWith('.pdf')) {
         addLog('Reading PDF text locally with PDF.js')
-        updateProcessing({ stage: 'Reading PDF pages', progress: 22 })
+        updateProcessing({ stage: 'Reading PDF pages in browser', progress: 22 })
         const result = await readPdfText(file)
         text = result.text
         pages = result.pages
-        addLog(`${pages} PDF pages read`)
+        addLog(`${pages} PDF pages read in browser`)
       } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
         addLog('Reading Excel workbook')
         updateProcessing({ stage: 'Reading spreadsheet', progress: 28 })
@@ -307,7 +384,7 @@ export default function BankStatements({ data, setData }) {
       console.error(error)
       updateProcessing({ stage: 'Extraction failed', progress: 0 })
       addLog('Extraction failed before review')
-      setMessage('Could not read this file automatically. Paste statement text below, or use CSV/Excel export. PDF reading uses local browser PDF.js and may be blocked if offline.')
+      setMessage('Could not read this file automatically. Paste statement text below, or use CSV/Excel export.')
     } finally {
       setBusy(false)
     }

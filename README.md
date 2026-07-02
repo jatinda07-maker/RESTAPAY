@@ -126,3 +126,48 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 Run `supabase/schema.sql` in Supabase SQL Editor before deploying.
 
 The app still keeps a localStorage backup, but Supabase is now the shared online source when configured.
+
+## AI Check Processing Backend
+
+This version includes a real backend endpoint for bank statement/check processing.
+
+### Local development
+
+Run the backend in one terminal:
+
+```bash
+npm run server
+```
+
+Run the React app in another terminal:
+
+```bash
+npm run dev
+```
+
+The Vite dev server proxies `/api` to the backend on port `4173`.
+
+### Production / Render
+
+The app now starts with:
+
+```bash
+npm start
+```
+
+which runs `server.js`, serves the built React app from `dist`, and exposes the AI processing API.
+
+### Environment variables
+
+Set these in Render or your server `.env`:
+
+```bash
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_CHECK_MODEL=gpt-4o-mini
+```
+
+If `OPENAI_API_KEY` is missing, RestaPay will clearly show `AI Offline` and use backend local text extraction only. Local extraction can find structured statement rows, but true check-image payee extraction requires the AI provider.
+
+### Privacy behavior
+
+The backend does not persist uploads. It returns only review rows and strips sensitive fields from responses. It does not save account numbers, routing numbers, MICR lines, balances, signatures, or original statement/check images. Only rows approved in the review screen are saved into RestaPay expenses.

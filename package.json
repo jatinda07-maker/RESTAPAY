@@ -7,17 +7,24 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "start": "vite preview --host 0.0.0.0 --port $PORT"
+    "start": "node server.js",
+    "server": "node server.js",
+    "dev:api": "node server.js",
+    "dev:full": "echo Run npm run dev in one terminal and npm run dev:api in another terminal"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.8",
-    "typescript": "^5.6.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "lucide-react": "^0.468.0",
+    "multer": "^2.2.0",
+    "openai": "^4.104.0",
+    "pdf-parse": "^1.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "lucide-react": "^0.468.0",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
     "xlsx": "^0.18.5"
-  },
-  "devDependencies": {}
+  }
 }
