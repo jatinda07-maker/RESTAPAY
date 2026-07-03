@@ -109,8 +109,7 @@ function parseLocalStatement(text = '') {
   }
 
   // First pass: use clean activity/table lines when the PDF text layer keeps columns together.
-  const normalizedLines = full.split(/
-+/).map(normalizeText).filter(Boolean)
+  const normalizedLines = full.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   for (const line of normalizedLines) {
     let m = line.match(/^(\d{1,2}\/\d{1,2})\s+CHECK\s+(\d{3,8})\s+(\d{6,})\s+-?\$?([\d,]+\.\d{2})/i)
     if (m) addCheckRow({ date: m[1], checkNumber: m[2], amount: m[4], confidence: 88 })
