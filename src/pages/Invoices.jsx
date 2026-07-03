@@ -21,16 +21,6 @@ function money(n) {
   return Number(n || 0).toFixed(2)
 }
 
-function today() { return new Date().toISOString().slice(0, 10) }
-function monthStart() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10) }
-function inRange(dateText, start, end) {
-  const d = String(dateText || '').slice(0, 10)
-  if (!d) return false
-  if (start && d < start) return false
-  if (end && d > end) return false
-  return true
-}
-
 function clean(v) {
   return String(v ?? '').trim()
 }
@@ -235,9 +225,6 @@ export default function Invoices({ data, setData }) {
   const [editingId, setEditingId] = useState(null)
   const [lineItems, setLineItems] = useState([])
   const [search, setSearch] = useState('')
-  const [dateStart, setDateStart] = useState(monthStart())
-  const [dateEnd, setDateEnd] = useState(today())
-  const [vendorFilter, setVendorFilter] = useState('')
   const [status, setStatus] = useState('Upload CSV/XLSX for local extraction. PDF/image/phone capture uses Gemini from Render env.')
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const localUploadRef = useRef(null)
@@ -245,13 +232,10 @@ export default function Invoices({ data, setData }) {
   const phoneRef = useRef(null)
 
   const filtered = useMemo(() => invoices.filter(inv => {
-    if ((dateStart || dateEnd) && !inRange(inv.invoice_date || inv.date || inv.created_at, dateStart, dateEnd)) return false
-    const vendorQ = vendorFilter.toLowerCase().trim()
-    if (vendorQ && !String(inv.vendor_name || '').toLowerCase().includes(vendorQ)) return false
     const q = search.toLowerCase().trim()
     if (!q) return true
-    return [inv.vendor_name, inv.invoice_number, inv.category, inv.status, inv.file_name, inv.check_number, inv.notes].join(' ').toLowerCase().includes(q)
-  }), [invoices, search, dateStart, dateEnd, vendorFilter])
+    return [inv.vendor_name, inv.invoice_number, inv.category, inv.status, inv.file_name].join(' ').toLowerCase().includes(q)
+  }), [invoices, search])
 
   const spendingSummary = useMemo(() => {
     const rows = filtered || []
@@ -566,21 +550,17 @@ export default function Invoices({ data, setData }) {
   }
 
   return <>
-    <div className="page-head employee-head compact-page-head">
+    <div className="page-head employee-head">
       <div>
         <h1>Invoices</h1>
         <p>Upload invoices, review extracted data, auto-create vendors, and prevent duplicates.</p>
       </div>
-    </div>
-
-    <div className="sales-filter-bar report-filter-bar invoice-filter-bar">
-      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} /></label>
-      <span className="range-arrow">→</span>
-      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} /></label>
-      <div className="search-box range-search"><Icon name="search" size={16} /><input value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} placeholder="Search vendor..." /></div>
-      <div className="search-box range-search"><Icon name="search" size={16} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Invoice #, category, check #..." /></div>
-      <button className="btn primary" onClick={() => setStatus(`Showing ${filtered.length} invoices from ${dateStart || 'first'} to ${dateEnd || 'latest'}`)}>Apply</button>
-      <button className="btn ghost" onClick={() => { setDateStart(''); setDateEnd(''); setVendorFilter(''); setSearch('') }}>All Data</button>
+      <div className="employee-head-actions">
+        <div className="search-box">
+          <Icon name="search" size={17} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices..." />
+        </div>
+      </div>
     </div>
 
     <div className="status-pill">{status}</div>
@@ -621,8 +601,8 @@ export default function Invoices({ data, setData }) {
     </section>
 
     <section className="form-card tight-card invoice-form-card">
-      <div className="invoice-toolbar polished-invoice-toolbar">
-        <div className="invoice-toolbar-title">
+      <div className="invoice-toolbar">
+        <div>
           <h2>{editingId ? 'Edit Invoice' : 'Invoice Review / Manual Entry'}</h2>
           <span className="ai-env-note">AI OCR uses Gemini from Render environment variables.</span>
         </div>

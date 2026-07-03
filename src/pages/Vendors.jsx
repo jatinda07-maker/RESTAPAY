@@ -31,21 +31,15 @@ export default function Vendors({ data, setData }) {
   const [status, setStatus] = useState('Local auto-save is active. Vendor data stays on this computer until Supabase sync is added.')
   const [activeFilter, setActiveFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [dateStart, setDateStart] = useState('')
-  const [dateEnd, setDateEnd] = useState('')
 
   const filtered = useMemo(() => vendors
     .filter(v => activeFilter === 'all' ? true : activeFilter === 'active' ? v.is_active !== false : v.is_active === false)
     .filter(v => categoryFilter === 'all' ? true : String(v.category || '') === categoryFilter)
     .filter(v => {
-      const d = String(v.updated_at || v.created_at || '').slice(0, 10)
-      if ((dateStart || dateEnd) && !d) return false
-      if (dateStart && d < dateStart) return false
-      if (dateEnd && d > dateEnd) return false
       const q = search.toLowerCase().trim()
       if (!q) return true
       return [v.name, v.category, v.default_check_number, v.contact, v.phone, v.email, v.notes].join(' ').toLowerCase().includes(q)
-    }), [vendors, search, activeFilter, categoryFilter, dateStart, dateEnd])
+    }), [vendors, search, activeFilter, categoryFilter])
 
   function update(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -125,9 +119,7 @@ export default function Vendors({ data, setData }) {
   return <>
     <div className="page-head employee-head">
       <div><h1>Vendors</h1><p>Manage vendor records and categories locally. Invoice reader and price tracking come next.</p></div>
-      <div className="employee-head-actions vendor-filter-actions">
-        <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} /></label>
-        <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} /></label>
+      <div className="employee-head-actions">
         <div className="search-box"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendors..." /></div>
         <select className="filter-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">All Categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
         <select className="filter-select" value={activeFilter} onChange={e => setActiveFilter(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select>

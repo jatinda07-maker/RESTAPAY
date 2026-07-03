@@ -307,81 +307,84 @@ b,strong{font-weight:680}.topbar h1,.page-head h1,.dashboard-hero h1{font-size:2
   .compact-search{width:100% !important;min-width:0 !important;}
 }
 
-/* Final alignment pass: invoice/payroll upload controls and inline search filters */
-.sales-filter-bar.report-filter-bar,
-.invoice-filter-bar,
-.vendor-filter-actions {
-  display: flex;
-  align-items: end;
-  gap: 10px;
-  flex-wrap: wrap;
+/* 2026-07-03 enhanced light dashboard controls - keeps existing RestaPay colors */
+.dashboard-control-panel{
+  display:grid;
+  grid-template-columns:auto minmax(360px,1fr) auto;
+  gap:10px;
+  align-items:center;
+  padding:10px 12px;
+  background:#ffffff;
+  border:1px solid #dfe7f1;
+  border-radius:13px;
+  box-shadow:0 8px 20px rgba(15,23,42,.06);
 }
-.range-search { min-width: 240px; flex: 1 1 240px; }
-.invoice-filter-bar { margin-bottom: 12px; }
-.polished-invoice-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+.preset-group,.sync-group,.date-range-inline{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
 }
-.invoice-toolbar-title { min-width: 260px; }
-.invoice-upload-actions.compact-upload-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.preset-btn{
+  min-height:34px;
+  padding:0 13px;
+  border-radius:9px;
+  border:1px solid #dbe5f0;
+  background:#fff;
+  color:#0f1f36;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
 }
-.file-action { position: relative; overflow: hidden; cursor: pointer; }
-.file-action input,
-.payroll-file-action input,
-.file-button input {
-  position: absolute !important;
-  inset: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
+.preset-btn:hover{background:#eefaf3;border-color:#bfead0;color:var(--green)}
+.preset-btn.active{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 7px 16px rgba(22,163,74,.18)}
+.date-range-inline{justify-content:center}
+.date-range-inline label{display:flex;align-items:center;gap:6px;max-width:none!important;margin:0}
+.date-range-inline label small{font-size:11px;color:#64748b;font-weight:650;text-transform:uppercase;letter-spacing:.04em}
+.date-range-inline input{width:145px;min-height:34px;background:#fbfdff}
+.date-arrow{font-weight:700;color:#64748b}
+.sync-group{justify-content:flex-end}
+.sync-btn{gap:7px!important}
+.sync-status{
+  grid-column:1/-1;
+  justify-self:end;
+  color:#64748b;
+  font-size:12px;
+  font-weight:600;
+  margin-top:-2px;
 }
-.polished-import-row {
-  display: grid !important;
-  grid-template-columns: minmax(190px, 230px) auto minmax(280px, 1fr);
-  align-items: end !important;
-  gap: 12px !important;
+.dashboard-v3 .metric-card{
+  border:1px solid #dfe7f1!important;
+  color:#0f172a!important;
+  background:#fff!important;
+  box-shadow:0 8px 20px rgba(15,23,42,.06)!important;
 }
-.polished-import-row .group-payroll-date-label {
-  display: grid !important;
-  gap: 5px !important;
-  align-items: stretch !important;
+.dashboard-v3 .metric-card::after{display:none!important}
+.dashboard-v3 .metric-card.tone-green{border-top:4px solid var(--green)!important}
+.dashboard-v3 .metric-card.tone-blue{border-top:4px solid var(--blue)!important}
+.dashboard-v3 .metric-card.tone-red{border-top:4px solid var(--red)!important}
+.dashboard-v3 .metric-card.tone-purple{border-top:4px solid var(--purple)!important}
+.dashboard-v3 .metric-card.tone-orange{border-top:4px solid var(--orange)!important}
+.dashboard-v3 .metric-card.tone-emerald{border-top:4px solid #0f9f6e!important}
+.dashboard-v3 .metric-card.tone-teal{border-top:4px solid #0ea5a4!important}
+.dashboard-v3 .metric-card.tone-indigo{border-top:4px solid #4f46e5!important}
+.dashboard-v3 .metric-icon{background:#f0fdf4!important;color:var(--green)!important;box-shadow:none!important}
+.dashboard-v3 .tone-blue .metric-icon{background:#eff6ff!important;color:var(--blue)!important}
+.dashboard-v3 .tone-red .metric-icon{background:#fff1f2!important;color:var(--red)!important}
+.dashboard-v3 .tone-purple .metric-icon{background:#faf5ff!important;color:var(--purple)!important}
+.dashboard-v3 .tone-orange .metric-icon{background:#fff7ed!important;color:var(--orange)!important}
+.dashboard-v3 .tone-indigo .metric-icon{background:#eef2ff!important;color:#4f46e5!important}
+.dashboard-v3 .metric-label{color:#475569!important;opacity:1!important}
+.dashboard-v3 .metric-card strong{color:#081529!important;font-weight:720!important}
+.dashboard-v3 .metric-card small{color:#64748b!important;opacity:1!important;font-weight:560!important}
+.dashboard-command-row{margin-top:0}
+@media (max-width:1280px){
+  .dashboard-control-panel{grid-template-columns:1fr;align-items:stretch}
+  .preset-group,.date-range-inline,.sync-group{justify-content:flex-start}
+  .sync-status{justify-self:start;margin-top:0}
 }
-.payroll-file-action {
-  min-height: 36px !important;
-  align-self: end;
+@media (max-width:720px){
+  .date-range-inline label,.date-range-inline input{width:100%}
+  .date-range-inline{display:grid;grid-template-columns:1fr;gap:8px}.date-arrow{display:none}
+  .preset-group,.sync-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-.import-help-text {
-  color: #536276;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.35;
-  align-self: center;
-}
-.form-actions-inline {
-  display: flex;
-  align-items: end;
-  gap: 8px;
-  align-self: end;
-  min-height: 36px;
-}
-.form-actions-inline .btn { min-height: 36px; }
-.manual-payroll-grid { align-items: end; }
-@media (max-width: 900px) {
-  .polished-import-row { grid-template-columns: 1fr; }
-  .range-search { min-width: 100%; }
-  .invoice-upload-actions.compact-upload-actions { width: 100%; }
-}
-
-/* 2026-07 payroll/expense filter alignment cleanup */
-.compact-page-head{padding-top:4px;margin-bottom:8px;align-items:flex-start}.compact-page-head h1{font-size:24px;line-height:1.1;margin:0}.compact-page-head p{margin-top:4px;font-size:13px;color:#64748b;font-weight:500}.payroll-filter-bar,.expense-filter-bar{display:grid!important;grid-template-columns:160px 18px 160px auto auto auto minmax(280px,1fr) auto;align-items:end;gap:8px!important;background:#f8fafc;border:1px solid #dbe5ef;border-radius:14px;padding:10px!important;margin:10px 0 12px!important}.payroll-filter-bar .date-range-field,.expense-filter-bar .date-range-field{display:grid;gap:4px;min-width:0}.payroll-filter-bar .date-range-field span,.expense-filter-bar .date-range-field span{font-size:11px;font-weight:700;color:#64748b}.payroll-filter-bar input[type="date"],.expense-filter-bar input[type="date"]{height:38px;min-height:38px;padding:7px 10px;font-size:14px}.payroll-filter-bar .btn,.expense-filter-bar .btn{height:38px;padding:8px 13px;font-size:13px;white-space:nowrap}.payroll-filter-bar .range-arrow,.expense-filter-bar .range-arrow{align-self:center;margin-top:16px;color:#94a3b8}.payroll-filter-bar .range-search,.expense-filter-bar .range-search{height:38px;min-height:38px;max-width:none;background:#fff}.payroll-filter-bar .range-search input,.expense-filter-bar .range-search input{height:36px;font-size:14px}.payroll-filter-bar .filter-note,.expense-filter-bar .filter-note{justify-self:end;align-self:center;font-size:12px;font-weight:650;color:#64748b;white-space:nowrap;margin:0}.payroll-summary-row>div,.sales-summary-row>div{display:flex;align-items:center;gap:8px;min-height:50px;padding:12px 14px}.payroll-summary-row>div span,.sales-summary-row>div span{font-size:12px;color:#64748b;font-weight:700;text-transform:none}.payroll-summary-row>div b,.sales-summary-row>div b{font-size:18px;color:#0f172a;font-weight:750;line-height:1}.form-card h2,.table-card h2{font-size:17px;line-height:1.2}.employee-form-grid label,.manual-payroll-grid label,.expense-form-grid label{font-size:12px;font-weight:700;color:#334155}.employee-form-grid input,.employee-form-grid select,.manual-payroll-grid input,.manual-payroll-grid select,.expense-form-grid input,.expense-form-grid select{height:38px;min-height:38px;font-size:14px}.toast-import-row{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px}.toast-import-row input[type="file"]{height:38px;border:1px solid #dbe5ef;border-radius:10px;background:#fff;padding:7px}.group-payroll-action-row{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.group-payroll-action-row .group-payroll-date-label{display:grid;gap:4px;font-size:12px;color:#334155;font-weight:700}.group-payroll-action-row input[type="date"]{height:38px;min-height:38px}.group-payroll-action-row .btn{height:38px;align-self:end}.group-payroll-action-row span{align-self:center;font-size:13px;color:#475569;font-weight:500}.table-card .table-header-actions{gap:12px}.table-card .compact-search{height:38px;min-height:38px;max-width:320px}
-@media (max-width:1200px){.payroll-filter-bar,.expense-filter-bar{grid-template-columns:repeat(3,minmax(150px,1fr));}.payroll-filter-bar .range-arrow,.expense-filter-bar .range-arrow{display:none}.payroll-filter-bar .range-search,.expense-filter-bar .range-search{grid-column:span 2}.payroll-filter-bar .filter-note,.expense-filter-bar .filter-note{justify-self:start;grid-column:1/-1}.payroll-summary-row,.sales-summary-row{grid-template-columns:repeat(2,minmax(170px,1fr))}}
-@media (max-width:700px){.payroll-filter-bar,.expense-filter-bar{grid-template-columns:1fr}.payroll-filter-bar .range-search,.expense-filter-bar .range-search{grid-column:auto}.payroll-filter-bar .btn,.expense-filter-bar .btn{width:100%}.payroll-summary-row,.sales-summary-row{grid-template-columns:1fr}}

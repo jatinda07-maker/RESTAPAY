@@ -20,7 +20,7 @@ function App() {
   const shared = { data, setData }
 
   return <Layout active={active} setActive={setActive}>
-    {active === 'dashboard' ? <Dashboard data={data} setActive={setActive} />
+    {active === 'dashboard' ? <Dashboard data={data} setData={setData} setActive={setActive} />
       : active === 'employees' ? <Employees {...shared} />
       : active === 'sales' ? <Sales {...shared} />
       : active === 'vendors' ? <Vendors {...shared} />

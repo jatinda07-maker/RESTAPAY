@@ -93,7 +93,6 @@ export default function Payroll({ data, setData }) {
   const [status, setStatus] = useState('Local auto-save is active. Payroll groups and entries will not disappear.')
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
-  const [payrollSearch, setPayrollSearch] = useState('')
 
   function updateDateStart(value) {
     setDateStart(value)
@@ -127,13 +126,7 @@ export default function Payroll({ data, setData }) {
     return true
   }
 
-  const filteredEntries = useMemo(() => entries
-    .filter(entry => inSelectedRange(entry.pay_date || entry.date))
-    .filter(entry => {
-      const q = payrollSearch.toLowerCase().trim()
-      if (!q) return true
-      return [entry.employee_name, entry.group_name, entry.payroll_type, entry.pay_type, entry.check_number, entry.extra_reason].join(' ').toLowerCase().includes(q)
-    }), [entries, dateStart, dateEnd, payrollSearch])
+  const filteredEntries = useMemo(() => entries.filter(entry => inSelectedRange(entry.pay_date || entry.date)), [entries, dateStart, dateEnd])
   const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
 
   const selectedGroup = groups.find(group => group.id === selectedGroupId) || groups[0]
@@ -629,19 +622,19 @@ export default function Payroll({ data, setData }) {
       }
     `}</style>
 
-    <div className="page-head employee-head compact-page-head">
+    <div className="page-head employee-head">
       <div><h1>Payroll</h1><p>Persistent payroll groups, editable members, one-click group payroll, and Toast Labor CSV/XLSX import.</p></div>
+      <div className="employee-head-actions"><div className="date-pill"><Icon name="calendar" /> <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} /></div></div>
     </div>
     <div className="status-pill">{status}</div>
 
-    <div className="sales-filter-bar report-filter-bar payroll-filter-bar">
+    <div className="sales-filter-bar report-filter-bar">
       <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => updateDateStart(e.target.value)} /></label>
       <span className="range-arrow">→</span>
       <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => updateDateEnd(e.target.value)} /></label>
       <button className="btn primary" onClick={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}`) }}>Apply Date Range</button>
       <button className="btn ghost" onClick={setThisMonth}>This Month</button>
       <button className="btn ghost" onClick={setAllDates}>All Dates</button>
-      <div className="search-box range-search"><Icon name="search" size={16} /><input value={payrollSearch} onChange={e => setPayrollSearch(e.target.value)} placeholder="Search employee, group, check #..." /></div>
       <span className="filter-note">Filtering payroll by {rangeLabel}</span>
     </div>
 
@@ -726,10 +719,10 @@ export default function Payroll({ data, setData }) {
 
     <section className="form-card tight-card import-card">
       <h2>Toast Labor Summary Import</h2>
-      <div className="import-row toast-import-row polished-import-row">
-        <label className="group-payroll-date-label"><span>Toast payroll date</span><input type="date" value={toastPayDate} onChange={e => setToastPayDate(e.target.value)} /></label>
-        <label className="btn secondary file-action payroll-file-action"><Icon name="upload" /> Upload CSV/XLSX<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
-        <span className="import-help-text">Extracts employees, hours, tips, gross pay, and withholding. Matches employees to your employee list before saving.</span>
+      <div className="import-row toast-import-row">
+        <label className="group-payroll-date-label">Toast payroll date <input type="date" value={toastPayDate} onChange={e => setToastPayDate(e.target.value)} /></label>
+        <label className="file-button"><Icon name="upload" /> Upload CSV/XLSX<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
+        <span>Extracts employees, hours, tips, gross pay, uses Toast Tips Withheld when present, otherwise applies {tipRate}% withholding, then matches employees to your project employee list and lets you choose a project employee type before saving.</span>
       </div>
     </section>
 

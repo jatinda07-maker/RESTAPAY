@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
+import { loadCloudData, saveCloudData } from '../lib/localStore'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
 
 function num(value) {
@@ -13,6 +14,19 @@ function money(value) { return `$${Number(value || 0).toLocaleString(undefined, 
 function pct(value) { return `${Number(value || 0).toFixed(1)}%` }
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
+function isoDate(date) { return new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString().slice(0, 10) }
+function rangeForPreset(preset) {
+  const now = new Date()
+  if (preset === 'thisMonth') return { start: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), end: isoDate(now) }
+  if (preset === 'lastMonth') return { start: isoDate(new Date(now.getFullYear(), now.getMonth() - 1, 1)), end: isoDate(new Date(now.getFullYear(), now.getMonth(), 0)) }
+  if (preset === 'lastWeek') {
+    const day = now.getDay() || 7
+    const lastSunday = new Date(now); lastSunday.setDate(now.getDate() - day)
+    const lastMonday = new Date(lastSunday); lastMonday.setDate(lastSunday.getDate() - 6)
+    return { start: isoDate(lastMonday), end: isoDate(lastSunday) }
+  }
+  return { start: '', end: '' }
+}
 function readSavedDateRange() {
   try {
     const saved = JSON.parse(localStorage.getItem('restapay_dashboard_date_range') || '{}')
@@ -152,8 +166,10 @@ function DetailTable({ config, setActive }) {
   </section>
 }
 
-export default function Dashboard({ data, setActive }) {
+export default function Dashboard({ data, setData, setActive }) {
   const [detail, setDetail] = useState('')
+  const [preset, setPreset] = useState('custom')
+  const [syncStatus, setSyncStatus] = useState('Ready to sync')
   const savedRange = readSavedDateRange()
   const [dateStart, setDateStart] = useState(savedRange.start)
   const [dateEnd, setDateEnd] = useState(savedRange.end)
@@ -175,11 +191,29 @@ export default function Dashboard({ data, setActive }) {
     }
   }, [data, dateStart, dateEnd])
 
-  function applyRange() { saveGlobalDateRange(dateStart, dateEnd); setDetail('') }
-  function setThisMonth() {
-    const start = startOfMonthISO()
-    const end = todayStr()
-    setDateStart(start); setDateEnd(end); saveGlobalDateRange(start, end)
+  function applyRange() { saveGlobalDateRange(dateStart, dateEnd); setPreset('custom'); setDetail('') }
+  function applyPreset(nextPreset) {
+    if (nextPreset === 'all') {
+      setDateStart(''); setDateEnd(''); setPreset('all'); saveGlobalDateRange('', ''); setDetail('')
+      return
+    }
+    const range = rangeForPreset(nextPreset)
+    setDateStart(range.start); setDateEnd(range.end); setPreset(nextPreset); saveGlobalDateRange(range.start, range.end); setDetail('')
+  }
+  async function syncAll() {
+    setSyncStatus('Syncing all data...')
+    const result = await saveCloudData(data)
+    setSyncStatus(result?.ok ? `Synced ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Sync failed - local backup saved')
+  }
+  async function pullCloud() {
+    setSyncStatus('Pulling cloud data...')
+    const cloud = await loadCloudData()
+    if (cloud && setData) {
+      setData(cloud)
+      setSyncStatus(`Pulled cloud data ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`)
+    } else {
+      setSyncStatus('No cloud data found')
+    }
   }
   function showDetail(key, category = '') {
     setDetail(category ? `${key}:${category}` : key)
@@ -304,13 +338,28 @@ export default function Dashboard({ data, setActive }) {
 
   return (
     <div className="dashboard-v3">
-      <section className="filter-card">
-        <label><small>Start Date</small><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} /></label>
-        <label><small>End Date</small><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} /></label>
-        <button type="button" className="btn primary" onClick={applyRange}>Apply Range</button>
-        <button type="button" className="btn secondary" onClick={setThisMonth}>This Month</button>
-        <button type="button" className="btn secondary" onClick={() => { setDateStart(''); setDateEnd(''); saveGlobalDateRange('', '') }}>All Dates</button>
-        <span className="filter-note">Showing {dateStart || 'all'} to {dateEnd || 'all'} records</span>
+      <section className="dashboard-control-panel" aria-label="Dashboard date and sync controls">
+        <div className="preset-group" aria-label="Quick date presets">
+          <button type="button" className={`preset-btn ${preset === 'lastMonth' ? 'active' : ''}`} onClick={() => applyPreset('lastMonth')}>Last Month</button>
+          <button type="button" className={`preset-btn ${preset === 'thisMonth' ? 'active' : ''}`} onClick={() => applyPreset('thisMonth')}>This Month</button>
+          <button type="button" className={`preset-btn ${preset === 'lastWeek' ? 'active' : ''}`} onClick={() => applyPreset('lastWeek')}>Last Week</button>
+          <button type="button" className={`preset-btn ${preset === 'all' ? 'active' : ''}`} onClick={() => applyPreset('all')}>All Dates</button>
+        </div>
+        <div className="date-range-inline">
+          <label><small>Start</small><input type="date" value={dateStart} onChange={e => { setDateStart(e.target.value); setPreset('custom') }} /></label>
+          <span className="date-arrow">→</span>
+          <label><small>End</small><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); setPreset('custom') }} /></label>
+          <button type="button" className="btn primary" onClick={applyRange}>Apply</button>
+        </div>
+        <div className="sync-group" aria-label="Database sync controls">
+          <button type="button" className="btn primary sync-btn" onClick={syncAll}><Icon name="refresh" size={16} /> Sync All</button>
+          <button type="button" className="btn secondary" onClick={syncAll}>Sync Sales</button>
+          <button type="button" className="btn secondary" onClick={syncAll}>Sync Payroll</button>
+          <button type="button" className="btn secondary" onClick={syncAll}>Sync Expenses</button>
+          <button type="button" className="btn secondary" onClick={syncAll}>Sync Invoices</button>
+          <button type="button" className="btn secondary" onClick={pullCloud}>Pull Cloud</button>
+        </div>
+        <span className="sync-status">{syncStatus}</span>
       </section>
 
       <section className="dashboard-command-row" aria-label="Dashboard quick operating summary">
