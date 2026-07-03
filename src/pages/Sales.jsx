@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
+import DateControls from '../components/DateControls'
 import { createId } from '../lib/localStore'
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -230,8 +231,18 @@ export default function Sales({ data, setData }) {
     setFilter(value)
     const now = new Date()
     if (value === 'today') { const t = today(); setDateStart(t); setDateEnd(t); return }
-    if (value === 'week') { setDateStart(startOfWeekISO(now)); setDateEnd(today()); return }
-    if (value === 'month') { setDateStart(startOfMonthISO(now)); setDateEnd(endOfMonthISO(now)); return }
+    if (value === 'lastWeek' || value === 'week') {
+      const day = now.getDay() || 7
+      const thisMonday = new Date(now)
+      thisMonday.setDate(now.getDate() - day + 1)
+      const lastMonday = new Date(thisMonday)
+      lastMonday.setDate(thisMonday.getDate() - 7)
+      const lastSunday = new Date(lastMonday)
+      lastSunday.setDate(lastMonday.getDate() + 6)
+      setDateStart(lastMonday.toISOString().slice(0, 10)); setDateEnd(lastSunday.toISOString().slice(0, 10)); return
+    }
+    if (value === 'lastMonth') { setDateStart(new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)); setDateEnd(new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10)); return }
+    if (value === 'thisMonth' || value === 'month') { setDateStart(startOfMonthISO(now)); setDateEnd(endOfMonthISO(now)); return }
     if (value === 'all') { setDateStart(''); setDateEnd(''); return }
   }
 
@@ -398,13 +409,9 @@ export default function Sales({ data, setData }) {
 
     <div className="status-pill">{status}</div>
 
-    <div className="sales-filter-bar">
+    <div className="page-filter-shell">
       <div className="search-box sales-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date or file..." /></div>
-      <label className="date-range-field"><span>Date Range</span><input type="date" value={dateStart} onChange={e => { setDateStart(e.target.value); setFilter('custom') }} /></label>
-      <span className="range-arrow">→</span>
-      <label className="date-range-field"><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); setFilter('custom') }} /></label>
-      <select className="filter-select" value={filter} onChange={e => applyFilterPreset(e.target.value)}><option value="all">All</option><option value="today">Today</option><option value="week">This Week</option><option value="month">This Month</option><option value="custom">Custom Range</option></select>
-      <button className="btn primary" onClick={() => setStatus(`Showing ${filteredSales.length} sales rows${dateStart || dateEnd ? ` from ${dateStart || 'start'} to ${dateEnd || 'today'}` : ''}`)}>Apply</button>
+      <DateControls start={dateStart} end={dateEnd} onStartChange={value => { setDateStart(value); setFilter('custom') }} onEndChange={value => { setDateEnd(value); setFilter('custom') }} onApply={() => setStatus(`Showing ${filteredSales.length} sales rows${dateStart || dateEnd ? ` from ${dateStart || 'start'} to ${dateEnd || 'today'}` : ''}`)} onPreset={applyFilterPreset} />
     </div>
     {(dateStart || dateEnd) && <p className="filter-note">Showing data from {dateStart || 'first record'} to {dateEnd || 'latest record'}</p>}
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
+import DateControls from '../components/DateControls'
 import { createId, sortByName } from '../lib/localStore'
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -104,18 +105,29 @@ export default function Payroll({ data, setData }) {
     saveGlobalDateRange(dateStart, value)
   }
 
-  function setThisMonth() {
-    const start = startOfMonthISO()
-    const end = today()
+  function applyPayrollRange(start, end, label = 'custom range') {
     setDateStart(start)
     setDateEnd(end)
     saveGlobalDateRange(start, end)
+    setStatus(`Applied payroll date range: ${label}`)
   }
 
-  function setAllDates() {
-    setDateStart('')
-    setDateEnd('')
-    saveGlobalDateRange('', '')
+  function applyPreset(preset) {
+    const now = new Date()
+    if (preset === 'today') return applyPayrollRange(today(), today(), 'today')
+    if (preset === 'thisMonth') return applyPayrollRange(startOfMonthISO(), today(), 'this month')
+    if (preset === 'lastMonth') return applyPayrollRange(new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10), new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10), 'last month')
+    if (preset === 'lastWeek') {
+      const day = now.getDay() || 7
+      const thisMonday = new Date(now)
+      thisMonday.setDate(now.getDate() - day + 1)
+      const lastMonday = new Date(thisMonday)
+      lastMonday.setDate(thisMonday.getDate() - 7)
+      const lastSunday = new Date(lastMonday)
+      lastSunday.setDate(lastMonday.getDate() + 6)
+      return applyPayrollRange(lastMonday.toISOString().slice(0, 10), lastSunday.toISOString().slice(0, 10), 'last week')
+    }
+    return applyPayrollRange('', '', 'all dates')
   }
 
   function inSelectedRange(dateText) {
@@ -628,13 +640,8 @@ export default function Payroll({ data, setData }) {
     </div>
     <div className="status-pill">{status}</div>
 
-    <div className="sales-filter-bar report-filter-bar">
-      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => updateDateStart(e.target.value)} /></label>
-      <span className="range-arrow">→</span>
-      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => updateDateEnd(e.target.value)} /></label>
-      <button className="btn primary" onClick={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}`) }}>Apply Date Range</button>
-      <button className="btn ghost" onClick={setThisMonth}>This Month</button>
-      <button className="btn ghost" onClick={setAllDates}>All Dates</button>
+    <div className="page-filter-shell">
+      <DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}`) }} onPreset={applyPreset} />
       <span className="filter-note">Filtering payroll by {rangeLabel}</span>
     </div>
 

@@ -439,3 +439,150 @@ b,strong{font-weight:680}.topbar h1,.page-head h1,.dashboard-hero h1{font-size:2
 .payroll-summary-row>div b,
 .sales-summary-row>div b,
 .summary-card b{color:#06162c;font-weight:760;line-height:1.15}
+
+/* RC3 - unified date presets and form action alignment */
+.date-control-card {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.date-control-range {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.date-control-card .date-range-field {
+  min-width: 150px;
+  margin: 0;
+}
+.date-control-card .date-range-field span {
+  min-height: 16px;
+  line-height: 16px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.date-control-card .date-range-field input {
+  height: 42px;
+  font-weight: 650;
+}
+.date-control-card .date-apply-btn {
+  height: 42px;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+.quick-preset-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.quick-preset-group .preset-pill {
+  height: 42px;
+  min-width: 88px;
+  padding: 0 14px;
+  font-weight: 700;
+  border-color: #d8e4f2;
+  background: #fff;
+}
+.quick-preset-group .preset-pill:hover {
+  border-color: #b5d8c6;
+  background: #effaf3;
+  color: #087a39;
+}
+.page-filter-shell {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  margin: 14px 0;
+  border: 1px solid #dbe6f3;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+.page-filter-shell .search-box {
+  min-width: 260px;
+  flex: 1 1 280px;
+  max-width: 420px;
+  margin: 0;
+}
+.page-filter-shell .filter-note,
+.page-filter-shell .filter-note-inline {
+  margin-left: auto;
+  align-self: center;
+  color: var(--muted);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.invoice-filter-shell {
+  background: #fff;
+  margin: 12px 0 14px;
+}
+.invoice-toolbar {
+  align-items: flex-start !important;
+  gap: 16px !important;
+}
+.invoice-upload-actions.compact-upload-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  margin-left: auto;
+}
+.invoice-upload-actions .btn,
+.compact-upload-actions .btn {
+  height: 44px;
+  min-width: 150px;
+  justify-content: center;
+  border-radius: 10px;
+  font-weight: 750;
+}
+.invoice-form-grid .wide-2 {
+  grid-column: 1 / -1;
+}
+.invoice-form-grid .form-actions-inline {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+.invoice-form-grid .form-actions-inline .btn {
+  height: 44px;
+  min-width: 120px;
+  justify-content: center;
+}
+.report-filter-bar.enhanced-report-filter .date-control-card,
+.sales-filter-bar.report-filter-bar .date-control-card {
+  flex: 1 1 auto;
+}
+@media (max-width: 1100px) {
+  .date-control-card,
+  .date-control-range,
+  .quick-preset-group,
+  .page-filter-shell {
+    align-items: stretch;
+  }
+  .date-control-card .date-range-field,
+  .date-control-card .date-apply-btn,
+  .quick-preset-group .preset-pill,
+  .page-filter-shell .search-box {
+    flex: 1 1 160px;
+    max-width: none;
+  }
+  .page-filter-shell .filter-note,
+  .page-filter-shell .filter-note-inline {
+    width: 100%;
+    margin-left: 0;
+  }
+  .invoice-upload-actions.compact-upload-actions {
+    justify-content: flex-start !important;
+    margin-left: 0;
+  }
+}

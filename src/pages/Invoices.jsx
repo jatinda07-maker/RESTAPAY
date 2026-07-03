@@ -1,7 +1,9 @@
 import React, { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
+import DateControls from '../components/DateControls'
 import { createId, saveCloudData, sortByName } from '../lib/localStore'
+import { applyPresetToSetters, isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange } from '../engine/DateEngine'
 
 const blankInvoice = {
   vendor_id: '',
@@ -227,15 +229,29 @@ export default function Invoices({ data, setData }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('Upload CSV/XLSX for local extraction. PDF/image/phone capture uses Gemini from Render env.')
   const [duplicateWarning, setDuplicateWarning] = useState(null)
+  const [dateStart, setDateStart] = useState(() => readPageDateRange('invoices').start)
+  const [dateEnd, setDateEnd] = useState(() => readPageDateRange('invoices').end)
   const localUploadRef = useRef(null)
   const aiUploadRef = useRef(null)
   const phoneRef = useRef(null)
 
-  const filtered = useMemo(() => invoices.filter(inv => {
-    const q = search.toLowerCase().trim()
-    if (!q) return true
-    return [inv.vendor_name, inv.invoice_number, inv.category, inv.status, inv.file_name].join(' ').toLowerCase().includes(q)
-  }), [invoices, search])
+  const filtered = useMemo(() => invoices
+    .filter(inv => isDateInRange(inv.invoice_date || inv.date || inv.created_at?.slice(0, 10), dateStart, dateEnd))
+    .filter(inv => {
+      const q = search.toLowerCase().trim()
+      if (!q) return true
+      return [inv.vendor_name, inv.invoice_number, inv.category, inv.status, inv.file_name, inv.check_number].join(' ').toLowerCase().includes(q)
+    }), [invoices, search, dateStart, dateEnd])
+
+  function applyDateRange() {
+    savePageDateRange('invoices', dateStart, dateEnd)
+  }
+
+  function applyPreset(preset) {
+    applyPresetToSetters(preset, setDateStart, setDateEnd, (start, end) => savePageDateRange('invoices', start, end))
+  }
+
+  const rangeLabel = makeRangeLabel(dateStart, dateEnd)
 
   const spendingSummary = useMemo(() => {
     const rows = filtered || []
@@ -598,6 +614,12 @@ export default function Invoices({ data, setData }) {
       <div className="invoice-category-pills">
         {spendingSummary.topCategories.length ? spendingSummary.topCategories.map(row => <span key={row.label} className="invoice-category-pill"><b>{row.label}</b>${money(row.amount)}</span>) : <span className="invoice-category-pill muted">No invoice spending yet</span>}
       </div>
+    </section>
+
+    <section className="page-filter-shell invoice-filter-shell">
+      <div className="search-box sales-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices, vendor, check #..." /></div>
+      <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={applyDateRange} onPreset={applyPreset} />
+      <span className="filter-note">Filtering invoices by {rangeLabel}</span>
     </section>
 
     <section className="form-card tight-card invoice-form-card">

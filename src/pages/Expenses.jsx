@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
+import DateControls from '../components/DateControls'
 import { createId } from '../lib/localStore'
 import { filterVendors, findVendorById, findVendorByName, getActiveSortedVendors } from '../engine/VendorEngine'
-import { isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange, startOfMonthISO, todayISO } from '../engine/DateEngine'
+import { applyPresetToSetters, isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange, todayISO } from '../engine/DateEngine'
 
 function today() { return todayISO() }
 function money(value) { return Number(value || 0).toFixed(2) }
@@ -78,18 +79,8 @@ export default function Expenses({ data, setData }) {
     savePageDateRange('expenses', dateStart, dateEnd)
   }
 
-  function setThisMonth() {
-    const start = startOfMonthISO()
-    const end = todayISO()
-    setDateStart(start)
-    setDateEnd(end)
-    savePageDateRange('expenses', start, end)
-  }
-
-  function setAllDates() {
-    setDateStart('')
-    setDateEnd('')
-    savePageDateRange('expenses', '', '')
+  function applyPreset(preset) {
+    applyPresetToSetters(preset, setDateStart, setDateEnd, (start, end) => savePageDateRange('expenses', start, end))
   }
 
   const rangeLabel = makeRangeLabel(dateStart, dateEnd)
@@ -231,13 +222,9 @@ export default function Expenses({ data, setData }) {
       </div>
     </section>
 
-    <div className="sales-filter-bar report-filter-bar">
-      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} /></label>
-      <span className="range-arrow">→</span>
-      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} /></label>
-      <button className="btn primary" onClick={applyDateRange}>Apply Date Range</button>
-      <button className="btn ghost" onClick={setThisMonth}>This Month</button>
-      <button className="btn ghost" onClick={setAllDates}>All Dates</button>
+    <div className="page-filter-shell">
+      <div className="search-box sales-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses, payee, category..." /></div>
+      <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={applyDateRange} onPreset={applyPreset} />
       <span className="filter-note">Filtering expenses by {rangeLabel}</span>
       {selected.length > 0 && <button className="btn ghost delete-link" onClick={bulkDelete}>Delete Selected ({selected.length})</button>}
     </div>

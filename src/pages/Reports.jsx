@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
+import DateControls from '../components/DateControls'
 import { createId } from '../lib/localStore'
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -411,6 +412,28 @@ export default function Reports({ data, setData }) {
   const selectedCustom = customReports.find(r => r.id === savedCustomId)
   const activeReport = mode === 'custom' ? { label: customName || 'Custom Report', source: customSource, fields: selectedFields } : activeStandard
   const rangeLabel = `${dateStart || 'All'} to ${dateEnd || 'Latest'}`
+  function applyReportPreset(preset) {
+    const now = new Date()
+    let start = '', end = ''
+    if (preset === 'today') start = end = today()
+    if (preset === 'thisMonth') { start = startOfMonthISO(); end = today() }
+    if (preset === 'lastMonth') { start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10); end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10) }
+    if (preset === 'lastWeek') {
+      const day = now.getDay() || 7
+      const thisMonday = new Date(now)
+      thisMonday.setDate(now.getDate() - day + 1)
+      const lastMonday = new Date(thisMonday)
+      lastMonday.setDate(thisMonday.getDate() - 7)
+      const lastSunday = new Date(lastMonday)
+      lastSunday.setDate(lastMonday.getDate() + 6)
+      start = lastMonday.toISOString().slice(0, 10)
+      end = lastSunday.toISOString().slice(0, 10)
+    }
+    setDateStart(start)
+    setDateEnd(end)
+    saveGlobalDateRange(start, end)
+  }
+
 
   const summary = useMemo(() => {
     const salesRows = getRawRows(data, 'sales', dateStart, dateEnd)
@@ -523,12 +546,7 @@ export default function Reports({ data, setData }) {
         <option value="">New / Unsaved Custom Report</option>
         {customReports.map(report => <option key={report.id} value={report.id}>{report.name}</option>)}
       </select>}
-      <label className="date-range-field"><span>Start</span><input type="date" value={dateStart} onChange={e => { setDateStart(e.target.value); saveGlobalDateRange(e.target.value, dateEnd) }} /></label>
-      <span className="range-arrow">→</span>
-      <label className="date-range-field"><span>End</span><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); saveGlobalDateRange(dateStart, e.target.value) }} /></label>
-      <button className="btn primary" onClick={() => saveGlobalDateRange(dateStart, dateEnd)}>Apply Date Range</button>
-      <button className="btn ghost" onClick={() => { const start = startOfMonthISO(); const end = today(); setDateStart(start); setDateEnd(end); saveGlobalDateRange(start, end) }}>This Month</button>
-      <button className="btn ghost" onClick={() => { setDateStart(''); setDateEnd(''); saveGlobalDateRange('', '') }}>All Dates</button>
+      <DateControls start={dateStart} end={dateEnd} onStartChange={value => { setDateStart(value); saveGlobalDateRange(value, dateEnd) }} onEndChange={value => { setDateEnd(value); saveGlobalDateRange(dateStart, value) }} onApply={() => saveGlobalDateRange(dateStart, dateEnd)} onPreset={applyReportPreset} />
     </div>
 
     {mode === 'custom' && <section className="report-builder-card">
