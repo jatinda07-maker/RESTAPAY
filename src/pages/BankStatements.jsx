@@ -91,25 +91,6 @@ function getExpensePayee(exp) {
   return exp.vendor || exp.manual_payee || exp.payee || exp.name || exp.description || ''
 }
 
-function isGenericCheckPayee(value) {
-  return /^check\s*#?\s*\d+$/i.test(normalizeText(value)) || /^check payment$/i.test(normalizeText(value)) || /^bank transaction$/i.test(normalizeText(value))
-}
-
-function displayPayee(row) {
-  const extracted = normalizeText(row?.payee || row?.vendor || row?.name || '')
-  if (extracted && !isGenericCheckPayee(extracted)) return extracted
-  const matched = row?.existingMatch?.payee || getExpensePayee(row?.existingMatch?.expense || {})
-  if (matched) return matched
-  return extracted || (row?.checkNumber ? `Check ${row.checkNumber}` : 'Unknown Payee')
-}
-
-function expensePayeeForSave(row, existingExpense = null) {
-  const extracted = normalizeText(row?.payee || '')
-  const existing = getExpensePayee(existingExpense || {})
-  if (isGenericCheckPayee(extracted) && existing) return existing
-  return displayPayee(row)
-}
-
 function scoreExistingMatch(row, exp) {
   const rowCheck = String(row.checkNumber || row.check_number || '').trim()
   const expCheck = String(exp.check_number || exp.checkNumber || exp.check || '').trim()
@@ -161,18 +142,31 @@ function parseUnionState(text, data) {
   const lines = String(text || '').split(/\n+/).map(normalizeText).filter(Boolean)
   const out = []
   const seen = new Set()
+  const seenChecks = new Set()
+  const addCheck = (dateValue, checkNumber, amountValue, confidence = 88) => {
+    const date = toISODate(dateValue, year)
+    const amount = amountNumber(amountValue)
+    const check = String(checkNumber || '').trim()
+    const checkKey = `${date}-${check}`
+    const key = `${checkKey}-${amount}`
+    if (!date || !check || !amount || seen.has(key) || seenChecks.has(checkKey)) return
+    seen.add(key)
+    seenChecks.add(checkKey)
+    out.push({ id: createId('bankrow'), selected: true, date, checkNumber: check, payee: `Check ${check}`, amount, sourceType: 'paper_check', confidence })
+  }
 
   for (const line of lines) {
     let m = line.match(/^(\d{1,2}\/\d{1,2})\s+CHECK\s+(\d{3,8})\s+(\d{6,})\s+-?\$?([\d,]+\.\d{2})\b/i)
     if (m) {
-      const date = toISODate(m[1], year)
-      const checkNumber = m[2]
-      const amount = amountNumber(m[4])
-      const key = `${date}-${checkNumber}-${amount}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        out.push({ id: createId('bankrow'), selected: true, date, checkNumber, payee: `Check ${checkNumber}`, amount, sourceType: 'paper_check', confidence: 88 })
-      }
+      addCheck(m[1], m[2], m[4], 88)
+      continue
+    }
+
+    // Union State includes a Checks summary: Date Number Amount Reference. Use it
+    // because it is cleaner than the scrambled activity table in some PDF parsers.
+    m = line.match(/^(\d{1,2}\/\d{1,2})\s+(\d{3,8})\s*\*?\s+\$?([\d,]+\.\d{2})\s+(\d{6,})\b/i)
+    if (m) {
+      addCheck(m[1], m[2], m[3], 90)
       continue
     }
 
@@ -272,15 +266,20 @@ function finalizeRows(rows, data) {
       category,
     }
     const match = findExistingMatch(enriched, data.expenses || [])
-    const matchStatus = match?.status || (category === 'Needs Review' ? 'Needs Review' : 'New Item')
+    const genericCheckPayee = /^check\s*#?\d+$/i.test(String(enriched.payee || '').trim()) || /^check payment$/i.test(String(enriched.payee || '').trim())
+    const preservedPayee = genericCheckPayee && match?.payee ? match.payee : enriched.payee
+    const preservedCategory = enriched.category === 'Needs Review' && match?.category ? match.category : enriched.category
+    const matchStatus = match?.status || (preservedCategory === 'Needs Review' ? 'Needs Review' : 'New Item')
     const action = match?.status === 'Exact Match' ? 'link_only' : match ? 'review' : 'import_new'
     return {
       ...enriched,
+      payee: preservedPayee,
+      category: preservedCategory,
       existingMatch: match,
       matchStatus,
       selected: row.selected !== false,
       reconcileAction: row.reconcileAction || action,
-      status: category === 'Needs Review' ? 'Needs Review' : 'Ready'
+      status: preservedCategory === 'Needs Review' ? 'Needs Review' : 'Ready'
     }
   }).sort((a, b) => a.date.localeCompare(b.date) || String(a.checkNumber).localeCompare(String(b.checkNumber)))
 }
@@ -497,8 +496,8 @@ export default function BankStatements({ data, setData }) {
     const existing = data.bankPayeeRules || []
     const next = [...existing]
     importedRows.forEach(row => {
-      const payee = normalizeText(displayPayee(row))
-      if (!payee || isGenericCheckPayee(payee) || row.category === 'Needs Review') return
+      const payee = normalizeText(row.payee)
+      if (!payee || row.category === 'Needs Review') return
       const idx = next.findIndex(rule => vendorKey(rule.payee) === vendorKey(payee))
       const rule = { id: idx >= 0 ? next[idx].id : createId('rule'), payee, category: row.category, vendor: row.vendor || '', employee: row.employee || '', updated_at: new Date().toISOString() }
       if (idx >= 0) next[idx] = rule
@@ -508,28 +507,24 @@ export default function BankStatements({ data, setData }) {
   }
 
   function buildExpenseFromRow(row, extra = {}) {
-    const existingExpense = extra.existingExpense || row.existingMatch?.expense || null
-    const payee = expensePayeeForSave(row, existingExpense)
-    const cleanExtra = { ...extra }
-    delete cleanExtra.existingExpense
     return {
       id: extra.id || createId('expense'),
       date: row.date,
-      name: payee || `Check ${row.checkNumber}`,
+      name: row.payee || `Check ${row.checkNumber}`,
       category: row.category,
       amount: amountNumber(row.amount),
       payment_method: row.checkNumber ? 'Check' : 'ACH',
       check_number: row.checkNumber || '',
-      vendor: row.vendor || payee || '',
+      vendor: row.vendor || row.payee || '',
       vendor_id: row.vendorId || '',
-      manual_payee: row.vendorId ? '' : (payee || ''),
+      manual_payee: row.vendorId ? '' : (row.payee || ''),
       notes: row.checkNumber ? `Reconciled approved check ${row.checkNumber}` : 'Reconciled approved bank transaction',
       source: 'ai_check_reconciliation',
       bank_cleared_date: row.date,
       reconciliation_status: row.reconcileAction || 'import_new',
       matched_expense_id: row.existingMatch?.id || '',
       imported_at: new Date().toISOString(),
-      ...cleanExtra
+      ...extra
     }
   }
 
@@ -566,7 +561,6 @@ export default function BankStatements({ data, setData }) {
           replaced += 1
           return buildExpenseFromRow(replaceRow, {
             id: exp.id,
-            existingExpense: exp,
             created_at: exp.created_at,
             original_manual_date: exp.date || exp.expense_date || '',
             original_manual_amount: exp.amount,
@@ -690,7 +684,7 @@ export default function BankStatements({ data, setData }) {
         <div className="check-fields-panel">
           <div className="field-pair"><span>Check #</span><b>{activeReview.checkNumber || 'ACH / Debit'}</b></div>
           <label><span>Date</span><input type="date" value={activeReview.date} onChange={e => updateRow(activeReview.id, 'date', e.target.value)} /></label>
-          <label><span>Payee</span><input value={displayPayee(activeReview)} onChange={e => updateRow(activeReview.id, 'payee', e.target.value)} /></label>
+          <label><span>Payee</span><input value={activeReview.payee} onChange={e => updateRow(activeReview.id, 'payee', e.target.value)} /></label>
           <label><span>Amount</span><input value={activeReview.amount} onChange={e => updateRow(activeReview.id, 'amount', e.target.value)} /></label>
           <label><span>Category</span><select value={activeReview.category} onChange={e => updateRow(activeReview.id, 'category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
           <div className="field-pair"><span>Match</span><b>{activeReview.existingMatch ? `${activeReview.matchStatus}: ${activeReview.existingMatch.payee}` : activeReview.employee ? `Employee: ${activeReview.employee}` : activeReview.vendor ? `Vendor: ${activeReview.vendor}` : 'New / Manual review'}</b></div><label><span>Approved Action</span><select value={activeReview.reconcileAction || 'review'} onChange={e => updateRow(activeReview.id, 'reconcileAction', e.target.value)}>{activeReview.existingMatch && <option value="review">Review First</option>}{activeReview.existingMatch && <option value="replace_existing">Replace Existing</option>}{activeReview.existingMatch && <option value="keep_existing">Keep Existing</option>}{activeReview.existingMatch && <option value="link_only">Link Only</option>}<option value="import_new">Import as New</option><option value="skip">Skip</option></select></label>
@@ -711,7 +705,7 @@ export default function BankStatements({ data, setData }) {
         {rows.map(row => <tr key={row.id} onClick={() => setReviewId(row.id)} className={`${row.matchStatus === 'Possible Match' ? 'possible-match-row' : ''} ${row.matchStatus === 'Exact Match' ? 'exact-match-row' : ''} ${activeReview?.id === row.id ? 'active-review-row' : ''}`}>
           <td><input type="checkbox" checked={row.selected} onChange={() => updateRow(row.id, 'selected', !row.selected)} /></td>
           <td>
-            <div className="reconcile-main"><b>{displayPayee(row)}</b>{row.checkNumber && <span className="mini-chip">Check #{row.checkNumber}</span>}</div>
+            <div className="reconcile-main"><b>{row.payee || 'Unknown Payee'}</b>{row.checkNumber && <span className="mini-chip">Check #{row.checkNumber}</span>}</div>
             <small>{row.date} · Statement / Bank</small>
           </td>
           <td>

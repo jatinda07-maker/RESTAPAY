@@ -93,7 +93,32 @@ function parseLocalStatement(text = '') {
   const year = statementYearFromText(text)
   const rows = []
   const seen = new Set()
+  const seenChecks = new Set()
   const full = String(text || '')
+  const addCheckRow = ({ date, checkNumber, amount, payee = '' , confidence = 82, source = 'backend_statement_text' }) => {
+    const cleanDate = toISODate(date, year)
+    const cleanCheck = String(checkNumber || '').replace(/[^0-9A-Za-z-]/g, '').trim()
+    const cleanAmount = moneyNumber(amount)
+    if (!cleanDate || !cleanCheck || !cleanAmount) return
+    const checkKey = `${cleanDate}-${cleanCheck}`
+    const key = `${checkKey}-${cleanAmount}`
+    if (seen.has(key) || seenChecks.has(checkKey)) return
+    seen.add(key)
+    seenChecks.add(checkKey)
+    rows.push(makeRow({ date: cleanDate, checkNumber: cleanCheck, payee: payee || `Check ${cleanCheck}`, amount: cleanAmount, confidence }, source))
+  }
+
+  // First pass: use clean activity/table lines when the PDF text layer keeps columns together.
+  const normalizedLines = full.split(/
++/).map(normalizeText).filter(Boolean)
+  for (const line of normalizedLines) {
+    let m = line.match(/^(\d{1,2}\/\d{1,2})\s+CHECK\s+(\d{3,8})\s+(\d{6,})\s+-?\$?([\d,]+\.\d{2})/i)
+    if (m) addCheckRow({ date: m[1], checkNumber: m[2], amount: m[4], confidence: 88 })
+
+    // Some banks include a separate Checks summary table: Date Number Amount Reference.
+    m = line.match(/^(\d{1,2}\/\d{1,2})\s+(\d{3,8})\s*\*?\s+\$?([\d,]+\.\d{2})\s+(\d{6,})/i)
+    if (m) addCheckRow({ date: m[1], checkNumber: m[2], amount: m[3], confidence: 90 })
+  }
 
   // Bank PDFs often scramble table columns. Instead of relying on one line,
   // locate every CHECK token, then look nearby for the nearest date and debit amount.
