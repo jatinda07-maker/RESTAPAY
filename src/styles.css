@@ -652,3 +652,26 @@ b,strong{font-weight:680}.topbar h1,.page-head h1,.dashboard-hero h1{font-size:2
   .ai-processing-grid,.processing-log-card{grid-template-columns:1fr;}
   .ai-processing-center header{align-items:flex-start;flex-direction:column;}
 }
+
+
+/* Reconciliation approval workflow + sidebar spacing refinements */
+.nav-list{gap:9px;padding:16px 0;}
+.nav-item{height:48px;}
+.app-shell.is-collapsed .sidebar:hover .nav-list{gap:9px;}
+.tag.blue{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
+.reconciliation-card header small{display:block;margin-top:3px;color:#64748b;font-size:12px;font-weight:600;}
+.reconciliation-table th,.reconciliation-table td{vertical-align:top;}
+.reconciliation-table td{padding-top:12px;padding-bottom:12px;}
+.reconcile-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+.reconcile-main b{font-size:13px;color:#0f172a;}
+.mini-chip{display:inline-flex;border-radius:999px;background:#eef2f7;color:#334155;padding:3px 7px;font-size:11px;font-weight:800;}
+.existing-match-box{display:grid;gap:3px;}
+.existing-match-box b{font-size:13px;color:#0f172a;}
+.existing-match-box small{color:#64748b;font-weight:600;}
+.block-note{display:block;margin-top:6px;color:#64748b;font-weight:650;}
+.action-select{min-width:150px;font-weight:760;}
+.possible-match-row{background:#fffaf2;}
+.exact-match-row{background:#f3fff8;}
+.reconciliation-note{display:flex;align-items:center;gap:8px;margin:10px 12px 12px;padding:9px 11px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;font-weight:650;font-size:12px;}
+.reconciliation-note svg{color:#2563eb;filter:none!important;box-shadow:none!important;}
+.bank-review-card .tag{white-space:nowrap;}

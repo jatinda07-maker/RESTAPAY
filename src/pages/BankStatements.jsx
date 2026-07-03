@@ -80,16 +80,61 @@ function statementYearFromText(text) {
   return any ? Number(String(any[1]).length === 2 ? `20${any[1]}` : any[1]) : new Date().getFullYear()
 }
 
-function isDuplicate(row, existing = []) {
+function daysBetween(a, b) {
+  const da = new Date(a)
+  const db = new Date(b)
+  if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return 999
+  return Math.abs(Math.round((da - db) / 86400000))
+}
+
+function getExpensePayee(exp) {
+  return exp.vendor || exp.manual_payee || exp.payee || exp.name || exp.description || ''
+}
+
+function scoreExistingMatch(row, exp) {
   const rowCheck = String(row.checkNumber || row.check_number || '').trim()
+  const expCheck = String(exp.check_number || exp.checkNumber || exp.check || '').trim()
+  const amountClose = Math.abs(amountNumber(exp.amount) - amountNumber(row.amount)) < 0.01
+  const amountNear = Math.abs(amountNumber(exp.amount) - amountNumber(row.amount)) <= 2
+  const diff = daysBetween(row.date, exp.date || exp.expense_date || exp.created_at)
   const rowPayee = vendorKey(row.payee || row.vendor || row.name)
-  return existing.some(exp => {
-    const expCheck = String(exp.check_number || exp.checkNumber || '').trim()
-    const amountClose = Math.abs(amountNumber(exp.amount) - amountNumber(row.amount)) < 0.01
-    const sameDate = String(exp.date || exp.expense_date || '') === row.date
-    const samePayee = rowPayee && vendorKey(exp.vendor || exp.manual_payee || exp.name).includes(rowPayee.slice(0, 12))
-    return amountClose && (rowCheck && expCheck ? rowCheck === expCheck : sameDate && samePayee)
-  })
+  const expPayee = vendorKey(getExpensePayee(exp))
+  const payeeSimilar = rowPayee && expPayee && (rowPayee.includes(expPayee.slice(0, 10)) || expPayee.includes(rowPayee.slice(0, 10)))
+  const categorySimilar = row.category && exp.category && vendorKey(row.category) === vendorKey(exp.category)
+  let score = 0
+  const reasons = []
+  if (rowCheck && expCheck && rowCheck === expCheck) { score += 55; reasons.push('same check number') }
+  if (amountClose) { score += 25; reasons.push('same amount') }
+  else if (amountNear) { score += 12; reasons.push('similar amount') }
+  if (diff <= 1) { score += 15; reasons.push('date within 1 day') }
+  else if (diff <= 7) { score += 10; reasons.push(`${diff} days apart`) }
+  if (payeeSimilar) { score += 15; reasons.push('similar payee') }
+  if (categorySimilar) { score += 5; reasons.push('same category') }
+  return { score, reasons, dateDiff: diff, amountClose, checkMatch: Boolean(rowCheck && expCheck && rowCheck === expCheck), payeeSimilar }
+}
+
+function findExistingMatch(row, existing = []) {
+  const ranked = existing
+    .map(exp => ({ exp, ...scoreExistingMatch(row, exp) }))
+    .filter(match => match.score >= 35)
+    .sort((a, b) => b.score - a.score)
+  const best = ranked[0]
+  if (!best) return null
+  const status = best.score >= 75 ? 'Exact Match' : 'Possible Match'
+  return {
+    id: best.exp.id,
+    expense: best.exp,
+    score: best.score,
+    status,
+    dateDiff: best.dateDiff,
+    reasons: best.reasons,
+    amount: amountNumber(best.exp.amount),
+    payee: getExpensePayee(best.exp),
+    date: best.exp.date || best.exp.expense_date || '',
+    category: best.exp.category || '',
+    checkNumber: best.exp.check_number || best.exp.checkNumber || '',
+    source: best.exp.source || 'manual_expense'
+  }
 }
 
 function parseUnionState(text, data) {
@@ -199,14 +244,23 @@ function finalizeRows(rows, data) {
     const vendor = findVendor(row.payee, data)
     const employee = findEmployee(row.payee, data)
     const category = employee ? 'Payroll' : inferCategory(row.payee, data)
-    return {
+    const enriched = {
       ...row,
       vendor: vendor?.name || '',
       vendorId: vendor?.id || '',
       employee: employee?.name || employee?.employee_name || '',
       employeeId: employee?.id || '',
       category,
-      duplicate: isDuplicate(row, data.expenses || []),
+    }
+    const match = findExistingMatch(enriched, data.expenses || [])
+    const matchStatus = match?.status || (category === 'Needs Review' ? 'Needs Review' : 'New Item')
+    const action = match?.status === 'Exact Match' ? 'link_only' : match ? 'review' : 'import_new'
+    return {
+      ...enriched,
+      existingMatch: match,
+      matchStatus,
+      selected: row.selected !== false,
+      reconcileAction: row.reconcileAction || action,
       status: category === 'Needs Review' ? 'Needs Review' : 'Ready'
     }
   }).sort((a, b) => a.date.localeCompare(b.date) || String(a.checkNumber).localeCompare(String(b.checkNumber)))
@@ -274,13 +328,13 @@ export default function BankStatements({ data, setData }) {
     return () => { mounted = false }
   }, [])
 
-  const selectedRows = useMemo(() => rows.filter(r => r.selected && !r.duplicate), [rows])
+  const selectedRows = useMemo(() => rows.filter(r => r.selected && !['skip', 'keep_existing', 'review'].includes(r.reconcileAction) && r.category !== 'Needs Review'), [rows])
   const activeReview = useMemo(() => rows.find(r => r.id === reviewId) || rows[0] || null, [rows, reviewId])
   const totals = useMemo(() => ({
     extracted: rows.length,
     selected: selectedRows.length,
     amount: selectedRows.reduce((s, r) => s + amountNumber(r.amount), 0),
-    duplicates: rows.filter(r => r.duplicate).length,
+    duplicates: rows.filter(r => r.matchStatus === 'Exact Match' || r.matchStatus === 'Possible Match').length,
     review: rows.filter(r => r.category === 'Needs Review').length
   }), [rows, selectedRows])
 
@@ -320,7 +374,7 @@ export default function BankStatements({ data, setData }) {
       })), data)
       const matched = finalized.filter(r => r.vendor || r.employee).length
       const review = finalized.filter(r => r.category === 'Needs Review').length
-      const duplicates = finalized.filter(r => r.duplicate).length
+      const duplicates = finalized.filter(r => r.matchStatus === 'Exact Match' || r.matchStatus === 'Possible Match').length
       setBank(result.bank || '')
       setRows(finalized)
       setReviewId(finalized[0]?.id || '')
@@ -400,13 +454,13 @@ export default function BankStatements({ data, setData }) {
     const parsed = detectedBank === 'Union State Bank' ? parseUnionState(text, data) : parseGenericText(text, data)
     const matched = parsed.filter(r => r.vendor || r.employee).length
     const review = parsed.filter(r => r.category === 'Needs Review').length
-    const duplicates = parsed.filter(r => r.duplicate).length
+    const duplicates = parsed.filter(r => r.matchStatus === 'Exact Match' || r.matchStatus === 'Possible Match').length
     setRows(parsed)
     setReviewId(parsed[0]?.id || '')
     updateProcessing({ stage: parsed.length ? 'Ready for review' : 'No check rows found', progress: parsed.length ? 100 : 0, found: parsed.length, matched, review, duplicates })
     if (parsed.length) {
       addLog(`${parsed.length} rows extracted for review`)
-      addLog(`${matched} vendor/employee matches, ${review} need review, ${duplicates} possible duplicates`)
+      addLog(`${matched} vendor/employee matches, ${review} need review, ${duplicates} possible matches`)
       addLog('Privacy cleanup complete: balances, account/routing/MICR/signatures are not saved')
     } else {
       addLog('No check/debit rows found')
@@ -434,14 +488,9 @@ export default function BankStatements({ data, setData }) {
     return next
   }
 
-  function importSelected() {
-    const toImport = selectedRows.filter(row => row.category !== 'Needs Review')
-    if (!toImport.length) {
-      setMessage('Select at least one non-duplicate row with a category before importing.')
-      return
-    }
-    const expenses = toImport.map(row => ({
-      id: createId('expense'),
+  function buildExpenseFromRow(row, extra = {}) {
+    return {
+      id: extra.id || createId('expense'),
       date: row.date,
       name: row.payee || `Check ${row.checkNumber}`,
       category: row.category,
@@ -451,18 +500,94 @@ export default function BankStatements({ data, setData }) {
       vendor: row.vendor || row.payee || '',
       vendor_id: row.vendorId || '',
       manual_payee: row.vendorId ? '' : (row.payee || ''),
-      notes: row.checkNumber ? `Imported approved check ${row.checkNumber}` : 'Imported approved bank transaction',
-      source: 'ai_check_processing',
-      imported_at: new Date().toISOString()
-    }))
-    setData(prev => ({
-      ...prev,
-      expenses: [...expenses, ...(prev.expenses || [])],
-      bankPayeeRules: rememberRules(toImport),
-      bankImports: [{ id: createId('bankimport'), module: 'AI Check Processing', date: todayISO(), rows: toImport.length, total: toImport.reduce((s, r) => s + amountNumber(r.amount), 0), created_at: new Date().toISOString() }, ...(prev.bankImports || [])]
-    }))
-    setRows(prev => prev.map(row => toImport.some(x => x.id === row.id) ? { ...row, selected: false, duplicate: true, status: 'Imported' } : row))
-    setMessage(`${toImport.length} approved check/payment rows imported into Expenses. Payee category memory updated.`)
+      notes: row.checkNumber ? `Reconciled approved check ${row.checkNumber}` : 'Reconciled approved bank transaction',
+      source: 'ai_check_reconciliation',
+      bank_cleared_date: row.date,
+      reconciliation_status: row.reconcileAction || 'import_new',
+      matched_expense_id: row.existingMatch?.id || '',
+      imported_at: new Date().toISOString(),
+      ...extra
+    }
+  }
+
+  function importSelected() {
+    const toProcess = selectedRows
+    if (!toProcess.length) {
+      setMessage('Select at least one row with a category and choose Replace, Link, or Import New before saving.')
+      return
+    }
+
+    let replaced = 0
+    let linked = 0
+    let imported = 0
+    const newExpenses = []
+    const replacedIds = new Set()
+    const linkedIds = new Set()
+
+    toProcess.forEach(row => {
+      const action = row.reconcileAction || (row.existingMatch ? 'review' : 'import_new')
+      if (action === 'skip' || action === 'keep_existing' || action === 'review') return
+      const matchId = row.existingMatch?.id
+      if ((action === 'replace_existing' || action === 'link_only') && matchId) {
+        if (action === 'replace_existing') replacedIds.add(matchId)
+        if (action === 'link_only') linkedIds.add(matchId)
+      } else if (action === 'import_new') {
+        newExpenses.push(buildExpenseFromRow(row))
+      }
+    })
+
+    setData(prev => {
+      const updatedExpenses = (prev.expenses || []).map(exp => {
+        const replaceRow = toProcess.find(row => row.reconcileAction === 'replace_existing' && row.existingMatch?.id === exp.id)
+        if (replaceRow) {
+          replaced += 1
+          return buildExpenseFromRow(replaceRow, {
+            id: exp.id,
+            created_at: exp.created_at,
+            original_manual_date: exp.date || exp.expense_date || '',
+            original_manual_amount: exp.amount,
+            original_manual_payee: getExpensePayee(exp),
+            notes: `${exp.notes ? `${exp.notes} | ` : ''}Replaced with approved bank/check extraction on ${todayISO()}`
+          })
+        }
+        const linkRow = toProcess.find(row => row.reconcileAction === 'link_only' && row.existingMatch?.id === exp.id)
+        if (linkRow) {
+          linked += 1
+          return {
+            ...exp,
+            bank_cleared_date: linkRow.date,
+            check_number: exp.check_number || linkRow.checkNumber || '',
+            reconciliation_status: 'linked_to_statement',
+            matched_bank_payee: linkRow.payee,
+            matched_bank_amount: amountNumber(linkRow.amount),
+            reconciled_at: new Date().toISOString()
+          }
+        }
+        return exp
+      })
+      imported = newExpenses.length
+      return {
+        ...prev,
+        expenses: [...newExpenses, ...updatedExpenses],
+        bankPayeeRules: rememberRules(toProcess.filter(row => row.reconcileAction !== 'skip' && row.reconcileAction !== 'keep_existing')),
+        bankImports: [{
+          id: createId('bankimport'),
+          module: 'Bank Import Reconciliation',
+          date: todayISO(),
+          rows: toProcess.length,
+          imported,
+          replaced: replacedIds.size,
+          linked: linkedIds.size,
+          total: toProcess.reduce((s, r) => s + amountNumber(r.amount), 0),
+          created_at: new Date().toISOString()
+        }, ...(prev.bankImports || [])]
+      }
+    })
+
+    setRows(prev => prev.map(row => toProcess.some(x => x.id === row.id)
+      ? { ...row, selected: false, status: row.reconcileAction === 'replace_existing' ? 'Replaced' : row.reconcileAction === 'link_only' ? 'Linked' : row.reconcileAction === 'import_new' ? 'Imported' : row.status }
+      : row))
+    setMessage(`Reconciliation saved. ${newExpenses.length} imported as new. ${replacedIds.size} marked to replace existing. ${linkedIds.size} linked only. Nothing was changed without your approval.`)
   }
 
   return <>
@@ -503,7 +628,7 @@ export default function BankStatements({ data, setData }) {
         <div className="ai-stat-card"><span>Rows Found</span><b>{processing.found}</b></div>
         <div className="ai-stat-card"><span>Matched</span><b>{processing.matched}</b></div>
         <div className="ai-stat-card warning"><span>Needs Review</span><b>{processing.review}</b></div>
-        <div className="ai-stat-card danger"><span>Duplicates</span><b>{processing.duplicates}</b></div>
+        <div className="ai-stat-card danger"><span>Matches Found</span><b>{processing.duplicates}</b></div>
       </div>
       <div className="privacy-processing-grid">
         <div className="privacy-safe-card">
@@ -520,7 +645,7 @@ export default function BankStatements({ data, setData }) {
       <div><span>Extracted Rows</span><b>{totals.extracted}</b></div>
       <div><span>Selected To Import</span><b>{totals.selected}</b></div>
       <div><span>Selected Total</span><b>${money(totals.amount)}</b></div>
-      <div><span>Duplicates</span><b>{totals.duplicates}</b></div>
+      <div><span>Matches Found</span><b>{totals.duplicates}</b></div>
       <div><span>Needs Review</span><b>{totals.review}</b></div>
     </div>
 
@@ -544,31 +669,48 @@ export default function BankStatements({ data, setData }) {
           <label><span>Payee</span><input value={activeReview.payee} onChange={e => updateRow(activeReview.id, 'payee', e.target.value)} /></label>
           <label><span>Amount</span><input value={activeReview.amount} onChange={e => updateRow(activeReview.id, 'amount', e.target.value)} /></label>
           <label><span>Category</span><select value={activeReview.category} onChange={e => updateRow(activeReview.id, 'category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
-          <div className="field-pair"><span>Match</span><b>{activeReview.employee ? `Employee: ${activeReview.employee}` : activeReview.vendor ? `Vendor: ${activeReview.vendor}` : 'Manual review'}</b></div>
+          <div className="field-pair"><span>Match</span><b>{activeReview.existingMatch ? `${activeReview.matchStatus}: ${activeReview.existingMatch.payee}` : activeReview.employee ? `Employee: ${activeReview.employee}` : activeReview.vendor ? `Vendor: ${activeReview.vendor}` : 'New / Manual review'}</b></div><label><span>Approved Action</span><select value={activeReview.reconcileAction || 'review'} onChange={e => updateRow(activeReview.id, 'reconcileAction', e.target.value)}>{activeReview.existingMatch && <option value="review">Review First</option>}{activeReview.existingMatch && <option value="replace_existing">Replace Existing</option>}{activeReview.existingMatch && <option value="keep_existing">Keep Existing</option>}{activeReview.existingMatch && <option value="link_only">Link Only</option>}<option value="import_new">Import as New</option><option value="skip">Skip</option></select></label>
           <div className="check-actions"><button className="btn ghost" onClick={() => updateRow(activeReview.id, 'selected', false)}>Skip</button><button className="btn primary" onClick={() => updateRow(activeReview.id, 'selected', true)}>Approve Row</button></div>
         </div>
       </div>
     </section>}
 
-    <section className="table-card compact-table-card bank-review-card">
+    <section className="table-card compact-table-card bank-review-card reconciliation-card">
       <header className="table-header-actions">
-        <h2>Review Bank Transactions <span className="inline-count">{rows.length} rows</span></h2>
-        <div className="header-actions"><button className="btn ghost" onClick={toggleAll}>Select All</button><button className="btn primary" onClick={importSelected}><Icon name="save" /> Import Selected</button></div>
+        <div>
+          <h2>Review Bank Import Reconciliation <span className="inline-count">{rows.length} rows</span></h2>
+          <small>Possible matches are never disabled automatically. Choose what to do with each bank/check row.</small>
+        </div>
+        <div className="header-actions"><button className="btn ghost" onClick={toggleAll}>Select All</button><button className="btn primary" onClick={importSelected}><Icon name="save" /> Save Approved Actions</button></div>
       </header>
-      <div className="table-scroll"><table className="sales-table bank-table"><thead><tr><th><input type="checkbox" checked={rows.length > 0 && rows.every(r => r.selected)} onChange={toggleAll} /></th><th>Date</th><th>Check #</th><th>Payee / Memo</th><th>Amount</th><th>Category</th><th>Vendor / Employee</th><th>Status</th><th>Confidence</th></tr></thead><tbody>
-        {rows.map(row => <tr key={row.id} onClick={() => setReviewId(row.id)} className={`${row.duplicate ? 'duplicate-row' : ''} ${activeReview?.id === row.id ? 'active-review-row' : ''}`}>
-          <td><input type="checkbox" checked={row.selected} disabled={row.duplicate} onChange={() => updateRow(row.id, 'selected', !row.selected)} /></td>
-          <td><input className="inline-input small" type="date" value={row.date} onChange={e => updateRow(row.id, 'date', e.target.value)} /></td>
-          <td><input className="inline-input tiny" value={row.checkNumber} onChange={e => updateRow(row.id, 'checkNumber', e.target.value)} placeholder="ACH" /></td>
-          <td><input className="inline-input payee" value={row.payee} onChange={e => updateRow(row.id, 'payee', e.target.value)} /></td>
+      <div className="table-scroll"><table className="sales-table bank-table reconciliation-table"><thead><tr><th><input type="checkbox" checked={rows.length > 0 && rows.every(r => r.selected)} onChange={toggleAll} /></th><th>Statement Row</th><th>Possible Existing Entry</th><th>Amount</th><th>Match Status</th><th>Approved Action</th><th>Category</th><th>Confidence</th></tr></thead><tbody>
+        {rows.map(row => <tr key={row.id} onClick={() => setReviewId(row.id)} className={`${row.matchStatus === 'Possible Match' ? 'possible-match-row' : ''} ${row.matchStatus === 'Exact Match' ? 'exact-match-row' : ''} ${activeReview?.id === row.id ? 'active-review-row' : ''}`}>
+          <td><input type="checkbox" checked={row.selected} onChange={() => updateRow(row.id, 'selected', !row.selected)} /></td>
+          <td>
+            <div className="reconcile-main"><b>{row.payee || 'Unknown Payee'}</b>{row.checkNumber && <span className="mini-chip">Check #{row.checkNumber}</span>}</div>
+            <small>{row.date} · Statement / Bank</small>
+          </td>
+          <td>
+            {row.existingMatch ? <div className="existing-match-box"><b>{row.existingMatch.payee}</b><small>{row.existingMatch.date || 'No date'} · {row.existingMatch.category || 'No category'} · {row.existingMatch.source}</small><small>{row.existingMatch.reasons?.join(', ')}</small></div> : <small>No matching existing manual or invoice expense found</small>}
+          </td>
           <td><b>${money(row.amount)}</b></td>
+          <td>{row.matchStatus === 'Exact Match' ? <span className="tag green">Exact Match</span> : row.matchStatus === 'Possible Match' ? <span className="tag orange">Possible Match</span> : row.matchStatus === 'Needs Review' ? <span className="tag orange">Needs Review</span> : <span className="tag blue">New Item</span>}<small className="block-note">{row.existingMatch?.dateDiff <= 30 ? `${row.existingMatch.dateDiff} days apart` : row.matchStatus === 'New Item' ? 'Ready to import' : ''}</small></td>
+          <td>
+            <select className="inline-input action-select" value={row.reconcileAction || 'review'} onChange={e => updateRow(row.id, 'reconcileAction', e.target.value)}>
+              {row.existingMatch && <option value="review">Review First</option>}
+              {row.existingMatch && <option value="replace_existing">Replace Existing</option>}
+              {row.existingMatch && <option value="keep_existing">Keep Existing</option>}
+              {row.existingMatch && <option value="link_only">Link Only</option>}
+              <option value="import_new">Import as New</option>
+              <option value="skip">Skip</option>
+            </select>
+          </td>
           <td><select className="inline-input" value={row.category} onChange={e => updateRow(row.id, 'category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></td>
-          <td><small>{row.employee ? `Employee: ${row.employee}` : row.vendor ? `Vendor: ${row.vendor}` : 'Manual / One-time'}</small></td>
-          <td>{row.duplicate ? <span className="tag red">Duplicate</span> : row.status === 'Needs Review' ? <span className="tag orange">Needs Review</span> : row.status === 'Imported' ? <span className="tag green">Imported</span> : <span className="tag green">Ready</span>}</td>
           <td><span className="confidence-pill">{row.confidence}%</span></td>
         </tr>)}
-        {rows.length === 0 && <tr><td colSpan="9"><small>Upload a statement or paste statement text to begin. Nothing is saved until you import selected rows.</small></td></tr>}
+        {rows.length === 0 && <tr><td colSpan="8"><small>Upload a statement or paste statement text to begin. Nothing is saved until you approve an action.</small></td></tr>}
       </tbody></table></div>
+      <div className="reconciliation-note"><Icon name="shield" size={17} /> We never automatically delete, disable, or replace entries. You approve each match because recurring payments can have the same amount.</div>
     </section>
 
     <section className="card bank-rules-card">
