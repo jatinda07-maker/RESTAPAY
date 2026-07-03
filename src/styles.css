@@ -388,3 +388,54 @@ b,strong{font-weight:680}.topbar h1,.page-head h1,.dashboard-hero h1{font-size:2
   .date-range-inline{display:grid;grid-template-columns:1fr;gap:8px}.date-arrow{display:none}
   .preset-group,.sync-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* 2026-07-03 RC2 card color restore: bring back colored dashboard KPI cards while keeping the light app background */
+.dashboard-v3 .metric-card{
+  color:#fff!important;
+  border:0!important;
+  border-top:0!important;
+  box-shadow:0 10px 24px rgba(15,23,42,.12)!important;
+}
+.dashboard-v3 .metric-card::after{display:block!important;content:''!important;position:absolute!important;right:-36px!important;bottom:-44px!important;width:104px!important;height:104px!important;border-radius:999px!important;background:rgba(255,255,255,.14)!important;pointer-events:none!important}
+.dashboard-v3 .metric-card.tone-blue{background:linear-gradient(135deg,#2587f5,#0d63d8)!important}
+.dashboard-v3 .metric-card.tone-green{background:linear-gradient(135deg,#18a957,#0b8743)!important}
+.dashboard-v3 .metric-card.tone-red{background:linear-gradient(135deg,#ff4b55,#e11d2e)!important}
+.dashboard-v3 .metric-card.tone-purple{background:linear-gradient(135deg,#a855f7,#7c3aed)!important}
+.dashboard-v3 .metric-card.tone-orange{background:linear-gradient(135deg,#ff9f1c,#f97316)!important}
+.dashboard-v3 .metric-card.tone-emerald{background:linear-gradient(135deg,#10b981,#059669)!important}
+.dashboard-v3 .metric-card.tone-teal{background:linear-gradient(135deg,#14b8a6,#0f9185)!important}
+.dashboard-v3 .metric-card.tone-indigo{background:linear-gradient(135deg,#6366f1,#4338ca)!important}
+.dashboard-v3 .metric-icon{background:rgba(255,255,255,.24)!important;color:#fff!important;box-shadow:none!important}
+.dashboard-v3 .tone-blue .metric-icon,
+.dashboard-v3 .tone-green .metric-icon,
+.dashboard-v3 .tone-red .metric-icon,
+.dashboard-v3 .tone-purple .metric-icon,
+.dashboard-v3 .tone-orange .metric-icon,
+.dashboard-v3 .tone-emerald .metric-icon,
+.dashboard-v3 .tone-teal .metric-icon,
+.dashboard-v3 .tone-indigo .metric-icon{background:rgba(255,255,255,.24)!important;color:#fff!important}
+.dashboard-v3 .metric-label,
+.dashboard-v3 .metric-card strong,
+.dashboard-v3 .metric-card small{color:#fff!important;opacity:1!important}
+.dashboard-v3 .metric-card small{font-weight:570!important;color:rgba(255,255,255,.92)!important}
+.dashboard-v3 .metric-card:hover{transform:translateY(-1px);box-shadow:0 14px 30px rgba(15,23,42,.16)!important}
+
+/* Keep summary/stat cards on other pages lightly colored instead of plain white */
+.payroll-summary-row>div,
+.sales-summary-row>div,
+.summary-card{
+  background:#f8fbff;
+  border-top:3px solid var(--blue);
+}
+.payroll-summary-row>div:nth-child(2),
+.sales-summary-row>div:nth-child(2){background:#f3fcf6;border-top-color:var(--green)}
+.payroll-summary-row>div:nth-child(3),
+.sales-summary-row>div:nth-child(3){background:#fff7ed;border-top-color:var(--orange)}
+.payroll-summary-row>div:nth-child(4),
+.sales-summary-row>div:nth-child(4){background:#f5f3ff;border-top-color:var(--purple)}
+.payroll-summary-row>div span,
+.sales-summary-row>div span,
+.summary-card span{display:inline-block;margin-right:8px;color:#334155;font-weight:700;line-height:1.25}
+.payroll-summary-row>div b,
+.sales-summary-row>div b,
+.summary-card b{color:#06162c;font-weight:760;line-height:1.15}
