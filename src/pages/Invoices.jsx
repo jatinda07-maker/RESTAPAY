@@ -15,6 +15,7 @@ const blankInvoice = {
   status: 'Draft',
   check_number: '',
   source: 'Manual',
+  invoice_type: 'Regular Invoice',
   notes: '',
   file_name: ''
 }
@@ -33,8 +34,40 @@ function norm(v) {
 
 function parseAmount(v) {
   if (typeof v === 'number') return v
-  const n = Number(String(v ?? '').replace(/[$,()]/g, '').trim())
-  return Number.isFinite(n) ? n : 0
+  const raw = String(v ?? '').trim()
+  const negativeByParens = /^\s*\(.*\)\s*$/.test(raw)
+  const negativeByCredit = /\b(credit|rebate|refund|return)\b/i.test(raw)
+  const cleaned = raw.replace(/[$,()]/g, '').trim()
+  const n = Number(cleaned)
+  if (!Number.isFinite(n)) return 0
+  const value = Math.abs(n)
+  return negativeByParens || negativeByCredit || n < 0 ? -value : value
+}
+
+function formatMoney(n) {
+  const amount = Number(n || 0)
+  const sign = amount < 0 ? '-' : ''
+  return `${sign}$${money(Math.abs(amount))}`
+}
+
+function inferInvoiceType(record = {}) {
+  const text = [record.invoice_type, record.status, record.notes, record.source_file, record.file_name, record.invoice_number, record.vendor_name, record.category]
+    .map(value => String(value || '').toLowerCase())
+    .join(' ')
+  const total = parseAmount(record.total)
+  if (text.includes('rebate')) return 'Rebate'
+  if (text.includes('credit memo') || text.includes('credit')) return 'Credit Memo'
+  if (text.includes('return')) return 'Return Credit'
+  if (text.includes('adjustment')) return 'Vendor Adjustment'
+  if (total < 0) return 'Credit Memo'
+  return record.invoice_type || 'Regular Invoice'
+}
+
+function signedInvoiceTotal(record = {}) {
+  const type = inferInvoiceType(record)
+  const amount = parseAmount(record.total)
+  if (['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(type)) return -Math.abs(amount)
+  return amount
 }
 
 function getFirst(row, keys) {
@@ -147,7 +180,7 @@ async function extractWithGemini(file, apiKey) {
 
   const base64 = await fileToBase64(file)
 
-  const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract invoice data from this file/image/PDF. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","total":0,"tax":0,"freight":0,"discount":0,"lineItems":[{"description":"","qty":0,"unit_price":0,"total":0,"category":""}]}. Use numbers only for amounts. If a field is unclear, use empty string or 0.`
+  const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract invoice data from this file/image/PDF. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","invoice_type":"Regular Invoice|Credit Memo|Rebate|Return Credit|Vendor Adjustment","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","total":0,"tax":0,"freight":0,"discount":0,"lineItems":[{"description":"","qty":0,"unit_price":0,"total":0,"category":""}]}. Use numbers only for amounts. If a field is unclear, use empty string or 0.`
 
   let lastError = ''
 
@@ -240,7 +273,7 @@ export default function Invoices({ data, setData }) {
     .filter(inv => {
       const q = search.toLowerCase().trim()
       if (!q) return true
-      return [inv.vendor_name, inv.invoice_number, inv.category, inv.status, inv.file_name, inv.check_number].join(' ').toLowerCase().includes(q)
+      return [inv.vendor_name, inv.invoice_number, inv.invoice_type, inv.category, inv.status, inv.file_name, inv.check_number].join(' ').toLowerCase().includes(q)
     }), [invoices, search, dateStart, dateEnd])
 
   function applyDateRange() {
@@ -255,19 +288,28 @@ export default function Invoices({ data, setData }) {
 
   const spendingSummary = useMemo(() => {
     const rows = filtered || []
-    const totalSpend = rows.reduce((sum, inv) => sum + parseAmount(inv.total), 0)
+    const totalSpend = rows.reduce((sum, inv) => sum + signedInvoiceTotal(inv), 0)
+    const rebateSpend = rows
+      .filter(inv => ['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(inferInvoiceType(inv)))
+      .reduce((sum, inv) => sum + Math.abs(signedInvoiceTotal(inv)), 0)
+    const grossInvoiceSpend = rows.reduce((sum, inv) => {
+      const total = signedInvoiceTotal(inv)
+      return total > 0 ? sum + total : sum
+    }, 0)
     const paidSpend = rows
       .filter(inv => String(inv.status || '').toLowerCase() === 'paid')
-      .reduce((sum, inv) => sum + parseAmount(inv.total), 0)
-    const openSpend = Math.max(0, totalSpend - paidSpend)
+      .reduce((sum, inv) => sum + signedInvoiceTotal(inv), 0)
+    const openSpend = rows
+      .filter(inv => !['paid', 'approved'].includes(String(inv.status || '').toLowerCase()))
+      .reduce((sum, inv) => sum + signedInvoiceTotal(inv), 0)
     const checkSpend = rows
       .filter(inv => clean(inv.check_number))
-      .reduce((sum, inv) => sum + parseAmount(inv.total), 0)
+      .reduce((sum, inv) => sum + signedInvoiceTotal(inv), 0)
 
     const categoryMap = new Map()
     rows.forEach(inv => {
       const category = clean(inv.category) || 'Other'
-      categoryMap.set(category, (categoryMap.get(category) || 0) + parseAmount(inv.total))
+      categoryMap.set(category, (categoryMap.get(category) || 0) + signedInvoiceTotal(inv))
     })
 
     const topCategories = [...categoryMap.entries()]
@@ -280,6 +322,8 @@ export default function Invoices({ data, setData }) {
     return {
       rows,
       totalSpend,
+      grossInvoiceSpend,
+      rebateSpend,
       paidSpend,
       openSpend,
       checkSpend,
@@ -290,6 +334,7 @@ export default function Invoices({ data, setData }) {
 
   const topCategoryLabel = spendingSummary.topCategories[0]?.label || 'No category'
   const topCategoryAmount = spendingSummary.topCategories[0]?.amount || 0
+  const rebateCount = filtered.filter(inv => ['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(inferInvoiceType(inv))).length
 
   function update(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -352,13 +397,16 @@ export default function Invoices({ data, setData }) {
 
     if (!vendorName) return setStatus('Choose or enter vendor first')
 
-    const total = Number((parseAmount(form.total) || lineItems.reduce((sum, item) => sum + Number(item.total || 0), 0)).toFixed(2))
+    const rawTotal = parseAmount(form.total) || lineItems.reduce((sum, item) => sum + Number(item.total || 0), 0)
+    const invoice_type = inferInvoiceType({ ...form, total: rawTotal })
+    const total = Number(signedInvoiceTotal({ ...form, total: rawTotal, invoice_type }).toFixed(2))
     const category = form.category || 'Food'
 
     const payload = {
       ...form,
       vendor_name: vendorName,
       category,
+      invoice_type,
       total,
       check_number: clean(form.check_number),
       updated_at: new Date().toISOString()
@@ -524,8 +572,9 @@ export default function Invoices({ data, setData }) {
         vendor_id: vendorMatch?.id || '',
         vendor_name: extracted.vendor_name || vendorMatch?.name || '',
         category: extracted.category || vendorMatch?.category || 'Food',
-        total: money(extracted.total),
-        status: 'Review',
+        invoice_type: inferInvoiceType({ ...extracted, file_name: file.name || '' }),
+        total: money(signedInvoiceTotal({ ...extracted, file_name: file.name || '' })),
+        status: inferInvoiceType({ ...extracted, file_name: file.name || '' }) === 'Regular Invoice' ? 'Review' : 'Applied Credit',
         source: ext || mode,
         file_name: file.name || 'phone-capture',
         notes: [
@@ -590,19 +639,19 @@ export default function Invoices({ data, setData }) {
     <section className="invoice-spend-grid compact-invoice-grid" aria-label="Invoice spending totals">
       <button type="button" className="invoice-spend-card primary flat-summary-card">
         <span className="invoice-spend-icon"><Icon name="invoices" size={19} /></span>
-        <span className="invoice-spend-copy"><small>Total Invoice Spend</small><strong>${money(spendingSummary.totalSpend)}</strong><em>{spendingSummary.rows.length} invoices in view</em></span>
+        <span className="invoice-spend-copy"><small>Net Invoice Spend</small><strong>{formatMoney(spendingSummary.totalSpend)}</strong><em>{spendingSummary.rows.length} invoices in view</em></span>
       </button>
       <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon green"><Icon name="vendors" size={19} /></span>
-        <span className="invoice-spend-copy"><small>Top Category</small><strong>${money(topCategoryAmount)}</strong><em>{topCategoryLabel}</em></span>
+        <span className="invoice-spend-copy"><small>Top Category</small><strong>{formatMoney(topCategoryAmount)}</strong><em>{topCategoryLabel}</em></span>
       </button>
       <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon orange"><Icon name="expenses" size={19} /></span>
-        <span className="invoice-spend-copy"><small>Open / Unpaid</small><strong>${money(spendingSummary.openSpend)}</strong><em>Paid ${money(spendingSummary.paidSpend)}</em></span>
+        <span className="invoice-spend-copy"><small>Open / Unpaid</small><strong>{formatMoney(spendingSummary.openSpend)}</strong><em>Paid {formatMoney(spendingSummary.paidSpend)}</em></span>
       </button>
       <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon blue"><Icon name="check" size={19} /></span>
-        <span className="invoice-spend-copy"><small>Check Payments</small><strong>${money(spendingSummary.checkSpend)}</strong><em>Invoices with check/ref #</em></span>
+        <span className="invoice-spend-copy"><small>Rebates / Credits</small><strong>{formatMoney(-spendingSummary.rebateSpend)}</strong><em>{rebateCount} rebate or credit entries</em></span>
       </button>
     </section>
 
@@ -612,7 +661,7 @@ export default function Invoices({ data, setData }) {
         <span>Based on current invoice search/filter</span>
       </div>
       <div className="invoice-category-pills">
-        {spendingSummary.topCategories.length ? spendingSummary.topCategories.map(row => <span key={row.label} className="invoice-category-pill"><b>{row.label}</b>${money(row.amount)}</span>) : <span className="invoice-category-pill muted">No invoice spending yet</span>}
+        {spendingSummary.topCategories.length ? spendingSummary.topCategories.map(row => <span key={row.label} className="invoice-category-pill"><b>{row.label}</b>{formatMoney(row.amount)}</span>) : <span className="invoice-category-pill muted">No invoice spending yet</span>}
       </div>
     </section>
 
@@ -664,6 +713,16 @@ export default function Invoices({ data, setData }) {
           <input type="date" value={form.invoice_date} onChange={e => update('invoice_date', e.target.value)} />
         </label>
 
+        <label>Invoice Type
+          <select value={form.invoice_type || 'Regular Invoice'} onChange={e => update('invoice_type', e.target.value)}>
+            <option>Regular Invoice</option>
+            <option>Credit Memo</option>
+            <option>Rebate</option>
+            <option>Return Credit</option>
+            <option>Vendor Adjustment</option>
+          </select>
+        </label>
+
         <label>Category
           <select value={form.category} onChange={e => update('category', e.target.value)}>
             {categories.map(c => <option key={c}>{c}</option>)}
@@ -680,6 +739,7 @@ export default function Invoices({ data, setData }) {
             <option>Review</option>
             <option>Approved</option>
             <option>Paid</option>
+            <option>Applied Credit</option>
           </select>
         </label>
 
@@ -830,6 +890,7 @@ export default function Invoices({ data, setData }) {
       }
       .invoice-category-pill b { color: #52677f; }
       .invoice-category-pill.muted { color: #7a8da3; }
+      .negative-money { color: #b42318; font-weight: 800; }
       .compact-invoice-grid { gap: 10px; margin: 10px 0; }
       .flat-summary-card { min-height: 82px; padding: 12px 14px; border-radius: 13px; box-shadow: none; align-items: center; }
       .flat-summary-card:hover { transform: none; box-shadow: none; border-color: #b9c9dd; }
@@ -862,6 +923,7 @@ export default function Invoices({ data, setData }) {
             <th>Vendor</th>
             <th>Invoice #</th>
             <th>Date</th>
+            <th>Type</th>
             <th>Category</th>
             <th>Total</th>
             <th>Status</th>
@@ -875,8 +937,9 @@ export default function Invoices({ data, setData }) {
             <td><b>{inv.vendor_name}</b><small>{inv.notes || inv.file_name || 'No notes'}</small></td>
             <td>{inv.invoice_number || '-'}</td>
             <td>{inv.invoice_date || '-'}</td>
+            <td><span className={`tag ${signedInvoiceTotal(inv) < 0 ? 'danger' : 'neutral'}`}>{inferInvoiceType(inv)}</span></td>
             <td><span className="tag neutral">{inv.category}</span></td>
-            <td>${money(inv.total)}</td>
+            <td className={signedInvoiceTotal(inv) < 0 ? 'negative-money' : ''}>{formatMoney(signedInvoiceTotal(inv))}</td>
             <td><span className="tag cash">{inv.status}</span></td>
             <td>{inv.check_number || '-'}</td>
             <td>{inv.source || 'Manual'}</td>

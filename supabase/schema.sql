@@ -75,6 +75,7 @@ create table public.invoices (
   due_date date,
   category text default 'Other',
   payment_type text default 'Check',
+  invoice_type text default 'Regular Invoice',
   check_number text default '',
   subtotal numeric default 0,
   tax numeric default 0,
@@ -262,6 +263,11 @@ insert into public.expense_categories values
 insert into public.payment_methods values
 ('cash','Cash'),('check','Check'),('credit','Credit'),('ach','ACH');
 
+
+
+-- RC6 invoice rebate / credit support
+alter table public.invoices
+add column if not exists invoice_type text default 'Regular Invoice';
 
 -- RC3 payroll classification / tips separation columns
 alter table public.employees

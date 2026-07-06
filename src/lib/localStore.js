@@ -138,7 +138,9 @@ function normalizeTableData(tableData = {}) {
       ...row,
       vendor: row.vendor_name || row.vendor || row.name,
       date: row.invoice_date || row.date,
-      payment_method: row.payment_type || row.payment_method
+      payment_method: row.payment_type || row.payment_method,
+      invoice_type: row.invoice_type || invoiceType(row),
+      total: signedInvoiceTotal(row)
     })),
     invoiceItems: tableData.invoice_items || [],
     salesDays: (tableData.sales_days || []).map(row => ({ ...row, date: row.business_date || row.date })),
@@ -202,8 +204,30 @@ function firstPresent(...values) {
 }
 
 function money(value) {
-  const n = Number(String(value ?? 0).replace(/[$,()]/g, '').trim())
-  return Number.isFinite(n) ? n : 0
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  const raw = String(value ?? 0).trim()
+  const negativeByParens = /^\s*\(.*\)\s*$/.test(raw)
+  const negativeByCredit = /\b(credit|rebate|refund|return)\b/i.test(raw)
+  const cleaned = raw.replace(/[$,()]/g, '').trim()
+  const n = Number(cleaned)
+  if (!Number.isFinite(n)) return 0
+  const valueAbs = Math.abs(n)
+  return negativeByParens || negativeByCredit || n < 0 ? -valueAbs : valueAbs
+}
+function invoiceType(row = {}) {
+  const text = [row.invoice_type, row.status, row.notes, row.source_file, row.file_name, row.invoice_number, row.vendor_name, row.category]
+    .map(value => String(value || '').toLowerCase())
+    .join(' ')
+  if (text.includes('rebate')) return 'Rebate'
+  if (text.includes('credit memo') || text.includes('credit')) return 'Credit Memo'
+  if (text.includes('return')) return 'Return Credit'
+  if (text.includes('adjustment')) return 'Vendor Adjustment'
+  return row.invoice_type || (money(row.total || row.amount) < 0 ? 'Credit Memo' : 'Regular Invoice')
+}
+function signedInvoiceTotal(row = {}) {
+  const amount = money(row.total || row.amount || row.invoice_total || row.grand_total)
+  if (['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(invoiceType(row))) return -Math.abs(amount)
+  return amount
 }
 function text(value) { return String(value || '') }
 function dateOrNull(value) { return value || null }
@@ -307,9 +331,10 @@ async function mirrorAppDataToTables(data) {
     category: row.category || 'Other',
     payment_type: row.payment_type || row.payment_method || 'Check',
     check_number: text(row.check_number),
+    invoice_type: invoiceType(row),
     subtotal: money(row.subtotal),
     tax: money(row.tax),
-    total: money(row.total),
+    total: signedInvoiceTotal(row),
     status: row.status || 'Open',
     source_file: text(row.source_file),
     notes: text(row.notes),

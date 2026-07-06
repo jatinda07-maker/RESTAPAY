@@ -7,7 +7,32 @@ import {
 } from './CategoryEngine'
 
 export function num(value) {
-  return Number(String(value ?? '').replace(/[$,%(),]/g, '').trim()) || 0
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  const raw = String(value ?? '').trim()
+  const negativeByParens = /^\s*\(.*\)\s*$/.test(raw)
+  const negativeByCredit = /\b(credit|rebate|refund|return)\b/i.test(raw)
+  const cleaned = raw.replace(/[$,%(),]/g, '').trim()
+  const n = Number(cleaned)
+  if (!Number.isFinite(n)) return 0
+  const valueAbs = Math.abs(n)
+  return negativeByParens || negativeByCredit || n < 0 ? -valueAbs : valueAbs
+}
+
+export function invoiceType(row = {}) {
+  const text = [row.invoice_type, row.status, row.notes, row.source_file, row.file_name, row.invoice_number, row.vendor_name, row.category]
+    .map(value => String(value || '').toLowerCase())
+    .join(' ')
+  if (text.includes('rebate')) return 'Rebate'
+  if (text.includes('credit memo') || text.includes('credit')) return 'Credit Memo'
+  if (text.includes('return')) return 'Return Credit'
+  if (text.includes('adjustment')) return 'Vendor Adjustment'
+  return row.invoice_type || (num(row.total || row.amount) < 0 ? 'Credit Memo' : 'Regular Invoice')
+}
+
+export function signedInvoiceTotal(row = {}) {
+  const amount = num(row.total || row.amount || row.invoice_total || row.grand_total)
+  if (['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(invoiceType(row))) return -Math.abs(amount)
+  return amount
 }
 
 export function rowDate(row, keys = []) {
@@ -16,7 +41,7 @@ export function rowDate(row, keys = []) {
 }
 
 export function invoiceTotal(row) {
-  return num(row.total || row.amount || row.invoice_total || row.grand_total)
+  return signedInvoiceTotal(row)
 }
 
 export function itemUnit(row) {
@@ -110,7 +135,7 @@ function buildSpendRows({ invoices, invoiceItems, expenses, start, end, data }) 
       source: 'Invoice Item',
       vendor: vendorName,
       vendor_name: vendorName,
-      amount: itemAmount(row),
+      amount: ['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(invoiceType(inv)) ? -Math.abs(itemAmount(row)) : itemAmount(row),
       category: inferCategory({
         ...row,
         vendor: vendorName,
@@ -119,18 +144,18 @@ function buildSpendRows({ invoices, invoiceItems, expenses, start, end, data }) 
       }, 'Other'),
       date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date'])
     }
-  }).filter(row => num(row.amount) > 0)
+  }).filter(row => num(row.amount) !== 0)
 
   const invoiceHeaderCategorySpend = monthInvoices
     .filter(row => !invoicesWithLineItems.has(row.id))
     .map(row => ({
       ...row,
-      source: 'Invoice',
+      source: ['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(invoiceType(row)) ? invoiceType(row) : 'Invoice',
       amount: invoiceTotal(row),
       category: inferCategory(row, 'Other'),
       date: rowDate(row, ['invoice_date', 'date'])
     }))
-    .filter(row => num(row.amount) > 0)
+    .filter(row => num(row.amount) !== 0)
 
   const expenseCategorySpend = monthExpenses
     .map(row => ({
