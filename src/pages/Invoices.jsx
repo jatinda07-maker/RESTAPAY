@@ -583,8 +583,8 @@ export default function Invoices({ data, setData }) {
 
     {duplicateWarning ? <div className="status-pill warning-pill">
       Duplicate warning: {duplicateWarning.vendor_name} invoice #{duplicateWarning.invoice_number} already exists.
-      <button className="btn secondary small-btn" onClick={() => editInvoice(duplicateWarning)}>Open Existing</button>
-      <button className="btn danger small-btn" onClick={() => saveInvoice({ saveAnyway: true })}>Save Anyway</button>
+      <button className="btn secondary small-btn" type="button" onClick={() => editInvoice(duplicateWarning)}>Open Existing</button>
+      <button className="btn danger small-btn" type="button" onClick={() => saveInvoice({ saveAnyway: true })}>Save Anyway</button>
     </div> : null}
 
     <section className="invoice-spend-grid compact-invoice-grid" aria-label="Invoice spending totals">
@@ -692,8 +692,8 @@ export default function Invoices({ data, setData }) {
         </label>
 
         <div className="form-actions-inline">
-          <button className="btn secondary" onClick={clearForm}>Clear</button>
-          <button className="btn primary" onClick={() => saveInvoice()}>
+          <button className="btn secondary" onClick={clearForm} type="button">Clear</button>
+          <button className="btn primary" type="button" onClick={() => saveInvoice()}>
             <Icon name="save" /> {editingId ? 'Save Changes' : 'Save Invoice'}
           </button>
         </div>
@@ -703,7 +703,7 @@ export default function Invoices({ data, setData }) {
     <section className="table-card compact-table-card invoice-items-card">
       <header>
         <h2>Line Items</h2>
-        <span><button className="btn secondary small-btn" onClick={addLineItem}>Add Line</button></span>
+        <span><button className="btn secondary small-btn" onClick={addLineItem} type="button">Add Line</button></span>
       </header>
       <table>
         <thead>
@@ -728,7 +728,7 @@ export default function Invoices({ data, setData }) {
               </select>
             </td>
             <td className="row-actions">
-              <button className="delete-link" onClick={() => removeLine(item.id)}>Remove</button>
+              <button className="delete-link" type="button" onClick={() => removeLine(item.id)}>Remove</button>
             </td>
           </tr>)}
         </tbody>
@@ -881,8 +881,8 @@ export default function Invoices({ data, setData }) {
             <td>{inv.check_number || '-'}</td>
             <td>{inv.source || 'Manual'}</td>
             <td className="row-actions">
-              <button onClick={() => editInvoice(inv)}>Edit</button>
-              <button className="delete-link" onClick={() => deleteInvoice(inv.id)}>Delete</button>
+              <button type="button" onClick={() => editInvoice(inv)}>Edit</button>
+              <button className="delete-link" type="button" onClick={() => deleteInvoice(inv.id)}>Delete</button>
             </td>
           </tr>)}
         </tbody>

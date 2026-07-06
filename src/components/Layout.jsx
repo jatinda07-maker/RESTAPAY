@@ -17,13 +17,24 @@ const subtitles = {
 }
 
 export default function Layout({ active, setActive, children }) {
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('restapay_sidebar_collapsed') !== 'false')
+  const [isHoveringSidebar, setIsHoveringSidebar] = useState(false)
   const activeItem = navItems.find(([key]) => key === active)
   const title = activeItem?.[1] || 'RestaPay'
+  const sidebarOpen = isHoveringSidebar
+
+  function handleNavPress(key) {
+    setActive(key)
+    setIsHoveringSidebar(false)
+  }
 
   return (
-    <div className={`app-shell ${collapsed ? 'is-collapsed' : ''}`}>
-      <aside className="sidebar" aria-label="RestaPay navigation">
+    <div className={`app-shell is-collapsed ${sidebarOpen ? 'sidebar-open' : ''}`}>
+      <aside
+        className="sidebar"
+        aria-label="RestaPay navigation"
+        onMouseEnter={() => setIsHoveringSidebar(true)}
+        onMouseLeave={() => setIsHoveringSidebar(false)}
+      >
         <div className="brand-row">
           <div className="brand-mark">R</div>
           <div className="brand-copy">
@@ -38,7 +49,7 @@ export default function Layout({ active, setActive, children }) {
               type="button"
               title={label}
               aria-label={label}
-              onClick={() => setActive(key)}
+              onClick={() => handleNavPress(key)}
               className={`nav-item ${active === key ? 'active' : ''}`}
             >
               <span className="nav-icon"><Icon name={key} size={20} /></span>
@@ -46,23 +57,11 @@ export default function Layout({ active, setActive, children }) {
             </button>
           ))}
         </nav>
-
-        <button
-          type="button"
-          className="collapse-control"
-          onClick={() => setCollapsed(value => { const next = !value; localStorage.setItem('restapay_sidebar_collapsed', String(next)); return next })}
-          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-        >
-          <Icon name={collapsed ? 'chevronsRight' : 'chevronsLeft'} size={19} />
-          <span>{collapsed ? 'Expand' : 'Collapse'}</span>
-        </button>
       </aside>
 
       <main className="main-panel">
         <header className="topbar">
-          <button type="button" className="top-menu" onClick={() => setCollapsed(value => { const next = !value; localStorage.setItem('restapay_sidebar_collapsed', String(next)); return next })} aria-label="Toggle navigation">
-            <Icon name="menu" size={22} />
-          </button>
+          <div className="top-menu auto-sidebar-indicator" title="Navigation opens when you hover the left side"><Icon name="menu" size={22} /></div>
           <div className="topbar-title-block">
             <h1>{title}</h1>
             <p>{subtitles[active] || 'Restaurant management workspace'}</p>

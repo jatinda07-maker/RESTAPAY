@@ -27,6 +27,27 @@ export function itemAmount(row) {
   return num(row.line_total || row.total || row.amount || row.extended_price || (num(row.qty || row.quantity) * itemUnit(row)))
 }
 
+
+export function payrollClassification(row = {}) {
+  const text = [row.payroll_classification, row.classification, row.pay_type, row.employee_type, row.job_type, row.group_name, row.employee_name]
+    .map(value => String(value || '').toLowerCase())
+    .join(' ')
+  if (text.includes('customer tip') || text.includes('server tip') || text.includes('tips only') || text.includes('front house tip')) return 'Customer Tips'
+  if (text.includes('server') || text.includes('waiter') || text.includes('waitress') || text.includes('front house') || text.includes('foh') || text.includes('bartender') || text.includes('tip')) return 'Customer Tips'
+  return 'Operating Labor'
+}
+
+export function isCustomerTips(row = {}) {
+  return payrollClassification(row) === 'Customer Tips'
+}
+
+export function isOperatingLabor(row = {}) {
+  return !isCustomerTips(row)
+}
+
+export function rowTipsPaid(row = {}) {
+  return Math.max(0, num(row.tips || row.tips_after_withheld || row.tips_after_withholding || row.final_tips) - num(row.tip_deduction || row.tips_withheld || row.tips_withholding))
+}
 export function payrollType(row) {
   return String(row.payment_method || row.payroll_type || row.type || row.pay_method || '').toLowerCase()
 }
@@ -147,6 +168,8 @@ export function calculateBusinessMetrics(data = {}, range = {}) {
 
   const cashPayrollRows = rangePayroll.filter(isCashPayroll)
   const checkPayrollRows = rangePayroll.filter(isCheckPayroll)
+  const operatingLaborRows = rangePayroll.filter(isOperatingLabor)
+  const customerTipRows = rangePayroll.filter(isCustomerTips)
 
   const {
     monthInvoices,
@@ -172,6 +195,9 @@ export function calculateBusinessMetrics(data = {}, range = {}) {
   const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
   const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
   const totalPayroll = rangePayroll.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
+  const operatingPayroll = operatingLaborRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
+  const customerTipsPaid = customerTipRows.reduce((sum, row) => sum + rowTipsPaid(row), 0)
+  const customerTipsChecks = customerTipRows.filter(isCheckPayroll).reduce((sum, row) => sum + rowTipsPaid(row), 0)
   const payrollTipsWithheld = rangePayroll.reduce((sum, row) => sum + num(row.tip_deduction), 0)
 
   const invoiceSpend = monthInvoices.reduce((sum, row) => sum + invoiceTotal(row), 0)
@@ -191,10 +217,10 @@ export function calculateBusinessMetrics(data = {}, range = {}) {
   const businessExpenseSpend = rowsTotal(businessExpenseRowsRaw)
   const foodSpend = categoryRows.find(row => row.category === 'Food')?.amount || 0
 
-  const profit = salesRange - totalPayroll - totalExpensesAll
+  const profit = salesRange - operatingPayroll - totalExpensesAll
   const foodCostPercent = salesRange > 0 ? (foodSpend / salesRange) * 100 : 0
-  const laborPercent = salesRange > 0 ? (totalPayroll / salesRange) * 100 : 0
-  const primeCost = foodSpend + totalPayroll
+  const laborPercent = salesRange > 0 ? (operatingPayroll / salesRange) * 100 : 0
+  const primeCost = foodSpend + operatingPayroll
   const primeCostPercent = salesRange > 0 ? (primeCost / salesRange) * 100 : 0
   const cashRemaining = cashSales - cashPayroll - businessExpenseRowsRaw.filter(row => String(row.payment_method || '').toLowerCase().includes('cash')).reduce((sum, row) => sum + num(row.amount), 0)
 
@@ -237,6 +263,11 @@ export function calculateBusinessMetrics(data = {}, range = {}) {
 
     cashPayroll,
     checkPayroll,
+    operatingPayroll,
+    customerTipsPaid,
+    customerTipsChecks,
+    operatingLaborRows,
+    customerTipRows,
     payrollMonth: totalPayroll,
     totalPayroll,
     payrollTipsWithheld,

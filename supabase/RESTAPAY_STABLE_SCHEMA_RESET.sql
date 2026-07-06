@@ -39,6 +39,7 @@ create table public.employees (
   job_type text default 'Other',
   pay_type text default 'Hourly',
   payroll_type text default 'Cash',
+  payroll_classification text default 'Operating Labor',
   default_check_number text default '',
   base_pay numeric default 0,
   extra_pay numeric default 0,
@@ -114,11 +115,16 @@ create table public.payroll_entries (
   employee_name text not null,
   source text default 'Manual',
   pay_type text default 'Hourly',
+  payroll_type text default 'Cash',
+  payroll_classification text default 'Operating Labor',
   method text default 'Cash',
   check_number text default '',
   payroll_date date default current_date,
+  pay_date date default current_date,
   hours numeric default 0,
   regular_pay numeric default 0,
+  tips numeric default 0,
+  tip_deduction numeric default 0,
   tips_after_withheld numeric default 0,
   tips_withheld numeric default 0,
   extra_pay numeric default 0,
@@ -255,6 +261,21 @@ insert into public.expense_categories values
 ('restaurant-expenses','Restaurant Expenses'),('loans','Loans'),('accounting-fees','Accounting Fees'),('utilities','Utilities'),('supplies','Supplies'),('maintenance','Maintenance'),('insurance','Insurance'),('cash-expenses','Cash Expenses'),('other','Other');
 insert into public.payment_methods values
 ('cash','Cash'),('check','Check'),('credit','Credit'),('ach','ACH');
+
+
+-- RC3 payroll classification / tips separation columns
+alter table public.employees
+add column if not exists payroll_classification text default 'Operating Labor';
+
+alter table public.payroll_entries
+add column if not exists payroll_type text default 'Cash',
+add column if not exists payroll_classification text default 'Operating Labor',
+add column if not exists pay_date date default current_date,
+add column if not exists tips numeric default 0,
+add column if not exists tip_deduction numeric default 0,
+add column if not exists check_number text default '',
+add column if not exists regular_pay numeric default 0,
+add column if not exists total_pay numeric default 0;
 
 alter table public.app_data disable row level security;
 alter table public.employees disable row level security;

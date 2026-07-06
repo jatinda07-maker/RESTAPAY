@@ -162,7 +162,7 @@ export default function Employees({ data, setData }) {
 
     <section className="table-card employee-table-card compact-table-card">
       <header><h2>Employee List</h2><span>{filteredEmployees.length} employees</span></header>
-      {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button onClick={() => bulkSetActive(true)}>Set Active</button><button onClick={() => bulkSetActive(false)}>Set Inactive</button><button className="delete-link" onClick={bulkDelete}>Delete Selected</button></div>}
+      {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button type="button" onClick={() => bulkSetActive(true)}>Set Active</button><button type="button" onClick={() => bulkSetActive(false)}>Set Inactive</button><button className="delete-link" onClick={bulkDelete} type="button">Delete Selected</button></div>}
       <table>
         <thead><tr><th><input type="checkbox" checked={filteredEmployees.length > 0 && filteredEmployees.every(emp => selectedIds.includes(emp.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Type</th><th>Job</th><th>Pay</th><th>Method</th><th>Base</th><th>Extra</th><th>Action</th></tr></thead>
         <tbody>{filteredEmployees.map(emp => <tr key={emp.id}>
@@ -171,7 +171,7 @@ export default function Employees({ data, setData }) {
           <td>{emp.employee_type}</td><td>{emp.job_type}</td><td><span className={`tag ${String(emp.pay_type).toLowerCase()}`}>{emp.pay_type}</span></td>
           <td><span className={emp.payroll_type === 'Cash' ? 'tag cash' : 'tag check'}>{emp.payroll_type}</span></td>
           <td>${Number(emp.base_pay || 0).toFixed(2)}</td><td>${Number(emp.extra_pay || 0).toFixed(2)}</td>
-          <td className="row-actions"><button onClick={() => editEmployee(emp)}>Edit</button><button className="delete-link" onClick={() => deleteEmployee(emp.id)}>Delete</button></td>
+          <td className="row-actions"><button type="button" onClick={() => editEmployee(emp)}>Edit</button><button className="delete-link" type="button" onClick={() => deleteEmployee(emp.id)}>Delete</button></td>
         </tr>)}</tbody>
       </table>
     </section>

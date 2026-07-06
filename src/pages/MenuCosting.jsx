@@ -322,7 +322,7 @@ export default function MenuCosting({ data, setData }) {
         </div>
         <div className="actions">
           <label className="btn primary file-action"><Icon name="upload" size={16} /> Import Product Mix<input type="file" accept=".xlsx,.xls,.csv" onChange={handleProductMixUpload} /></label>
-          <button className="btn secondary" onClick={buildMissingRecipes}><Icon name="utensils" size={16} /> Build Missing Recipes</button>
+          <button className="btn secondary" onClick={buildMissingRecipes} type="button"><Icon name="utensils" size={16} /> Build Missing Recipes</button>
         </div>
       </section>
 
@@ -369,7 +369,7 @@ export default function MenuCosting({ data, setData }) {
         <section className="section-card recipe-detail-card">
           <header className="section-card-header">
             <div><h2>{selected?.name || 'Select a dish'}</h2><small>{selected ? `${selected.vendorSource} source · ${selected.category}` : 'Import Product Mix to begin'}</small></div>
-            {selectedRecipe && <button className="btn primary compact" onClick={() => approveRecipe(selectedRecipe.id)}><Icon name="shield" size={15} /> Approve Recipe</button>}
+            {selectedRecipe && <button className="btn primary compact" type="button" onClick={() => approveRecipe(selectedRecipe.id)}><Icon name="shield" size={15} /> Approve Recipe</button>}
           </header>
           {selected ? <div className="section-card-body">
             <div className="recipe-score-grid">
@@ -391,7 +391,7 @@ export default function MenuCosting({ data, setData }) {
                       <td><input value={invoiceMatch?.vendor || line.vendor} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'vendor', e.target.value)} /></td>
                       <td><input type="number" step="0.01" value={line.unitCost} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'unitCost', e.target.value)} /></td>
                       <td><b>{displayMoney(line.totalCost)}</b></td>
-                      <td><button className="icon-btn danger" title="Delete ingredient" onClick={() => deleteRecipeLine(selectedRecipe.id, line.id)}>×</button></td>
+                      <td><button className="icon-btn danger" title="Delete ingredient" type="button" onClick={() => deleteRecipeLine(selectedRecipe.id, line.id)}>×</button></td>
                     </tr>
                   })}
                   {!selectedRecipe && <tr><td colSpan="7">No recipe yet. Click Build Missing Recipes.</td></tr>}
@@ -404,7 +404,7 @@ export default function MenuCosting({ data, setData }) {
               </datalist>
               <span>Add common ingredient:</span>
               {['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','beer','beverage'].map(key => (
-                <button key={key} className="btn soft compact" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>
+                <button key={key} className="btn soft compact" type="button" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>
               ))}
             </div>}
             <div className="recipe-footer-note">

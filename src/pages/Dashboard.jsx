@@ -65,6 +65,18 @@ function hasDashboardRowsInRange(data = {}, start = '', end = '') {
   return dates.some(date => isDateInRange(date, start, end))
 }
 
+
+function payrollClassification(row = {}) {
+  const text = [row.payroll_classification, row.classification, row.pay_type, row.employee_type, row.job_type, row.group_name, row.employee_name]
+    .map(value => String(value || '').toLowerCase())
+    .join(' ')
+  if (text.includes('customer tip') || text.includes('server tip') || text.includes('tips only') || text.includes('front house tip')) return 'Customer Tips'
+  if (text.includes('server') || text.includes('waiter') || text.includes('waitress') || text.includes('front house') || text.includes('foh') || text.includes('bartender') || text.includes('tip')) return 'Customer Tips'
+  return 'Operating Labor'
+}
+function isCustomerTips(row) { return payrollClassification(row) === 'Customer Tips' }
+function isOperatingLabor(row) { return !isCustomerTips(row) }
+function rowTipsPaid(row) { return Math.max(0, num(row.tips || row.tips_after_withheld || row.tips_after_withholding || row.final_tips) - num(row.tip_deduction || row.tips_withheld || row.tips_withholding)) }
 function payrollType(row) { return String(row.payment_method || row.payroll_type || row.method || row.type || row.pay_method || '').toLowerCase() }
 function isCashPayroll(row) { return payrollType(row).includes('cash') }
 function isCheckPayroll(row) { return payrollType(row).includes('check') }
@@ -229,6 +241,8 @@ export default function Dashboard({ data, setData, setActive }) {
     const monthPayroll = payroll.filter(row => inRange(rowDate(row, ['pay_date', 'payroll_date', 'date'])))
     const cashPayrollRows = monthPayroll.filter(isCashPayroll)
     const checkPayrollRows = monthPayroll.filter(isCheckPayroll)
+    const operatingLaborRows = monthPayroll.filter(isOperatingLabor)
+    const customerTipRows = monthPayroll.filter(isCustomerTips)
     const monthInvoices = invoices.filter(row => inRange(rowDate(row, ['invoice_date', 'date'])))
     const invoiceById = Object.fromEntries(invoices.map(inv => [inv.id, inv]))
     const monthInvoiceItems = invoiceItems.filter(row => {
@@ -250,6 +264,9 @@ export default function Dashboard({ data, setData, setActive }) {
     const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const payrollTotal = monthPayroll.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const operatingPayroll = operatingLaborRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const customerTipsPaid = customerTipRows.reduce((sum, row) => sum + rowTipsPaid(row), 0)
+    const customerTipsChecks = customerTipRows.filter(isCheckPayroll).reduce((sum, row) => sum + rowTipsPaid(row), 0)
     const invoiceSpend = monthInvoices.reduce((sum, row) => sum + invoiceTotal(row), 0)
     const manualExpenseSpend = monthExpenses.reduce((sum, row) => sum + num(row.amount), 0)
 
@@ -293,21 +310,21 @@ export default function Dashboard({ data, setData, setActive }) {
     const businessSpend = businessRaw.reduce((sum, row) => sum + num(row.amount), 0)
     const foodSpend = allSpendRows.filter(row => normalizeCategory(row.category) === 'Food').reduce((sum, row) => sum + num(row.amount), 0)
 
-    const operatingProfit = trueNetSales - payrollTotal - totalSpend
+    const operatingProfit = trueNetSales - operatingPayroll - totalSpend
     const cashRemaining = cashSales - cashPayroll - allSpendRows.filter(row => String(row.payment_method || row.payment_type || '').toLowerCase().includes('cash')).reduce((sum, row) => sum + num(row.amount), 0)
     const foodCostPct = trueNetSales > 0 ? (foodSpend / trueNetSales) * 100 : 0
-    const laborPct = trueNetSales > 0 ? (payrollTotal / trueNetSales) * 100 : 0
-    const primeCostPct = trueNetSales > 0 ? ((foodSpend + payrollTotal) / trueNetSales) * 100 : 0
+    const laborPct = trueNetSales > 0 ? (operatingPayroll / trueNetSales) * 100 : 0
+    const primeCostPct = trueNetSales > 0 ? ((foodSpend + operatingPayroll) / trueNetSales) * 100 : 0
     const profitMargin = trueNetSales > 0 ? (operatingProfit / trueNetSales) * 100 : 0
     const healthScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, foodCostPct - 30) * 1.5 - Math.max(0, laborPct - 28) * 1.5 - Math.max(0, primeCostPct - 65) - (operatingProfit < 0 ? 20 : 0) + (cashRemaining > 0 ? 4 : -8))))
 
     return {
       monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems,
       grossSales, netSales, trueNetSales, cashSales, creditSales, tax, tips, tipsWithheld,
-      cashPayroll, checkPayroll, payrollTotal, invoiceSpend, manualExpenseSpend, totalSpend,
+      cashPayroll, checkPayroll, payrollTotal, operatingPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
       vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining,
       foodCostPct, laborPct, primeCostPct, profitMargin, healthScore,
-      categoryRows, vendorCategories, businessCategories, allSpendRows, vendorRaw, businessRaw,
+      categoryRows, vendorCategories, businessCategories, allSpendRows, vendorRaw, businessRaw, operatingLaborRows, customerTipRows,
       vendorRecent: vendorRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
       businessRecent: businessRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
       salesTrend: trendRows(monthSales, 'business_date', row => num(row.net_sales)),
@@ -323,7 +340,7 @@ export default function Dashboard({ data, setData, setActive }) {
       { key: 'business_date', label: 'Date' }, { key: 'gross_sales', label: 'Gross', render: r => money(num(r.gross_sales)) }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
     ]},
     payroll: { title: 'Payroll Details', open: 'payroll', rows: derived.monthPayroll, columns: [
-      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
+      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Class', render: r => payrollClassification(r) }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
     ]},
     vendors: { title: detailCategory ? `${detailCategory} Spending Details` : 'Vendor Spending Details', open: 'invoices', rows: detailVendorRows, columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
@@ -332,7 +349,7 @@ export default function Dashboard({ data, setData, setActive }) {
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
     health: { title: 'Restaurant Health Inputs', open: 'reports', rows: [
-      { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Labor Cost %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
+      { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
     ], columns: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }] }
   }
 
@@ -390,10 +407,11 @@ export default function Dashboard({ data, setData, setActive }) {
         <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast cash payments" icon="dollar" tone="green" onClick={() => showDetail('sales')} />
         <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('health')} />
         <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle="After cash spending" icon="card" tone="emerald" onClick={() => showDetail('health')} />
-        <MetricCard title="Payroll" value={money(derived.payrollTotal)} subtitle={`Cash ${money(derived.cashPayroll)} · Check ${money(derived.checkPayroll)}`} icon="payroll" tone="teal" onClick={() => showDetail('payroll')} />
+        <MetricCard title="Operating Payroll" value={money(derived.operatingPayroll)} subtitle={`Counts in profit · Total paid ${money(derived.payrollTotal)}`} icon="payroll" tone="teal" onClick={() => showDetail('payroll')} />
         <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />
         <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />
-        <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle="Food + labor vs net sales" icon="pie" tone="indigo" onClick={() => showDetail('health')} />
+        <MetricCard title="Server Tips" value={money(derived.customerTipsPaid)} subtitle={`Separate from payroll profit · Checks ${money(derived.customerTipsChecks)}`} icon="receipt" tone="orange" onClick={() => showDetail('payroll')} />
+        <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle="Food + operating labor vs net sales" icon="pie" tone="indigo" onClick={() => showDetail('health')} />
       </div>
 
       <div className="dashboard-grid-main">
@@ -402,8 +420,8 @@ export default function Dashboard({ data, setData, setActive }) {
             <div className="health-score"><strong>{derived.healthScore}</strong><span>{healthLabel(derived.healthScore)}</span></div>
             <div className="health-meters">
               <ProgressMeter label="Food Cost" value={derived.foodCostPct} tone="orange" caption={`${money(derived.foodSpend)} food spend`} />
-              <ProgressMeter label="Labor" value={derived.laborPct} tone="teal" caption={`${money(derived.payrollTotal)} payroll`} />
-              <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + labor target under 65%" />
+              <ProgressMeter label="Operating Labor" value={derived.laborPct} tone="teal" caption={`${money(derived.operatingPayroll)} excludes customer tips`} />
+              <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + operating labor target under 65%" />
             </div>
           </div>
         </SectionCard>
@@ -412,6 +430,7 @@ export default function Dashboard({ data, setData, setActive }) {
           <RowList rows={[
             { label: 'Cash Collected', amount: money(derived.cashSales), meta: 'From Toast sales' },
             { label: 'Cash Payroll', amount: money(derived.cashPayroll), meta: `${derived.cashPayrollRows.length} cash payroll rows` },
+            { label: 'Server Tips Paid', amount: money(derived.customerTipsPaid), meta: 'Tracked separately from operating payroll' },
             { label: 'Invoice Spend', amount: money(derived.invoiceSpend), meta: `${derived.monthInvoices.length} invoices` },
             { label: 'Manual Expenses', amount: money(derived.manualExpenseSpend), meta: `${derived.monthExpenses.length} expenses` }
           ]} />
@@ -420,7 +439,7 @@ export default function Dashboard({ data, setData, setActive }) {
         <SectionCard title="Profit & Loss" icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
           <RowList rows={[
             { label: 'Net Restaurant Sales', amount: money(derived.trueNetSales), meta: 'Net after tax/tips adjustment' },
-            { label: 'Payroll Cost', amount: money(derived.payrollTotal), meta: 'Cash + check payroll' },
+            { label: 'Operating Payroll Cost', amount: money(derived.operatingPayroll), meta: 'Kitchen/manager labor only; server tips excluded' },
             { label: 'Vendor + Expense Spend', amount: money(derived.totalSpend), meta: 'Invoices, line items, expenses' },
             { label: 'Profit Margin', amount: pct(derived.profitMargin), meta: 'Operating profit / net sales' }
           ]} />
@@ -430,7 +449,7 @@ export default function Dashboard({ data, setData, setActive }) {
           <RowList rows={[
             { label: 'Gross Sales', amount: money(derived.grossSales), meta: 'Before adjustments' },
             { label: 'Credit Sales', amount: money(derived.creditSales), meta: 'Card payments' },
-            { label: 'Tips', amount: money(derived.tips), meta: `${money(derived.tipsWithheld)} withheld` },
+            { label: 'Tips Collected', amount: money(derived.tips), meta: `${money(derived.customerTipsPaid)} paid separately · ${money(derived.tipsWithheld)} withheld` },
             { label: 'Sales Tax', amount: money(derived.tax), meta: 'Tax collected' }
           ]} />
         </SectionCard>
@@ -455,7 +474,7 @@ export default function Dashboard({ data, setData, setActive }) {
         </SectionCard>
         <SectionCard title="Restaurant Intelligence" icon="alert" tone="navy" subtitle="Suggested actions">
           <div className="insight-list">
-            <div><b>{derived.healthScore >= 70 ? 'Restaurant health is stable' : 'Restaurant health needs review'}</b><span>Review food cost, labor cost, and cash position before payroll.</span></div>
+            <div><b>{derived.healthScore >= 70 ? 'Restaurant health is stable' : 'Restaurant health needs review'}</b><span>Review food cost, operating labor, and cash position before payroll.</span></div>
             <div><b>{derived.foodCostPct > 35 ? 'Food cost is high' : 'Food cost is under control'}</b><span>Food cost is currently {pct(derived.foodCostPct)}.</span></div>
             <div><b>{derived.cashRemaining < 0 ? 'Cash shortfall risk' : 'Cash position looks usable'}</b><span>Remaining cash is {money(derived.cashRemaining)}.</span></div>
           </div>

@@ -218,7 +218,7 @@ export default function Expenses({ data, setData }) {
         {!form.vendor_id && <label><small>Manual Payee</small><input value={form.manual_payee || ''} onChange={e => updateManualPayee(e.target.value)} placeholder="Type payee name" /></label>}
 
         <label className="wide-2"><small>Notes</small><input value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Optional notes" /></label>
-        <div className="form-actions-inline"><button className="btn primary" onClick={saveExpense}><Icon name="plus" /> {editingId ? 'Update' : 'Add Expense'}</button><button className="btn ghost" onClick={clearForm}>Clear</button></div>
+        <div className="form-actions-inline"><button className="btn primary" onClick={saveExpense} type="button"><Icon name="plus" /> {editingId ? 'Update' : 'Add Expense'}</button><button className="btn ghost" onClick={clearForm} type="button">Clear</button></div>
       </div>
     </section>
 
@@ -226,7 +226,7 @@ export default function Expenses({ data, setData }) {
       <div className="search-box sales-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses, payee, category..." /></div>
       <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={applyDateRange} onPreset={applyPreset} />
       <span className="filter-note">Filtering expenses by {rangeLabel}</span>
-      {selected.length > 0 && <button className="btn ghost delete-link" onClick={bulkDelete}>Delete Selected ({selected.length})</button>}
+      {selected.length > 0 && <button className="btn ghost delete-link" onClick={bulkDelete} type="button">Delete Selected ({selected.length})</button>}
     </div>
 
     <div className="payroll-summary-row sales-summary-row stat-row-clean">
@@ -239,7 +239,7 @@ export default function Expenses({ data, setData }) {
     <section className="table-card compact-table-card sales-history-card">
       <header className="table-header-actions"><h2>Expenses <span className="inline-count">{filtered.length} rows</span></h2><div className="search-box compact-search"><Icon name="search" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses..." /></div></header>
       <div className="table-scroll"><table className="sales-table"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={toggleAll} /></th><th>Date</th><th>Name</th><th>Category</th><th>Paid By</th><th>Check #</th><th>Vendor</th><th>Amount</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
-        {filtered.map(row => <tr key={row.id}><td><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} /></td><td>{rowDate(row)}</td><td><b>{row.name || row.category}</b></td><td><span className="tag neutral">{row.category}</span></td><td><span className={`tag ${String(row.payment_method || '').toLowerCase()}`}>{row.payment_method}</span></td><td>{row.check_number || '-'}</td><td>{row.vendor || '-'}</td><td>${money(row.amount)}</td><td><small>{row.notes || '-'}</small></td><td className="row-actions"><button className="btn ghost small-btn" onClick={() => editExpense(row)}>Edit</button><button className="btn ghost small-btn delete-link" onClick={() => deleteExpense(row.id)}>Delete</button></td></tr>)}
+        {filtered.map(row => <tr key={row.id}><td><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} /></td><td>{rowDate(row)}</td><td><b>{row.name || row.category}</b></td><td><span className="tag neutral">{row.category}</span></td><td><span className={`tag ${String(row.payment_method || '').toLowerCase()}`}>{row.payment_method}</span></td><td>{row.check_number || '-'}</td><td>{row.vendor || '-'}</td><td>${money(row.amount)}</td><td><small>{row.notes || '-'}</small></td><td className="row-actions"><button className="btn ghost small-btn" type="button" onClick={() => editExpense(row)}>Edit</button><button className="btn ghost small-btn delete-link" type="button" onClick={() => deleteExpense(row.id)}>Delete</button></td></tr>)}
         {filtered.length === 0 && <tr><td colSpan="10"><small>No expenses found. Add an expense above.</small></td></tr>}
       </tbody></table></div>
     </section>

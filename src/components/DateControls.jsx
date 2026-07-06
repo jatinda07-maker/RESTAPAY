@@ -26,7 +26,7 @@ export default function DateControls({
         <label className="date-range-field"><span>{showLabels ? 'Start' : ''}</span><input type="date" value={start || ''} onChange={e => onStartChange(e.target.value)} /></label>
         <span className="range-arrow">→</span>
         <label className="date-range-field"><span>{showLabels ? 'End' : ''}</span><input type="date" value={end || ''} onChange={e => onEndChange(e.target.value)} /></label>
-        <button className="btn primary date-apply-btn" onClick={onApply}><Icon name="calendar" size={15} /> {applyLabel}</button>
+        <button className="btn primary date-apply-btn" onClick={onApply} type="button"><Icon name="calendar" size={15} /> {applyLabel}</button>
       </div>
       <div className="quick-preset-group">
         {presets.map(([key, label]) => <button key={key} type="button" className="btn ghost preset-pill" onClick={() => onPreset(key)}>{label}</button>)}

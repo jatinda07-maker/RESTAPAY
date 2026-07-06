@@ -528,15 +528,15 @@ export default function Reports({ data, setData }) {
     <div className="page-head employee-head">
       <div><h1>Reports</h1><p>Run standard reports or build custom reports with manual column order and date ranges.</p></div>
       <div className="employee-head-actions">
-        <button className="btn ghost" onClick={exportPdfReport}><Icon name="download" /> Export PDF</button>
-        <button className="btn ghost" onClick={exportExcelReport}><Icon name="spreadsheet" /> Export Excel</button>
-        <button className="btn primary" onClick={exportCsv}><Icon name="download" /> Export CSV</button>
+        <button className="btn ghost" onClick={exportPdfReport} type="button"><Icon name="download" /> Export PDF</button>
+        <button className="btn ghost" onClick={exportExcelReport} type="button"><Icon name="spreadsheet" /> Export Excel</button>
+        <button className="btn primary" onClick={exportCsv} type="button"><Icon name="download" /> Export CSV</button>
       </div>
     </div>
 
     <div className="reports-mode-tabs">
-      <button className={mode === 'standard' ? 'active' : ''} onClick={() => setMode('standard')}>Standard Reports</button>
-      <button className={mode === 'custom' ? 'active' : ''} onClick={() => setMode('custom')}>Custom Report Builder</button>
+      <button className={mode === 'standard' ? 'active' : ''} type="button" onClick={() => setMode('standard')}>Standard Reports</button>
+      <button className={mode === 'custom' ? 'active' : ''} type="button" onClick={() => setMode('custom')}>Custom Report Builder</button>
     </div>
 
     <div className="sales-filter-bar report-filter-bar enhanced-report-filter">
@@ -555,16 +555,16 @@ export default function Reports({ data, setData }) {
         <label><span>Data Source</span><select value={customSource} onChange={e => { setCustomSource(e.target.value); setSelectedFields((fieldCatalog[e.target.value] || []).slice(0, 5).map(([key]) => key)) }}>
           <option value="sales">Sales</option><option value="payroll">Payroll</option><option value="vendors">Vendors</option><option value="invoices">Invoices</option><option value="priceInflation">Price Inflation</option><option value="expenses">Expenses</option>
         </select></label>
-        <div className="report-builder-actions"><button className="btn primary" onClick={saveCustomReport}><Icon name="save" /> Save Template</button>{savedCustomId && <button className="btn ghost delete-link" onClick={deleteCustom}>Delete Template</button>}</div>
+        <div className="report-builder-actions"><button className="btn primary" onClick={saveCustomReport} type="button"><Icon name="save" /> Save Template</button>{savedCustomId && <button className="btn ghost delete-link" onClick={deleteCustom} type="button">Delete Template</button>}</div>
       </div>
       <div className="report-fields-wrap">
         <div><h3>Available Fields</h3><div className="report-field-list">
-          {(fieldCatalog[customSource] || []).map(([key, label]) => <button key={key} className={selectedFields.includes(key) ? 'selected' : ''} onClick={() => toggleField(key)}>{label}</button>)}
+          {(fieldCatalog[customSource] || []).map(([key, label]) => <button key={key} className={selectedFields.includes(key) ? 'selected' : ''} type="button" onClick={() => toggleField(key)}>{label}</button>)}
         </div></div>
         <div><h3>Manual Column Order</h3><div className="report-order-list">
           {selectedFields.map((field, index) => {
             const label = Object.fromEntries((fieldCatalog[customSource] || []).map(([k, v]) => [k, v]))[field] || field
-            return <div className="report-order-row" key={field}><span>{index + 1}. {label}</span><button onClick={() => setSelectedFields(prev => moveItem(prev, index, -1))}>↑</button><button onClick={() => setSelectedFields(prev => moveItem(prev, index, 1))}>↓</button><button onClick={() => setSelectedFields(prev => prev.filter(item => item !== field))}>Remove</button></div>
+            return <div className="report-order-row" key={field}><span>{index + 1}. {label}</span><button type="button" onClick={() => setSelectedFields(prev => moveItem(prev, index, -1))}>↑</button><button type="button" onClick={() => setSelectedFields(prev => moveItem(prev, index, 1))}>↓</button><button type="button" onClick={() => setSelectedFields(prev => prev.filter(item => item !== field))}>Remove</button></div>
           })}
           {selectedFields.length === 0 && <small>No columns selected.</small>}
         </div></div>

@@ -661,3 +661,13 @@ b,strong{font-weight:680}.topbar h1,.page-head h1,.dashboard-hero h1{font-size:2
 }
 .icon-btn.danger:hover { background: #ffe4e4; }
 .recipe-lines-table td:last-child, .recipe-lines-table th:last-child { width: 42px; text-align: center; }
+
+/* RC3 payroll/profit behavior polish */
+.app-shell.is-collapsed.sidebar-open .sidebar{width:var(--side);box-shadow:12px 0 30px rgba(15,23,42,.12)}
+.app-shell.is-collapsed.sidebar-open .sidebar .brand-copy,
+.app-shell.is-collapsed.sidebar-open .sidebar .nav-label{display:block}
+.app-shell.is-collapsed.sidebar-open .sidebar .nav-item{justify-content:flex-start;padding:0 16px 0 28px}
+.auto-sidebar-indicator{cursor:default;opacity:.82;box-shadow:none!important}
+.auto-sidebar-indicator:hover{background:#fff;color:#1e293b}
+.payroll-summary-row small{display:block;margin-top:3px;font-size:11px;font-weight:650;color:#64748b;line-height:1.2}
+button{touch-action:manipulation}

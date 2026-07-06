@@ -142,8 +142,8 @@ export default function Vendors({ data, setData }) {
       <div className="type-manager-grid compact-types">
         <div className="type-box">
           <h3>Vendor Categories</h3>
-          <div className="mini-add-row"><input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Add category" /><button onClick={addCategory}>Add</button></div>
-          <div className="chip-row">{categories.map(c => { const meta = categoryMeta(c); return <button key={c} className={`chip category-chip ${meta.cls}`} onClick={() => deleteCategory(c)} title="Click to remove category"><Icon name={meta.icon} size={15} /> <span>{c}</span><Icon name="x" size={13} /></button> })}</div>
+          <div className="mini-add-row"><input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Add category" /><button onClick={addCategory} type="button">Add</button></div>
+          <div className="chip-row">{categories.map(c => { const meta = categoryMeta(c); return <button key={c} className={`chip category-chip ${meta.cls}`} type="button" onClick={() => deleteCategory(c)} title="Click to remove category"><Icon name={meta.icon} size={15} /> <span>{c}</span><Icon name="x" size={13} /></button> })}</div>
         </div>
       </div>
       <div className="form-action-footer"><button className="btn secondary" type="button" onClick={clearForm}>{editingId ? 'Cancel Edit' : 'Clear'}</button><button className="btn primary" type="button" onClick={saveVendor}><Icon name="save" /> {editingId ? 'Update Vendor' : 'Save Vendor'}</button></div>
@@ -151,7 +151,7 @@ export default function Vendors({ data, setData }) {
 
     <section className="table-card compact-table-card employee-table-card">
       <header><h2>Vendor List</h2><span>{filtered.length} vendors · Sorted A-Z</span></header>
-      {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button onClick={() => bulkSetActive(true)}>Set Active</button><button onClick={() => bulkSetActive(false)}>Set Inactive</button><select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select><button onClick={bulkApplyCategory}>Apply Category</button><button className="delete-link" onClick={bulkDelete}>Delete Selected</button></div>}
+      {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button type="button" onClick={() => bulkSetActive(true)}>Set Active</button><button type="button" onClick={() => bulkSetActive(false)}>Set Inactive</button><select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select><button onClick={bulkApplyCategory} type="button">Apply Category</button><button className="delete-link" onClick={bulkDelete} type="button">Delete Selected</button></div>}
       <table><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every(v => selectedIds.includes(v.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Category</th><th>Default Check #</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th>Action</th></tr></thead><tbody>{filtered.map(v => <tr key={v.id}>
         <td><input type="checkbox" checked={selectedIds.includes(v.id)} onChange={() => toggleSelected(v.id)} /></td>
         <td><b>{v.name}</b><small>{v.notes || 'No notes'}</small></td>
@@ -161,7 +161,7 @@ export default function Vendors({ data, setData }) {
         <td>{v.phone || '-'}</td>
         <td>{v.email || '-'}</td>
         <td><span className={v.is_active ? 'tag cash' : 'tag neutral'}>{v.is_active ? 'Active' : 'Inactive'}</span></td>
-        <td className="row-actions"><button onClick={() => editVendor(v)}>Edit</button><button className="delete-link" onClick={() => deleteVendor(v.id)}>Delete</button></td>
+        <td className="row-actions"><button type="button" onClick={() => editVendor(v)}>Edit</button><button className="delete-link" type="button" onClick={() => deleteVendor(v.id)}>Delete</button></td>
       </tr>)}</tbody></table>
     </section>
   </>

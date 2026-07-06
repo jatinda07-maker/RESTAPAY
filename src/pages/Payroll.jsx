@@ -65,6 +65,24 @@ function normalizeType(value, options = []) {
   return match || raw
 }
 
+
+function inferPayrollClassification(source = {}) {
+  const text = [source.payroll_classification, source.classification, source.pay_type, source.employee_type, source.job_type, source.group_name, source.employee_name, source.name]
+    .map(value => String(value || '').toLowerCase())
+    .join(' ')
+  if (text.includes('operating labor') || text.includes('kitchen') || text.includes('manager') || text.includes('dish') || text.includes('cook') || text.includes('prep')) return 'Operating Labor'
+  if (text.includes('customer tip') || text.includes('server') || text.includes('waiter') || text.includes('waitress') || text.includes('front house') || text.includes('foh') || text.includes('bartender') || text.includes('tip')) return 'Customer Tips'
+  return 'Operating Labor'
+}
+
+function totalPayrollPay(row = {}) {
+  const regular = num(row.regular_pay)
+  const tips = num(row.tips)
+  const deduction = num(row.tip_deduction)
+  const extra = num(row.extra_pay)
+  return regular + tips - deduction + extra
+}
+
 function employeeAssignmentLabel(employee, groups = []) {
   if (!employee) return 'Unmatched Import'
   const assignedGroups = groups.filter(group => (group.memberIds || []).includes(employee.id)).map(group => group.name).filter(Boolean)
@@ -88,8 +106,8 @@ export default function Payroll({ data, setData }) {
   const [toastPayDate, setToastPayDate] = useState(today())
   const [groupPayDate, setGroupPayDate] = useState(today())
   const [editingEntryId, setEditingEntryId] = useState(null)
-  const [entryForm, setEntryForm] = useState({ regular_pay: '', hours: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
-  const [manualForm, setManualForm] = useState({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
+  const [entryForm, setEntryForm] = useState({ regular_pay: '', hours: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '', payroll_classification: 'Operating Labor' })
+  const [manualForm, setManualForm] = useState({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', payroll_classification: 'Operating Labor', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
   const [previewRows, setPreviewRows] = useState([])
   const [status, setStatus] = useState('Local auto-save is active. Payroll groups and entries will not disappear.')
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
@@ -181,12 +199,17 @@ export default function Payroll({ data, setData }) {
   }, [selectedGroupId, selectedGroup, groups, availableEmployees, selectedEmployeeId])
 
   const totals = useMemo(() => filteredEntries.reduce((acc, entry) => {
-    acc.total += num(entry.total_pay)
-    acc.cash += entry.payroll_type === 'Cash' ? num(entry.total_pay) : 0
-    acc.check += entry.payroll_type === 'Check' ? num(entry.total_pay) : 0
+    const amount = num(entry.total_pay)
+    const classification = entry.payroll_classification || inferPayrollClassification(entry)
+    const isTips = String(classification).toLowerCase().includes('tip')
+    acc.total += amount
+    acc.operating += isTips ? 0 : amount
+    acc.customerTips += isTips ? amount : 0
+    acc.cash += entry.payroll_type === 'Cash' ? amount : 0
+    acc.check += entry.payroll_type === 'Check' ? amount : 0
     acc.withheld += num(entry.tip_deduction)
     return acc
-  }, { total: 0, cash: 0, check: 0, withheld: 0 }), [filteredEntries])
+  }, { total: 0, operating: 0, customerTips: 0, cash: 0, check: 0, withheld: 0 }), [filteredEntries])
 
   function createGroup() {
     const name = groupName.trim()
@@ -261,7 +284,7 @@ export default function Payroll({ data, setData }) {
     const deduction = employee.pay_type === 'Tips' || tips > 0 ? tips * (tipRate / 100) : 0
     return {
       id: createId('pay'), employee_id: employee.id, employee_name: employee.name, group_name: selectedGroup?.name || source.group_name || 'Imported', pay_date: source.pay_date || groupPayDate || payDate,
-      pay_type: employee.pay_type, payroll_type: selectedGroup?.payroll_type || employee.payroll_type, check_number: source.check_number || '', hours, regular_pay: regularPay, tips,
+      pay_type: employee.pay_type, payroll_type: selectedGroup?.payroll_type || employee.payroll_type, payroll_classification: inferPayrollClassification(employee), check_number: source.check_number || '', hours, regular_pay: regularPay, tips,
       tip_deduction: deduction, extra_pay: extraPay, extra_reason: source.extra_reason || employee.extra_reason || '', total_pay: regularPay + tips - deduction + extraPay
     }
   }
@@ -284,6 +307,7 @@ export default function Payroll({ data, setData }) {
           next.employee_name = employee.name
           next.payroll_type = employee.payroll_type || next.payroll_type
           next.pay_type = employee.pay_type || next.pay_type
+          next.payroll_classification = inferPayrollClassification(employee)
           if (!next.regular_pay && employee.pay_type === 'Salary') next.regular_pay = money(employee.base_pay)
         }
       }
@@ -292,7 +316,7 @@ export default function Payroll({ data, setData }) {
   }
 
   function clearManualForm() {
-    setManualForm({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
+    setManualForm({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', payroll_classification: 'Operating Labor', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
   }
 
   function addManualPayroll() {
@@ -311,6 +335,7 @@ export default function Payroll({ data, setData }) {
       pay_date: manualForm.pay_date || payDate,
       pay_type: employee?.pay_type || manualForm.pay_type || 'Hourly',
       payroll_type: manualForm.payroll_type || employee?.payroll_type || 'Cash',
+      payroll_classification: manualForm.payroll_classification || inferPayrollClassification(employee || manualForm),
       check_number: manualForm.check_number.trim(),
       hours: num(manualForm.hours),
       regular_pay: regularPay,
@@ -335,7 +360,8 @@ export default function Payroll({ data, setData }) {
       tip_deduction: money(entry.tip_deduction),
       extra_pay: money(entry.extra_pay),
       extra_reason: entry.extra_reason || '',
-      check_number: entry.check_number || ''
+      check_number: entry.check_number || '',
+      payroll_classification: entry.payroll_classification || inferPayrollClassification(entry)
     })
   }
 
@@ -346,7 +372,7 @@ export default function Payroll({ data, setData }) {
       const tips = num(entryForm.tips)
       const extraPay = num(entryForm.extra_pay)
       const deduction = num(entryForm.tip_deduction)
-      return { ...entry, pay_date: entryForm.pay_date || entry.pay_date || today(), check_number: entryForm.check_number?.trim() || '', hours: num(entryForm.hours), regular_pay: regularPay, tips, tip_deduction: deduction, extra_pay: extraPay, extra_reason: entryForm.extra_reason.trim(), total_pay: regularPay + tips - deduction + extraPay }
+      return { ...entry, pay_date: entryForm.pay_date || entry.pay_date || today(), check_number: entryForm.check_number?.trim() || '', payroll_classification: entryForm.payroll_classification || inferPayrollClassification(entry), hours: num(entryForm.hours), regular_pay: regularPay, tips, tip_deduction: deduction, extra_pay: extraPay, extra_reason: entryForm.extra_reason.trim(), total_pay: regularPay + tips - deduction + extraPay }
     }) }))
     setEditingEntryId(null)
     setStatus('Payroll row updated and saved locally')
@@ -398,7 +424,8 @@ export default function Payroll({ data, setData }) {
         total_pay: money(regular + totalTips - tipDeduction),
         check_number: checkNumber,
         payroll_type: employee?.payroll_type || 'Check',
-        pay_type: employee?.pay_type || 'Tips'
+        pay_type: employee?.pay_type || 'Tips',
+        payroll_classification: inferPayrollClassification(employee || { pay_type: 'Tips', employee_name: cleanName || rawName })
       }
     }).filter(row => row.employee_name)
     setPreviewRows(parsed)
@@ -412,7 +439,7 @@ export default function Payroll({ data, setData }) {
       const next = { ...row, [field]: value }
       if (field === 'employee_id') {
         const emp = employees.find(item => item.id === value)
-        if (emp) Object.assign(next, { employee_name: emp.name, pay_type: emp.pay_type, payroll_type: emp.payroll_type, employee_type: emp.employee_type || next.employee_type, job_type: emp.job_type || next.job_type, assignment_label: employeeAssignmentLabel(emp, groups), is_new_employee: false })
+        if (emp) Object.assign(next, { employee_name: emp.name, pay_type: emp.pay_type, payroll_type: emp.payroll_type, payroll_classification: inferPayrollClassification(emp), employee_type: emp.employee_type || next.employee_type, job_type: emp.job_type || next.job_type, assignment_label: employeeAssignmentLabel(emp, groups), is_new_employee: false })
         if (!value) Object.assign(next, { is_new_employee: true, assignment_label: 'New Employee Import' })
       }
       if (field === 'employee_type') next.employee_type = normalizeType(value, employeeTypeOptions)
@@ -448,14 +475,15 @@ export default function Payroll({ data, setData }) {
             extra_pay: 0,
             extra_reason: '',
             is_active: true,
-            created_from: 'payroll_import'
+            created_from: 'payroll_import',
+            payroll_classification: row.payroll_classification || inferPayrollClassification(row)
           }
           newEmployees.push(employee)
         }
         const sourceLabel = employeeAssignmentLabel(employee, prev.payrollGroups || [])
         return {
           id: createId('pay'), employee_id: employeeId, employee_name: employee.name || employeeName, group_name: sourceLabel, pay_date: toastPayDate,
-          pay_type: employee.pay_type || row.pay_type, payroll_type: employee.payroll_type || row.payroll_type, check_number: row.check_number || '', hours: num(row.hours), regular_pay: num(row.regular_pay), tips: num(row.tips),
+          pay_type: employee.pay_type || row.pay_type, payroll_type: employee.payroll_type || row.payroll_type, payroll_classification: row.payroll_classification || employee.payroll_classification || inferPayrollClassification(employee), check_number: row.check_number || '', hours: num(row.hours), regular_pay: num(row.regular_pay), tips: num(row.tips),
           tip_deduction: num(row.tip_deduction), extra_pay: num(row.extra_pay), extra_reason: row.extra_reason || '', total_pay: num(row.total_pay)
         }
       })
@@ -489,7 +517,7 @@ export default function Payroll({ data, setData }) {
       }
       .payroll-entry-card {
         display: grid;
-        grid-template-columns: minmax(150px, 1.1fr) minmax(145px, 1fr) 76px 76px 92px 92px 92px minmax(140px, 1fr) 92px 150px;
+        grid-template-columns: minmax(150px, 1.1fr) minmax(125px, .9fr) minmax(125px, .9fr) 72px 72px 88px 88px 88px minmax(130px, 1fr) 86px 140px;
         gap: 0;
         align-items: center;
         border: 1px solid #dbe5f1;
@@ -669,16 +697,16 @@ export default function Payroll({ data, setData }) {
     </div>
 
     <div className="payroll-summary-row">
-      <div><span>Total Payroll</span><b>${money(totals.total)}</b></div><div><span>Cash Payroll</span><b>${money(totals.cash)}</b></div><div><span>Check Payroll</span><b>${money(totals.check)}</b></div><div><span>Tips Withheld</span><b>${money(totals.withheld)}</b></div>
+      <div><span>Operating Payroll</span><b>${money(totals.operating)}</b><small>Counts in profit</small></div><div><span>Server Tips</span><b>${money(totals.customerTips)}</b><small>Separate from payroll cost</small></div><div><span>Cash Paid</span><b>${money(totals.cash)}</b></div><div><span>Check Paid</span><b>${money(totals.check)}</b></div><div><span>Tips Withheld</span><b>${money(totals.withheld)}</b></div>
     </div>
 
     <div className="payroll-grid clean-payroll-grid">
       <section className="form-card payroll-card tight-card">
         <h2>Payroll Groups</h2>
         <div className="payroll-row"><input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Group name or rename" /><select value={groupPayrollType} onChange={e => setGroupPayrollType(e.target.value)}><option>Cash</option><option>Check</option></select></div>
-        <div className="payroll-row"><input value={groupNotes} onChange={e => setGroupNotes(e.target.value)} placeholder="Group notes optional" /><button className="btn primary" onClick={createGroup}>Create</button><button className="btn secondary" onClick={renameSelectedGroup}>Rename</button><button className="btn danger" onClick={deleteGroup}>Delete</button></div>
+        <div className="payroll-row"><input value={groupNotes} onChange={e => setGroupNotes(e.target.value)} placeholder="Group notes optional" /><button className="btn primary" onClick={createGroup} type="button">Create</button><button className="btn secondary" onClick={renameSelectedGroup} type="button">Rename</button><button className="btn danger" onClick={deleteGroup} type="button">Delete</button></div>
         <div className="payroll-row group-select-row"><select value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)}>{groups.map(group => <option key={group.id} value={group.id}>{group.name} - {group.payroll_type}</option>)}</select></div>
-        <div className="payroll-row"><select value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)} disabled={!availableEmployees.length}>{availableEmployees.length ? availableEmployees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} - {emp.job_type}</option>) : <option value="">All active employees are already in this group</option>}</select><button className="btn secondary" onClick={addEmployeeToGroup} disabled={!selectedGroup || !selectedEmployeeId || !availableEmployees.length}>Add To Group</button></div>
+        <div className="payroll-row"><select value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)} disabled={!availableEmployees.length}>{availableEmployees.length ? availableEmployees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} - {emp.job_type}</option>) : <option value="">All active employees are already in this group</option>}</select><button className="btn secondary" onClick={addEmployeeToGroup} disabled={!selectedGroup || !selectedEmployeeId || !availableEmployees.length} type="button">Add To Group</button></div>
       </section>
 
       <section className="table-card payroll-members compact-table-card group-editor-card">
@@ -688,10 +716,10 @@ export default function Payroll({ data, setData }) {
             <span><b>Method:</b> {selectedGroup.payroll_type || 'Cash'}</span>
             <span><b>Notes:</b> {selectedGroup.notes || 'No notes'}</span>
           </div>
-          <table><thead><tr><th>Name</th><th>Job</th><th>Pay</th><th>Base</th><th>Action</th></tr></thead><tbody>{groupMembers.length ? groupMembers.map(emp => <tr key={emp.id}><td><b>{emp.name}</b><small>{emp.payroll_type}</small></td><td>{emp.job_type}</td><td><span className={`tag ${String(emp.pay_type).toLowerCase()}`}>{emp.pay_type}</span></td><td>${money(emp.base_pay)}</td><td><button className="delete-link" onClick={() => removeFromGroup(emp.id)}>Delete</button></td></tr>) : <tr><td colSpan="5" className="empty-cell">No employees in this group yet. Add employees from the selector on the left.</td></tr>}</tbody></table>
+          <table><thead><tr><th>Name</th><th>Job</th><th>Pay</th><th>Base</th><th>Action</th></tr></thead><tbody>{groupMembers.length ? groupMembers.map(emp => <tr key={emp.id}><td><b>{emp.name}</b><small>{emp.payroll_type}</small></td><td>{emp.job_type}</td><td><span className={`tag ${String(emp.pay_type).toLowerCase()}`}>{emp.pay_type}</span></td><td>${money(emp.base_pay)}</td><td><button className="delete-link" type="button" onClick={() => removeFromGroup(emp.id)}>Delete</button></td></tr>) : <tr><td colSpan="5" className="empty-cell">No employees in this group yet. Add employees from the selector on the left.</td></tr>}</tbody></table>
           <div className="group-payroll-action-row">
             <label className="group-payroll-date-label">Payroll date <input type="date" value={groupPayDate} onChange={e => setGroupPayDate(e.target.value)} /></label>
-            <button className="btn primary" onClick={addGroupPayroll}><Icon name="plus" /> Add Group To Payroll</button>
+            <button className="btn primary" onClick={addGroupPayroll} type="button"><Icon name="plus" /> Add Group To Payroll</button>
             <span>Creates payroll rows for the selected group using the selected payroll date.</span>
           </div>
         </> : <div className="empty-cell">Create or select a payroll group to manage members.</div>}
@@ -722,6 +750,9 @@ export default function Payroll({ data, setData }) {
         <label>Pay type
           <select value={manualForm.pay_type} onChange={e => updateManualForm('pay_type', e.target.value)}><option>Hourly</option><option>Salary</option><option>Tips</option></select>
         </label>
+        <label>Payroll classification
+          <select value={manualForm.payroll_classification} onChange={e => updateManualForm('payroll_classification', e.target.value)}><option>Operating Labor</option><option>Customer Tips</option></select>
+        </label>
         <label>Hours
           <input type="number" step="0.01" value={manualForm.hours} onChange={e => updateManualForm('hours', e.target.value)} placeholder="0.00" />
         </label>
@@ -741,8 +772,8 @@ export default function Payroll({ data, setData }) {
           <input value={manualForm.extra_reason} onChange={e => updateManualForm('extra_reason', e.target.value)} placeholder="Reason for extra work/pay" />
         </label>
         <div className="form-actions-inline">
-          <button className="btn secondary" onClick={clearManualForm}>Clear</button>
-          <button className="btn primary" onClick={addManualPayroll}><Icon name="plus" /> Add Payroll</button>
+          <button className="btn secondary" onClick={clearManualForm} type="button">Clear</button>
+          <button className="btn primary" onClick={addManualPayroll} type="button"><Icon name="plus" /> Add Payroll</button>
         </div>
       </div>
     </section>
@@ -757,13 +788,13 @@ export default function Payroll({ data, setData }) {
     </section>
 
     {previewRows.length > 0 && <section className="table-card compact-table-card import-preview-card">
-      <header><h2>Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreviewToPayroll}>Add To Payroll</button></span></header>
-      <table className="import-preview-table"><thead><tr><th>Employee</th><th>Employee Type</th><th>Assignment Source</th><th>Check #</th><th>Hours</th><th>Regular</th><th>Tips After Withheld</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
+      <header><h2>Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreviewToPayroll} type="button">Add To Payroll</button></span></header>
+      <table className="import-preview-table"><thead><tr><th>Employee</th><th>Employee Type</th><th>Payroll Class</th><th>Assignment Source</th><th>Check #</th><th>Hours</th><th>Regular</th><th>Tips After Withheld</th><th>Tips Withheld</th><th>Extra</th><th>Reason</th><th>Total</th><th></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
         <td><select value={row.employee_id} onChange={e => updatePreview(row.id, 'employee_id', e.target.value)}><option value="">{row.employee_name || 'New / unmatched employee'}</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></td>
         <td><select value={row.employee_type || 'Regular'} onChange={e => updatePreview(row.id, 'employee_type', e.target.value)}>{employeeTypeOptions.map(type => <option key={type} value={type}>{type}</option>)}</select></td>
         <td><span className={row.is_new_employee ? 'tag seasonal' : 'tag regular'}>{row.is_new_employee ? 'Add to Employee List' : row.assignment_label}</span></td>
         <td><input className="data-input check-number-input" value={row.check_number || ''} onChange={e => updatePreview(row.id, 'check_number', e.target.value)} placeholder="Check #" /></td>
-        <td><input className="data-input hours-input" type="number" step="0.01" value={row.hours} onChange={e => updatePreview(row.id, 'hours', e.target.value)} onBlur={e => updatePreview(row.id, 'hours', money(e.target.value))} /></td><td><input className="data-input money-input" type="number" step="0.01" value={row.regular_pay} onChange={e => updatePreview(row.id, 'regular_pay', e.target.value)} onBlur={e => updatePreview(row.id, 'regular_pay', money(e.target.value))} /></td><td><input className="data-input tips-input" type="number" step="0.01" value={row.tips} onChange={e => updatePreview(row.id, 'tips', e.target.value)} onBlur={e => updatePreview(row.id, 'tips', money(e.target.value))} /></td><td><input className="data-input money-input" type="number" step="0.01" value={row.tip_deduction} onChange={e => updatePreview(row.id, 'tip_deduction', e.target.value)} onBlur={e => updatePreview(row.id, 'tip_deduction', money(e.target.value))} /></td><td><input className="data-input extra-input" type="number" step="0.01" value={row.extra_pay} onChange={e => updatePreview(row.id, 'extra_pay', e.target.value)} onBlur={e => updatePreview(row.id, 'extra_pay', money(e.target.value))} /></td><td><input className="data-input reason-input" value={row.extra_reason} onChange={e => updatePreview(row.id, 'extra_reason', e.target.value)} placeholder="Optional" /></td><td><b>${money(row.total_pay)}</b></td><td><button className="delete-link" onClick={() => setPreviewRows(prev => prev.filter(item => item.id !== row.id))}>Remove</button></td>
+        <td><input className="data-input hours-input" type="number" step="0.01" value={row.hours} onChange={e => updatePreview(row.id, 'hours', e.target.value)} onBlur={e => updatePreview(row.id, 'hours', money(e.target.value))} /></td><td><input className="data-input money-input" type="number" step="0.01" value={row.regular_pay} onChange={e => updatePreview(row.id, 'regular_pay', e.target.value)} onBlur={e => updatePreview(row.id, 'regular_pay', money(e.target.value))} /></td><td><input className="data-input tips-input" type="number" step="0.01" value={row.tips} onChange={e => updatePreview(row.id, 'tips', e.target.value)} onBlur={e => updatePreview(row.id, 'tips', money(e.target.value))} /></td><td><input className="data-input money-input" type="number" step="0.01" value={row.tip_deduction} onChange={e => updatePreview(row.id, 'tip_deduction', e.target.value)} onBlur={e => updatePreview(row.id, 'tip_deduction', money(e.target.value))} /></td><td><input className="data-input extra-input" type="number" step="0.01" value={row.extra_pay} onChange={e => updatePreview(row.id, 'extra_pay', e.target.value)} onBlur={e => updatePreview(row.id, 'extra_pay', money(e.target.value))} /></td><td><input className="data-input reason-input" value={row.extra_reason} onChange={e => updatePreview(row.id, 'extra_reason', e.target.value)} placeholder="Optional" /></td><td><b>${money(row.total_pay)}</b></td><td><button className="delete-link" type="button" onClick={() => setPreviewRows(prev => prev.filter(item => item.id !== row.id))}>Remove</button></td>
       </tr>)}</tbody></table>
     </section>}
 
@@ -778,9 +809,10 @@ export default function Payroll({ data, setData }) {
               <span>Employee / Date</span>
               <b>{entry.employee_name}</b>
               {isEditing ? <input className="inline-edit-input date" type="date" value={entryForm.pay_date} onChange={e => setEntryForm(prev => ({ ...prev, pay_date: e.target.value }))} /> : <small>{entry.pay_date || '-'}</small>}
-              <div className="payroll-entry-tags"><span className={`tag ${String(entry.pay_type).toLowerCase()}`}>{entry.pay_type}</span><span className={entry.payroll_type === 'Cash' ? 'tag cash' : 'tag check'}>{entry.payroll_type}</span></div>
+              <div className="payroll-entry-tags"><span className={`tag ${String(entry.pay_type).toLowerCase()}`}>{entry.pay_type}</span><span className={entry.payroll_type === 'Cash' ? 'tag cash' : 'tag check'}>{entry.payroll_type}</span><span className={String(entry.payroll_classification || inferPayrollClassification(entry)).includes('Tip') ? 'tag orange' : 'tag teal'}>{entry.payroll_classification || inferPayrollClassification(entry)}</span></div>
             </div>
             <div className="payroll-entry-cell"><span>Source</span><b>{entry.group_name || '-'}</b></div>
+            <div className="payroll-entry-cell"><span>Class</span>{isEditing ? <select className="inline-edit-input" value={entryForm.payroll_classification || 'Operating Labor'} onChange={e => setEntryForm(prev => ({ ...prev, payroll_classification: e.target.value }))}><option>Operating Labor</option><option>Customer Tips</option></select> : <b>{entry.payroll_classification || inferPayrollClassification(entry)}</b>}</div>
             <div className="payroll-entry-cell"><span>Check #</span>{isEditing ? <input className="inline-edit-input short" value={entryForm.check_number || ''} onChange={e => setEntryForm(prev => ({ ...prev, check_number: e.target.value }))} placeholder="Check #" /> : <b>{entry.check_number || '-'}</b>}</div>
             <div className="payroll-entry-cell"><span>Hours</span>{isEditing ? <input className="inline-edit-input short" type="number" step="0.01" value={entryForm.hours} onChange={e => setEntryForm(prev => ({ ...prev, hours: e.target.value }))} /> : <b>{money(entry.hours)}</b>}</div>
             <div className="payroll-entry-cell"><span>Regular</span>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.regular_pay} onChange={e => setEntryForm(prev => ({ ...prev, regular_pay: e.target.value }))} /> : <b>${money(entry.regular_pay)}</b>}</div>
@@ -788,7 +820,7 @@ export default function Payroll({ data, setData }) {
             <div className="payroll-entry-cell"><span>Withheld</span>{isEditing ? <input className="inline-edit-input" type="number" step="0.01" value={entryForm.tip_deduction} onChange={e => setEntryForm(prev => ({ ...prev, tip_deduction: e.target.value }))} /> : <b>${money(entry.tip_deduction)}</b>}</div>
             <div className="payroll-entry-cell"><span>Extra / Reason</span>{isEditing ? <><input className="inline-edit-input" type="number" step="0.01" value={entryForm.extra_pay} onChange={e => setEntryForm(prev => ({ ...prev, extra_pay: e.target.value }))} /><input className="inline-edit-input reason" value={entryForm.extra_reason} onChange={e => setEntryForm(prev => ({ ...prev, extra_reason: e.target.value }))} placeholder="Reason" /></> : <b>${money(entry.extra_pay)} {entry.extra_reason ? `• ${entry.extra_reason}` : ''}</b>}</div>
             <div className="payroll-entry-cell"><span>Total</span><b>${isEditing ? editTotal : money(entry.total_pay)}</b></div>
-            <div className="payroll-entry-actions">{isEditing ? <><button className="save-link" onClick={saveEntryEdit}>Save</button><button onClick={() => setEditingEntryId(null)}>Cancel</button></> : <><button onClick={() => startEdit(entry)}>Edit</button><button className="delete-link" onClick={() => deleteEntry(entry.id)}>Delete</button></>}</div>
+            <div className="payroll-entry-actions">{isEditing ? <><button className="save-link" onClick={saveEntryEdit} type="button">Save</button><button type="button" onClick={() => setEditingEntryId(null)}>Cancel</button></> : <><button type="button" onClick={() => startEdit(entry)}>Edit</button><button className="delete-link" type="button" onClick={() => deleteEntry(entry.id)}>Delete</button></>}</div>
           </article>
         }) : <div className="empty-cell">No payroll entries in the selected date range.</div>}
       </div>

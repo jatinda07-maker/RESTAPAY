@@ -67,7 +67,7 @@ export default function Settings({ data, setData }) {
 
       <div className="form-card tight-card">
         <h2>Backup / Restore</h2>
-        <div className="settings-actions"><button className="btn primary" onClick={exportBackup}><Icon name="download" /> Export Backup</button><button className="btn secondary" onClick={() => fileRef.current?.click()}><Icon name="upload" /> Import Backup</button><button className="btn danger" onClick={clearLocalData}>Reset Local</button></div>
+        <div className="settings-actions"><button className="btn primary" onClick={exportBackup} type="button"><Icon name="download" /> Export Backup</button><button className="btn secondary" type="button" onClick={() => fileRef.current?.click()}><Icon name="upload" /> Import Backup</button><button className="btn danger" onClick={clearLocalData} type="button">Reset Local</button></div>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={importBackup} />
         <p className="helper-text">Backup includes employees, employee/job types, payroll groups, payroll entries, imports, and settings.</p>
       </div>

@@ -401,7 +401,7 @@ export default function Sales({ data, setData }) {
         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
       </label>
 
-      <button className="btn primary" onClick={addManualSale}>
+      <button className="btn primary" onClick={addManualSale} type="button">
         <Icon name="plus" />
         Add Manual Sale
       </button>
@@ -420,16 +420,16 @@ export default function Sales({ data, setData }) {
     </div>
 
     {previewRows.length > 0 && <section className="table-card compact-table-card sales-preview-card">
-      <header><h2>Sales Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreview}>Save Sales</button></span></header>
+      <header><h2>Sales Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreview} type="button">Save Sales</button></span></header>
       <table className="sales-table fit-sales-table"><thead><tr><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Online</th><th>Tips</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col"></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
         <td className="sales-date-cell"><input className="sales-date-input" type="date" value={row.business_date} onChange={e => updatePreview(row.id, 'business_date', e.target.value)} />{row.import_note && <small className="sales-note" title={row.import_note}>{shortNote(row.import_note)}</small>}</td>
         {numberFields.map(field => <td key={field}><input className="sales-data-input" type="number" step="0.01" value={row[field]} onChange={e => updatePreview(row.id, field, e.target.value)} onBlur={e => blurPreview(row.id, field, e.target.value)} /></td>)}
-        <td><button className="delete-link" onClick={() => setPreviewRows(prev => prev.filter(item => item.id !== row.id))}>Remove</button></td>
+        <td><button className="delete-link" type="button" onClick={() => setPreviewRows(prev => prev.filter(item => item.id !== row.id))}>Remove</button></td>
       </tr>)}</tbody></table>
     </section>}
 
     <section className="table-card compact-table-card sales-history-card">
-      <header><h2>Sales History</h2><span>{filteredSales.length} rows {selectedIds.length ? <button className="delete-link small-btn" onClick={bulkDelete}>Delete {selectedIds.length}</button> : null}</span></header>
+      <header><h2>Sales History</h2><span>{filteredSales.length} rows {selectedIds.length ? <button className="delete-link small-btn" onClick={bulkDelete} type="button">Delete {selectedIds.length}</button> : null}</span></header>
       <table className="sales-table fit-sales-table"><thead><tr><th className="sales-check-col"><input type="checkbox" checked={checkedAll} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Online</th><th>Tips</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col">Action</th></tr></thead><tbody>{filteredSales.map(row => {
         const isEditing = editingId === row.id
         const current = isEditing ? editRow : row
@@ -437,7 +437,7 @@ export default function Sales({ data, setData }) {
           <td className="sales-check-col"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleSelected(row.id)} /></td>
           <td className="sales-date-cell">{isEditing ? <input className="sales-date-input" type="date" value={current.business_date} onChange={e => setEditRow(prev => ({ ...prev, business_date: e.target.value }))} /> : <><span className="sales-date-main">{current.business_date}</span>{current.import_note && <small className="sales-note" title={current.import_note}>{shortNote(current.import_note)}</small>}</>}</td>
           {numberFields.map(field => <td key={field} className={field === 'guest_count' ? 'guest-cell' : 'money-cell'}>{isEditing ? <input className="sales-data-input" type="number" step="0.01" value={current[field]} onChange={e => setEditRow(prev => ({ ...prev, [field]: e.target.value }))} /> : (field === 'guest_count' ? money(current[field]) : displayMoney(current[field]))}</td>)}
-          <td className="row-actions">{isEditing ? <><button className="save-link" onClick={saveEdit}>Save</button><button onClick={() => setEditingId(null)}>Cancel</button></> : <><button onClick={() => startEdit(row)}>Edit</button><button className="delete-link" onClick={() => deleteSale(row.id)}>Delete</button></>}</td>
+          <td className="row-actions">{isEditing ? <><button className="save-link" onClick={saveEdit} type="button">Save</button><button type="button" onClick={() => setEditingId(null)}>Cancel</button></> : <><button type="button" onClick={() => startEdit(row)}>Edit</button><button className="delete-link" type="button" onClick={() => deleteSale(row.id)}>Delete</button></>}</td>
         </tr>
       })}{filteredSales.length === 0 && <tr><td colSpan="14"><small>No sales rows yet. Import a Toast Sales Summary CSV/XLSX.</small></td></tr>}</tbody>
       {filteredSales.length > 0 && <tfoot><tr><th></th><th>Totals</th><th>{displayMoney(totals.gross)}</th><th>{displayMoney(totals.net)}</th><th>{displayMoney(totals.cash)}</th><th>{displayMoney(totals.credit)}</th><th>{displayMoney(totals.gift)}</th><th>{displayMoney(totals.online)}</th><th>{displayMoney(totals.tips)}</th><th>{displayMoney(totals.refunds)}</th><th>{displayMoney(totals.discounts)}</th><th>{displayMoney(totals.tax)}</th><th>{money(totals.guests)}</th><th></th></tr></tfoot>}

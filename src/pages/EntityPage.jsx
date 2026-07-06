@@ -334,9 +334,9 @@ function PriceIncreasePage() {
       <div className="status-pill">Live increase: {Number.isFinite(livePct) ? livePct.toFixed(1) : '0.0'}%</div>
 
       <div className="form-action-footer">
-        <button className="btn secondary" onClick={clear}>{editingId ? 'Cancel Edit' : 'Clear'}</button>
-        <button className="btn secondary" onClick={pullFromInvoices}><Icon name="refresh" /> Pull From Invoices</button>
-        <button className="btn primary" onClick={save}><Icon name="save" /> {editingId ? 'Update Price' : 'Save Price'}</button>
+        <button className="btn secondary" onClick={clear} type="button">{editingId ? 'Cancel Edit' : 'Clear'}</button>
+        <button className="btn secondary" onClick={pullFromInvoices} type="button"><Icon name="refresh" /> Pull From Invoices</button>
+        <button className="btn primary" onClick={save} type="button"><Icon name="save" /> {editingId ? 'Update Price' : 'Save Price'}</button>
       </div>
     </section>
 
@@ -384,7 +384,7 @@ function PriceIncreasePage() {
             <td>{row.vendor || '-'}</td>
             <td>{row.date || '-'}</td>
             <td>{row.source || 'manual'}</td>
-            <td className="row-actions"><button onClick={()=>edit(row)}>Edit</button><button className="delete-link" onClick={()=>remove(row.id)}>Delete</button></td>
+            <td className="row-actions"><button type="button" onClick={() => edit(row)}>Edit</button><button className="delete-link" type="button" onClick={() => remove(row.id)}>Delete</button></td>
           </tr>
         })}</tbody>
       </table></div>
@@ -396,10 +396,10 @@ export default function EntityPage({ page }) {
   if (page === 'price-increase') return <PriceIncreasePage />
   const cfg = map[page] || map.sales
   return <>
-    <div className="page-head"><div><h1>{cfg.title}</h1><p>{cfg.desc}</p></div><div className="actions"><button className="btn primary"><Icon name="plus" /> {cfg.button}</button><button className="btn secondary">Clear</button></div></div>
+    <div className="page-head"><div><h1>{cfg.title}</h1><p>{cfg.desc}</p></div><div className="actions"><button className="btn primary" type="button"><Icon name="plus" /> {cfg.button}</button><button className="btn secondary" type="button">Clear</button></div></div>
     <div className="workspace-grid">
-      <section className="form-card"><h2>{cfg.title} Workspace</h2><div className="form-grid"><input placeholder="Search or name" /><input placeholder="Category / type" /><input placeholder="Amount / value" /><input type="date" /></div><div className="actions left"><button className="btn primary">Save</button><button className="btn danger">Delete</button></div></section>
-      <section className="table-card"><header><h2>{cfg.title} List</h2><span>Sorted A–Z</span></header><table><thead><tr><th>Name</th><th>Value</th><th>Status</th><th></th></tr></thead><tbody>{cfg.rows.map((r,i)=><tr key={i}><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td><button>Edit</button></td></tr>)}</tbody></table></section>
+      <section className="form-card"><h2>{cfg.title} Workspace</h2><div className="form-grid"><input placeholder="Search or name" /><input placeholder="Category / type" /><input placeholder="Amount / value" /><input type="date" /></div><div className="actions left"><button className="btn primary" type="button">Save</button><button className="btn danger" type="button">Delete</button></div></section>
+      <section className="table-card"><header><h2>{cfg.title} List</h2><span>Sorted A–Z</span></header><table><thead><tr><th>Name</th><th>Value</th><th>Status</th><th></th></tr></thead><tbody>{cfg.rows.map((r,i)=><tr key={i}><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td><button type="button">Edit</button></td></tr>)}</tbody></table></section>
     </div>
   </>
 }
