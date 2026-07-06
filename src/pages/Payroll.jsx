@@ -94,6 +94,7 @@ export default function Payroll({ data, setData }) {
   const [status, setStatus] = useState('Local auto-save is active. Payroll groups and entries will not disappear.')
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
+  const [employeeSearch, setEmployeeSearch] = useState('')
 
   function updateDateStart(value) {
     setDateStart(value)
@@ -138,8 +139,25 @@ export default function Payroll({ data, setData }) {
     return true
   }
 
-  const filteredEntries = useMemo(() => entries.filter(entry => inSelectedRange(entry.pay_date || entry.date)), [entries, dateStart, dateEnd])
+  const filteredEntries = useMemo(() => {
+    const query = employeeSearch.trim().toLowerCase()
+    return entries.filter(entry => {
+      const entryDate = entry.pay_date || entry.payroll_date || entry.date
+      if (!inSelectedRange(entryDate)) return false
+      if (!query) return true
+      const searchable = [
+        entry.employee_name,
+        entry.employee_id,
+        entry.group_name,
+        entry.payroll_type,
+        entry.pay_type,
+        entry.check_number
+      ].join(' ').toLowerCase()
+      return searchable.includes(query)
+    })
+  }, [entries, dateStart, dateEnd, employeeSearch])
   const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
+  const activeFilterLabel = employeeSearch.trim() ? ` • Employee/search: ${employeeSearch.trim()}` : ''
 
   const selectedGroup = groups.find(group => group.id === selectedGroupId) || groups[0]
   const memberIds = new Set(selectedGroup?.memberIds || [])
@@ -640,9 +658,14 @@ export default function Payroll({ data, setData }) {
     </div>
     <div className="status-pill">{status}</div>
 
-    <div className="page-filter-shell">
-      <DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}`) }} onPreset={applyPreset} />
-      <span className="filter-note">Filtering payroll by {rangeLabel}</span>
+    <div className="page-filter-shell payroll-filter-shell">
+      <DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}${activeFilterLabel}`) }} onPreset={applyPreset} />
+      <label className="search-box payroll-employee-search">
+        <span>Employee / Check Search</span>
+        <input value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} placeholder="Search employee, group, method, check #" />
+      </label>
+      {employeeSearch && <button type="button" className="btn ghost clear-filter-btn" onClick={() => setEmployeeSearch('')}>Clear Search</button>}
+      <span className="filter-note">Showing {filteredEntries.length} payroll rows • {rangeLabel}{activeFilterLabel}</span>
     </div>
 
     <div className="payroll-summary-row">
@@ -745,7 +768,7 @@ export default function Payroll({ data, setData }) {
     </section>}
 
     <section className="table-card payroll-table-card compact-table-card">
-      <header><h2>Payroll Entries</h2><span>{filteredEntries.length} rows • Total ${money(totals.total)} • {rangeLabel}</span></header>
+      <header><h2>Payroll Entries</h2><span>{filteredEntries.length} rows • Total ${money(totals.total)} • {rangeLabel}{activeFilterLabel}</span></header>
       <div className="payroll-entries-list">
         {filteredEntries.length ? filteredEntries.map(entry => {
           const isEditing = editingEntryId === entry.id
