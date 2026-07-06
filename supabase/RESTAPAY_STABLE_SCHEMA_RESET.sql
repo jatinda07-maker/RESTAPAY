@@ -14,6 +14,9 @@ drop table if exists public.employees cascade;
 drop table if exists public.sales_days cascade;
 drop table if exists public.sales_imports cascade;
 drop table if exists public.custom_reports cascade;
+drop table if exists public.menu_recipes cascade;
+drop table if exists public.menu_items cascade;
+drop table if exists public.menu_imports cascade;
 drop table if exists public.settings cascade;
 drop table if exists public.employee_types cascade;
 drop table if exists public.job_types cascade;
@@ -179,6 +182,41 @@ create table public.sales_imports (
   created_at timestamptz default now()
 );
 
+create table public.menu_items (
+  id text primary key,
+  name text not null,
+  category text default 'Food',
+  vendor_source text default 'US Foods',
+  qty_sold numeric default 0,
+  avg_price numeric default 0,
+  gross_sales numeric default 0,
+  net_sales numeric default 0,
+  date_start date,
+  date_end date,
+  source_file text default '',
+  status text default 'Estimated',
+  imported_at timestamptz default now(),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table public.menu_recipes (
+  id text primary key,
+  menu_item_id text,
+  menu_item_name text default '',
+  target_food_cost numeric default 30,
+  confidence text default 'Estimated',
+  lines jsonb default '[]'::jsonb,
+  updated_at timestamptz default now()
+);
+
+create table public.menu_imports (
+  id text primary key,
+  file_name text not null,
+  row_count integer default 0,
+  imported_at timestamptz default now()
+);
+
 create table public.custom_reports (
   id text primary key,
   name text not null,
@@ -229,6 +267,9 @@ alter table public.payroll_imports disable row level security;
 alter table public.expenses disable row level security;
 alter table public.sales_days disable row level security;
 alter table public.sales_imports disable row level security;
+alter table public.menu_items disable row level security;
+alter table public.menu_recipes disable row level security;
+alter table public.menu_imports disable row level security;
 alter table public.custom_reports disable row level security;
 alter table public.settings disable row level security;
 alter table public.employee_types disable row level security;

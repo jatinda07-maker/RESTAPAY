@@ -20,6 +20,9 @@ export const defaultData = {
   invoiceItems: [],
   salesDays: [],
   salesImports: [],
+  menuItems: [],
+  menuRecipes: [],
+  menuImports: [],
   customReports: [],
   settings: { tipWithholdingRate: 3.5, geminiApiKey: '' }
 }
@@ -43,6 +46,9 @@ export function mergeData(data) {
     invoiceItems: data?.invoiceItems || defaultData.invoiceItems,
     salesDays: data?.salesDays || defaultData.salesDays,
     salesImports: data?.salesImports || defaultData.salesImports,
+    menuItems: data?.menuItems || defaultData.menuItems,
+    menuRecipes: data?.menuRecipes || defaultData.menuRecipes,
+    menuImports: data?.menuImports || defaultData.menuImports,
     customReports: data?.customReports || defaultData.customReports,
     settings: { ...defaultData.settings, ...(data?.settings || {}) }
   }
@@ -82,6 +88,9 @@ export function hasMeaningfulData(data) {
     merged.invoiceItems,
     merged.salesDays,
     merged.salesImports,
+    merged.menuItems,
+    merged.menuRecipes,
+    merged.menuImports,
     merged.customReports
   ].some(list => Array.isArray(list) && list.length > 0)
 }
@@ -126,6 +135,9 @@ function normalizeTableData(tableData = {}) {
     invoiceItems: tableData.invoice_items || [],
     salesDays: (tableData.sales_days || []).map(row => ({ ...row, date: row.business_date || row.date })),
     salesImports: tableData.sales_imports || [],
+    menuItems: tableData.menu_items || [],
+    menuRecipes: (tableData.menu_recipes || []).map(row => ({ ...row, lines: row.lines || [] })),
+    menuImports: tableData.menu_imports || [],
     customReports: tableData.custom_reports || [],
     settings: tableData.settings?.[0]?.app_settings || defaultData.settings
   })
@@ -137,7 +149,7 @@ async function loadCloudTables() {
     const tableNames = [
       'employees', 'employee_types', 'job_types', 'payroll_groups', 'payroll_entries', 'payroll_imports',
       'vendors', 'vendor_categories', 'expenses', 'expense_categories', 'payment_methods',
-      'invoices', 'invoice_items', 'sales_days', 'sales_imports', 'custom_reports', 'settings'
+      'invoices', 'invoice_items', 'sales_days', 'sales_imports', 'menu_items', 'menu_recipes', 'menu_imports', 'custom_reports', 'settings'
     ]
     const entries = await Promise.all(tableNames.map(async table => {
       const { data, error } = await supabase.from(table).select('*')

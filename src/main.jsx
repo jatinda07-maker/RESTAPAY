@@ -11,6 +11,7 @@ import Settings from './pages/Settings'
 import Sales from './pages/Sales'
 import Reports from './pages/Reports'
 import Expenses from './pages/Expenses'
+import MenuCosting from './pages/MenuCosting'
 import { useLocalData } from './lib/useLocalData'
 import './styles.css'
 
@@ -23,6 +24,7 @@ function App() {
     {active === 'dashboard' ? <Dashboard data={data} setData={setData} setActive={setActive} />
       : active === 'employees' ? <Employees {...shared} />
       : active === 'sales' ? <Sales {...shared} />
+      : active === 'menu-costing' ? <MenuCosting {...shared} />
       : active === 'vendors' ? <Vendors {...shared} />
       : active === 'invoices' ? <Invoices {...shared} />
       : active === 'payroll' ? <Payroll {...shared} />

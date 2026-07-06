@@ -5,6 +5,7 @@ import { Icon } from './Icons'
 const subtitles = {
   dashboard: 'Overview of your restaurant business',
   sales: 'Manage Toast imports, daily sales, payment methods, and sales history',
+  'menu-costing': 'Import Product Mix, estimate recipes, and calculate dish profit',
   vendors: 'Manage vendors, categories, payment terms, and contacts',
   invoices: 'Upload invoices, review totals, and organize vendor bills',
   employees: 'Manage employees, roles, pay types, and status',
