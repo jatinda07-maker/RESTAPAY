@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { hasMeaningfulData, loadCloudData, loadData, saveCloudData, saveData } from './localStore'
+import { announceCloudStatus, hasMeaningfulData, loadCloudData, loadData, retryPendingCloudSave, saveCloudData, saveData } from './localStore'
 
 export function useLocalData() {
   const [data, setData] = useState(() => loadData())
   const initialLocalData = useRef(loadData())
   const hasLoadedCloud = useRef(false)
-  const saveTimer = useRef(null)
 
   useEffect(() => {
     let cancelled = false
@@ -17,8 +16,9 @@ export function useLocalData() {
         setData(cloudData)
         saveData(cloudData)
       } else if (hasMeaningfulData(initialLocalData.current)) {
-        await saveCloudData(initialLocalData.current)
+        await saveCloudData(initialLocalData.current, { source: 'startup-local-backup' })
       }
+      await retryPendingCloudSave()
       hasLoadedCloud.current = true
     }
 
@@ -28,25 +28,24 @@ export function useLocalData() {
 
   useEffect(() => {
     saveData(data)
-
-    if (!hasLoadedCloud.current) return
-
-    window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(() => {
-      saveCloudData(data)
-    }, 450)
-
-    return () => window.clearTimeout(saveTimer.current)
   }, [data])
+
+  useEffect(() => {
+    function handleOnline() { retryPendingCloudSave() }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [])
 
   function updateData(updater) {
     setData(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       saveData(next)
       if (hasLoadedCloud.current) {
-        saveCloudData(next).then(result => {
-          if (!result?.ok) console.error('RESTAPAY Supabase sync failed', result?.error || result?.reason)
+        saveCloudData(next, { source: 'direct-save' }).then(result => {
+          if (!result?.ok) console.error('RESTAPAY direct database save failed', result?.error || result?.reason)
         })
+      } else {
+        announceCloudStatus('local', { message: 'Local backup saved. Cloud save starts after database load finishes.' })
       }
       return next
     })

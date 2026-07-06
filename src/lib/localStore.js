@@ -3,6 +3,14 @@ import { supabase, isSupabaseReady } from './supabase'
 export const RESTAPAY_KEY = 'restapay_v2_local_data'
 export const RESTAPAY_LEGACY_KEYS = ['restapay_app_data', 'restapay_data', 'restaPayData', 'restapayLocalData', 'restaurantPayData']
 export const RESTAPAY_SUPABASE_STATE_ID = 'main'
+export const RESTAPAY_CLOUD_STATUS_EVENT = 'restapay-cloud-status'
+export const RESTAPAY_PENDING_CLOUD_KEY = 'restapay_pending_cloud_save'
+
+export function announceCloudStatus(status, detail = {}) {
+  const payload = { status, at: new Date().toISOString(), ...detail }
+  try { localStorage.setItem('restapay_cloud_status', JSON.stringify(payload)) } catch {}
+  try { window.dispatchEvent(new CustomEvent(RESTAPAY_CLOUD_STATUS_EVENT, { detail: payload })) } catch {}
+}
 
 export const defaultData = {
   employees: [],
@@ -422,11 +430,16 @@ async function mirrorAppDataToTables(data) {
   if (settingsError) throw settingsError
 }
 
-export async function saveCloudData(data) {
-  if (!isSupabaseReady) return { ok: false, reason: 'Supabase env vars missing' }
+export async function saveCloudData(data, options = {}) {
+  if (!isSupabaseReady) {
+    try { localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify(mergeData(data))) } catch {}
+    announceCloudStatus('offline', { message: 'Supabase is not configured. Local backup saved.', source: options.source || 'direct-save' })
+    return { ok: false, reason: 'Supabase env vars missing' }
+  }
 
   try {
     const merged = mergeData(data)
+    announceCloudStatus('saving', { message: 'Saving directly to database...', source: options.source || 'direct-save' })
 
     const payload = {
       id: RESTAPAY_SUPABASE_STATE_ID,
@@ -443,10 +456,25 @@ export async function saveCloudData(data) {
     await mirrorAppDataToTables(merged)
 
     localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
+    try { localStorage.removeItem(RESTAPAY_PENDING_CLOUD_KEY) } catch {}
+    announceCloudStatus('saved', { message: 'Saved to database', source: options.source || 'direct-save' })
 
     return { ok: true }
   } catch (error) {
+    try { localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify(mergeData(data))) } catch {}
+    announceCloudStatus('offline', { message: 'Database save failed. Local backup saved and ready to retry.', source: options.source || 'direct-save', error: error?.message || String(error) })
     console.error('Failed to save Supabase data. LocalStorage backup was still saved.', error)
+    return { ok: false, error }
+  }
+}
+
+export async function retryPendingCloudSave() {
+  try {
+    const raw = localStorage.getItem(RESTAPAY_PENDING_CLOUD_KEY)
+    if (!raw) return { ok: true, reason: 'No pending cloud save' }
+    return await saveCloudData(JSON.parse(raw), { source: 'retry-pending' })
+  } catch (error) {
+    announceCloudStatus('offline', { message: 'Pending cloud retry failed.', error: error?.message || String(error) })
     return { ok: false, error }
   }
 }

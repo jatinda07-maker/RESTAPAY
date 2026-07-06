@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
-import { loadCloudData, saveCloudData } from '../lib/localStore'
+import { RESTAPAY_CLOUD_STATUS_EVENT, loadCloudData, retryPendingCloudSave } from '../lib/localStore'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
 
 function num(value) {
@@ -181,7 +181,7 @@ function DetailTable({ config, setActive }) {
 export default function Dashboard({ data, setData, setActive }) {
   const [detail, setDetail] = useState('')
   const [preset, setPreset] = useState('custom')
-  const [syncStatus, setSyncStatus] = useState('Ready to sync')
+  const [syncStatus, setSyncStatus] = useState('Direct database save is on')
   const savedRange = readSavedDateRange()
   const [dateStart, setDateStart] = useState(savedRange.start)
   const [dateEnd, setDateEnd] = useState(savedRange.end)
@@ -212,10 +212,10 @@ export default function Dashboard({ data, setData, setActive }) {
     const range = rangeForPreset(nextPreset)
     setDateStart(range.start); setDateEnd(range.end); setPreset(nextPreset); saveGlobalDateRange(range.start, range.end); setDetail('')
   }
-  async function syncAll() {
-    setSyncStatus('Syncing all data...')
-    const result = await saveCloudData(data)
-    setSyncStatus(result?.ok ? `Synced ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Sync failed - local backup saved')
+  async function retryCloudSave() {
+    setSyncStatus('Retrying pending database save...')
+    const result = await retryPendingCloudSave()
+    setSyncStatus(result?.ok ? `Database saved ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Database retry failed - local backup kept')
   }
   async function pullCloud() {
     setSyncStatus('Pulling cloud data...')
@@ -227,6 +227,18 @@ export default function Dashboard({ data, setData, setActive }) {
       setSyncStatus('No cloud data found')
     }
   }
+  useEffect(() => {
+    function handleCloudStatus(event) {
+      const detail = event.detail || {}
+      if (detail.status === 'saving') setSyncStatus('Saving directly to database...')
+      else if (detail.status === 'saved') setSyncStatus(`Cloud saved ${new Date(detail.at || Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`)
+      else if (detail.status === 'offline') setSyncStatus(detail.message || 'Offline backup saved')
+      else if (detail.status === 'local') setSyncStatus(detail.message || 'Local backup saved')
+    }
+    window.addEventListener(RESTAPAY_CLOUD_STATUS_EVENT, handleCloudStatus)
+    return () => window.removeEventListener(RESTAPAY_CLOUD_STATUS_EVENT, handleCloudStatus)
+  }, [])
+
   function showDetail(key, category = '') {
     setDetail(category ? `${key}:${category}` : key)
     setTimeout(() => document.getElementById('dashboard-details')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0)
@@ -368,13 +380,10 @@ export default function Dashboard({ data, setData, setActive }) {
           <label><small>End</small><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); setPreset('custom') }} /></label>
           <button type="button" className="btn primary" onClick={applyRange}>Apply</button>
         </div>
-        <div className="sync-group" aria-label="Database sync controls">
-          <button type="button" className="btn primary sync-btn" onClick={syncAll}><Icon name="refresh" size={16} /> Sync All</button>
-          <button type="button" className="btn secondary" onClick={syncAll}>Sync Sales</button>
-          <button type="button" className="btn secondary" onClick={syncAll}>Sync Payroll</button>
-          <button type="button" className="btn secondary" onClick={syncAll}>Sync Expenses</button>
-          <button type="button" className="btn secondary" onClick={syncAll}>Sync Invoices</button>
-          <button type="button" className="btn secondary" onClick={pullCloud}>Pull Cloud</button>
+        <div className="sync-group" aria-label="Database save controls">
+          <span className="cloud-save-pill"><span className="cloud-dot" /> Direct Database Save</span>
+          <button type="button" className="btn secondary" onClick={pullCloud}>Refresh Cloud</button>
+          <button type="button" className="btn secondary" onClick={retryCloudSave}>Retry Pending Save</button>
         </div>
         <span className="sync-status">{syncStatus}</span>
       </section>
