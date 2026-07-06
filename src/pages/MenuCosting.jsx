@@ -45,20 +45,39 @@ function parseRangeFromFileName(fileName) {
 function displayMoney(value) { return `$${money(value)}` }
 function pct(value) { return `${money(value)}%` }
 
-function isBeverageItem(name) {
+function isBeerItem(name) {
   const text = String(name || '').toLowerCase()
-  return ['coke', 'diet', 'sprite', 'tea', 'drink', 'soda', 'coffee', 'lemonade', 'water', 'pepsi', 'mountain dew', 'dr pepper', 'beer', 'wine', 'margarita', 'corralejo', 'tequila', 'vodka', 'rum', 'whiskey', 'modelo', 'corona', 'michelob'].some(key => text.includes(key))
+  return ['beer', 'modelo', 'corona', 'michelob', 'bud light', 'budweiser', 'dos equis', 'xx', 'pacifico', 'tecate', 'negra modelo', 'draft'].some(key => text.includes(key))
 }
-function vendorSourceFor(name) { return isBeverageItem(name) ? 'Buffalo Rock' : 'US Foods' }
+function isLiquorItem(name) {
+  const text = String(name || '').toLowerCase()
+  return ['texana', 'tequila', 'vodka', 'rum', 'whiskey', 'corralejo', 'don julio', 'patron', 'casamigos', 'shot', 'liquor'].some(key => text.includes(key))
+}
+function isMargaritaMixItem(name) {
+  const text = String(name || '').toLowerCase()
+  return text.includes('margarita') || text.includes('marg mix') || text.includes('sweet sour') || text.includes('sour mix')
+}
+function isBuffaloRockItem(name) {
+  const text = String(name || '').toLowerCase()
+  return ['coke', 'diet', 'sprite', 'tea', 'drink', 'soda', 'coffee', 'lemonade', 'water', 'pepsi', 'mountain dew', 'dr pepper'].some(key => text.includes(key))
+}
+function isBeverageItem(name) { return isBeerItem(name) || isLiquorItem(name) || isMargaritaMixItem(name) || isBuffaloRockItem(name) }
+function vendorSourceFor(name) {
+  if (isLiquorItem(name)) return 'ABC Store'
+  if (isBeerItem(name)) return 'Beer Vendor'
+  if (isMargaritaMixItem(name)) return 'US Foods'
+  if (isBuffaloRockItem(name)) return 'Buffalo Rock'
+  return 'US Foods'
+}
 
 const baseCosts = {
   tortilla: .18, flourTortilla: .22, cornTortilla: .12, cheese: .48, chicken: 1.58, steak: 2.65, beef: 1.85, pork: 1.70,
   shrimp: 2.95, fish: 2.35, rice: .23, beans: .24, lettuce: .15, tomato: .18, onion: .10, pepper: .22, sauce: .20,
   chips: .35, queso: .85, sourCream: .22, guacamole: .75, avocado: .95, shell: .28, egg: .32, beverage: .42,
-  liquor: 1.80, beer: 1.65, salsa: .18, seasoning: .08, oil: .06
+  liquor: 1.80, beer: 1.65, margaritaMix: .55, salsa: .18, seasoning: .08, oil: .06
 }
 const ingredientNames = {
-  tortilla: 'Tortilla', flourTortilla: 'Flour tortilla', cornTortilla: 'Corn tortilla', cheese: 'Cheese', chicken: 'Chicken', steak: 'Steak', beef: 'Ground beef', pork: 'Pork', shrimp: 'Shrimp', fish: 'Fish', rice: 'Rice', beans: 'Beans', lettuce: 'Lettuce', tomato: 'Tomato', onion: 'Onion', pepper: 'Peppers', sauce: 'Sauce', chips: 'Chips', queso: 'Queso', sourCream: 'Sour cream', guacamole: 'Guacamole', avocado: 'Avocado', shell: 'Taco shell', egg: 'Egg', beverage: 'Beverage syrup/cup', liquor: 'Liquor pour', beer: 'Beer cost', salsa: 'Salsa', seasoning: 'Seasoning', oil: 'Cooking oil'
+  tortilla: 'Tortilla', flourTortilla: 'Flour tortilla', cornTortilla: 'Corn tortilla', cheese: 'Cheese', chicken: 'Chicken', steak: 'Steak', beef: 'Ground beef', pork: 'Pork', shrimp: 'Shrimp', fish: 'Fish', rice: 'Rice', beans: 'Beans', lettuce: 'Lettuce', tomato: 'Tomato', onion: 'Onion', pepper: 'Peppers', sauce: 'Sauce', chips: 'Chips', queso: 'Queso', sourCream: 'Sour cream', guacamole: 'Guacamole', avocado: 'Avocado', shell: 'Taco shell', egg: 'Egg', beverage: 'Beverage syrup/cup', liquor: 'Liquor pour', beer: 'Beer cost', margaritaMix: 'Margarita mix', salsa: 'Salsa', seasoning: 'Seasoning', oil: 'Cooking oil'
 }
 function ing(key, qty, unit = 'portion', cost = baseCosts[key], vendor = 'US Foods') {
   return { id: createId('recipe-line'), ingredient: ingredientNames[key] || key, qty, unit, vendor, unitCost: Number(cost || 0), totalCost: Number(cost || 0) * Number(qty || 1), source: 'Estimated' }
@@ -67,10 +86,15 @@ function recipeTemplate(name, avgPrice = 0) {
   const text = String(name || '').toLowerCase()
   let lines = []
   if (isBeverageItem(text)) {
-    const vendor = text.includes('beer') || text.includes('corona') || text.includes('modelo') ? 'Beer Vendor' : 'Buffalo Rock'
-    lines = text.includes('margarita') || text.includes('tequila') || text.includes('corralejo')
-      ? [ing('liquor', 1.5, 'oz', baseCosts.liquor, 'Liquor Vendor'), ing('beverage', 1, 'mix/cup', .35, 'Buffalo Rock')]
-      : [ing('beverage', 1, 'serving', baseCosts.beverage, vendor)]
+    if (isLiquorItem(text)) {
+      lines = [ing('liquor', 1.5, 'oz', baseCosts.liquor, 'ABC Store')]
+    } else if (isBeerItem(text)) {
+      lines = [ing('beer', 1, 'bottle/draft', baseCosts.beer, 'Beer Vendor')]
+    } else if (isMargaritaMixItem(text)) {
+      lines = [ing('margaritaMix', 1, 'serving', baseCosts.margaritaMix, 'US Foods')]
+    } else {
+      lines = [ing('beverage', 1, 'serving', baseCosts.beverage, 'Buffalo Rock')]
+    }
   } else if (text.includes('fajita')) {
     const protein = text.includes('shrimp') ? 'shrimp' : text.includes('steak') || text.includes('beef') ? 'steak' : 'chicken'
     lines = [ing(protein, 7, 'oz'), ing('pepper', 2, 'oz'), ing('onion', 2, 'oz'), ing('flourTortilla', 3, 'each'), ing('rice', 4, 'oz'), ing('beans', 4, 'oz'), ing('lettuce', 1, 'oz'), ing('tomato', 1, 'oz'), ing('sourCream', 1, 'oz'), ing('guacamole', 1, 'oz'), ing('seasoning', 1, 'portion')]
@@ -126,7 +150,7 @@ function parseProductMix(workbook, fileName) {
     return {
       id: itemSlug(`${name}-${range.start || fileName}`),
       name,
-      category: isBeverageItem(name) ? 'Beverage' : 'Food',
+      category: isLiquorItem(name) ? 'Liquor' : isBeerItem(name) ? 'Beer' : isBeverageItem(name) ? 'Beverage' : 'Food',
       vendorSource: vendorSourceFor(name),
       qtySold: qty,
       avgPrice,
@@ -226,6 +250,29 @@ export default function MenuCosting({ data, setData }) {
       })
     }))
   }
+  function deleteRecipeLine(recipeId, lineId) {
+    setData(prev => ({
+      ...prev,
+      menuRecipes: (prev.menuRecipes || []).map(recipe => recipe.id !== recipeId ? recipe : {
+        ...recipe,
+        confidence: 'Edited',
+        lines: (recipe.lines || []).filter(line => line.id !== lineId),
+        updatedAt: new Date().toISOString()
+      })
+    }))
+  }
+  function addRecipeLine(recipeId, ingredientKey = 'chicken') {
+    const newLine = ing(ingredientKey, 1, 'portion', baseCosts[ingredientKey] || 0, ingredientKey === 'beer' ? 'Beer Vendor' : ingredientKey === 'liquor' ? 'ABC Store' : ingredientKey === 'margaritaMix' ? 'US Foods' : 'US Foods')
+    setData(prev => ({
+      ...prev,
+      menuRecipes: (prev.menuRecipes || []).map(recipe => recipe.id !== recipeId ? recipe : {
+        ...recipe,
+        confidence: 'Edited',
+        lines: [...(recipe.lines || []), newLine],
+        updatedAt: new Date().toISOString()
+      })
+    }))
+  }
   function approveRecipe(recipeId) {
     setData(prev => ({ ...prev, menuRecipes: (prev.menuRecipes || []).map(recipe => recipe.id === recipeId ? { ...recipe, confidence: 'Approved', updatedAt: new Date().toISOString() } : recipe) }))
   }
@@ -282,7 +329,7 @@ export default function MenuCosting({ data, setData }) {
       <section className="filter-card menu-filter-card">
         <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={() => setStatus('Date filter applied.')} onPreset={applyPreset} applyLabel="Apply" />
         <label><span>Search Dish / Vendor</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tacos, fajitas, Buffalo Rock..." /></label>
-        <label><span>Category</span><select value={category} onChange={e => setCategory(e.target.value)}><option value="all">All</option><option>Food</option><option>Beverage</option></select></label>
+        <label><span>Category</span><select value={category} onChange={e => setCategory(e.target.value)}><option value="all">All</option><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></label>
         <label><span>Target Food Cost %</span><input type="number" min="1" max="90" value={targetFoodCost} onChange={e => setTargetFoodCost(Number(e.target.value || 0))} /></label>
       </section>
 
@@ -333,23 +380,33 @@ export default function MenuCosting({ data, setData }) {
             </div>
             <div className="table-wrap recipe-lines-table">
               <table>
-                <thead><tr><th>Ingredient</th><th>Qty</th><th>Unit</th><th>Vendor</th><th>Unit Cost</th><th>Total</th></tr></thead>
+                <thead><tr><th>Ingredient</th><th>Qty</th><th>Unit</th><th>Vendor</th><th>Unit Cost</th><th>Total</th><th></th></tr></thead>
                 <tbody>
                   {(selectedRecipe?.lines || []).map(line => {
                     const invoiceMatch = matchInvoiceIngredient(line.ingredient, data.invoiceItems || [])
                     return <tr key={line.id}>
-                      <td><input value={line.ingredient} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'ingredient', e.target.value)} /></td>
+                      <td><input list="ingredient-options" value={line.ingredient} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'ingredient', e.target.value)} /></td>
                       <td><input type="number" value={line.qty} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'qty', e.target.value)} /></td>
                       <td><input value={line.unit} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'unit', e.target.value)} /></td>
                       <td><input value={invoiceMatch?.vendor || line.vendor} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'vendor', e.target.value)} /></td>
                       <td><input type="number" step="0.01" value={line.unitCost} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'unitCost', e.target.value)} /></td>
                       <td><b>{displayMoney(line.totalCost)}</b></td>
+                      <td><button className="icon-btn danger" title="Delete ingredient" onClick={() => deleteRecipeLine(selectedRecipe.id, line.id)}>×</button></td>
                     </tr>
                   })}
-                  {!selectedRecipe && <tr><td colSpan="6">No recipe yet. Click Build Missing Recipes.</td></tr>}
+                  {!selectedRecipe && <tr><td colSpan="7">No recipe yet. Click Build Missing Recipes.</td></tr>}
                 </tbody>
               </table>
             </div>
+            {selectedRecipe && <div className="recipe-add-bar">
+              <datalist id="ingredient-options">
+                {Object.entries(ingredientNames).map(([key, label]) => <option key={key} value={label} />)}
+              </datalist>
+              <span>Add common ingredient:</span>
+              {['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','beer','beverage'].map(key => (
+                <button key={key} className="btn soft compact" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>
+              ))}
+            </div>}
             <div className="recipe-footer-note">
               <b>{selectedRecipe?.confidence || 'Estimated'}</b> recipes are first-pass estimates. Edit portions once and RestaPay saves your restaurant version for future Product Mix uploads.
             </div>
