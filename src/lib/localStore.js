@@ -31,6 +31,7 @@ export const defaultData = {
   menuItems: [],
   menuRecipes: [],
   menuImports: [],
+  importHistory: [],
   customReports: [],
   settings: { tipWithholdingRate: 3.5, geminiApiKey: '' }
 }
@@ -57,6 +58,7 @@ export function mergeData(data) {
     menuItems: data?.menuItems || defaultData.menuItems,
     menuRecipes: data?.menuRecipes || defaultData.menuRecipes,
     menuImports: data?.menuImports || defaultData.menuImports,
+    importHistory: data?.importHistory || defaultData.importHistory,
     customReports: data?.customReports || defaultData.customReports,
     settings: { ...defaultData.settings, ...(data?.settings || {}) }
   }
@@ -99,6 +101,7 @@ export function hasMeaningfulData(data) {
     merged.menuItems,
     merged.menuRecipes,
     merged.menuImports,
+    merged.importHistory,
     merged.customReports
   ].some(list => Array.isArray(list) && list.length > 0)
 }

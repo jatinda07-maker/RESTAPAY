@@ -380,10 +380,8 @@ export default function Dashboard({ data, setData, setActive }) {
           <label><small>End</small><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); setPreset('custom') }} /></label>
           <button type="button" className="btn primary" onClick={applyRange}>Apply</button>
         </div>
-        <div className="sync-group" aria-label="Database save controls">
+        <div className="sync-group" aria-label="Database save status">
           <span className="cloud-save-pill"><span className="cloud-dot" /> Direct Database Save</span>
-          <button type="button" className="btn secondary" onClick={pullCloud}>Refresh Cloud</button>
-          <button type="button" className="btn secondary" onClick={retryCloudSave}>Retry Pending Save</button>
         </div>
         <span className="sync-status">{syncStatus}</span>
       </section>

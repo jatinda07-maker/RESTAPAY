@@ -1,9 +1,11 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { navItems } from '../data/mockData'
 import { Icon } from './Icons'
+import { RESTAPAY_CLOUD_STATUS_EVENT } from '../lib/localStore'
 
 const subtitles = {
   dashboard: 'Overview of your restaurant business',
+  'import-center': 'Upload Toast sales, labor, Product Mix, invoices, rebates, and backups from one workspace',
   sales: 'Manage Toast imports, daily sales, payment methods, and sales history',
   'menu-costing': 'Import Product Mix, estimate recipes, and calculate dish profit',
   vendors: 'Manage vendors, categories, payment terms, and contacts',
@@ -21,6 +23,15 @@ export default function Layout({ active, setActive, children }) {
   const activeItem = navItems.find(([key]) => key === active)
   const title = activeItem?.[1] || 'RestaPay'
   const sidebarOpen = isHoveringSidebar
+  const [cloudStatus, setCloudStatus] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('restapay_cloud_status') || '{}') } catch { return {} }
+  })
+
+  useEffect(() => {
+    function handler(event) { setCloudStatus(event.detail || {}) }
+    window.addEventListener(RESTAPAY_CLOUD_STATUS_EVENT, handler)
+    return () => window.removeEventListener(RESTAPAY_CLOUD_STATUS_EVENT, handler)
+  }, [])
 
   function handleNavPress(key) {
     setActive(key)
@@ -67,6 +78,10 @@ export default function Layout({ active, setActive, children }) {
             <p>{subtitles[active] || 'Restaurant management workspace'}</p>
           </div>
           <div className="topbar-actions">
+            <div className={`cloud-pill ${cloudStatus.status || 'saved'}`} title={cloudStatus.message || 'Direct database save'}>
+              <span className="cloud-dot" />
+              <strong>{cloudStatus.status === 'saving' ? 'Saving...' : cloudStatus.status === 'offline' ? 'Offline Backup' : cloudStatus.status === 'local' ? 'Local Backup' : 'Cloud Saved'}</strong>
+            </div>
             <button type="button" className="icon-btn notification-btn" aria-label="Notifications">
               <Icon name="bell" size={21} />
               <span>3</span>
