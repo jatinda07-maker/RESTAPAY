@@ -1,9 +1,9 @@
 services:
   - type: web
     name: restapay-v2
-    env: node
+    env: static
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    staticPublishPath: dist
     envVars:
       - key: VITE_SUPABASE_URL
         sync: false
