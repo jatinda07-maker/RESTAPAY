@@ -819,3 +819,82 @@ button{touch-action:manipulation}
   .hero-actions { justify-content: flex-start; }
   .cloud-pill strong { display: none; }
 }
+
+/* RC7.3 mobile navigation fix */
+.mobile-nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 23, 42, 0.34);
+  z-index: 45;
+}
+.mobile-menu-button {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+.mobile-menu-button:hover {
+  background: var(--green-50);
+  color: var(--green);
+}
+@media (max-width: 820px) {
+  .app-shell.mobile-nav-open .mobile-nav-backdrop { display: block; }
+  .app-shell.mobile-nav-open .sidebar {
+    transform: translateX(0);
+    width: min(86vw, var(--side));
+    box-shadow: 18px 0 45px rgba(15, 23, 42, 0.22);
+    z-index: 60;
+  }
+  .app-shell.mobile-nav-open .brand-copy,
+  .app-shell.mobile-nav-open .nav-label { display: block; }
+  .app-shell.mobile-nav-open .nav-item {
+    justify-content: flex-start;
+    padding: 0 16px 0 28px;
+  }
+  .sidebar:hover { transform: translateX(-100%); }
+  .app-shell.mobile-nav-open .sidebar:hover { transform: translateX(0); }
+  .topbar-actions { gap: 10px; }
+  .profile-pill > div { display: none; }
+}
+
+/* RC7.3 compact action alignment */
+.import-center-page .hero-actions,
+.page-head .hero-actions,
+.filter-card,
+.form-actions,
+.action-row,
+.compact-buttons,
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.import-center-page .hero-actions .btn,
+.compact-buttons .btn,
+.form-actions .btn,
+.action-row .btn {
+  min-height: 38px;
+  white-space: nowrap;
+}
+@media (max-width: 680px) {
+  .import-center-page .hero-actions,
+  .page-head .hero-actions,
+  .filter-card,
+  .form-actions,
+  .action-row,
+  .compact-buttons,
+  .settings-actions {
+    align-items: stretch;
+  }
+  .import-center-page .hero-actions .btn,
+  .page-head .hero-actions .btn,
+  .form-actions .btn,
+  .action-row .btn,
+  .compact-buttons .btn,
+  .settings-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
