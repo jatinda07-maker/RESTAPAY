@@ -1,12 +1,10 @@
 services:
   - type: web
     name: restapay-v2
-    env: static
-    buildCommand: echo "Using committed dist"
-    staticPublishPath: dist
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
-      - key: SKIP_INSTALL_DEPS
-        value: "true"
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY

@@ -62,6 +62,7 @@ export const iconMap = {
   'price-increase': AlertTriangle,
   'menu-costing': Utensils,
   'import-center': FileUp,
+  'toast-integration': Zap,
   settings: Settings,
   cart: ShoppingCart,
   store: Store,
