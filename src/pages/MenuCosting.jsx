@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
+import { DrilldownPanel } from '../components/SummaryDrilldown'
 import { createId } from '../lib/localStore'
 
 function money(value) { return Number(value || 0).toFixed(2) }
@@ -183,6 +184,7 @@ export default function MenuCosting({ data, setData }) {
   const [dateEnd, setDateEnd] = useState('')
   const [targetFoodCost, setTargetFoodCost] = useState(Number(data.settings?.targetFoodCost || 30))
   const [status, setStatus] = useState('Import Toast Product Mix to create dishes and estimated recipes.')
+  const [summaryDetail, setSummaryDetail] = useState('')
 
   function applyPreset(key) {
     const now = new Date()
@@ -336,11 +338,25 @@ export default function MenuCosting({ data, setData }) {
       <p className="status-pill">{status}</p>
 
       <div className="metric-grid menu-costing-metrics">
-        <div className="metric-card tone-blue"><span className="metric-icon"><Icon name="utensils" /></span><span className="metric-label">Menu Items</span><strong>{filteredItems.length}</strong><small>From Product Mix</small></div>
-        <div className="metric-card tone-green"><span className="metric-icon"><Icon name="dollar" /></span><span className="metric-label">Estimated Sales</span><strong>{displayMoney(totals.sales)}</strong><small>Selected range</small></div>
-        <div className="metric-card tone-orange"><span className="metric-icon"><Icon name="package" /></span><span className="metric-label">Estimated Food Cost</span><strong>{displayMoney(totals.cost)}</strong><small>{pct(totals.sales ? totals.cost / totals.sales * 100 : 0)} blended</small></div>
-        <div className="metric-card tone-red"><span className="metric-icon"><Icon name="alert" /></span><span className="metric-label">Items Above Target</span><strong>{totals.atRisk}</strong><small>Over {targetFoodCost}% target</small></div>
+        <button type="button" className="metric-card tone-blue" onClick={() => setSummaryDetail(summaryDetail === 'items' ? '' : 'items')}><span className="metric-icon"><Icon name="utensils" /></span><span className="metric-label">Menu Items</span><strong>{filteredItems.length}</strong><small>From Product Mix</small></button>
+        <button type="button" className="metric-card tone-green" onClick={() => setSummaryDetail(summaryDetail === 'sales' ? '' : 'sales')}><span className="metric-icon"><Icon name="dollar" /></span><span className="metric-label">Estimated Sales</span><strong>{displayMoney(totals.sales)}</strong><small>Selected range</small></button>
+        <button type="button" className="metric-card tone-orange" onClick={() => setSummaryDetail(summaryDetail === 'cost' ? '' : 'cost')}><span className="metric-icon"><Icon name="package" /></span><span className="metric-label">Estimated Food Cost</span><strong>{displayMoney(totals.cost)}</strong><small>{pct(totals.sales ? totals.cost / totals.sales * 100 : 0)} blended</small></button>
+        <button type="button" className="metric-card tone-red" onClick={() => setSummaryDetail(summaryDetail === 'risk' ? '' : 'risk')}><span className="metric-icon"><Icon name="alert" /></span><span className="metric-label">Items Above Target</span><strong>{totals.atRisk}</strong><small>Over {targetFoodCost}% target</small></button>
       </div>
+      <DrilldownPanel id="menu-summary-details" title={summaryDetail ? ({ items: 'Menu Item Details', sales: 'Estimated Sales by Dish', cost: 'Estimated Food Cost by Dish', risk: 'Items Above Target Food Cost' }[summaryDetail]) : ''}
+        rows={filteredItems.filter(item => summaryDetail !== 'risk' || item.foodCostPct > targetFoodCost)}
+        columns={[
+          { key: 'name', label: 'Dish' },
+          { key: 'qtySold', label: 'Qty Sold' },
+          { key: 'avgPrice', label: 'Avg Price', render: item => displayMoney(item.avgPrice) },
+          { key: 'dishCost', label: 'Dish Cost', render: item => displayMoney(item.dishCost) },
+          { key: 'foodCostPct', label: 'Food Cost %', render: item => pct(item.foodCostPct) },
+          { key: 'totalProfit', label: 'Profit', render: item => displayMoney(item.totalProfit) },
+          { key: 'vendorSource', label: 'Vendor' }
+        ]}
+        total={summaryDetail === 'items' || summaryDetail === 'risk' ? `${filteredItems.filter(item => summaryDetail !== 'risk' || item.foodCostPct > targetFoodCost).length} items` : summaryDetail === 'sales' ? displayMoney(totals.sales) : summaryDetail === 'cost' ? displayMoney(totals.cost) : ''}
+        totalLabel={summaryDetail === 'items' || summaryDetail === 'risk' ? 'Count' : 'Total'}
+        onClose={() => setSummaryDetail('')} />
 
       <div className="menu-workspace-grid">
         <section className="table-card">

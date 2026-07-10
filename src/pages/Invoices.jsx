@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
+import { DrilldownPanel } from '../components/SummaryDrilldown'
 import { createId, saveCloudData, sortByName } from '../lib/localStore'
 import { applyPresetToSetters, isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange } from '../engine/DateEngine'
 
@@ -264,6 +265,7 @@ export default function Invoices({ data, setData }) {
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [dateStart, setDateStart] = useState(() => readPageDateRange('invoices').start)
   const [dateEnd, setDateEnd] = useState(() => readPageDateRange('invoices').end)
+  const [summaryDetail, setSummaryDetail] = useState('')
   const localUploadRef = useRef(null)
   const aiUploadRef = useRef(null)
   const phoneRef = useRef(null)
@@ -637,23 +639,50 @@ export default function Invoices({ data, setData }) {
     </div> : null}
 
     <section className="invoice-spend-grid compact-invoice-grid" aria-label="Invoice spending totals">
-      <button type="button" className="invoice-spend-card primary flat-summary-card">
+      <button type="button" className={`invoice-spend-card primary flat-summary-card ${summaryDetail === 'net' ? 'active' : ''}`} onClick={() => setSummaryDetail(summaryDetail === 'net' ? '' : 'net')}>
         <span className="invoice-spend-icon"><Icon name="invoices" size={19} /></span>
         <span className="invoice-spend-copy"><small>Net Invoice Spend</small><strong>{formatMoney(spendingSummary.totalSpend)}</strong><em>{spendingSummary.rows.length} invoices in view</em></span>
       </button>
-      <button type="button" className="invoice-spend-card flat-summary-card">
+      <button type="button" className={`invoice-spend-card flat-summary-card ${summaryDetail === 'category' ? 'active' : ''}`} onClick={() => setSummaryDetail(summaryDetail === 'category' ? '' : 'category')}>
         <span className="invoice-spend-icon green"><Icon name="vendors" size={19} /></span>
         <span className="invoice-spend-copy"><small>Top Category</small><strong>{formatMoney(topCategoryAmount)}</strong><em>{topCategoryLabel}</em></span>
       </button>
-      <button type="button" className="invoice-spend-card flat-summary-card">
+      <button type="button" className={`invoice-spend-card flat-summary-card ${summaryDetail === 'open' ? 'active' : ''}`} onClick={() => setSummaryDetail(summaryDetail === 'open' ? '' : 'open')}>
         <span className="invoice-spend-icon orange"><Icon name="expenses" size={19} /></span>
         <span className="invoice-spend-copy"><small>Open / Unpaid</small><strong>{formatMoney(spendingSummary.openSpend)}</strong><em>Paid {formatMoney(spendingSummary.paidSpend)}</em></span>
       </button>
-      <button type="button" className="invoice-spend-card flat-summary-card">
+      <button type="button" className={`invoice-spend-card flat-summary-card ${summaryDetail === 'rebates' ? 'active' : ''}`} onClick={() => setSummaryDetail(summaryDetail === 'rebates' ? '' : 'rebates')}>
         <span className="invoice-spend-icon blue"><Icon name="check" size={19} /></span>
         <span className="invoice-spend-copy"><small>Rebates / Credits</small><strong>{formatMoney(-spendingSummary.rebateSpend)}</strong><em>{rebateCount} rebate or credit entries</em></span>
       </button>
     </section>
+
+    <DrilldownPanel id="invoice-summary-details"
+      title={summaryDetail ? ({ net: 'Net Invoice Spend Details', category: `${topCategoryLabel} Invoice Details`, open: 'Open / Unpaid Invoice Details', rebates: 'Rebate and Credit Details' }[summaryDetail]) : ''}
+      rows={filtered.filter(inv => {
+        if (summaryDetail === 'net') return true
+        if (summaryDetail === 'category') return (clean(inv.category) || 'Other') === topCategoryLabel
+        if (summaryDetail === 'open') return !['paid', 'approved'].includes(String(inv.status || '').toLowerCase())
+        if (summaryDetail === 'rebates') return ['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(inferInvoiceType(inv))
+        return false
+      })}
+      columns={[
+        { key: 'invoice_date', label: 'Date' },
+        { key: 'vendor_name', label: 'Vendor' },
+        { key: 'invoice_number', label: 'Invoice #' },
+        { key: 'invoice_type', label: 'Type', render: inv => inferInvoiceType(inv) },
+        { key: 'category', label: 'Category' },
+        { key: 'status', label: 'Status' },
+        { key: 'total', label: 'Amount', render: inv => formatMoney(signedInvoiceTotal(inv)) }
+      ]}
+      total={summaryDetail ? formatMoney(filtered.filter(inv => {
+        if (summaryDetail === 'net') return true
+        if (summaryDetail === 'category') return (clean(inv.category) || 'Other') === topCategoryLabel
+        if (summaryDetail === 'open') return !['paid', 'approved'].includes(String(inv.status || '').toLowerCase())
+        if (summaryDetail === 'rebates') return ['Rebate', 'Credit Memo', 'Return Credit', 'Vendor Adjustment'].includes(inferInvoiceType(inv))
+        return false
+      }).reduce((sum, inv) => sum + signedInvoiceTotal(inv), 0)) : ''}
+      onClose={() => setSummaryDetail('')} />
 
     <section className="invoice-category-strip">
       <div>

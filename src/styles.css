@@ -869,3 +869,44 @@ button{touch-action:manipulation}
   }
   .app-shell.mobile-nav-open .mobile-nav-backdrop { display: block; }
 }
+
+/* Clickable KPI cards and consistent detail drill-downs */
+.clickable-summary-row { align-items: stretch; }
+.clickable-summary-row .summary-click-card {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  border: 1px solid #d8e2ef;
+  border-top: 3px solid #3f66dc;
+  border-radius: 14px;
+  background: #fff;
+  padding: 15px 18px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 18px;
+  color: inherit;
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.clickable-summary-row .summary-click-card span { font-weight: 750; color: #52627d; }
+.clickable-summary-row .summary-click-card b { font-size: 24px; line-height: 1.05; color: #0f1b32; }
+.clickable-summary-row .summary-click-card small { grid-column: 2; color: #64748b; font-weight: 650; }
+.clickable-summary-row .summary-click-card:hover,
+.clickable-summary-row .summary-click-card:focus-visible,
+.clickable-summary-row .summary-click-card.active { transform: translateY(-2px); border-color: #8ca5e8; box-shadow: 0 10px 22px rgba(30, 64, 175, .10); outline: none; }
+.clickable-summary-row .summary-click-card.tone-green { border-top-color: #4f9b57; background: #f3fbf4; }
+.clickable-summary-row .summary-click-card.tone-orange { border-top-color: #ef8a21; background: #fff9f0; }
+.clickable-summary-row .summary-click-card.tone-purple { border-top-color: #8a3de2; background: #faf7ff; }
+.clickable-summary-row .summary-click-card.tone-red { border-top-color: #dc4a4a; background: #fff7f7; }
+.clickable-summary-row .summary-click-card.tone-teal { border-top-color: #14a3a3; background: #f2fbfb; }
+.summary-drilldown { margin-top: 16px; border-top: 3px solid #3f66dc; }
+.summary-drilldown header > div { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.summary-drilldown tfoot th { font-size: 14px; }
+.metric-card { cursor: pointer; }
+.metric-card:focus-visible { outline: 3px solid rgba(63, 102, 220, .25); outline-offset: 2px; }
+@media (max-width: 780px) {
+  .clickable-summary-row .summary-click-card { grid-template-columns: 1fr; gap: 4px; }
+  .clickable-summary-row .summary-click-card small { grid-column: 1; }
+}

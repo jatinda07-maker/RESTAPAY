@@ -571,11 +571,11 @@ export default function Reports({ data, setData }) {
       </div>
     </section>}
 
-    <div className="payroll-summary-row sales-summary-row">
-      <div><span>Net Sales</span><b>${money(summary.sales)}</b></div>
-      <div><span>Payroll</span><b>${money(summary.payroll)}</b></div>
-      <div><span>Vendor / Invoice Spend</span><b>${money(summary.invoices)}</b></div>
-      <div><span>Estimated Profit</span><b>${money(summary.profit)}</b></div>
+    <div className="payroll-summary-row sales-summary-row clickable-summary-row">
+      <button type="button" className="summary-click-card tone-blue" onClick={() => { setMode('standard'); setReportId('sales') }}><span>Net Sales</span><b>${money(summary.sales)}</b><small>Open sales detail report</small></button>
+      <button type="button" className="summary-click-card tone-green" onClick={() => { setMode('standard'); setReportId('payroll') }}><span>Payroll</span><b>${money(summary.payroll)}</b><small>Open payroll detail report</small></button>
+      <button type="button" className="summary-click-card tone-orange" onClick={() => { setMode('standard'); setReportId('invoices') }}><span>Vendor / Invoice Spend</span><b>${money(summary.invoices)}</b><small>Open invoice detail report</small></button>
+      <button type="button" className="summary-click-card tone-purple" onClick={() => { setMode('standard'); setReportId('profitLoss') }}><span>Estimated Profit</span><b>${money(summary.profit)}</b><small>Open profit & loss report</small></button>
     </div>
 
     {(activeReport.source === 'weeklyRestaurant' || activeReport.source === 'profitLoss') ? <section className="weekly-report-wrap">

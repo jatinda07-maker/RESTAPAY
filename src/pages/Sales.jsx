@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
+import { DrilldownPanel, SummaryCards } from '../components/SummaryDrilldown'
 import { createId } from '../lib/localStore'
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -226,6 +227,7 @@ export default function Sales({ data, setData }) {
   const [editingId, setEditingId] = useState(null)
   const [editRow, setEditRow] = useState({})
   const [selectedIds, setSelectedIds] = useState([])
+  const [summaryDetail, setSummaryDetail] = useState('')
 
   function applyFilterPreset(value) {
     setFilter(value)
@@ -415,9 +417,24 @@ export default function Sales({ data, setData }) {
     </div>
     {(dateStart || dateEnd) && <p className="filter-note">Showing data from {dateStart || 'first record'} to {dateEnd || 'latest record'}</p>}
 
-    <div className="payroll-summary-row sales-summary-row">
-      <div><span>Net Sales</span><b>${money(totals.net)}</b></div><div><span>Cash</span><b>${money(totals.cash)}</b></div><div><span>Credit</span><b>${money(totals.credit)}</b></div><div><span>Tips After Withholding</span><b>${money(totals.tips)}</b></div>
-    </div>
+    <SummaryCards activeKey={summaryDetail} onSelect={setSummaryDetail} cards={[
+      { key: 'net', label: 'Net Sales', value: `$${money(totals.net)}`, tone: 'blue' },
+      { key: 'cash', label: 'Cash', value: `$${money(totals.cash)}`, tone: 'green' },
+      { key: 'credit', label: 'Credit', value: `$${money(totals.credit)}`, tone: 'purple' },
+      { key: 'tips', label: 'Tips After Withholding', value: `$${money(totals.tips)}`, tone: 'orange' }
+    ]} />
+    <DrilldownPanel id="sales-summary-details" title={summaryDetail ? ({ net: 'Net Sales Details', cash: 'Cash Sales Details', credit: 'Credit Sales Details', tips: 'Tips Details' }[summaryDetail]) : ''}
+      rows={filteredSales.filter(row => Number(row[summaryDetail === 'net' ? 'net_sales' : summaryDetail === 'cash' ? 'cash_sales' : summaryDetail === 'credit' ? 'credit_sales' : 'tips'] || 0) !== 0)}
+      columns={[
+        { key: 'business_date', label: 'Date' },
+        { key: 'gross_sales', label: 'Gross', render: row => displayMoney(row.gross_sales) },
+        { key: 'net_sales', label: 'Net', render: row => displayMoney(row.net_sales) },
+        { key: 'cash_sales', label: 'Cash', render: row => displayMoney(row.cash_sales) },
+        { key: 'credit_sales', label: 'Credit', render: row => displayMoney(row.credit_sales) },
+        { key: 'tips', label: 'Tips', render: row => displayMoney(row.tips) }
+      ]}
+      total={summaryDetail ? `$${money(totals[summaryDetail])}` : ''}
+      onClose={() => setSummaryDetail('')} />
 
     {previewRows.length > 0 && <section className="table-card compact-table-card sales-preview-card">
       <header><h2>Sales Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreview} type="button">Save Sales</button></span></header>
