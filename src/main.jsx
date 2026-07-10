@@ -25,7 +25,7 @@ function App() {
   return <Layout active={active} setActive={setActive}>
     {active === 'dashboard' ? <Dashboard data={data} setData={setData} setActive={setActive} />
       : active === 'import-center' ? <ImportCenter {...shared} setActive={setActive} />
-      : active === 'toast-integration' ? <ToastIntegration {...shared} />
+      : active === 'toast-integration' ? <ToastIntegration />
       : active === 'employees' ? <Employees {...shared} />
       : active === 'sales' ? <Sales {...shared} />
       : active === 'menu-costing' ? <MenuCosting {...shared} />

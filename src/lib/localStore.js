@@ -207,6 +207,9 @@ export async function loadCloudData() {
 
     if (merged) {
       localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
+      announceCloudStatus('saved', { message: 'Loaded from database', source: 'cloud-load' })
+    } else {
+      announceCloudStatus('saved', { message: 'Cloud connected', source: 'cloud-load' })
     }
 
     return merged
@@ -475,7 +478,7 @@ async function mirrorAppDataToTables(data) {
 export async function saveCloudData(data, options = {}) {
   if (!isSupabaseReady) {
     try { localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify(mergeData(data))) } catch {}
-    announceCloudStatus('offline', { message: 'Supabase is not configured. Local backup saved.', source: options.source || 'direct-save' })
+    announceCloudStatus('offline', { message: 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before building.', source: options.source || 'direct-save' })
     return { ok: false, reason: 'Supabase env vars missing' }
   }
 

@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
-import { DrilldownPanel } from '../components/SummaryDrilldown'
 import { createId } from '../lib/localStore'
 
 function money(value) { return Number(value || 0).toFixed(2) }
@@ -56,15 +55,19 @@ function isLiquorItem(name) {
 }
 function isMargaritaMixItem(name) {
   const text = String(name || '').toLowerCase()
-  return text.includes('margarita') || text.includes('marg mix') || text.includes('sweet sour') || text.includes('sour mix')
+  return text.includes('marg mix') || text.includes('margarita mix') || text.includes('sweet sour') || text.includes('sour mix')
+}
+function isMargaritaDrink(name) {
+  const text = String(name || '').toLowerCase()
+  return text.includes('margarita') && !isMargaritaMixItem(text)
 }
 function isBuffaloRockItem(name) {
   const text = String(name || '').toLowerCase()
   return ['coke', 'diet', 'sprite', 'tea', 'drink', 'soda', 'coffee', 'lemonade', 'water', 'pepsi', 'mountain dew', 'dr pepper'].some(key => text.includes(key))
 }
-function isBeverageItem(name) { return isBeerItem(name) || isLiquorItem(name) || isMargaritaMixItem(name) || isBuffaloRockItem(name) }
+function isBeverageItem(name) { return isBeerItem(name) || isLiquorItem(name) || isMargaritaDrink(name) || isMargaritaMixItem(name) || isBuffaloRockItem(name) }
 function vendorSourceFor(name) {
-  if (isLiquorItem(name)) return 'ABC Store'
+  if (isLiquorItem(name) || isMargaritaDrink(name)) return 'ABC Store + US Foods'
   if (isBeerItem(name)) return 'Beer Vendor'
   if (isMargaritaMixItem(name)) return 'US Foods'
   if (isBuffaloRockItem(name)) return 'Buffalo Rock'
@@ -75,10 +78,10 @@ const baseCosts = {
   tortilla: .18, flourTortilla: .22, cornTortilla: .12, cheese: .48, chicken: 1.58, steak: 2.65, beef: 1.85, pork: 1.70,
   shrimp: 2.95, fish: 2.35, rice: .23, beans: .24, lettuce: .15, tomato: .18, onion: .10, pepper: .22, sauce: .20,
   chips: .35, queso: .85, sourCream: .22, guacamole: .75, avocado: .95, shell: .28, egg: .32, beverage: .42,
-  liquor: 1.80, beer: 1.65, margaritaMix: .55, salsa: .18, seasoning: .08, oil: .06
+  liquor: 1.80, beer: 1.65, margaritaMix: .55, lime: .12, salt: .03, salsa: .18, seasoning: .08, oil: .06
 }
 const ingredientNames = {
-  tortilla: 'Tortilla', flourTortilla: 'Flour tortilla', cornTortilla: 'Corn tortilla', cheese: 'Cheese', chicken: 'Chicken', steak: 'Steak', beef: 'Ground beef', pork: 'Pork', shrimp: 'Shrimp', fish: 'Fish', rice: 'Rice', beans: 'Beans', lettuce: 'Lettuce', tomato: 'Tomato', onion: 'Onion', pepper: 'Peppers', sauce: 'Sauce', chips: 'Chips', queso: 'Queso', sourCream: 'Sour cream', guacamole: 'Guacamole', avocado: 'Avocado', shell: 'Taco shell', egg: 'Egg', beverage: 'Beverage syrup/cup', liquor: 'Liquor pour', beer: 'Beer cost', margaritaMix: 'Margarita mix', salsa: 'Salsa', seasoning: 'Seasoning', oil: 'Cooking oil'
+  tortilla: 'Tortilla', flourTortilla: 'Flour tortilla', cornTortilla: 'Corn tortilla', cheese: 'Cheese', chicken: 'Chicken', steak: 'Steak', beef: 'Ground beef', pork: 'Pork', shrimp: 'Shrimp', fish: 'Fish', rice: 'Rice', beans: 'Beans', lettuce: 'Lettuce', tomato: 'Tomato', onion: 'Onion', pepper: 'Peppers', sauce: 'Sauce', chips: 'Chips', queso: 'Queso', sourCream: 'Sour cream', guacamole: 'Guacamole', avocado: 'Avocado', shell: 'Taco shell', egg: 'Egg', beverage: 'Beverage syrup/cup', liquor: 'Liquor pour', beer: 'Beer cost', margaritaMix: 'Margarita mix', lime: 'Fresh lime', salt: 'Rim salt', salsa: 'Salsa', seasoning: 'Seasoning', oil: 'Cooking oil'
 }
 function ing(key, qty, unit = 'portion', cost = baseCosts[key], vendor = 'US Foods') {
   return { id: createId('recipe-line'), ingredient: ingredientNames[key] || key, qty, unit, vendor, unitCost: Number(cost || 0), totalCost: Number(cost || 0) * Number(qty || 1), source: 'Estimated' }
@@ -87,7 +90,9 @@ function recipeTemplate(name, avgPrice = 0) {
   const text = String(name || '').toLowerCase()
   let lines = []
   if (isBeverageItem(text)) {
-    if (isLiquorItem(text)) {
+    if (isMargaritaDrink(text)) {
+      lines = [ing('liquor', 1.5, 'oz', baseCosts.liquor, 'ABC Store'), ing('margaritaMix', 4, 'oz', baseCosts.margaritaMix / 4, 'US Foods'), ing('lime', 1, 'wedge', baseCosts.lime, 'US Foods'), ing('salt', 1, 'rim', baseCosts.salt, 'US Foods')]
+    } else if (isLiquorItem(text)) {
       lines = [ing('liquor', 1.5, 'oz', baseCosts.liquor, 'ABC Store')]
     } else if (isBeerItem(text)) {
       lines = [ing('beer', 1, 'bottle/draft', baseCosts.beer, 'Beer Vendor')]
@@ -151,7 +156,7 @@ function parseProductMix(workbook, fileName) {
     return {
       id: itemSlug(`${name}-${range.start || fileName}`),
       name,
-      category: isLiquorItem(name) ? 'Liquor' : isBeerItem(name) ? 'Beer' : isBeverageItem(name) ? 'Beverage' : 'Food',
+      category: (isLiquorItem(name) || isMargaritaDrink(name)) ? 'Liquor' : isBeerItem(name) ? 'Beer' : isBeverageItem(name) ? 'Beverage' : 'Food',
       vendorSource: vendorSourceFor(name),
       qtySold: qty,
       avgPrice,
@@ -183,8 +188,10 @@ export default function MenuCosting({ data, setData }) {
   const [dateStart, setDateStart] = useState('')
   const [dateEnd, setDateEnd] = useState('')
   const [targetFoodCost, setTargetFoodCost] = useState(Number(data.settings?.targetFoodCost || 30))
+  const [targetBeerCost, setTargetBeerCost] = useState(Number(data.settings?.targetBeerCost || 24))
+  const [targetLiquorCost, setTargetLiquorCost] = useState(Number(data.settings?.targetLiquorCost || 20))
+  const [targetBeverageCost, setTargetBeverageCost] = useState(Number(data.settings?.targetBeverageCost || 18))
   const [status, setStatus] = useState('Import Toast Product Mix to create dishes and estimated recipes.')
-  const [summaryDetail, setSummaryDetail] = useState('')
 
   function applyPreset(key) {
     const now = new Date()
@@ -279,6 +286,18 @@ export default function MenuCosting({ data, setData }) {
     setData(prev => ({ ...prev, menuRecipes: (prev.menuRecipes || []).map(recipe => recipe.id === recipeId ? { ...recipe, confidence: 'Approved', updatedAt: new Date().toISOString() } : recipe) }))
   }
 
+  function targetForCategory(itemCategory) {
+    if (itemCategory === 'Liquor') return targetLiquorCost
+    if (itemCategory === 'Beer') return targetBeerCost
+    if (itemCategory === 'Beverage') return targetBeverageCost
+    return targetFoodCost
+  }
+
+  function saveCostTargets() {
+    setData(prev => ({ ...prev, settings: { ...(prev.settings || {}), targetFoodCost, targetBeerCost, targetLiquorCost, targetBeverageCost } }))
+    setStatus('Food and alcohol cost targets saved.')
+  }
+
   const recipesByItem = useMemo(() => Object.fromEntries(menuRecipes.map(recipe => [recipe.menuItemId, recipe])), [menuRecipes])
   const enrichedItems = useMemo(() => {
     const rows = menuItems.map(item => {
@@ -287,12 +306,13 @@ export default function MenuCosting({ data, setData }) {
       const foodCostPct = item.avgPrice ? (cost / item.avgPrice) * 100 : 0
       const profitEach = Number(item.avgPrice || 0) - cost
       const totalProfit = profitEach * Number(item.qtySold || 0)
-      return { ...item, recipe, dishCost: cost, foodCostPct, profitEach, totalProfit, suggestedPrice: suggestedPrice(cost, targetFoodCost) }
+      const targetCostPct = targetForCategory(item.category)
+      return { ...item, recipe, dishCost: cost, foodCostPct, targetCostPct, profitEach, totalProfit, suggestedPrice: suggestedPrice(cost, targetCostPct) }
     })
     const avgQty = rows.reduce((acc, row) => acc + row.qtySold, 0) / Math.max(rows.length, 1)
     const avgProfit = rows.reduce((acc, row) => acc + Math.max(row.profitEach, 0), 0) / Math.max(rows.length, 1)
     return rows.map(row => ({ ...row, matrix: classifyItem(row.qtySold, row.profitEach, avgQty, avgProfit) }))
-  }, [menuItems, recipesByItem, targetFoodCost])
+  }, [menuItems, recipesByItem, targetFoodCost, targetBeerCost, targetLiquorCost, targetBeverageCost])
   const filteredItems = useMemo(() => {
     const q = search.toLowerCase().trim()
     return enrichedItems.filter(item => {
@@ -310,9 +330,11 @@ export default function MenuCosting({ data, setData }) {
     acc.qty += num(item.qtySold)
     acc.cost += num(item.dishCost) * num(item.qtySold)
     acc.profit += num(item.totalProfit)
-    acc.atRisk += item.foodCostPct > targetFoodCost ? 1 : 0
+    acc.atRisk += item.foodCostPct > item.targetCostPct ? 1 : 0
+    if (item.category === 'Food') { acc.foodSales += num(item.netSales || item.grossSales); acc.foodCost += num(item.dishCost) * num(item.qtySold) }
+    else { acc.alcoholSales += num(item.netSales || item.grossSales); acc.alcoholCost += num(item.dishCost) * num(item.qtySold) }
     return acc
-  }, { sales: 0, qty: 0, cost: 0, profit: 0, atRisk: 0 })
+  }, { sales: 0, qty: 0, cost: 0, profit: 0, atRisk: 0, foodSales: 0, foodCost: 0, alcoholSales: 0, alcoholCost: 0 })
 
   return (
     <div className="menu-costing-page">
@@ -320,7 +342,7 @@ export default function MenuCosting({ data, setData }) {
         <div>
           <span className="eyebrow">Menu Engineering</span>
           <h2>Recipe Costing & Dish Profit</h2>
-          <p>Import Toast Product Mix, estimate recipes, connect food to US Foods and beverages to Buffalo Rock, then calculate dish cost, food cost %, gross profit, and suggested menu price.</p>
+          <p>Import Toast Product Mix, estimate recipes, connect food to US Foods, beer to your beer vendor, liquor to ABC Store, and soft drinks to Buffalo Rock. Calculate food cost, beer cost, liquor cost, gross profit, and suggested menu price.</p>
         </div>
         <div className="actions">
           <label className="btn primary file-action"><Icon name="upload" size={16} /> Import Product Mix<input type="file" accept=".xlsx,.xls,.csv" onChange={handleProductMixUpload} /></label>
@@ -332,31 +354,22 @@ export default function MenuCosting({ data, setData }) {
         <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={() => setStatus('Date filter applied.')} onPreset={applyPreset} applyLabel="Apply" />
         <label><span>Search Dish / Vendor</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tacos, fajitas, Buffalo Rock..." /></label>
         <label><span>Category</span><select value={category} onChange={e => setCategory(e.target.value)}><option value="all">All</option><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></label>
-        <label><span>Target Food Cost %</span><input type="number" min="1" max="90" value={targetFoodCost} onChange={e => setTargetFoodCost(Number(e.target.value || 0))} /></label>
+        <label><span>Food Target %</span><input type="number" min="1" max="90" value={targetFoodCost} onChange={e => setTargetFoodCost(Number(e.target.value || 0))} /></label>
+        <label><span>Beer Target %</span><input type="number" min="1" max="90" value={targetBeerCost} onChange={e => setTargetBeerCost(Number(e.target.value || 0))} /></label>
+        <label><span>Liquor Target %</span><input type="number" min="1" max="90" value={targetLiquorCost} onChange={e => setTargetLiquorCost(Number(e.target.value || 0))} /></label>
+        <label><span>Soft Drink Target %</span><input type="number" min="1" max="90" value={targetBeverageCost} onChange={e => setTargetBeverageCost(Number(e.target.value || 0))} /></label>
+        <button className="btn secondary compact" type="button" onClick={saveCostTargets}><Icon name="save" size={15} /> Save Targets</button>
       </section>
 
       <p className="status-pill">{status}</p>
 
       <div className="metric-grid menu-costing-metrics">
-        <button type="button" className="metric-card tone-blue" onClick={() => setSummaryDetail(summaryDetail === 'items' ? '' : 'items')}><span className="metric-icon"><Icon name="utensils" /></span><span className="metric-label">Menu Items</span><strong>{filteredItems.length}</strong><small>From Product Mix</small></button>
-        <button type="button" className="metric-card tone-green" onClick={() => setSummaryDetail(summaryDetail === 'sales' ? '' : 'sales')}><span className="metric-icon"><Icon name="dollar" /></span><span className="metric-label">Estimated Sales</span><strong>{displayMoney(totals.sales)}</strong><small>Selected range</small></button>
-        <button type="button" className="metric-card tone-orange" onClick={() => setSummaryDetail(summaryDetail === 'cost' ? '' : 'cost')}><span className="metric-icon"><Icon name="package" /></span><span className="metric-label">Estimated Food Cost</span><strong>{displayMoney(totals.cost)}</strong><small>{pct(totals.sales ? totals.cost / totals.sales * 100 : 0)} blended</small></button>
-        <button type="button" className="metric-card tone-red" onClick={() => setSummaryDetail(summaryDetail === 'risk' ? '' : 'risk')}><span className="metric-icon"><Icon name="alert" /></span><span className="metric-label">Items Above Target</span><strong>{totals.atRisk}</strong><small>Over {targetFoodCost}% target</small></button>
+        <div className="metric-card tone-blue"><span className="metric-icon"><Icon name="utensils" /></span><span className="metric-label">Menu Items</span><strong>{filteredItems.length}</strong><small>From Product Mix</small></div>
+        <div className="metric-card tone-green"><span className="metric-icon"><Icon name="dollar" /></span><span className="metric-label">Estimated Sales</span><strong>{displayMoney(totals.sales)}</strong><small>Selected range</small></div>
+        <div className="metric-card tone-orange"><span className="metric-icon"><Icon name="package" /></span><span className="metric-label">Food Cost</span><strong>{displayMoney(totals.foodCost)}</strong><small>{pct(totals.foodSales ? totals.foodCost / totals.foodSales * 100 : 0)} of food sales</small></div>
+        <div className="metric-card tone-purple"><span className="metric-icon"><Icon name="wine" /></span><span className="metric-label">Alcohol & Beverage Cost</span><strong>{displayMoney(totals.alcoholCost)}</strong><small>{pct(totals.alcoholSales ? totals.alcoholCost / totals.alcoholSales * 100 : 0)} of beverage sales</small></div>
+        <div className="metric-card tone-red"><span className="metric-icon"><Icon name="alert" /></span><span className="metric-label">Items Above Target</span><strong>{totals.atRisk}</strong><small>Compared with category targets</small></div>
       </div>
-      <DrilldownPanel id="menu-summary-details" title={summaryDetail ? ({ items: 'Menu Item Details', sales: 'Estimated Sales by Dish', cost: 'Estimated Food Cost by Dish', risk: 'Items Above Target Food Cost' }[summaryDetail]) : ''}
-        rows={filteredItems.filter(item => summaryDetail !== 'risk' || item.foodCostPct > targetFoodCost)}
-        columns={[
-          { key: 'name', label: 'Dish' },
-          { key: 'qtySold', label: 'Qty Sold' },
-          { key: 'avgPrice', label: 'Avg Price', render: item => displayMoney(item.avgPrice) },
-          { key: 'dishCost', label: 'Dish Cost', render: item => displayMoney(item.dishCost) },
-          { key: 'foodCostPct', label: 'Food Cost %', render: item => pct(item.foodCostPct) },
-          { key: 'totalProfit', label: 'Profit', render: item => displayMoney(item.totalProfit) },
-          { key: 'vendorSource', label: 'Vendor' }
-        ]}
-        total={summaryDetail === 'items' || summaryDetail === 'risk' ? `${filteredItems.filter(item => summaryDetail !== 'risk' || item.foodCostPct > targetFoodCost).length} items` : summaryDetail === 'sales' ? displayMoney(totals.sales) : summaryDetail === 'cost' ? displayMoney(totals.cost) : ''}
-        totalLabel={summaryDetail === 'items' || summaryDetail === 'risk' ? 'Count' : 'Total'}
-        onClose={() => setSummaryDetail('')} />
 
       <div className="menu-workspace-grid">
         <section className="table-card">
@@ -371,7 +384,7 @@ export default function MenuCosting({ data, setData }) {
                     <td>{item.qtySold}</td>
                     <td>{displayMoney(item.avgPrice)}</td>
                     <td>{displayMoney(item.dishCost)}</td>
-                    <td><span className={`food-cost-chip ${item.foodCostPct > targetFoodCost ? 'bad' : 'good'}`}>{pct(item.foodCostPct)}</span></td>
+                    <td><span className={`food-cost-chip ${item.foodCostPct > item.targetCostPct ? 'bad' : 'good'}`}>{pct(item.foodCostPct)}</span></td>
                     <td>{displayMoney(item.totalProfit)}</td>
                     <td><span className={`tag ${item.matrix?.tone || 'neutral'}`}>{item.matrix?.label}</span></td>
                   </tr>
@@ -391,7 +404,7 @@ export default function MenuCosting({ data, setData }) {
             <div className="recipe-score-grid">
               <div><small>Selling Price</small><strong>{displayMoney(selected.avgPrice)}</strong></div>
               <div><small>Dish Cost</small><strong>{displayMoney(selected.dishCost)}</strong></div>
-              <div><small>Food Cost</small><strong className={selected.foodCostPct > targetFoodCost ? 'danger-text' : 'good-text'}>{pct(selected.foodCostPct)}</strong></div>
+              <div><small>{selected.category === 'Food' ? 'Food Cost' : selected.category + ' Cost'}</small><strong className={selected.foodCostPct > selected.targetCostPct ? 'danger-text' : 'good-text'}>{pct(selected.foodCostPct)}</strong><small>Target {pct(selected.targetCostPct)}</small></div>
               <div><small>Suggested Price</small><strong>{displayMoney(selected.suggestedPrice)}</strong></div>
             </div>
             <div className="table-wrap recipe-lines-table">
@@ -419,7 +432,7 @@ export default function MenuCosting({ data, setData }) {
                 {Object.entries(ingredientNames).map(([key, label]) => <option key={key} value={label} />)}
               </datalist>
               <span>Add common ingredient:</span>
-              {['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','beer','beverage'].map(key => (
+              {['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','lime','salt','beer','beverage'].map(key => (
                 <button key={key} className="btn soft compact" type="button" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>
               ))}
             </div>}

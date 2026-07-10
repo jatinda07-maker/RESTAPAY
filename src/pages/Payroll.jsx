@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
-import { DrilldownPanel, SummaryCards } from '../components/SummaryDrilldown'
 import { createId, sortByName } from '../lib/localStore'
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -114,7 +113,6 @@ export default function Payroll({ data, setData }) {
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
   const [employeeSearch, setEmployeeSearch] = useState('')
-  const [summaryDetail, setSummaryDetail] = useState('')
 
   function updateDateStart(value) {
     setDateStart(value)
@@ -698,45 +696,9 @@ export default function Payroll({ data, setData }) {
       <span className="filter-note">Showing {filteredEntries.length} payroll rows • {rangeLabel}{activeFilterLabel}</span>
     </div>
 
-    <SummaryCards activeKey={summaryDetail} onSelect={setSummaryDetail} cards={[
-      { key: 'operating', label: 'Operating Payroll', value: `$${money(totals.operating)}`, note: 'Counts in profit', tone: 'blue' },
-      { key: 'tips', label: 'Server Tips', value: `$${money(totals.customerTips)}`, note: 'Separate from payroll cost', tone: 'green' },
-      { key: 'cash', label: 'Cash Paid', value: `$${money(totals.cash)}`, tone: 'orange' },
-      { key: 'check', label: 'Check Paid', value: `$${money(totals.check)}`, tone: 'purple' },
-      { key: 'withheld', label: 'Tips Withheld', value: `$${money(totals.withheld)}`, tone: 'blue' }
-    ]} />
-
-    <DrilldownPanel
-      id="payroll-summary-details"
-      title={summaryDetail ? ({ operating: 'Operating Payroll Details', tips: 'Server Tip Details', cash: 'Cash Payroll Details', check: 'Check Payroll Details', withheld: 'Tips Withheld Details' }[summaryDetail]) : ''}
-      rows={filteredEntries.filter(row => {
-        const classification = row.payroll_classification || inferPayrollClassification(row)
-        if (summaryDetail === 'operating') return !String(classification).toLowerCase().includes('tip')
-        if (summaryDetail === 'tips') return String(classification).toLowerCase().includes('tip')
-        if (summaryDetail === 'cash') return String(row.payroll_type || '').toLowerCase() === 'cash'
-        if (summaryDetail === 'check') return String(row.payroll_type || '').toLowerCase() === 'check'
-        if (summaryDetail === 'withheld') return num(row.tip_deduction) > 0
-        return false
-      })}
-      columns={[
-        { key: 'pay_date', label: 'Date', render: row => row.pay_date || row.payroll_date || row.date || '-' },
-        { key: 'employee_name', label: 'Employee' },
-        { key: 'payroll_classification', label: 'Classification', render: row => row.payroll_classification || inferPayrollClassification(row) },
-        { key: 'payroll_type', label: 'Method' },
-        { key: 'check_number', label: 'Check / Ref', render: row => row.check_number || '-' },
-        { key: 'amount', label: 'Amount', render: row => `$${money(summaryDetail === 'withheld' ? row.tip_deduction : row.total_pay)}` }
-      ]}
-      total={summaryDetail ? `$${money(filteredEntries.filter(row => {
-        const classification = row.payroll_classification || inferPayrollClassification(row)
-        if (summaryDetail === 'operating') return !String(classification).toLowerCase().includes('tip')
-        if (summaryDetail === 'tips') return String(classification).toLowerCase().includes('tip')
-        if (summaryDetail === 'cash') return String(row.payroll_type || '').toLowerCase() === 'cash'
-        if (summaryDetail === 'check') return String(row.payroll_type || '').toLowerCase() === 'check'
-        if (summaryDetail === 'withheld') return num(row.tip_deduction) > 0
-        return false
-      }).reduce((sum, row) => sum + num(summaryDetail === 'withheld' ? row.tip_deduction : row.total_pay), 0))}` : ''}
-      onClose={() => setSummaryDetail('')}
-    />
+    <div className="payroll-summary-row">
+      <div><span>Operating Payroll</span><b>${money(totals.operating)}</b><small>Counts in profit</small></div><div><span>Server Tips</span><b>${money(totals.customerTips)}</b><small>Separate from payroll cost</small></div><div><span>Cash Paid</span><b>${money(totals.cash)}</b></div><div><span>Check Paid</span><b>${money(totals.check)}</b></div><div><span>Tips Withheld</span><b>${money(totals.withheld)}</b></div>
+    </div>
 
     <div className="payroll-grid clean-payroll-grid">
       <section className="form-card payroll-card tight-card">

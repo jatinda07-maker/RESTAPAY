@@ -304,11 +304,11 @@ function PriceIncreasePage() {
   return <>
     <div className="status-pill">{status}</div>
 
-    <div className="payroll-summary-row sales-summary-row stat-row-clean clickable-summary-row">
-      <button type="button" className="summary-click-card tone-blue" onClick={() => { setSearch(''); setCategoryFilter('all'); setVendorFilter('all'); setStatus('Showing all tracked price items.'); setTimeout(() => document.querySelector('.price-list-card')?.scrollIntoView({ behavior: 'smooth' }), 0) }}><span>Tracked Items</span><b>{rows.length}</b><small>Show all tracked items</small></button>
-      <button type="button" className="summary-click-card tone-orange" onClick={() => { if (biggest) setSearch(biggest.name); setStatus('Showing the item with the largest increase.'); setTimeout(() => document.querySelector('.price-list-card')?.scrollIntoView({ behavior: 'smooth' }), 0) }}><span>Largest Increase</span><b>{biggest ? `${pct(biggest).toFixed(1)}%` : '0.0%'}</b><small>Open highest increase</small></button>
-      <button type="button" className="summary-click-card tone-red" onClick={() => { setSearch(''); setSort('highest'); setStatus('Items above 10% are sorted at the top of the detail list.'); setTimeout(() => document.querySelector('.price-list-card')?.scrollIntoView({ behavior: 'smooth' }), 0) }}><span>Items Over 10%</span><b>{overTen}</b><small>View high-risk increases</small></button>
-      <button type="button" className="summary-click-card tone-green" onClick={() => { setStatus('Showing invoice-derived price items in the detail list.'); setSearch('invoice'); setTimeout(() => document.querySelector('.price-list-card')?.scrollIntoView({ behavior: 'smooth' }), 0) }}><span>Invoice Items</span><b>{(appData.invoiceItems || []).length}</b><small>View invoice item details</small></button>
+    <div className="payroll-summary-row sales-summary-row stat-row-clean">
+      <div><span>Tracked Items</span><b>{rows.length}</b></div>
+      <div><span>Largest Increase</span><b>{biggest ? `${pct(biggest).toFixed(1)}%` : '0.0%'}</b></div>
+      <div><span>Items Over 10%</span><b>{overTen}</b></div>
+      <div><span>Invoice Items</span><b>{(appData.invoiceItems || []).length}</b></div>
     </div>
 
     <section className="form-card tight-card price-increase-form">

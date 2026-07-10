@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react'
 import { navItems } from '../data/mockData'
 import { Icon } from './Icons'
 import { RESTAPAY_CLOUD_STATUS_EVENT } from '../lib/localStore'
+import { isSupabaseReady } from '../lib/supabase'
 
 const subtitles = {
   dashboard: 'Overview of your restaurant business',
   'import-center': 'Upload Toast sales, labor, Product Mix, invoices, rebates, and backups from one workspace',
-  'toast-integration': 'Connect Toast Data Exports and manage automatic daily imports',
+  'toast-integration': 'Monitor automatic Toast SFTP exports and daily Supabase imports',
   sales: 'Manage Toast imports, daily sales, payment methods, and sales history',
   'menu-costing': 'Import Product Mix, estimate recipes, and calculate dish profit',
   vendors: 'Manage vendors, categories, payment terms, and contacts',
@@ -30,6 +31,11 @@ export default function Layout({ active, setActive, children }) {
   })
 
   useEffect(() => {
+    if (isSupabaseReady && (!cloudStatus.status || cloudStatus.status === 'offline' || cloudStatus.status === 'local')) {
+      const connected = { status: 'saved', message: 'Cloud connection ready', at: new Date().toISOString() }
+      setCloudStatus(connected)
+      try { localStorage.setItem('restapay_cloud_status', JSON.stringify(connected)) } catch {}
+    }
     function handler(event) { setCloudStatus(event.detail || {}) }
     window.addEventListener(RESTAPAY_CLOUD_STATUS_EVENT, handler)
     return () => window.removeEventListener(RESTAPAY_CLOUD_STATUS_EVENT, handler)
@@ -41,9 +47,27 @@ export default function Layout({ active, setActive, children }) {
     setMobileNavOpen(false)
   }
 
+  function toggleMobileNav() {
+    setMobileNavOpen(open => !open)
+  }
+
+  function closeMobileNav() {
+    setMobileNavOpen(false)
+  }
+
+  const cloudLabel = cloudStatus.status === 'saving'
+    ? 'Saving...'
+    : cloudStatus.status === 'offline' && String(cloudStatus.message || '').toLowerCase().includes('not configured')
+      ? 'Cloud Setup Needed'
+      : cloudStatus.status === 'offline'
+        ? 'Offline Backup'
+        : cloudStatus.status === 'local'
+          ? 'Local Backup'
+          : 'Cloud Saved'
+
   return (
     <div className={`app-shell is-collapsed ${sidebarOpen ? 'sidebar-open' : ''} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}>
-      <button type="button" className="mobile-nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />
+      <button type="button" className="mobile-nav-backdrop" aria-label="Close navigation" onClick={closeMobileNav} />
       <aside
         className="sidebar"
         aria-label="RestaPay navigation"
@@ -76,7 +100,9 @@ export default function Layout({ active, setActive, children }) {
 
       <main className="main-panel">
         <header className="topbar">
-          <button type="button" className="top-menu auto-sidebar-indicator" title="Open navigation" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}><Icon name="menu" size={22} /></button>
+          <button type="button" className="top-menu mobile-menu-button" aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'} onClick={toggleMobileNav}>
+            <Icon name="menu" size={22} />
+          </button>
           <div className="topbar-title-block">
             <h1>{title}</h1>
             <p>{subtitles[active] || 'Restaurant management workspace'}</p>
@@ -84,7 +110,7 @@ export default function Layout({ active, setActive, children }) {
           <div className="topbar-actions">
             <div className={`cloud-pill ${cloudStatus.status || 'saved'}`} title={cloudStatus.message || 'Direct database save'}>
               <span className="cloud-dot" />
-              <strong>{cloudStatus.status === 'saving' ? 'Saving...' : cloudStatus.status === 'offline' ? 'Offline Backup' : cloudStatus.status === 'local' ? 'Local Backup' : 'Cloud Saved'}</strong>
+              <strong>{cloudLabel}</strong>
             </div>
             <button type="button" className="icon-btn notification-btn" aria-label="Notifications">
               <Icon name="bell" size={21} />

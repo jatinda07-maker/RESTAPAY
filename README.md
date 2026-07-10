@@ -126,3 +126,15 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 Run `supabase/schema.sql` in Supabase SQL Editor before deploying.
 
 The app still keeps a localStorage backup, but Supabase is now the shared online source when configured.
+
+## RC8 Toast Automation
+
+1. Run `supabase/RESTAPAY_TOAST_AUTOMATION_AND_COSTING.sql` in Supabase SQL Editor.
+2. Create a Render Cron Job with Root Directory `toast-worker`.
+3. Build command: `npm install`.
+4. Start command: `npm run sync`.
+5. Upload the Toast private key as a Render Secret File named `toast_restapay`.
+6. Set the worker environment variables documented in `toast-worker/README.md`.
+7. Use the new **Toast Integration** page in RestaPay to monitor imports.
+
+Food, beer, liquor, and non-alcoholic beverage cost targets are now separate in Menu Costing. Margarita recipes use liquor from ABC Store and margarita mix from US Foods; beer products use Beer Vendor; soft drinks use Buffalo Rock.

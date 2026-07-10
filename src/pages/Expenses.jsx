@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
-import { DrilldownPanel, SummaryCards } from '../components/SummaryDrilldown'
 import { createId } from '../lib/localStore'
 import { filterVendors, findVendorById, findVendorByName, getActiveSortedVendors } from '../engine/VendorEngine'
 import { applyPresetToSetters, isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange, todayISO } from '../engine/DateEngine'
@@ -23,7 +22,6 @@ export default function Expenses({ data, setData }) {
   const [dateEnd, setDateEnd] = useState(() => readPageDateRange('expenses').end)
   const [selected, setSelected] = useState([])
   const [vendorSearch, setVendorSearch] = useState('')
-  const [summaryDetail, setSummaryDetail] = useState('')
 
   const filteredVendorOptions = useMemo(() => {
     const q = vendorSearch.toLowerCase().trim()
@@ -231,38 +229,12 @@ export default function Expenses({ data, setData }) {
       {selected.length > 0 && <button className="btn ghost delete-link" onClick={bulkDelete} type="button">Delete Selected ({selected.length})</button>}
     </div>
 
-    <SummaryCards activeKey={summaryDetail} onSelect={setSummaryDetail} cards={[
-      { key: 'total', label: 'Total Expenses', value: `$${money(summary.total)}`, tone: 'blue' },
-      { key: 'cash', label: 'Cash', value: `$${money(summary.cash)}`, tone: 'green' },
-      { key: 'check', label: 'Check / Credit', value: `$${money(summary.check + summary.credit)}`, tone: 'orange' },
-      { key: 'ach', label: 'ACH', value: `$${money(summary.ach)}`, tone: 'purple' }
-    ]} />
-    <DrilldownPanel id="expense-summary-details" title={summaryDetail ? `${summaryDetail === 'total' ? 'All' : summaryDetail === 'check' ? 'Check / Credit' : summaryDetail.toUpperCase()} Expense Details` : ''}
-      rows={filtered.filter(row => {
-        const method = String(row.payment_method || '').toLowerCase()
-        if (summaryDetail === 'total') return true
-        if (summaryDetail === 'cash') return method.includes('cash')
-        if (summaryDetail === 'check') return method.includes('check') || method.includes('credit')
-        if (summaryDetail === 'ach') return method.includes('ach')
-        return false
-      })}
-      columns={[
-        { key: 'date', label: 'Date', render: row => rowDate(row) },
-        { key: 'name', label: 'Expense' },
-        { key: 'category', label: 'Category' },
-        { key: 'vendor', label: 'Vendor / Payee', render: row => row.vendor || row.manual_payee || '-' },
-        { key: 'payment_method', label: 'Paid By' },
-        { key: 'amount', label: 'Amount', render: row => `$${money(row.amount)}` }
-      ]}
-      total={summaryDetail ? `$${money(filtered.filter(row => {
-        const method = String(row.payment_method || '').toLowerCase()
-        if (summaryDetail === 'total') return true
-        if (summaryDetail === 'cash') return method.includes('cash')
-        if (summaryDetail === 'check') return method.includes('check') || method.includes('credit')
-        if (summaryDetail === 'ach') return method.includes('ach')
-        return false
-      }).reduce((sum, row) => sum + Number(row.amount || 0), 0))}` : ''}
-      onClose={() => setSummaryDetail('')} />
+    <div className="payroll-summary-row sales-summary-row stat-row-clean">
+      <div><span>Total Expenses</span><b>${money(summary.total)}</b></div>
+      <div><span>Cash</span><b>${money(summary.cash)}</b></div>
+      <div><span>Check / Credit</span><b>${money(summary.check + summary.credit)}</b></div>
+      <div><span>ACH</span><b>${money(summary.ach)}</b></div>
+    </div>
 
     <section className="table-card compact-table-card sales-history-card">
       <header className="table-header-actions"><h2>Expenses <span className="inline-count">{filtered.length} rows</span></h2><div className="search-box compact-search"><Icon name="search" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses..." /></div></header>
