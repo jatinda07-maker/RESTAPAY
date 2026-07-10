@@ -13,11 +13,7 @@ app.get('/health', (_req, res) => res.json({ ok: true, service: 'restapay-toast-
 
 app.get('/api/toast/status', async (_req, res) => {
   const { data } = await supabaseAdmin.from('toast_sync_runs').select('*').order('started_at', { ascending: false }).limit(1).maybeSingle()
-<<<<<<< HEAD
-  res.json({ connected: false, exportId: config.toast.exportId, lastSyncAt: data?.completed_at || null, lastRun: data || null })
-=======
   res.json({ connected: data?.status === 'success', exportId: config.toast.exportId, lastSyncAt: data?.completed_at || null, lastRun: data || null })
->>>>>>> 351b1ab (RC9 add food and alcohol profit centers with Toast SFTP diagnostics)
 })
 
 app.get('/api/toast/history', async (req, res, next) => {
@@ -32,12 +28,6 @@ app.get('/api/toast/history', async (req, res, next) => {
 app.post('/api/toast/test', async (_req, res, next) => {
   try {
     const result = await testToastConnection()
-<<<<<<< HEAD
-    res.json({ ...result, message: `Connected to Toast SFTP. Remote directory: ${result.cwd}` })
-  } catch (error) { next(error) }
-})
-
-=======
     res.json({ ...result, message: result.waitingForFirstExport ? `Connected to Toast SFTP. Export ${result.exportId} is authenticated; waiting for Toast to publish the first dated export folder.` : `Connected to Toast SFTP. Found ${result.filesAvailable} file(s) under ${result.firstAvailablePath}.` })
   } catch (error) { next(error) }
 })
@@ -46,7 +36,6 @@ app.get('/api/toast/diagnostics', async (_req, res, next) => {
   try { res.json(await testToastConnection()) } catch (error) { next(error) }
 })
 
->>>>>>> 351b1ab (RC9 add food and alcohol profit centers with Toast SFTP diagnostics)
 app.post('/api/toast/sync', async (_req, res, next) => {
   try { res.json(await syncToastExports()) } catch (error) { next(error) }
 })

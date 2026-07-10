@@ -15,5 +15,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "ssh2-sftp-client": "^11.0.0"
+  },
+  "allowScripts": {
+    "ssh2@1.17.0": true
   }
 }
