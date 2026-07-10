@@ -910,3 +910,19 @@ button{touch-action:manipulation}
   .clickable-summary-row .summary-click-card { grid-template-columns: 1fr; gap: 4px; }
   .clickable-summary-row .summary-click-card small { grid-column: 1; }
 }
+<<<<<<< HEAD
+=======
+
+/* RC9 profit-center allocation rules */
+.allocation-rule-grid { display: grid; gap: 9px; margin-top: 12px; }
+.allocation-rule-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; border: 1px solid #dfe6ef; border-radius: 10px; background: #f8fafc; }
+.allocation-rule-row > div { display: grid; gap: 3px; }
+.allocation-rule-row small { color: #64748b; }
+.allocation-rule-row input { width: 86px; text-align: right; }
+.allocation-fixed-rules { margin-top: 14px; }
+@media (max-width: 700px) { .allocation-rule-row { align-items: flex-start; } .allocation-rule-row input { width: 78px; } }
+.toast-diagnostic-panel { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:14px 0; }
+.toast-diagnostic-panel > div { display:grid; gap:4px; padding:10px 12px; border:1px solid #dfe6ef; border-radius:10px; background:#f8fafc; }
+.toast-diagnostic-panel span { color:#64748b; font-size:12px; }
+@media (max-width:700px) { .toast-diagnostic-panel { grid-template-columns:1fr; } }
+>>>>>>> 351b1ab (RC9 add food and alcohol profit centers with Toast SFTP diagnostics)

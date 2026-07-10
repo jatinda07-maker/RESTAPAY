@@ -18,7 +18,12 @@ export default function ToastIntegration() {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState(null)
   const [history, setHistory] = useState([])
+<<<<<<< HEAD
   const [message, setMessage] = useState('Toast SFTP connector is ready for testing.')
+=======
+  const [message, setMessage] = useState('Toast SFTP authentication was confirmed. Waiting for the first Toast export files.')
+  const [diagnostics, setDiagnostics] = useState(null)
+>>>>>>> 351b1ab (RC9 add food and alcohol profit centers with Toast SFTP diagnostics)
 
   const configured = Boolean(API_URL)
   const statusClass = useMemo(() => {
@@ -49,6 +54,10 @@ export default function ToastIntegration() {
     try {
       const result = await request(path, { method: 'POST', body: '{}' })
       setMessage(result.message || 'Completed successfully.')
+<<<<<<< HEAD
+=======
+      if (path === '/api/toast/test') setDiagnostics(result)
+>>>>>>> 351b1ab (RC9 add food and alcohol profit centers with Toast SFTP diagnostics)
       await loadStatus()
     } catch (error) {
       setMessage(error.message)
@@ -65,7 +74,11 @@ export default function ToastIntegration() {
       </div>
       <div className={`integration-connection ${statusClass}`}>
         <span className="cloud-dot" />
+<<<<<<< HEAD
         <strong>{!configured ? 'API Setup Needed' : status?.connected ? 'SFTP Connected' : 'Not Tested'}</strong>
+=======
+        <strong>{!configured ? 'API Setup Needed' : diagnostics?.connected || status?.connected ? 'SFTP Connected' : 'Not Tested'}</strong>
+>>>>>>> 351b1ab (RC9 add food and alcohol profit centers with Toast SFTP diagnostics)
       </div>
     </div>
 
@@ -76,10 +89,25 @@ export default function ToastIntegration() {
         <h2>Connection</h2>
         <div className="settings-status-grid toast-status-grid">
           <div><span>Backend API</span><b>{configured ? API_URL : 'Not configured'}</b></div>
+<<<<<<< HEAD
           <div><span>SFTP</span><b className={statusClass}>{status?.connected ? 'Connected' : 'Waiting'}</b></div>
           <div><span>Export ID</span><b>{status?.exportId || 'Configured on server'}</b></div>
           <div><span>Last sync</span><b>{status?.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString() : 'Not yet'}</b></div>
         </div>
+=======
+          <div><span>SFTP</span><b className={statusClass}>{diagnostics?.connected || status?.connected ? 'Connected' : 'Waiting'}</b></div>
+          <div><span>Export ID</span><b>{status?.exportId || 'Configured on server'}</b></div>
+          <div><span>Last sync</span><b>{status?.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString() : 'Not yet'}</b></div>
+        </div>
+
+        {diagnostics ? <div className="toast-diagnostic-panel">
+          <div><span>Remote directory</span><b>{diagnostics.cwd || '/'}</b></div>
+          <div><span>Export ID</span><b>{diagnostics.exportId || status?.exportId || '144385'}</b></div>
+          <div><span>Files available</span><b>{diagnostics.filesAvailable ?? 0}</b></div>
+          <div><span>Export status</span><b className={diagnostics.waitingForFirstExport ? 'status-warn' : 'status-ok'}>{diagnostics.waitingForFirstExport ? 'Waiting for first Toast export' : 'Files ready'}</b></div>
+        </div> : null}
+
+>>>>>>> 351b1ab (RC9 add food and alcohol profit centers with Toast SFTP diagnostics)
         <div className="settings-actions toast-action-row">
           <button className="btn secondary" type="button" disabled={loading || !configured} onClick={() => runAction('/api/toast/test', 'Testing Toast SFTP connection...')}><Icon name="refresh" /> Test Connection</button>
           <button className="btn primary" type="button" disabled={loading || !configured} onClick={() => runAction('/api/toast/sync', 'Checking Toast for new export files...')}><Icon name="download" /> Sync Now</button>

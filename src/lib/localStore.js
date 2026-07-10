@@ -33,7 +33,21 @@ export const defaultData = {
   menuImports: [],
   importHistory: [],
   customReports: [],
-  settings: { tipWithholdingRate: 3.5, geminiApiKey: '' }
+  settings: {
+    tipWithholdingRate: 3.5,
+    geminiApiKey: '',
+    excludeCustomerTipsFromOperatingProfit: true,
+    financialAllocationRules: {
+      managerFoodPercent: 50,
+      cleaningFoodPercent: 50,
+      utilitiesFoodPercent: 50,
+      rentFoodPercent: 50,
+      insuranceFoodPercent: 50,
+      accountingFoodPercent: 50,
+      maintenanceFoodPercent: 50,
+      sharedFoodPercent: 50
+    }
+  }
 }
 
 export function mergeData(data) {
