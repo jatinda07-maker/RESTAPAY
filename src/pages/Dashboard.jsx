@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { RESTAPAY_CLOUD_STATUS_EVENT, loadCloudData, retryPendingCloudSave } from '../lib/localStore'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
-import { calculateProfitCenters } from '../engine/ProfitCenterEngine'
+import { calculateDepartmentCosts } from '../engine/DepartmentCostEngine'
 
 function num(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -300,7 +300,7 @@ export default function Dashboard({ data, setData, setActive }) {
       amount: invoiceTotal(row),
       category: inferCategory(row),
       date: rowDate(row, ['invoice_date', 'date'])
-    })).filter(row => num(row.amount) > 0)
+    })).filter(row => num(row.amount) !== 0)
 
     const expenseSpendRows = monthExpenses.map(row => ({
       ...row,
@@ -323,16 +323,14 @@ export default function Dashboard({ data, setData, setActive }) {
     const businessSpend = businessRaw.reduce((sum, row) => sum + num(row.amount), 0)
     const foodSpend = allSpendRows.filter(row => normalizeCategory(row.category) === 'Food').reduce((sum, row) => sum + num(row.amount), 0)
 
-    const operatingProfit = trueNetSales - operatingPayroll - totalSpend
-    const profitCenters = calculateProfitCenters({
+    const departmentCosts = calculateDepartmentCosts({
       salesRows: monthSales,
-      payrollRows: operatingLaborRows,
+      payrollRows: monthPayroll,
       spendRows: allSpendRows,
       menuItems: data?.menuItems || [],
-      settings: data?.settings || {},
-      start: dateStart,
-      end: dateEnd
+      settings: data?.settings || {}
     })
+    const operatingProfit = departmentCosts.overallOperatingProfit
     const cashRemaining = cashSales - cashPayroll - allSpendRows.filter(row => String(row.payment_method || row.payment_type || '').toLowerCase().includes('cash')).reduce((sum, row) => sum + num(row.amount), 0)
     const foodCostPct = trueNetSales > 0 ? (foodSpend / trueNetSales) * 100 : 0
     const laborPct = trueNetSales > 0 ? (operatingPayroll / trueNetSales) * 100 : 0
@@ -345,7 +343,7 @@ export default function Dashboard({ data, setData, setActive }) {
       grossSales, netSales, trueNetSales, cashSales, creditSales, tax, tips, tipsWithheld,
       cashPayroll, checkPayroll, payrollTotal, operatingPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
       vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining,
-      foodCostPct, laborPct, primeCostPct, profitMargin, healthScore, profitCenters,
+      foodCostPct, laborPct, primeCostPct, profitMargin, healthScore, departmentCosts,
       categoryRows, vendorCategories, businessCategories, allSpendRows, vendorRaw, businessRaw, operatingLaborRows, customerTipRows,
       vendorRecent: vendorRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
       businessRecent: businessRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
@@ -370,14 +368,8 @@ export default function Dashboard({ data, setData, setActive }) {
     expenses: { title: detailCategory ? `${detailCategory} Expense Details` : 'Business Expense Details', open: 'expenses', rows: detailExpenseRows, columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
-    'food-profit': { title: 'Food Profit Details', open: 'reports', rows: derived.profitCenters.allocatedFoodRows, columns: [
-      { key: 'date', label: 'Date', render: r => rowDate(r, ['date', 'pay_date', 'invoice_date', 'expense_date']) }, { key: 'source', label: 'Source' }, { key: 'description', label: 'Item / Employee', render: r => r.description || r.item_name || r.employee_name || r.vendor || r.name || '-' }, { key: 'allocation_reason', label: 'Allocation' }, { key: 'allocated_amount', label: 'Food Cost', render: r => money(num(r.allocated_amount)) }
-    ]},
-    'alcohol-profit': { title: 'Alcohol Profit Details', open: 'reports', rows: derived.profitCenters.allocatedAlcoholRows, columns: [
-      { key: 'date', label: 'Date', render: r => rowDate(r, ['date', 'pay_date', 'invoice_date', 'expense_date']) }, { key: 'source', label: 'Source' }, { key: 'description', label: 'Item / Employee', render: r => r.description || r.item_name || r.employee_name || r.vendor || r.name || '-' }, { key: 'allocation_reason', label: 'Allocation' }, { key: 'allocated_amount', label: 'Alcohol Cost', render: r => money(num(r.allocated_amount)) }
-    ]},
     health: { title: 'Restaurant Health Inputs', open: 'reports', rows: [
-      { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }, { metric: 'Food Profit', value: money(derived.profitCenters.foodProfit) }, { metric: 'Alcohol Profit', value: money(derived.profitCenters.alcoholProfit) }
+      { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
     ], columns: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }] }
   }
 
@@ -429,14 +421,14 @@ export default function Dashboard({ data, setData, setActive }) {
         <MetricCard title="Net Sales" value={money(derived.trueNetSales)} subtitle={`${derived.monthSales.length} sales rows`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />
         <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast cash payments" icon="dollar" tone="green" onClick={() => showDetail('sales')} />
         <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('health')} />
-        <MetricCard title="Food Profit" value={money(derived.profitCenters.foodProfit)} subtitle={`${pct(derived.profitCenters.foodMargin)} margin · Kitchen labor included`} icon="food" tone="green" onClick={() => showDetail('food-profit')} />
-        <MetricCard title="Alcohol Profit" value={money(derived.profitCenters.alcoholProfit)} subtitle={`${pct(derived.profitCenters.alcoholMargin)} margin · Margarita mix included`} icon="beer" tone="orange" onClick={() => showDetail('alcohol-profit')} />
         <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle="After cash spending" icon="card" tone="emerald" onClick={() => showDetail('health')} />
         <MetricCard title="Operating Payroll" value={money(derived.operatingPayroll)} subtitle={`Counts in profit · Total paid ${money(derived.payrollTotal)}`} icon="payroll" tone="teal" onClick={() => showDetail('payroll')} />
         <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />
         <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />
         <MetricCard title="Server Tips" value={money(derived.customerTipsPaid)} subtitle={`Separate from payroll profit · Checks ${money(derived.customerTipsChecks)}`} icon="receipt" tone="orange" onClick={() => showDetail('payroll')} />
         <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle="Food + operating labor vs net sales" icon="pie" tone="indigo" onClick={() => showDetail('health')} />
+        <MetricCard title="True Food Cost" value={money(derived.departmentCosts.trueFoodCost)} subtitle={`${pct(derived.departmentCosts.foodCostPercent)} of food sales`} icon="menu-costing" tone="orange" onClick={() => showDetail('vendors', 'Food')} />
+        <MetricCard title="True Alcohol Cost" value={money(derived.departmentCosts.trueAlcoholCost)} subtitle={`${pct(derived.departmentCosts.alcoholCostPercent)} of alcohol sales`} icon="beer" tone="purple" onClick={() => showDetail('vendors')} />
       </div>
 
       <div className="dashboard-grid-main">
@@ -447,6 +439,35 @@ export default function Dashboard({ data, setData, setActive }) {
               <ProgressMeter label="Food Cost" value={derived.foodCostPct} tone="orange" caption={`${money(derived.foodSpend)} food spend`} />
               <ProgressMeter label="Operating Labor" value={derived.laborPct} tone="teal" caption={`${money(derived.operatingPayroll)} excludes customer tips`} />
               <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + operating labor target under 65%" />
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Food & Alcohol Profitability" icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules">
+          <div className="department-cost-grid">
+            <div className="department-cost-panel">
+              <h3>Food Department</h3>
+              <RowList rows={[
+                { label: 'Food Sales', amount: money(derived.departmentCosts.foodSales), meta: 'Toast category sales or configured split' },
+                { label: 'Food Purchases', amount: money(derived.departmentCosts.foodPurchases), meta: 'Net of rebates and credits' },
+                { label: 'Kitchen Payroll', amount: money(derived.departmentCosts.kitchenPayroll), meta: '100% allocated to food' },
+                { label: 'Manager Allocation', amount: money(derived.departmentCosts.managerFood), meta: 'Default 50% food' },
+                { label: 'Supplies + Shared', amount: money(derived.departmentCosts.foodSupplies + derived.departmentCosts.foodShared), meta: 'Includes food share of cleaning and Cintas' },
+                { label: 'True Food Cost', amount: money(derived.departmentCosts.trueFoodCost), meta: pct(derived.departmentCosts.foodCostPercent) },
+                { label: 'Food Profit', amount: money(derived.departmentCosts.foodProfit), meta: `${pct(derived.departmentCosts.foodProfitMargin)} margin` }
+              ]} />
+            </div>
+            <div className="department-cost-panel">
+              <h3>Alcohol Department</h3>
+              <RowList rows={[
+                { label: 'Alcohol Sales', amount: money(derived.departmentCosts.alcoholSales), meta: 'Beer, liquor, wine and cocktails' },
+                { label: 'Beer Purchases', amount: money(derived.departmentCosts.beerPurchases), meta: 'Beer vendors' },
+                { label: 'Liquor / Wine', amount: money(derived.departmentCosts.liquorPurchases), meta: 'ABC Store and liquor vendors' },
+                { label: 'Margarita Mix', amount: money(derived.departmentCosts.margaritaMix), meta: 'US Foods mix allocated to alcohol' },
+                { label: 'Manager + Shared', amount: money(derived.departmentCosts.managerAlcohol + derived.departmentCosts.alcoholShared + derived.departmentCosts.barPayroll), meta: 'Alcohol share of manager, Cintas, cleaning and bar labor' },
+                { label: 'True Alcohol Cost', amount: money(derived.departmentCosts.trueAlcoholCost), meta: pct(derived.departmentCosts.alcoholCostPercent) },
+                { label: 'Alcohol Profit', amount: money(derived.departmentCosts.alcoholProfit), meta: `${pct(derived.departmentCosts.alcoholProfitMargin)} margin` }
+              ]} />
             </div>
           </div>
         </SectionCard>
@@ -476,18 +497,6 @@ export default function Dashboard({ data, setData, setActive }) {
             { label: 'Credit Sales', amount: money(derived.creditSales), meta: 'Card payments' },
             { label: 'Tips Collected', amount: money(derived.tips), meta: `${money(derived.customerTipsPaid)} paid separately · ${money(derived.tipsWithheld)} withheld` },
             { label: 'Sales Tax', amount: money(derived.tax), meta: 'Tax collected' }
-          ]} />
-        </SectionCard>
-
-        <SectionCard title="Food vs Alcohol Profit Centers" icon="pie" tone="indigo" total={money(derived.profitCenters.foodProfit + derived.profitCenters.alcoholProfit)} subtitle={derived.profitCenters.source}>
-          <RowList rows={[
-            { label: 'Food Sales', amount: money(derived.profitCenters.foodSales), meta: 'Toast food categories / Product Mix' },
-            { label: 'Food Allocated Costs', amount: money(derived.profitCenters.foodCosts), meta: 'Kitchen payroll + food COGS + shared allocations' },
-            { label: 'Food Profit', amount: money(derived.profitCenters.foodProfit), meta: `${pct(derived.profitCenters.foodMargin)} margin` },
-            { label: 'Alcohol Sales', amount: money(derived.profitCenters.alcoholSales), meta: 'Beer, liquor, wine and margarita sales' },
-            { label: 'Alcohol Allocated Costs', amount: money(derived.profitCenters.alcoholCosts), meta: 'Alcohol COGS + margarita mix + shared allocations' },
-            { label: 'Alcohol Profit', amount: money(derived.profitCenters.alcoholProfit), meta: `${pct(derived.profitCenters.alcoholMargin)} margin` },
-            { label: 'Server Tips Excluded', amount: money(derived.customerTipsPaid), meta: 'Pass-through tips do not reduce operating profit' }
           ]} />
         </SectionCard>
 

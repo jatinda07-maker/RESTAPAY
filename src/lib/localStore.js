@@ -36,16 +36,16 @@ export const defaultData = {
   settings: {
     tipWithholdingRate: 3.5,
     geminiApiKey: '',
-    excludeCustomerTipsFromOperatingProfit: true,
-    financialAllocationRules: {
-      managerFoodPercent: 50,
-      cleaningFoodPercent: 50,
-      utilitiesFoodPercent: 50,
-      rentFoodPercent: 50,
-      insuranceFoodPercent: 50,
-      accountingFoodPercent: 50,
-      maintenanceFoodPercent: 50,
-      sharedFoodPercent: 50
+    defaultAlcoholSalesPercent: 25,
+    departmentAllocations: {
+      managerPayroll: { food: 50, alcohol: 50 },
+      kitchenPayroll: { food: 100, alcohol: 0 },
+      bartenderPayroll: { food: 0, alcohol: 100 },
+      supplies: { food: 100, alcohol: 0 },
+      cleaningSupplies: { food: 50, alcohol: 50 },
+      cintas: { food: 50, alcohol: 50 },
+      utilities: { food: 50, alcohol: 50 },
+      insurance: { food: 50, alcohol: 50 }
     }
   }
 }
