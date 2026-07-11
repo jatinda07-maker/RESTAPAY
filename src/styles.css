@@ -933,3 +933,10 @@ button{touch-action:manipulation}
   .allocation-rule-head, .allocation-rule-row { grid-template-columns: 1fr 82px 82px; gap: 8px; }
   .department-cost-grid { grid-template-columns: 1fr; }
 }
+
+/* RC9.1 department drill-downs: preserves existing dashboard layout */
+.line-row-button{width:100%;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.line-row-button:hover{background:#f8fafc}
+.line-row-button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px}
+.line-row-chevron{color:#94a3b8;font-size:20px;line-height:1;margin-left:2px}
+.department-cost-panel .line-row-button{padding-left:4px;padding-right:4px;border-radius:8px}

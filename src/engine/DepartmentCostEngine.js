@@ -80,6 +80,23 @@ function rowSales(row = {}, keys = []) {
   return 0
 }
 
+
+const ALCOHOL_MENU_PATTERN = /beer|lager|ale|ipa|draft|draught|cerveza|modelo|corona|michelob|bud(?:weiser| light)?|dos equis|pacifico|tecate|coors|miller|negra modelo|liquor|alcohol|tequila|mezcal|vodka|rum|whiskey|whisky|bourbon|scotch|gin|brandy|cognac|wine|sangria|champagne|prosecco|shot|shooter|margarita|marg(?:arita)?\b|cocktail|martini|mojito|paloma|daiquiri|old fashioned|mule|bloody mary|long island|pi[ñn]a colada|mixed drink|well drink|house drink|premium drink/i
+const NON_ALCOHOL_PATTERN = /virgin|mocktail|non[- ]?alcohol|alcohol[- ]?free|kids? drink|soft drink|soda|tea|coffee|lemonade|water|juice|coke|sprite|pepsi|dr pepper/i
+
+export function classifyMenuSale(item = {}) {
+  const category = String(item.category || item.menu_category || item.sales_category || item.type || '').toLowerCase()
+  const name = String(item.name || item.item_name || item.description || item.menu_item || '').toLowerCase()
+  const text = `${category} ${name}`
+  if (NON_ALCOHOL_PATTERN.test(text) && !/margarita|cocktail|beer|wine|liquor|shot|tequila|vodka|rum|whiskey|mezcal/.test(text)) return 'other'
+  if (/beer|liquor|wine|alcohol|bar|cocktail|margarita|spirits?/.test(category) || ALCOHOL_MENU_PATTERN.test(text)) return 'alcohol'
+  return 'food'
+}
+
+function menuSalesAmount(item = {}) {
+  return num(item.netSales ?? item.net_sales ?? item.grossSales ?? item.gross_sales ?? item.sales ?? item.amount)
+}
+
 export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], spendRows = [], menuItems = [], settings = {} } = {}) {
   const rules = allocationRules(settings)
   const totals = {
@@ -87,41 +104,76 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], spe
     foodSupplies: 0, foodShared: 0, alcoholShared: 0, kitchenPayroll: 0, managerPayroll: 0,
     managerFood: 0, managerAlcohol: 0, barPayroll: 0, otherPayroll: 0, otherSpend: 0, excludedTips: 0
   }
+  const spendDetails = { food: [], beer: [], liquor: [], margaritaMix: [], sharedFood: [], sharedAlcohol: [], other: [] }
+  const payrollDetails = { kitchen: [], manager: [], bar: [], other: [], tips: [] }
 
   spendRows.forEach(row => {
     const amount = num(row.amount || row.total || row.line_total)
     const cls = classifySpend(row)
-    if (cls.rule === 'foodPurchases') totals.foodPurchases += amount
-    else if (cls.rule === 'beer') { totals.alcoholPurchases += amount; totals.beerPurchases += amount }
-    else if (cls.rule === 'liquor') { totals.alcoholPurchases += amount; totals.liquorPurchases += amount }
-    else if (cls.rule === 'margaritaMix') { totals.alcoholPurchases += amount; totals.margaritaMix += amount }
-    else if (cls.rule === 'supplies') { const a = allocate(amount, 'supplies', rules); totals.foodSupplies += a.food; totals.alcoholShared += a.alcohol }
-    else if (cls.bucket === 'shared') { const a = allocate(amount, cls.rule, rules); totals.foodShared += a.food; totals.alcoholShared += a.alcohol }
-    else totals.otherSpend += amount
+    const detailRow = { ...row, amount, costLabel: cls.label, costRule: cls.rule }
+    if (cls.rule === 'foodPurchases') { totals.foodPurchases += amount; spendDetails.food.push(detailRow) }
+    else if (cls.rule === 'beer') { totals.alcoholPurchases += amount; totals.beerPurchases += amount; spendDetails.beer.push(detailRow) }
+    else if (cls.rule === 'liquor') { totals.alcoholPurchases += amount; totals.liquorPurchases += amount; spendDetails.liquor.push(detailRow) }
+    else if (cls.rule === 'margaritaMix') { totals.alcoholPurchases += amount; totals.margaritaMix += amount; spendDetails.margaritaMix.push(detailRow) }
+    else if (cls.rule === 'supplies') {
+      const a = allocate(amount, 'supplies', rules); totals.foodSupplies += a.food; totals.alcoholShared += a.alcohol
+      if (a.food) spendDetails.sharedFood.push({ ...detailRow, allocatedAmount: a.food })
+      if (a.alcohol) spendDetails.sharedAlcohol.push({ ...detailRow, allocatedAmount: a.alcohol })
+    }
+    else if (cls.bucket === 'shared') {
+      const a = allocate(amount, cls.rule, rules); totals.foodShared += a.food; totals.alcoholShared += a.alcohol
+      if (a.food) spendDetails.sharedFood.push({ ...detailRow, allocatedAmount: a.food })
+      if (a.alcohol) spendDetails.sharedAlcohol.push({ ...detailRow, allocatedAmount: a.alcohol })
+    }
+    else { totals.otherSpend += amount; spendDetails.other.push(detailRow) }
   })
 
   payrollRows.forEach(row => {
     const amount = payrollAmount(row)
     const cls = classifyPayroll(row)
-    if (cls.rule === 'tips') totals.excludedTips += amount
-    else if (cls.rule === 'kitchenPayroll') totals.kitchenPayroll += amount
-    else if (cls.rule === 'bartenderPayroll') totals.barPayroll += amount
+    const detailRow = { ...row, amount, payrollLabel: cls.label }
+    if (cls.rule === 'tips') { totals.excludedTips += amount; payrollDetails.tips.push(detailRow) }
+    else if (cls.rule === 'kitchenPayroll') { totals.kitchenPayroll += amount; payrollDetails.kitchen.push(detailRow) }
+    else if (cls.rule === 'bartenderPayroll') { totals.barPayroll += amount; payrollDetails.bar.push(detailRow) }
     else if (cls.rule === 'managerPayroll') {
       totals.managerPayroll += amount
       const a = allocate(amount, 'managerPayroll', rules)
       totals.managerFood += a.food
       totals.managerAlcohol += a.alcohol
-    } else totals.otherPayroll += amount
+      payrollDetails.manager.push({ ...detailRow, foodAllocated: a.food, alcoholAllocated: a.alcohol })
+    } else { totals.otherPayroll += amount; payrollDetails.other.push(detailRow) }
   })
 
-  let foodSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['food_sales', 'foodSales']), 0)
-  let alcoholSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['alcohol_sales', 'alcoholSales', 'bar_sales']), 0)
+  let foodSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['food_sales', 'foodSales', 'restaurant_food_sales']), 0)
+  let alcoholSales = salesRows.reduce((sum, row) => sum +
+    rowSales(row, ['alcohol_sales', 'alcoholSales', 'bar_sales']) +
+    rowSales(row, ['beer_sales', 'beerSales']) +
+    rowSales(row, ['liquor_sales', 'liquorSales', 'spirits_sales']) +
+    rowSales(row, ['wine_sales', 'wineSales']) +
+    rowSales(row, ['cocktail_sales', 'cocktailSales', 'margarita_sales']), 0)
   const netSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['net_sales', 'netSales', 'total_sales']), 0)
 
-  if ((!foodSales && !alcoholSales) && menuItems.length) {
-    foodSales = menuItems.filter(item => String(item.category || '').toLowerCase() === 'food').reduce((sum, item) => sum + num(item.netSales || item.net_sales || item.grossSales), 0)
-    alcoholSales = menuItems.filter(item => ['beer', 'liquor', 'wine', 'alcohol'].includes(String(item.category || '').toLowerCase())).reduce((sum, item) => sum + num(item.netSales || item.net_sales || item.grossSales), 0)
+  const menuSalesRows = menuItems.map(item => ({
+    ...item,
+    department: classifyMenuSale(item),
+    salesAmount: menuSalesAmount(item)
+  })).filter(item => item.salesAmount !== 0)
+  const alcoholSalesRows = menuSalesRows.filter(item => item.department === 'alcohol')
+  const foodSalesRows = menuSalesRows.filter(item => item.department === 'food')
+  const menuAlcoholSales = alcoholSalesRows.reduce((sum, item) => sum + item.salesAmount, 0)
+  const menuFoodSales = foodSalesRows.reduce((sum, item) => sum + item.salesAmount, 0)
+
+  // Product Mix is the most accurate source for department sales because it
+  // identifies margaritas, cocktails, shots, beer, wine and liquor by item name.
+  if (menuAlcoholSales > 0) alcoholSales = menuAlcoholSales
+  if (menuFoodSales > 0) foodSales = menuFoodSales
+
+  // Some Toast summaries put all net sales into food_sales while omitting bar sales.
+  // When Product Mix found alcohol, remove it from that catch-all food figure.
+  if (netSales > 0 && alcoholSales > 0 && (!menuFoodSales || foodSales >= netSales * 0.95)) {
+    foodSales = Math.max(0, netSales - alcoholSales)
   }
+
   if (!foodSales && !alcoholSales && netSales > 0) {
     const alcoholShare = Number(settings.defaultAlcoholSalesPercent ?? 25) / 100
     alcoholSales = netSales * alcoholShare
@@ -151,6 +203,10 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], spe
     allocatedCost,
     overallOperatingProfit,
     overallProfitMargin: netSales > 0 ? overallOperatingProfit / netSales * 100 : 0,
+    foodSalesRows,
+    alcoholSalesRows,
+    spendDetails,
+    payrollDetails,
     rules
   }
 }

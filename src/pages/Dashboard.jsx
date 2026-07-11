@@ -51,6 +51,16 @@ function isDateInRange(dateText, start, end) {
   return true
 }
 
+function menuItemOverlapsRange(item = {}, start = '', end = '') {
+  const itemStart = String(item.dateStart || item.date_start || '').slice(0, 10)
+  const itemEnd = String(item.dateEnd || item.date_end || itemStart || '').slice(0, 10)
+  if (!start && !end) return true
+  if (!itemStart && !itemEnd) return true
+  if (start && itemEnd && itemEnd < start) return false
+  if (end && itemStart && itemStart > end) return false
+  return true
+}
+
 function collectDashboardDates(data = {}) {
   const dates = []
   ;(data.salesDays || []).forEach(row => dates.push(rowDate(row, ['business_date', 'date'])))
@@ -140,14 +150,18 @@ function SectionCard({ title, icon, tone = 'blue', total, subtitle, action, chil
   )
 }
 
-function RowList({ rows, empty = 'No data in selected range.' }) {
+function RowList({ rows, empty = 'No data in selected range.', onRowClick }) {
   if (!rows.length) return <div className="empty-state">{empty}</div>
-  return <div className="line-list">{rows.map((row, index) => (
-    <div className="line-row" key={row.id || `${row.label}-${index}`}>
+  return <div className="line-list">{rows.map((row, index) => {
+    const content = <>
       <div><b>{row.label}</b>{row.meta ? <small>{row.meta}</small> : null}</div>
       <strong>{row.amount}</strong>
-    </div>
-  ))}</div>
+      {onRowClick || row.onClick ? <span className="line-row-chevron" aria-hidden="true">›</span> : null}
+    </>
+    const click = row.onClick || (onRowClick ? () => onRowClick(row) : null)
+    return click ? <button type="button" className="line-row line-row-button" key={row.id || `${row.label}-${index}`} onClick={click}>{content}</button>
+      : <div className="line-row" key={row.id || `${row.label}-${index}`}>{content}</div>
+  })}</div>
 }
 
 function ProgressMeter({ label, value, tone = 'blue', caption }) {
@@ -323,11 +337,12 @@ export default function Dashboard({ data, setData, setActive }) {
     const businessSpend = businessRaw.reduce((sum, row) => sum + num(row.amount), 0)
     const foodSpend = allSpendRows.filter(row => normalizeCategory(row.category) === 'Food').reduce((sum, row) => sum + num(row.amount), 0)
 
+    const monthMenuItems = (data?.menuItems || []).filter(item => menuItemOverlapsRange(item, dateStart, dateEnd))
     const departmentCosts = calculateDepartmentCosts({
       salesRows: monthSales,
       payrollRows: monthPayroll,
       spendRows: allSpendRows,
-      menuItems: data?.menuItems || [],
+      menuItems: monthMenuItems,
       settings: data?.settings || {}
     })
     const operatingProfit = departmentCosts.overallOperatingProfit
@@ -339,7 +354,7 @@ export default function Dashboard({ data, setData, setActive }) {
     const healthScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, foodCostPct - 30) * 1.5 - Math.max(0, laborPct - 28) * 1.5 - Math.max(0, primeCostPct - 65) - (operatingProfit < 0 ? 20 : 0) + (cashRemaining > 0 ? 4 : -8))))
 
     return {
-      monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems,
+      monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, monthMenuItems,
       grossSales, netSales, trueNetSales, cashSales, creditSales, tax, tips, tipsWithheld,
       cashPayroll, checkPayroll, payrollTotal, operatingPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
       vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining,
@@ -355,6 +370,51 @@ export default function Dashboard({ data, setData, setActive }) {
   const detailVendorRows = detailCategory ? derived.allSpendRows.filter(row => normalizeCategory(row.category) === normalizeCategory(detailCategory) || String(row.category || '').toLowerCase() === detailCategory.toLowerCase()) : derived.allSpendRows
   const detailExpenseRows = detailCategory ? derived.businessRaw?.filter(row => normalizeCategory(row.category) === normalizeCategory(detailCategory) || String(row.category || '').toLowerCase() === detailCategory.toLowerCase()) : derived.businessRecent
 
+  function departmentDetailConfig(key) {
+    const dc = derived.departmentCosts
+    const salesColumns = [
+      { key: 'name', label: 'Item', render: r => r.name || r.item_name || r.description || '-' },
+      { key: 'category', label: 'Category', render: r => r.category || r.department || '-' },
+      { key: 'qtySold', label: 'Qty Sold', render: r => num(r.qtySold || r.qty_sold || r.quantity).toLocaleString() },
+      { key: 'salesAmount', label: 'Net Sales', render: r => money(num(r.salesAmount || r.netSales || r.net_sales || r.grossSales)) },
+      { key: 'sourceFile', label: 'Source', render: r => r.sourceFile || r.source_file || 'Product Mix' }
+    ]
+    const spendColumns = [
+      { key: 'date', label: 'Date', render: r => r.date || rowDate(r, ['invoice_date', 'expense_date', 'date']) },
+      { key: 'vendor', label: 'Vendor', render: r => r.vendor || r.vendor_name || '-' },
+      { key: 'description', label: 'Item / Description', render: r => r.description || r.item_name || r.name || r.costLabel || '-' },
+      { key: 'amount', label: 'Amount', render: r => money(num(r.allocatedAmount ?? r.amount)) }
+    ]
+    const payrollColumns = [
+      { key: 'date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) },
+      { key: 'employee', label: 'Employee', render: r => r.employee_name || r.name || '-' },
+      { key: 'classification', label: 'Classification', render: r => r.payrollLabel || payrollClassification(r) },
+      { key: 'amount', label: 'Amount', render: r => money(num(r.amount || rowTotalPay(r))) }
+    ]
+    const configs = {
+      'food-sales': { title: 'Food Sales Details', open: 'menu-costing', rows: dc.foodSalesRows || [], columns: salesColumns },
+      'alcohol-sales': { title: 'Alcohol Sales Details', open: 'menu-costing', rows: dc.alcoholSalesRows || [], columns: salesColumns, message: 'Includes beer, liquor, wine, margaritas, cocktails, shots and other alcohol-related menu items.' },
+      'food-purchases': { title: 'Food Purchase Details', open: 'invoices', rows: dc.spendDetails?.food || [], columns: spendColumns },
+      'beer-purchases': { title: 'Beer Purchase Details', open: 'invoices', rows: dc.spendDetails?.beer || [], columns: spendColumns },
+      'liquor-purchases': { title: 'Liquor and Wine Purchase Details', open: 'invoices', rows: dc.spendDetails?.liquor || [], columns: spendColumns },
+      'margarita-mix': { title: 'Margarita Mix Details', open: 'invoices', rows: dc.spendDetails?.margaritaMix || [], columns: spendColumns, message: 'US Foods margarita mix and sweet/sour mix are allocated to Alcohol Cost.' },
+      'kitchen-payroll': { title: 'Kitchen Payroll Details', open: 'payroll', rows: dc.payrollDetails?.kitchen || [], columns: payrollColumns },
+      'manager-food': { title: 'Manager Payroll — Food Allocation', open: 'payroll', rows: (dc.payrollDetails?.manager || []).map(r => ({ ...r, amount: r.foodAllocated })), columns: payrollColumns },
+      'manager-alcohol': { title: 'Manager and Bar Payroll — Alcohol Allocation', open: 'payroll', rows: [...(dc.payrollDetails?.manager || []).map(r => ({ ...r, amount: r.alcoholAllocated })), ...(dc.payrollDetails?.bar || [])], columns: payrollColumns },
+      'food-shared': { title: 'Food Supplies and Shared Cost Details', open: 'expenses', rows: dc.spendDetails?.sharedFood || [], columns: spendColumns },
+      'alcohol-shared': { title: 'Alcohol Shared Cost Details', open: 'expenses', rows: dc.spendDetails?.sharedAlcohol || [], columns: spendColumns },
+      'true-food-cost': { title: 'True Food Cost Components', open: 'reports', rows: [
+        { label: 'Food Purchases', amount: dc.foodPurchases }, { label: 'Kitchen Payroll', amount: dc.kitchenPayroll }, { label: 'Manager Allocation', amount: dc.managerFood }, { label: 'Supplies', amount: dc.foodSupplies }, { label: 'Shared Expenses', amount: dc.foodShared }
+      ], columns: [{ key: 'label', label: 'Component' }, { key: 'amount', label: 'Amount', render: r => money(r.amount) }] },
+      'true-alcohol-cost': { title: 'True Alcohol Cost Components', open: 'reports', rows: [
+        { label: 'Beer Purchases', amount: dc.beerPurchases }, { label: 'Liquor / Wine', amount: dc.liquorPurchases }, { label: 'Margarita Mix', amount: dc.margaritaMix }, { label: 'Manager Allocation', amount: dc.managerAlcohol }, { label: 'Bar Payroll', amount: dc.barPayroll }, { label: 'Shared Expenses', amount: dc.alcoholShared }
+      ], columns: [{ key: 'label', label: 'Component' }, { key: 'amount', label: 'Amount', render: r => money(r.amount) }] },
+      'food-profit': { title: 'Food Profit Summary', open: 'reports', rows: [{ label: 'Food Sales', amount: dc.foodSales }, { label: 'True Food Cost', amount: dc.trueFoodCost }, { label: 'Food Profit', amount: dc.foodProfit }, { label: 'Food Profit Margin', amount: dc.foodProfitMargin, percent: true }], columns: [{ key: 'label', label: 'Metric' }, { key: 'amount', label: 'Value', render: r => r.percent ? pct(r.amount) : money(r.amount) }] },
+      'alcohol-profit': { title: 'Alcohol Profit Summary', open: 'reports', rows: [{ label: 'Alcohol Sales', amount: dc.alcoholSales }, { label: 'True Alcohol Cost', amount: dc.trueAlcoholCost }, { label: 'Alcohol Profit', amount: dc.alcoholProfit }, { label: 'Alcohol Profit Margin', amount: dc.alcoholProfitMargin, percent: true }], columns: [{ key: 'label', label: 'Metric' }, { key: 'amount', label: 'Value', render: r => r.percent ? pct(r.amount) : money(r.amount) }] }
+    }
+    return configs[key] || null
+  }
+
   const detailConfig = {
     sales: { title: 'Sales Details', open: 'sales', rows: derived.monthSales, columns: [
       { key: 'business_date', label: 'Date' }, { key: 'gross_sales', label: 'Gross', render: r => money(num(r.gross_sales)) }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
@@ -368,6 +428,7 @@ export default function Dashboard({ data, setData, setActive }) {
     expenses: { title: detailCategory ? `${detailCategory} Expense Details` : 'Business Expense Details', open: 'expenses', rows: detailExpenseRows, columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
+    department: departmentDetailConfig(detailCategory),
     health: { title: 'Restaurant Health Inputs', open: 'reports', rows: [
       { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
     ], columns: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }] }
@@ -448,26 +509,26 @@ export default function Dashboard({ data, setData, setActive }) {
             <div className="department-cost-panel">
               <h3>Food Department</h3>
               <RowList rows={[
-                { label: 'Food Sales', amount: money(derived.departmentCosts.foodSales), meta: 'Toast category sales or configured split' },
-                { label: 'Food Purchases', amount: money(derived.departmentCosts.foodPurchases), meta: 'Net of rebates and credits' },
-                { label: 'Kitchen Payroll', amount: money(derived.departmentCosts.kitchenPayroll), meta: '100% allocated to food' },
-                { label: 'Manager Allocation', amount: money(derived.departmentCosts.managerFood), meta: 'Default 50% food' },
-                { label: 'Supplies + Shared', amount: money(derived.departmentCosts.foodSupplies + derived.departmentCosts.foodShared), meta: 'Includes food share of cleaning and Cintas' },
-                { label: 'True Food Cost', amount: money(derived.departmentCosts.trueFoodCost), meta: pct(derived.departmentCosts.foodCostPercent) },
-                { label: 'Food Profit', amount: money(derived.departmentCosts.foodProfit), meta: `${pct(derived.departmentCosts.foodProfitMargin)} margin` }
-              ]} />
+                { id: 'food-sales', label: 'Food Sales', amount: money(derived.departmentCosts.foodSales), meta: 'Toast food items from Product Mix' },
+                { id: 'food-purchases', label: 'Food Purchases', amount: money(derived.departmentCosts.foodPurchases), meta: 'Net of rebates and credits' },
+                { id: 'kitchen-payroll', label: 'Kitchen Payroll', amount: money(derived.departmentCosts.kitchenPayroll), meta: '100% allocated to food' },
+                { id: 'manager-food', label: 'Manager Allocation', amount: money(derived.departmentCosts.managerFood), meta: 'Default 50% food' },
+                { id: 'food-shared', label: 'Supplies + Shared', amount: money(derived.departmentCosts.foodSupplies + derived.departmentCosts.foodShared), meta: 'Includes food share of cleaning and Cintas' },
+                { id: 'true-food-cost', label: 'True Food Cost', amount: money(derived.departmentCosts.trueFoodCost), meta: pct(derived.departmentCosts.foodCostPercent) },
+                { id: 'food-profit', label: 'Food Profit', amount: money(derived.departmentCosts.foodProfit), meta: `${pct(derived.departmentCosts.foodProfitMargin)} margin` }
+              ]} onRowClick={row => showDetail('department', row.id)} />
             </div>
             <div className="department-cost-panel">
               <h3>Alcohol Department</h3>
               <RowList rows={[
-                { label: 'Alcohol Sales', amount: money(derived.departmentCosts.alcoholSales), meta: 'Beer, liquor, wine and cocktails' },
-                { label: 'Beer Purchases', amount: money(derived.departmentCosts.beerPurchases), meta: 'Beer vendors' },
-                { label: 'Liquor / Wine', amount: money(derived.departmentCosts.liquorPurchases), meta: 'ABC Store and liquor vendors' },
-                { label: 'Margarita Mix', amount: money(derived.departmentCosts.margaritaMix), meta: 'US Foods mix allocated to alcohol' },
-                { label: 'Manager + Shared', amount: money(derived.departmentCosts.managerAlcohol + derived.departmentCosts.alcoholShared + derived.departmentCosts.barPayroll), meta: 'Alcohol share of manager, Cintas, cleaning and bar labor' },
-                { label: 'True Alcohol Cost', amount: money(derived.departmentCosts.trueAlcoholCost), meta: pct(derived.departmentCosts.alcoholCostPercent) },
-                { label: 'Alcohol Profit', amount: money(derived.departmentCosts.alcoholProfit), meta: `${pct(derived.departmentCosts.alcoholProfitMargin)} margin` }
-              ]} />
+                { id: 'alcohol-sales', label: 'Alcohol Sales', amount: money(derived.departmentCosts.alcoholSales), meta: 'Beer, liquor, wine, margaritas, cocktails and shots' },
+                { id: 'beer-purchases', label: 'Beer Purchases', amount: money(derived.departmentCosts.beerPurchases), meta: 'All beer vendors' },
+                { id: 'liquor-purchases', label: 'Liquor / Wine', amount: money(derived.departmentCosts.liquorPurchases), meta: 'ABC Store and all liquor/wine vendors' },
+                { id: 'margarita-mix', label: 'Margarita Mix', amount: money(derived.departmentCosts.margaritaMix), meta: 'US Foods mix allocated to alcohol' },
+                { id: 'manager-alcohol', label: 'Manager + Shared', amount: money(derived.departmentCosts.managerAlcohol + derived.departmentCosts.alcoholShared + derived.departmentCosts.barPayroll), meta: 'Alcohol share of manager, Cintas, cleaning and bar labor' },
+                { id: 'true-alcohol-cost', label: 'True Alcohol Cost', amount: money(derived.departmentCosts.trueAlcoholCost), meta: pct(derived.departmentCosts.alcoholCostPercent) },
+                { id: 'alcohol-profit', label: 'Alcohol Profit', amount: money(derived.departmentCosts.alcoholProfit), meta: `${pct(derived.departmentCosts.alcoholProfitMargin)} margin` }
+              ]} onRowClick={row => showDetail('department', row.id)} />
             </div>
           </div>
         </SectionCard>
