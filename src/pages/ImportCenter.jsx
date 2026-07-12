@@ -83,7 +83,8 @@ function productMixItems(workbook, fileName) {
     const grossSales = money(findValue(row, ['Gross item amt', 'Gross item amount', 'Gross sales']))
     const netSales = money(findValue(row, ['Net item amt', 'Net item amount', 'Net sales'])) || grossSales
     if (!name || !qtySold) return null
-    return { id: `${norm(name)}-${range.start || norm(fileName)}`, name, category: itemCategory(name), vendorSource: vendorSource(name), qtySold, avgPrice, grossSales, netSales, dateStart: range.start, dateEnd: range.end, sourceFile: fileName, status: 'Estimated', importedAt: new Date().toISOString() }
+    const toastDepartment = String(findValue(row, ['Sales Category', 'Sales category', 'Department', 'Menu Group', 'Menu group', 'Category']) || '').trim()
+    return { id: `${norm(name)}-${range.start || norm(fileName)}`, name, department: toastDepartment || itemCategory(name), category: toastDepartment || itemCategory(name), vendorSource: vendorSource(name), qtySold, avgPrice, grossSales, netSales, dateStart: range.start, dateEnd: range.end, sourceFile: fileName, status: 'Estimated', importedAt: new Date().toISOString() }
   }).filter(Boolean)
 }
 function genericSalesRows(workbook, fileName) {

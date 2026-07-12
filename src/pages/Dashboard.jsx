@@ -182,19 +182,25 @@ function MiniBars({ rows, tone = 'blue' }) {
   </div>
 }
 
-function DetailTable({ config, setActive }) {
+function DetailTable({ config, setActive, onClose }) {
   if (!config) return null
   function openScreen() {
     if (config.onOpen) return config.onOpen()
     if (config.open) setActive(config.open)
   }
-  return <section className="table-card detail-section" id="dashboard-details">
-    <header><h2>{config.title}</h2><button type="button" className="btn primary small-btn" onClick={openScreen}>Open Screen</button></header>
-    {config.message ? <p className="notice-line">{config.message}</p> : null}
-    <div className="table-scroll"><table><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
-      {config.rows.length ? config.rows.slice(0, 15).map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
-    </tbody></table></div>
-  </section>
+  const rows = config.rows || []
+  const total = config.total ?? rows.reduce((sum, row) => {
+    const value = row.salesAmount ?? row.allocatedAmount ?? row.amount ?? row.line_total ?? row.total ?? 0
+    return sum + num(value)
+  }, 0)
+  return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
+    <section className="table-card detail-section dashboard-detail-modal" id="dashboard-details" role="dialog" aria-modal="true" aria-label={config.title}>
+      <header><div><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : null}</div><div className="detail-modal-actions">{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}>Open Full Screen</button> : null}<button type="button" className="btn primary small-btn" onClick={onClose}>Close</button></div></header>
+      <div className="table-scroll"><table><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
+        {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
+      </tbody><tfoot><tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Subtotal</b></td><td><b>{config.totalFormatter ? config.totalFormatter(total) : money(total)}</b></td></tr></tfoot></table></div>
+    </section>
+  </div>
 }
 
 export default function Dashboard({ data, setData, setActive }) {
@@ -212,6 +218,15 @@ export default function Dashboard({ data, setData, setActive }) {
   const expenseRows = data?.expenses || []
   const employees = data?.employees || []
   const vendors = data?.vendors || []
+  const defaultDashboardVisibility = {
+    netSales: true, cashCollected: true, operatingProfit: true, cashRemaining: true,
+    operatingPayroll: true, vendorSpend: true, businessExpenses: true, serverTips: true,
+    primeCost: true, trueFoodCost: true, trueAlcoholCost: true,
+    restaurantHealth: true, departmentProfitability: true, cashPosition: true,
+    profitLoss: true, salesPerformance: true, vendorPurchases: true, businessExpensePanel: true,
+    weeklySalesTrend: true, spendingTrend: true, restaurantIntelligence: true
+  }
+  const visible = { ...defaultDashboardVisibility, ...(data?.settings?.dashboardVisibility || {}) }
 
   useEffect(() => {
     if (!(dateStart || dateEnd)) return
@@ -383,6 +398,11 @@ export default function Dashboard({ data, setData, setActive }) {
       { key: 'qtySold', label: 'Qty Sold', render: r => num(r.qtySold || r.qty_sold || r.quantity).toLocaleString() },
       { key: 'salesAmount', label: 'Net Sales', render: r => money(num(r.salesAmount || r.netSales || r.net_sales || r.grossSales)) },
       { key: 'sourceFile', label: 'Source', render: r => r.sourceFile || r.source_file || 'Product Mix' }
+    ]
+    const departmentSalesColumns = [
+      { key: 'category', label: 'Toast Department', render: row => row.category || row.toastDepartment || row.normalizedCategory || '-' },
+      { key: 'itemCount', label: 'Items', render: row => Number(row.itemCount || 0).toLocaleString() },
+      { key: 'salesAmount', label: 'Net Sales', render: row => money(num(row.salesAmount)) }
     ]
     const spendColumns = [
       { key: 'date', label: 'Date', render: r => r.date || rowDate(r, ['invoice_date', 'expense_date', 'date']) },
@@ -636,7 +656,7 @@ export default function Dashboard({ data, setData, setActive }) {
         </SectionCard>)}
       </div>
 
-      <DetailTable config={detailConfig[detailKey]} setActive={setActive} />
+      <DetailTable config={detailConfig[detailKey]} setActive={setActive} onClose={() => setDetail('')} />
     </div>
   )
 }

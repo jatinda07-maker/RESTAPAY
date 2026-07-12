@@ -44,7 +44,7 @@ function isGovernmentOrTaxSpend(row = {}) {
 }
 
 function payrollText(row = {}) {
-  return [row.payroll_classification, row.classification, row.employee_type, row.job_type, row.group_name, row.employee_name, row.name]
+  return [row.payroll_classification, row.classification, row.employee_type, row.job_type, row.position, row.role, row.department, row.group_name, row.employee_name, row.name]
     .map(value => String(value || '').toLowerCase()).join(' ')
 }
 
@@ -70,7 +70,7 @@ export function classifySpend(row = {}) {
   if (/util|electric|power|water|natural gas|sewer|internet|telephone|phone service|alabama power|utility board/.test(text)) return { bucket: 'shared', rule: 'utilities', label: 'Utilities' }
   if (/insurance/.test(text)) return { bucket: 'shared', rule: 'insurance', label: 'Insurance' }
   if (/food|meat|produce|grocery|chicken|beef|fish|shrimp|cheese|tortilla|rice|bean|us foods/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food Purchases' }
-  if (/beverage|soda|coke|sprite|tea|lemonade|buffalo rock|mixer/.test(text)) return { bucket: 'other', rule: 'nonAlcoholBeverage', label: 'Non-alcohol Beverage' }
+  if (/beverage|soda|coke|sprite|tea|lemonade|buffalo rock|mixer/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food / Non-alcohol Beverage Purchases' }
   return { bucket: 'other', rule: 'other', label: 'Other' }
 }
 
@@ -101,27 +101,53 @@ function rowSales(row = {}, keys = []) {
 
 
 const ALCOHOL_MENU_PATTERN = /beer|lager|ale|ipa|draft|draught|cerveza|modelo|corona|michelob|bud(?:weiser| light)?|dos equis|pacifico|tecate|coors|miller|negra modelo|liquor|alcohol|tequila|mezcal|vodka|rum|whiskey|whisky|bourbon|scotch|gin|brandy|cognac|wine|sangria|champagne|prosecco|shot|shooter|margarita|marg(?:arita)?\b|cocktail|martini|mojito|paloma|daiquiri|old fashioned|mule|bloody mary|long island|pi[ñn]a colada|mixed drink|well drink|house drink|premium drink/i
-const NON_ALCOHOL_PATTERN = /virgin|mocktail|non[- ]?alcohol|alcohol[- ]?free|kids? drink|soft drink|soda|tea|coffee|lemonade|water|juice|coke|sprite|pepsi|dr pepper/i
+
+const TOAST_ALCOHOL_DEPARTMENTS = [
+  'bottled beer',
+  'cocktails & shots',
+  'cocktails and shots',
+  'draft beer',
+  'margaritas',
+  'wine'
+]
+const TOAST_FOOD_DEPARTMENTS = ['food', 'no sales category assigned']
+const TOAST_EXCLUDED_DEPARTMENTS = [
+  'non-grat svc charges',
+  'non grat svc charges',
+  'non-grat service charges',
+  'non grat service charges',
+  'service charges',
+  'tips',
+  'tax',
+  'taxes',
+  'discounts',
+  'gift cards',
+  'gift card'
+]
+
+function normalizeDepartment(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+export function classifyToastDepartment(value = '') {
+  const department = normalizeDepartment(value)
+  if (TOAST_ALCOHOL_DEPARTMENTS.includes(department)) return 'alcohol'
+  if (TOAST_FOOD_DEPARTMENTS.includes(department)) return 'food'
+  if (TOAST_EXCLUDED_DEPARTMENTS.includes(department)) return 'excluded'
+  return 'other'
+}
 
 export function classifyMenuSale(item = {}) {
-  const category = String(item.category || item.menu_category || item.sales_category || item.type || '').trim().toLowerCase()
+  const category = normalizeDepartment(item.department || item.department_name || item.sales_department || item.category || item.menu_category || item.sales_category || item.type || '')
+  const department = classifyToastDepartment(category)
+  if (department === 'alcohol' || department === 'food' || department === 'excluded') return department
   const name = String(item.name || item.item_name || item.description || item.menu_item || '').trim().toLowerCase()
-  const text = `${category} ${name}`
-
-  // Toast sales categories explicitly used by this restaurant.
-  // These category matches take priority over inconsistent item-level categories.
-  if (/^(bottled beer|cocktails?\s*&\s*shots?|draft beer|margaritas?|wine)$/.test(category)) return 'alcohol'
-  if (/^(food)$/.test(category)) return 'food'
-
-  // For "No Sales Category Assigned" and service-charge rows, use the item name.
-  // Alcohol names still classify correctly; non-alcohol/service rows remain Food so
-  // the two-department report reconciles without counting a row twice.
-  if (/beer|liquor|wine|alcohol|bar|cocktail|margarita|spirits?/.test(category) || ALCOHOL_MENU_PATTERN.test(text)) return 'alcohol'
-  return 'food'
+  return ALCOHOL_MENU_PATTERN.test(`${category} ${name}`) ? 'alcohol' : 'food'
 }
 
 export function menuSaleCategoryLabel(item = {}) {
   const department = classifyMenuSale(item)
+  if (department === 'excluded') return 'Excluded'
   if (department !== 'alcohol') return 'Food'
   const category = String(item.category || item.menu_category || item.sales_category || '').toLowerCase()
   const name = String(item.name || item.item_name || item.description || item.menu_item || '').toLowerCase()
@@ -132,7 +158,6 @@ export function menuSaleCategoryLabel(item = {}) {
   if (/shot|shooter/.test(text)) return 'Shot'
   return 'Liquor'
 }
-
 
 function menuSalesAmount(item = {}) {
   return num(item.netSales ?? item.net_sales ?? item.grossSales ?? item.gross_sales ?? item.sales ?? item.amount)
@@ -176,10 +201,13 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
     const matchedEmployee = employeeById.get(String(row.employee_id || '')) || employeeByName.get(String(row.employee_name || row.name || '').trim().toLowerCase()) || null
     const classifiedRow = matchedEmployee ? {
       ...row,
-      employee_type: row.employee_type || matchedEmployee.employee_type,
-      job_type: row.job_type || matchedEmployee.job_type,
-      pay_type: row.pay_type || matchedEmployee.pay_type,
-      payroll_classification: row.payroll_classification || matchedEmployee.payroll_classification
+      employee_type: matchedEmployee.employee_type || row.employee_type,
+      job_type: matchedEmployee.job_type || row.job_type,
+      position: matchedEmployee.position || row.position,
+      role: matchedEmployee.role || row.role,
+      department: matchedEmployee.department || row.department,
+      pay_type: matchedEmployee.pay_type || row.pay_type,
+      payroll_classification: matchedEmployee.payroll_classification || row.payroll_classification
     } : row
     const amount = payrollAmount(classifiedRow)
     const cls = classifyPayroll(classifiedRow)
@@ -196,34 +224,58 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
     } else { totals.otherPayroll += amount; payrollDetails.other.push(detailRow) }
   })
 
-  let foodSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['food_sales', 'foodSales', 'restaurant_food_sales']), 0)
-  let alcoholSales = salesRows.reduce((sum, row) => sum +
-    rowSales(row, ['alcohol_sales', 'alcoholSales', 'bar_sales']) +
-    rowSales(row, ['beer_sales', 'beerSales']) +
-    rowSales(row, ['liquor_sales', 'liquorSales', 'spirits_sales']) +
-    rowSales(row, ['wine_sales', 'wineSales']) +
-    rowSales(row, ['cocktail_sales', 'cocktailSales', 'margarita_sales']), 0)
   const netSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['net_sales', 'netSales', 'total_sales']), 0)
 
   const menuSalesRows = menuItems.map(item => ({
     ...item,
     department: classifyMenuSale(item),
+    normalizedCategory: menuSaleCategoryLabel(item),
+    toastDepartment: String(item.department || item.department_name || item.sales_department || item.category || item.menu_category || item.sales_category || item.type || 'No Sales Category Assigned').trim() || 'No Sales Category Assigned',
     salesAmount: menuSalesAmount(item)
   })).filter(item => item.salesAmount !== 0)
+
+  const categoryMap = new Map()
+  menuSalesRows.forEach(item => {
+    const key = item.toastDepartment || 'No Sales Category Assigned'
+    const current = categoryMap.get(key) || { id: `toast-dept-${key.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, category: key, department: item.department, salesAmount: 0, itemCount: 0, items: [] }
+    current.salesAmount += item.salesAmount
+    current.itemCount += 1
+    current.items.push(item)
+    if (current.department !== item.department && item.department === 'alcohol') current.department = 'alcohol'
+    categoryMap.set(key, current)
+  })
+
+  const toastDepartmentRows = [...categoryMap.values()]
+  const foodDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'food')
+  const alcoholDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'alcohol')
+  const excludedDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'excluded')
+  const otherDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'other')
+
+  // Toast department totals are the primary source. This prevents Product Mix item
+  // names from being added twice and keeps the figures aligned with Toast reports.
+  let foodSales = foodDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  let alcoholSales = alcoholDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+
+  // For older imports that do not contain the standard Toast departments, fall
+  // back to item classification without mixing the two methods.
+  const hasToastDepartmentTotals = foodDepartmentRows.length > 0 || alcoholDepartmentRows.length > 0
   const alcoholSalesRows = menuSalesRows.filter(item => item.department === 'alcohol')
   const foodSalesRows = menuSalesRows.filter(item => item.department === 'food')
-  const menuAlcoholSales = alcoholSalesRows.reduce((sum, item) => sum + item.salesAmount, 0)
-  const menuFoodSales = foodSalesRows.reduce((sum, item) => sum + item.salesAmount, 0)
+  if (!hasToastDepartmentTotals) {
+    alcoholSales = alcoholSalesRows.reduce((sum, item) => sum + item.salesAmount, 0)
+    foodSales = foodSalesRows.reduce((sum, item) => sum + item.salesAmount, 0)
+  }
 
-  // Product Mix is the most accurate source for department sales because it
-  // identifies margaritas, cocktails, shots, beer, wine and liquor by item name.
-  if (menuAlcoholSales > 0) alcoholSales = menuAlcoholSales
-  if (menuFoodSales > 0) foodSales = menuFoodSales
-
-  // Some Toast summaries put all net sales into food_sales while omitting bar sales.
-  // When Product Mix found alcohol, remove it from that catch-all food figure.
-  if (netSales > 0 && alcoholSales > 0 && (!menuFoodSales || foodSales >= netSales * 0.95)) {
-    foodSales = Math.max(0, netSales - alcoholSales)
+  // Explicit fields from a Toast summary are a final fallback when no Product Mix
+  // or department rows are available.
+  if (!foodSales && !alcoholSales) {
+    foodSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['food_sales', 'foodSales', 'restaurant_food_sales']), 0)
+    alcoholSales = salesRows.reduce((sum, row) => sum +
+      rowSales(row, ['alcohol_sales', 'alcoholSales', 'bar_sales']) +
+      rowSales(row, ['beer_sales', 'beerSales']) +
+      rowSales(row, ['liquor_sales', 'liquorSales', 'spirits_sales']) +
+      rowSales(row, ['wine_sales', 'wineSales']) +
+      rowSales(row, ['cocktail_sales', 'cocktailSales', 'margarita_sales']), 0)
   }
 
   if (!foodSales && !alcoholSales && netSales > 0) {
@@ -232,6 +284,9 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
     foodSales = netSales - alcoholSales
   }
 
+  const classifiedDepartmentSales = foodSales + alcoholSales
+  const otherDepartmentSales = otherDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  const excludedDepartmentSales = excludedDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
   const trueFoodCost = totals.foodPurchases + totals.kitchenPayroll + totals.managerFood + totals.foodSupplies + totals.foodShared
   const trueAlcoholCost = totals.alcoholPurchases + totals.barPayroll + totals.managerAlcohol + totals.alcoholShared
   const foodProfit = foodSales - trueFoodCost
@@ -257,9 +312,17 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
     overallProfitMargin: netSales > 0 ? overallOperatingProfit / netSales * 100 : 0,
     foodSalesRows,
     alcoholSalesRows,
-    classifiedMenuSales: menuFoodSales + menuAlcoholSales,
-    menuSalesDifference: netSales > 0 && (menuFoodSales + menuAlcoholSales) > 0 ? netSales - (menuFoodSales + menuAlcoholSales) : 0,
-    departmentSalesDifference: netSales > 0 ? netSales - (foodSales + alcoholSales) : 0,
+    classifiedMenuSales: classifiedDepartmentSales,
+    menuSalesDifference: netSales > 0 && classifiedDepartmentSales > 0 ? netSales - classifiedDepartmentSales : 0,
+    departmentSalesDifference: netSales > 0 ? netSales - classifiedDepartmentSales : 0,
+    toastDepartmentRows,
+    foodDepartmentRows,
+    alcoholDepartmentRows,
+    otherDepartmentRows,
+    excludedDepartmentRows,
+    otherDepartmentSales,
+    excludedDepartmentSales,
+    salesSource: hasToastDepartmentTotals ? 'Toast Department Totals' : 'Product Mix Fallback',
     spendDetails,
     payrollDetails,
     rules

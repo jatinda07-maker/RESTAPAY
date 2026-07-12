@@ -153,10 +153,12 @@ function parseProductMix(workbook, fileName) {
     const gross = num(findValue(row, ['Gross item amt', 'Gross item amount', 'Gross sales']))
     const net = num(findValue(row, ['Net item amt', 'Net item amount', 'Net sales'])) || gross
     if (!name || !qty) return null
+    const toastDepartment = String(findValue(row, ['Sales Category', 'Sales category', 'Department', 'Menu Group', 'Menu group', 'Category']) || '').trim()
     return {
       id: itemSlug(`${name}-${range.start || fileName}`),
       name,
-      category: (isLiquorItem(name) || isMargaritaDrink(name)) ? 'Liquor' : isBeerItem(name) ? 'Beer' : isBeverageItem(name) ? 'Beverage' : 'Food',
+      department: toastDepartment || ((isLiquorItem(name) || isMargaritaDrink(name)) ? 'Liquor' : isBeerItem(name) ? 'Beer' : isBeverageItem(name) ? 'Beverage' : 'Food'),
+      category: toastDepartment || ((isLiquorItem(name) || isMargaritaDrink(name)) ? 'Liquor' : isBeerItem(name) ? 'Beer' : isBeverageItem(name) ? 'Beverage' : 'Food'),
       vendorSource: vendorSourceFor(name),
       qtySold: qty,
       avgPrice,

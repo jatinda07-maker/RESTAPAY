@@ -1046,3 +1046,14 @@ button{touch-action:manipulation}
   .cost-date-controls label { flex: 1 1 140px; }
   .cost-date-controls input { width: 100%; }
 }
+
+/* RC11.7 reconciled drill-down modal and department header accents */
+.dashboard-detail-backdrop{position:fixed;inset:0;z-index:1200;background:rgba(15,23,42,.48);display:flex;align-items:center;justify-content:center;padding:24px}
+.dashboard-detail-modal{width:min(1100px,96vw);max-height:88vh;overflow:auto;margin:0;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.28)}
+.dashboard-detail-modal>header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #e5e7eb}
+.dashboard-detail-modal .notice-line{margin:4px 0 0}
+.detail-modal-actions{display:flex;align-items:center;gap:8px}
+.dashboard-detail-modal tfoot td{position:sticky;bottom:0;background:#f8fafc;border-top:2px solid #cbd5e1}
+.department-food-panel>h3{background:linear-gradient(135deg,#eefaf1,#e5f6ea);border-bottom:1px solid #cfe8d5;padding:12px 14px;margin:-1px -1px 8px;border-radius:14px 14px 0 0}
+.department-alcohol-panel>h3{background:linear-gradient(135deg,#f1efff,#e8e5ff);border-bottom:1px solid #d8d2ff;padding:12px 14px;margin:-1px -1px 8px;border-radius:14px 14px 0 0}
+@media(max-width:720px){.dashboard-detail-backdrop{padding:8px}.dashboard-detail-modal{width:100%;max-height:94vh}.detail-modal-actions{flex-wrap:wrap;justify-content:flex-end}}
