@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { RESTAPAY_CLOUD_STATUS_EVENT, loadCloudData, retryPendingCloudSave } from '../lib/localStore'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
-import { calculateDepartmentCosts } from '../engine/DepartmentCostEngine'
+import { calculateDepartmentCosts, menuSaleCategoryLabel } from '../engine/DepartmentCostEngine'
 
 function num(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -184,8 +184,12 @@ function MiniBars({ rows, tone = 'blue' }) {
 
 function DetailTable({ config, setActive }) {
   if (!config) return null
+  function openScreen() {
+    if (config.onOpen) return config.onOpen()
+    if (config.open) setActive(config.open)
+  }
   return <section className="table-card detail-section" id="dashboard-details">
-    <header><h2>{config.title}</h2><button type="button" className="btn primary small-btn" onClick={() => setActive(config.open)}>Open Screen</button></header>
+    <header><h2>{config.title}</h2><button type="button" className="btn primary small-btn" onClick={openScreen}>Open Screen</button></header>
     {config.message ? <p className="notice-line">{config.message}</p> : null}
     <div className="table-scroll"><table><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
       {config.rows.length ? config.rows.slice(0, 15).map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
@@ -374,7 +378,7 @@ export default function Dashboard({ data, setData, setActive }) {
     const dc = derived.departmentCosts
     const salesColumns = [
       { key: 'name', label: 'Item', render: r => r.name || r.item_name || r.description || '-' },
-      { key: 'category', label: 'Category', render: r => r.category || r.department || '-' },
+      { key: 'category', label: 'Category', render: r => menuSaleCategoryLabel(r) },
       { key: 'qtySold', label: 'Qty Sold', render: r => num(r.qtySold || r.qty_sold || r.quantity).toLocaleString() },
       { key: 'salesAmount', label: 'Net Sales', render: r => money(num(r.salesAmount || r.netSales || r.net_sales || r.grossSales)) },
       { key: 'sourceFile', label: 'Source', render: r => r.sourceFile || r.source_file || 'Product Mix' }
@@ -392,8 +396,28 @@ export default function Dashboard({ data, setData, setActive }) {
       { key: 'amount', label: 'Amount', render: r => money(num(r.amount || rowTotalPay(r))) }
     ]
     const configs = {
-      'food-sales': { title: 'Food Sales Details', open: 'menu-costing', rows: dc.foodSalesRows || [], columns: salesColumns },
-      'alcohol-sales': { title: 'Alcohol Sales Details', open: 'menu-costing', rows: dc.alcoholSalesRows || [], columns: salesColumns, message: 'Includes beer, liquor, wine, margaritas, cocktails, shots and other alcohol-related menu items.' },
+      'food-sales': {
+        title: 'Food Sales Details',
+        open: 'sales',
+        onOpen: () => {
+          sessionStorage.setItem('restapay_sales_drilldown', JSON.stringify({ department: 'food', start: dateStart, end: dateEnd }))
+          setActive('sales')
+        },
+        rows: dc.foodSalesRows || [],
+        columns: salesColumns,
+        message: `Food total ${money(dc.foodSales)} is the sum of all non-alcohol Product Mix items in the selected period.`
+      },
+      'alcohol-sales': {
+        title: 'Alcohol Sales Details',
+        open: 'sales',
+        onOpen: () => {
+          sessionStorage.setItem('restapay_sales_drilldown', JSON.stringify({ department: 'alcohol', start: dateStart, end: dateEnd }))
+          setActive('sales')
+        },
+        rows: dc.alcoholSalesRows || [],
+        columns: salesColumns,
+        message: `Alcohol total ${money(dc.alcoholSales)} includes beer, draft beer, liquor, wine, margaritas, cocktails and shots in the selected period.`
+      },
       'food-purchases': { title: 'Food Purchase Details', open: 'invoices', rows: dc.spendDetails?.food || [], columns: spendColumns },
       'beer-purchases': { title: 'Beer Purchase Details', open: 'invoices', rows: dc.spendDetails?.beer || [], columns: spendColumns },
       'liquor-purchases': { title: 'Liquor and Wine Purchase Details', open: 'invoices', rows: dc.spendDetails?.liquor || [], columns: spendColumns },

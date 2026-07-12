@@ -107,10 +107,26 @@ export function classifyMenuSale(item = {}) {
   const category = String(item.category || item.menu_category || item.sales_category || item.type || '').toLowerCase()
   const name = String(item.name || item.item_name || item.description || item.menu_item || '').toLowerCase()
   const text = `${category} ${name}`
-  if (NON_ALCOHOL_PATTERN.test(text) && !/margarita|cocktail|beer|wine|liquor|shot|tequila|vodka|rum|whiskey|mezcal/.test(text)) return 'other'
   if (/beer|liquor|wine|alcohol|bar|cocktail|margarita|spirits?/.test(category) || ALCOHOL_MENU_PATTERN.test(text)) return 'alcohol'
+  // RestaPay reports two restaurant departments. Every non-alcohol Product Mix item,
+  // including soda, tea, coffee, juice, mocktails and other non-alcohol beverages,
+  // belongs to Food so Food + Alcohol always reconciles to classified Product Mix sales.
   return 'food'
 }
+
+export function menuSaleCategoryLabel(item = {}) {
+  const department = classifyMenuSale(item)
+  if (department !== 'alcohol') return 'Food'
+  const category = String(item.category || item.menu_category || item.sales_category || '').toLowerCase()
+  const name = String(item.name || item.item_name || item.description || item.menu_item || '').toLowerCase()
+  const text = `${category} ${name}`
+  if (/beer|lager|ale|ipa|draft|draught|cerveza|modelo|corona|michelob|bud(?:weiser| light)?|budlight|dos equis|pacifico|tecate|coors|miller|keg/.test(text)) return 'Beer'
+  if (/wine|sangria|champagne|prosecco/.test(text)) return 'Wine'
+  if (/margarita|cocktail|martini|mojito|paloma|daiquiri|old fashioned|mule|bloody mary|long island|pi[ñn]a colada|mixed drink/.test(text)) return 'Cocktail / Margarita'
+  if (/shot|shooter/.test(text)) return 'Shot'
+  return 'Liquor'
+}
+
 
 function menuSalesAmount(item = {}) {
   return num(item.netSales ?? item.net_sales ?? item.grossSales ?? item.gross_sales ?? item.sales ?? item.amount)
@@ -224,6 +240,9 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], spe
     overallProfitMargin: netSales > 0 ? overallOperatingProfit / netSales * 100 : 0,
     foodSalesRows,
     alcoholSalesRows,
+    classifiedMenuSales: menuFoodSales + menuAlcoholSales,
+    menuSalesDifference: netSales > 0 && (menuFoodSales + menuAlcoholSales) > 0 ? netSales - (menuFoodSales + menuAlcoholSales) : 0,
+    departmentSalesDifference: netSales > 0 ? netSales - (foodSales + alcoholSales) : 0,
     spendDetails,
     payrollDetails,
     rules

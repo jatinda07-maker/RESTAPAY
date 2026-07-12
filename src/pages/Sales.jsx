@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
 import { createId } from '../lib/localStore'
+import { classifyMenuSale, menuSaleCategoryLabel } from '../engine/DepartmentCostEngine'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10) }
@@ -214,6 +215,28 @@ function parseToastSalesWorkbook(workbook, fileName) {
   }))
 }
 
+
+function readDepartmentDrilldown() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem('restapay_sales_drilldown') || 'null')
+    return value && ['food', 'alcohol'].includes(value.department) ? value : null
+  } catch {
+    return null
+  }
+}
+function menuItemOverlapsRange(item = {}, start = '', end = '') {
+  const itemStart = String(item.dateStart || item.date_start || '').slice(0, 10)
+  const itemEnd = String(item.dateEnd || item.date_end || itemStart || '').slice(0, 10)
+  if (!start && !end) return true
+  if (!itemStart && !itemEnd) return true
+  if (start && itemEnd && itemEnd < start) return false
+  if (end && itemStart && itemStart > end) return false
+  return true
+}
+function productMixSalesAmount(item = {}) {
+  return num(item.netSales ?? item.net_sales ?? item.grossSales ?? item.gross_sales ?? item.sales ?? item.amount)
+}
+
 export default function Sales({ data, setData }) {
   const salesDays = data.salesDays || []
   const salesImports = data.salesImports || []
@@ -226,6 +249,29 @@ export default function Sales({ data, setData }) {
   const [editingId, setEditingId] = useState(null)
   const [editRow, setEditRow] = useState({})
   const [selectedIds, setSelectedIds] = useState([])
+  const [departmentView, setDepartmentView] = useState(() => readDepartmentDrilldown())
+  const menuItems = data.menuItems || []
+
+  const departmentSalesRows = useMemo(() => {
+    if (!departmentView) return []
+    return menuItems
+      .filter(item => menuItemOverlapsRange(item, departmentView.start || '', departmentView.end || ''))
+      .map(item => ({
+        ...item,
+        department: classifyMenuSale(item),
+        normalizedCategory: menuSaleCategoryLabel(item),
+        salesAmount: productMixSalesAmount(item)
+      }))
+      .filter(item => item.department === departmentView.department && item.salesAmount !== 0)
+      .sort((a, b) => b.salesAmount - a.salesAmount)
+  }, [menuItems, departmentView])
+
+  const departmentSalesTotal = useMemo(() => departmentSalesRows.reduce((sum, row) => sum + row.salesAmount, 0), [departmentSalesRows])
+
+  function closeDepartmentView() {
+    sessionStorage.removeItem('restapay_sales_drilldown')
+    setDepartmentView(null)
+  }
 
   function applyFilterPreset(value) {
     setFilter(value)
@@ -387,6 +433,21 @@ export default function Sales({ data, setData }) {
         text-align: right;
         white-space: nowrap;
       }
+      .department-sales-card {
+        overflow-x: auto;
+      }
+      .department-sales-card table {
+        min-width: 900px;
+      }
+      .department-sales-summary {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .department-sales-summary strong {
+        font-size: 20px;
+      }
     `}</style>
     <div className="sales-action-bar sales-top-actions">
       <label className="btn secondary file-action">
@@ -414,6 +475,41 @@ export default function Sales({ data, setData }) {
       <DateControls start={dateStart} end={dateEnd} onStartChange={value => { setDateStart(value); setFilter('custom') }} onEndChange={value => { setDateEnd(value); setFilter('custom') }} onApply={() => setStatus(`Showing ${filteredSales.length} sales rows${dateStart || dateEnd ? ` from ${dateStart || 'start'} to ${dateEnd || 'today'}` : ''}`)} onPreset={applyFilterPreset} />
     </div>
     {(dateStart || dateEnd) && <p className="filter-note">Showing data from {dateStart || 'first record'} to {dateEnd || 'latest record'}</p>}
+
+    {departmentView && <section className="table-card compact-table-card department-sales-card">
+      <header>
+        <div>
+          <h2>{departmentView.department === 'alcohol' ? 'Alcohol Sales Details' : 'Food Sales Details'}</h2>
+          <small>{departmentView.start || departmentView.end ? `${departmentView.start || 'first record'} to ${departmentView.end || 'latest record'}` : 'All imported Product Mix periods'}</small>
+        </div>
+        <div className="department-sales-summary">
+          <span>{departmentSalesRows.length} items</span>
+          <strong>{displayMoney(departmentSalesTotal)}</strong>
+          <button type="button" className="btn secondary small-btn" onClick={closeDepartmentView}>Close Details</button>
+        </div>
+      </header>
+      <p className="notice-line">
+        {departmentView.department === 'alcohol'
+          ? 'Includes beer, draft beer, liquor, wine, margaritas, cocktails and shots. The total below is the exact sum of these Product Mix rows.'
+          : 'Includes every non-alcohol Product Mix item. Alcohol items are excluded so no menu item is counted twice.'}
+      </p>
+      <table>
+        <thead><tr><th>Item</th><th>Department Category</th><th>Toast Category</th><th>Qty Sold</th><th>Net Sales</th><th>Product Mix Period</th><th>Source</th></tr></thead>
+        <tbody>
+          {departmentSalesRows.map(row => <tr key={row.id}>
+            <td>{row.name || row.item_name || row.description || '-'}</td>
+            <td><b>{row.normalizedCategory}</b></td>
+            <td>{row.category || row.menu_category || '-'}</td>
+            <td>{num(row.qtySold || row.qty_sold || row.quantity).toLocaleString()}</td>
+            <td>{displayMoney(row.salesAmount)}</td>
+            <td>{row.dateStart || row.date_start || '-'}{(row.dateEnd || row.date_end) ? ` to ${row.dateEnd || row.date_end}` : ''}</td>
+            <td>{row.sourceFile || row.source_file || 'Product Mix'}</td>
+          </tr>)}
+          {!departmentSalesRows.length && <tr><td colSpan="7"><small>No matching Product Mix items were found for this department and date range.</small></td></tr>}
+        </tbody>
+        {departmentSalesRows.length > 0 && <tfoot><tr><th colSpan="4">Total</th><th>{displayMoney(departmentSalesTotal)}</th><th colSpan="2"></th></tr></tfoot>}
+      </table>
+    </section>}
 
     <div className="payroll-summary-row sales-summary-row">
       <div><span>Net Sales</span><b>${money(totals.net)}</b></div><div><span>Cash</span><b>${money(totals.cash)}</b></div><div><span>Credit</span><b>${money(totals.credit)}</b></div><div><span>Tips After Withholding</span><b>${money(totals.tips)}</b></div>
