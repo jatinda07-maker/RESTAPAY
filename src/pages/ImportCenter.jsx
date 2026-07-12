@@ -87,7 +87,30 @@ function productMixItems(workbook, fileName) {
     return { id: `${norm(name)}-${range.start || norm(fileName)}`, name, department: toastDepartment || itemCategory(name), category: toastDepartment || itemCategory(name), vendorSource: vendorSource(name), qtySold, avgPrice, grossSales, netSales, dateStart: range.start, dateEnd: range.end, sourceFile: fileName, status: 'Estimated', importedAt: new Date().toISOString() }
   }).filter(Boolean)
 }
+function toastSalesCategoryTotals(workbook) {
+  const rows = sheetObjects(workbook, 'Sales category summary')
+  const groups = { food: [], alcohol: [], excluded: [], other: [] }
+  rows.forEach(row => {
+    const category = String(findValue(row, ['Sales category', 'Category']) || '').trim()
+    if (!category || /^total$/i.test(category)) return
+    const entry = { category, itemCount: money(findValue(row, ['Items', 'Item count'])), salesAmount: money(findValue(row, ['Net sales', 'Net Sales'])) }
+    const key = norm(category)
+    if (['food', 'nosalescategoryassigned'].includes(key)) groups.food.push(entry)
+    else if (['bottledbeer', 'cocktailsshots', 'cocktailsandshots', 'draftbeer', 'margaritas', 'wine'].includes(key)) groups.alcohol.push(entry)
+    else if (['nongratsvccharges', 'nongratservicecharges', 'servicecharges', 'tips', 'tax', 'taxes', 'discounts', 'giftcards', 'giftcard'].includes(key)) groups.excluded.push(entry)
+    else groups.other.push(entry)
+  })
+  const total = key => groups[key].reduce((sum, row) => sum + Number(row.salesAmount || 0), 0)
+  return { ...groups, foodTotal: total('food'), alcoholTotal: total('alcohol'), excludedTotal: total('excluded'), otherTotal: total('other') }
+}
 function genericSalesRows(workbook, fileName) {
+  const categories = toastSalesCategoryTotals(workbook)
+  if (workbook.SheetNames.includes('Sales category summary') && (categories.food.length || categories.alcohol.length)) {
+    const dayRows = sheetObjects(workbook, 'Sales by day')
+    const range = fileRange(fileName)
+    const net = categories.foodTotal + categories.alcoholTotal + categories.excludedTotal + categories.otherTotal
+    if (!dayRows.length) return [{ id: createId('sale'), business_date: range.start || today(), gross_sales: fmt(net), net_sales: fmt(net), cash_sales: '0.00', credit_sales: '0.00', gift_card_sales: '0.00', online_orders: '0.00', delivery_orders: '0.00', pickup_orders: '0.00', tips: '0.00', refunds: '0.00', voids: '0.00', discounts: '0.00', tax: '0.00', guest_count: '0.00', source_file: fileName, food_sales: fmt(categories.foodTotal), alcohol_sales: fmt(categories.alcoholTotal), other_sales: fmt(categories.otherTotal), excluded_sales: fmt(categories.excludedTotal), food_sales_categories: categories.food, alcohol_sales_categories: categories.alcohol, other_sales_categories: categories.other, excluded_sales_categories: categories.excluded, import_note: 'Toast Sales Category Summary' }]
+  }
   const rows = sheetObjects(workbook, 'Sales by day').length ? sheetObjects(workbook, 'Sales by day') : firstSheetRows(workbook)
   return rows.map(row => {
     const date = parseDate(findValue(row, ['Business Date', 'Date', 'Opened Date', 'Order Date']))

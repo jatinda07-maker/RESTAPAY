@@ -83,6 +83,31 @@ function paymentAmount(rows, type, subType = '') {
   const found = rows.find(row => normKey(row['Payment type']) === normalizedType && (!subType || normKey(row['Payment sub type']) === normalizedSub))
   return round2(num(found?.Amount))
 }
+
+function toastSalesCategories(workbook) {
+  const rows = sheetObjects(workbook, 'Sales category summary')
+  const food = [], alcohol = [], excluded = [], other = []
+  rows.forEach(row => {
+    const category = String(findValue(row, ['Sales category', 'Category']) || '').trim()
+    if (!category || /^total$/i.test(category)) return
+    const entry = { category, itemCount: round2(num(findValue(row, ['Items', 'Item count']))), salesAmount: round2(num(findValue(row, ['Net sales', 'Net Sales']))) }
+    const key = normKey(category)
+    if (['food', 'nosalescategoryassigned'].includes(key)) food.push(entry)
+    else if (['bottledbeer', 'cocktailsshots', 'cocktailsandshots', 'draftbeer', 'margaritas', 'wine'].includes(key)) alcohol.push(entry)
+    else if (['nongratsvccharges', 'nongratservicecharges', 'servicecharges', 'tips', 'tax', 'taxes', 'discounts', 'giftcards', 'giftcard'].includes(key)) excluded.push(entry)
+    else other.push(entry)
+  })
+  return {
+    food, alcohol, excluded, other,
+    foodTotal: round2(food.reduce((sum, row) => sum + row.salesAmount, 0)),
+    alcoholTotal: round2(alcohol.reduce((sum, row) => sum + row.salesAmount, 0)),
+    excludedTotal: round2(excluded.reduce((sum, row) => sum + row.salesAmount, 0)),
+    otherTotal: round2(other.reduce((sum, row) => sum + row.salesAmount, 0))
+  }
+}
+function distributeCategoryRows(rows, weights) {
+  return weights.map((_, index) => rows.map(row => ({ ...row, itemCount: distributeMoney(row.itemCount, weights)[index], salesAmount: distributeMoney(row.salesAmount, weights)[index] })))
+}
 function absMoney(value) { return round2(Math.abs(num(value))) }
 function cents(value) { return Math.round(num(value) * 100) }
 function distributeMoney(total, weights) {
@@ -176,9 +201,10 @@ function parseToastSalesWorkbook(workbook, fileName) {
   const online = paymentAmount(payments, 'Other') || paymentAmount(payments, 'Other', 'DoorDash')
   const totalGuests = dayRows.reduce((acc, row) => acc + num(findValue(row, ['Total guests', 'Guests', 'Guest Count'])), 0)
   const sourceRange = extractRangeFromFileName(fileName)
+  const categories = toastSalesCategories(workbook)
 
   if (!dayRows.length) {
-    return [{ ...makeEmptySalesRow(fileName), business_date: formatDate(sourceRange.split(' to ')[0] || today()), gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), tips: money(tipsAfterWithholding), tips_collected: money(toastTips.collected), tips_withheld: money(toastTips.withheld), tips_after_withholding: money(toastTips.net), refunds: money(refunds), discounts: money(discounts), tax: money(tax), guest_count: money(totalGuests), import_note: sourceRange ? `Toast range ${sourceRange}; tips use 3.5% withholding` : 'Toast summary row; tips use 3.5% withholding' }]
+    return [{ ...makeEmptySalesRow(fileName), business_date: formatDate(sourceRange.split(' to ')[0] || today()), gross_sales: money(gross), net_sales: money(net), cash_sales: money(cash), credit_sales: money(credit), gift_card_sales: money(gift), online_orders: money(online), tips: money(tipsAfterWithholding), tips_collected: money(toastTips.collected), tips_withheld: money(toastTips.withheld), tips_after_withholding: money(toastTips.net), refunds: money(refunds), discounts: money(discounts), tax: money(tax), guest_count: money(totalGuests), food_sales: money(categories.foodTotal), alcohol_sales: money(categories.alcoholTotal), other_sales: money(categories.otherTotal), excluded_sales: money(categories.excludedTotal), food_sales_categories: categories.food, alcohol_sales_categories: categories.alcohol, other_sales_categories: categories.other, excluded_sales_categories: categories.excluded, import_note: sourceRange ? `Toast range ${sourceRange}; tips use 3.5% withholding` : 'Toast summary row; tips use 3.5% withholding' }]
   }
 
   const weights = dayRows.map(row => num(findValue(row, ['Net sales'])))
@@ -193,6 +219,14 @@ function parseToastSalesWorkbook(workbook, fileName) {
   const refundParts = distributeMoney(refunds, weights)
   const discountParts = distributeMoney(discounts, weights)
   const taxParts = distributeMoney(tax, weights)
+  const foodParts = distributeMoney(categories.foodTotal, weights)
+  const alcoholParts = distributeMoney(categories.alcoholTotal, weights)
+  const otherParts = distributeMoney(categories.otherTotal, weights)
+  const excludedParts = distributeMoney(categories.excludedTotal, weights)
+  const foodCategoryParts = distributeCategoryRows(categories.food, weights)
+  const alcoholCategoryParts = distributeCategoryRows(categories.alcohol, weights)
+  const otherCategoryParts = distributeCategoryRows(categories.other, weights)
+  const excludedCategoryParts = distributeCategoryRows(categories.excluded, weights)
 
   return dayRows.map((row, index) => ({
     ...makeEmptySalesRow(fileName),
@@ -211,6 +245,14 @@ function parseToastSalesWorkbook(workbook, fileName) {
     discounts: money(discountParts[index]),
     tax: money(taxParts[index]),
     guest_count: money(findValue(row, ['Total guests', 'Guests', 'Guest Count'])),
+    food_sales: money(foodParts[index]),
+    alcohol_sales: money(alcoholParts[index]),
+    other_sales: money(otherParts[index]),
+    excluded_sales: money(excludedParts[index]),
+    food_sales_categories: foodCategoryParts[index],
+    alcohol_sales_categories: alcoholCategoryParts[index],
+    other_sales_categories: otherCategoryParts[index],
+    excluded_sales_categories: excludedCategoryParts[index],
     import_note: sourceRange ? `Toast range ${sourceRange}; daily payments/tips allocated from weekly totals` : 'Toast daily row; payments/tips allocated from summary totals'
   }))
 }

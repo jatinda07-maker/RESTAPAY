@@ -251,31 +251,46 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
   const excludedDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'excluded')
   const otherDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'other')
 
-  // Toast department totals are the primary source. This prevents Product Mix item
-  // names from being added twice and keeps the figures aligned with Toast reports.
-  let foodSales = foodDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
-  let alcoholSales = alcoholDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  // Sales Summary category fields are the primary source because they reconcile
+  // exactly to Toast. Product Mix is used only when category totals were not imported.
+  const explicitFoodSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['food_sales', 'foodSales', 'restaurant_food_sales']), 0)
+  const explicitAlcoholSales = salesRows.reduce((sum, row) => sum +
+    rowSales(row, ['alcohol_sales', 'alcoholSales', 'bar_sales']) +
+    rowSales(row, ['beer_sales', 'beerSales']) +
+    rowSales(row, ['liquor_sales', 'liquorSales', 'spirits_sales']) +
+    rowSales(row, ['wine_sales', 'wineSales']) +
+    rowSales(row, ['cocktail_sales', 'cocktailSales', 'margarita_sales']), 0)
 
-  // For older imports that do not contain the standard Toast departments, fall
-  // back to item classification without mixing the two methods.
-  const hasToastDepartmentTotals = foodDepartmentRows.length > 0 || alcoholDepartmentRows.length > 0
+  const aggregateCategoryRows = (field, department) => {
+    const map = new Map()
+    salesRows.forEach(row => {
+      const values = Array.isArray(row[field]) ? row[field] : []
+      values.forEach(entry => {
+        const category = String(entry.category || entry.name || '').trim() || 'Unclassified'
+        const current = map.get(category) || { id: `sales-summary-${department}-${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, category, department, salesAmount: 0, itemCount: 0, source: 'Toast Sales Summary' }
+        current.salesAmount += num(entry.salesAmount ?? entry.netSales ?? entry.amount)
+        current.itemCount += num(entry.itemCount ?? entry.items ?? 0)
+        map.set(category, current)
+      })
+    })
+    return [...map.values()]
+  }
+
+  const explicitFoodRows = aggregateCategoryRows('food_sales_categories', 'food')
+  const explicitAlcoholRows = aggregateCategoryRows('alcohol_sales_categories', 'alcohol')
+  const explicitOtherRows = aggregateCategoryRows('other_sales_categories', 'other')
+  const explicitExcludedRows = aggregateCategoryRows('excluded_sales_categories', 'excluded')
+  const hasExplicitDepartmentTotals = explicitFoodSales !== 0 || explicitAlcoholSales !== 0 || explicitFoodRows.length > 0 || explicitAlcoholRows.length > 0
+
+  let foodSales = hasExplicitDepartmentTotals ? explicitFoodSales : foodDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  let alcoholSales = hasExplicitDepartmentTotals ? explicitAlcoholSales : alcoholDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+
+  const hasToastDepartmentTotals = hasExplicitDepartmentTotals || foodDepartmentRows.length > 0 || alcoholDepartmentRows.length > 0
   const alcoholSalesRows = menuSalesRows.filter(item => item.department === 'alcohol')
   const foodSalesRows = menuSalesRows.filter(item => item.department === 'food')
   if (!hasToastDepartmentTotals) {
     alcoholSales = alcoholSalesRows.reduce((sum, item) => sum + item.salesAmount, 0)
     foodSales = foodSalesRows.reduce((sum, item) => sum + item.salesAmount, 0)
-  }
-
-  // Explicit fields from a Toast summary are a final fallback when no Product Mix
-  // or department rows are available.
-  if (!foodSales && !alcoholSales) {
-    foodSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['food_sales', 'foodSales', 'restaurant_food_sales']), 0)
-    alcoholSales = salesRows.reduce((sum, row) => sum +
-      rowSales(row, ['alcohol_sales', 'alcoholSales', 'bar_sales']) +
-      rowSales(row, ['beer_sales', 'beerSales']) +
-      rowSales(row, ['liquor_sales', 'liquorSales', 'spirits_sales']) +
-      rowSales(row, ['wine_sales', 'wineSales']) +
-      rowSales(row, ['cocktail_sales', 'cocktailSales', 'margarita_sales']), 0)
   }
 
   if (!foodSales && !alcoholSales && netSales > 0) {
@@ -284,9 +299,13 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
     foodSales = netSales - alcoholSales
   }
 
+  const finalFoodDepartmentRows = hasExplicitDepartmentTotals ? explicitFoodRows : foodDepartmentRows
+  const finalAlcoholDepartmentRows = hasExplicitDepartmentTotals ? explicitAlcoholRows : alcoholDepartmentRows
+  const finalOtherDepartmentRows = hasExplicitDepartmentTotals ? explicitOtherRows : otherDepartmentRows
+  const finalExcludedDepartmentRows = hasExplicitDepartmentTotals ? explicitExcludedRows : excludedDepartmentRows
   const classifiedDepartmentSales = foodSales + alcoholSales
-  const otherDepartmentSales = otherDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
-  const excludedDepartmentSales = excludedDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  const otherDepartmentSales = finalOtherDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  const excludedDepartmentSales = finalExcludedDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
   const trueFoodCost = totals.foodPurchases + totals.kitchenPayroll + totals.managerFood + totals.foodSupplies + totals.foodShared
   const trueAlcoholCost = totals.alcoholPurchases + totals.barPayroll + totals.managerAlcohol + totals.alcoholShared
   const foodProfit = foodSales - trueFoodCost
@@ -316,13 +335,13 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
     menuSalesDifference: netSales > 0 && classifiedDepartmentSales > 0 ? netSales - classifiedDepartmentSales : 0,
     departmentSalesDifference: netSales > 0 ? netSales - classifiedDepartmentSales : 0,
     toastDepartmentRows,
-    foodDepartmentRows,
-    alcoholDepartmentRows,
-    otherDepartmentRows,
-    excludedDepartmentRows,
+    foodDepartmentRows: finalFoodDepartmentRows,
+    alcoholDepartmentRows: finalAlcoholDepartmentRows,
+    otherDepartmentRows: finalOtherDepartmentRows,
+    excludedDepartmentRows: finalExcludedDepartmentRows,
     otherDepartmentSales,
     excludedDepartmentSales,
-    salesSource: hasToastDepartmentTotals ? 'Toast Department Totals' : 'Product Mix Fallback',
+    salesSource: hasExplicitDepartmentTotals ? 'Toast Sales Category Summary' : hasToastDepartmentTotals ? 'Toast Product Mix Departments' : 'Product Mix Fallback',
     spendDetails,
     payrollDetails,
     rules
