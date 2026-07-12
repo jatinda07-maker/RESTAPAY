@@ -981,3 +981,68 @@ button{touch-action:manipulation}
   .department-sales-mix-shares { width: 100%; }
   .department-sales-mix-shares span { flex: 1; }
 }
+
+/* RC11.6 dashboard controls and dedicated department cost page */
+.department-food-panel > h3,
+.food-cost-card > header {
+  background: linear-gradient(135deg, #eef9f0 0%, #e3f4e7 100%);
+  border-bottom: 1px solid #cfe7d4;
+  color: #174d2a;
+}
+.department-alcohol-panel > h3,
+.alcohol-cost-card > header {
+  background: linear-gradient(135deg, #f3efff 0%, #eae5ff 100%);
+  border-bottom: 1px solid #d9d0ff;
+  color: #37206f;
+}
+.department-cost-panel > h3 { margin: 0 -1px 12px; padding: 14px 16px; border-radius: 14px 14px 0 0; }
+.dashboard-visibility-card { grid-column: 1 / -1; }
+.settings-card-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.compact-actions { flex-wrap: nowrap; }
+.dashboard-visibility-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 16px; }
+.dashboard-toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border, #dbe3ee); border-radius: 10px; background: #fff; font-weight: 650; }
+.dashboard-toggle input { width: 18px; height: 18px; accent-color: #4d9852; }
+.cost-analysis-page { display: grid; gap: 18px; }
+.cost-analysis-head { align-items: flex-end; }
+.cost-date-controls { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.cost-date-controls label { display: grid; gap: 5px; font-size: 13px; font-weight: 700; color: #4b5870; }
+.cost-date-controls input { min-height: 42px; padding: 8px 10px; border: 1px solid #d8e1ed; border-radius: 10px; background: white; }
+.sales-mix-banner { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 20px; border: 1px solid #dbe3ee; border-radius: 14px; background: linear-gradient(135deg, #f8fbff, #f5f8ff); }
+.sales-mix-banner > div:first-child { display: grid; gap: 4px; }
+.sales-mix-banner span { color: #65728a; }
+.sales-mix-banner strong { font-size: 22px; color: #12213b; }
+.sales-mix-banner small { color: #66748c; }
+.sales-mix-values { display: flex; gap: 24px; }
+.sales-mix-values span { display: grid; gap: 3px; text-align: right; }
+.sales-mix-values b { font-size: 20px; color: #17243b; }
+.cost-page-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.cost-department-card, .cost-detail-card, .cost-sales-detail-card { border: 1px solid #dbe3ee; border-radius: 16px; background: #fff; overflow: hidden; box-shadow: 0 8px 22px rgba(23, 37, 61, .05); }
+.cost-department-card > header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; }
+.cost-department-card > header h2 { margin: 0; font-size: 20px; }
+.cost-department-card > header span { font-weight: 800; }
+.cost-summary-list { display: grid; padding: 4px 18px 18px; }
+.cost-summary-list > div { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #edf1f6; }
+.cost-summary-list > div span { color: #526079; font-weight: 650; }
+.cost-summary-list > div b { font-size: 18px; color: #17243b; }
+.cost-summary-list > div small { grid-column: 2; color: #6c7890; }
+.cost-summary-list .cost-total { margin-top: 4px; border-top: 2px solid #dfe6ef; }
+.cost-summary-list .cost-profit b { color: #208640; }
+.cost-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.cost-detail-card > header, .cost-sales-detail-card > header { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px; border-bottom: 1px solid #e5ebf2; background: #f9fbfd; }
+.cost-detail-card h3, .cost-sales-detail-card h3 { margin: 0; font-size: 17px; }
+.cost-detail-card table, .cost-sales-detail-card table { width: 100%; border-collapse: collapse; }
+.cost-detail-card th, .cost-detail-card td, .cost-sales-detail-card th, .cost-sales-detail-card td { padding: 11px 13px; border-bottom: 1px solid #edf1f5; text-align: left; }
+.cost-detail-card th, .cost-sales-detail-card th { background: #fbfcfe; color: #536077; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+.cost-detail-card tfoot td, .cost-sales-detail-card tfoot td { background: #f8fafc; }
+@media (max-width: 980px) {
+  .cost-page-grid, .cost-details-grid { grid-template-columns: 1fr; }
+  .sales-mix-banner { align-items: flex-start; flex-direction: column; }
+  .sales-mix-values { width: 100%; justify-content: space-between; }
+  .settings-card-title-row { flex-direction: column; }
+}
+@media (max-width: 640px) {
+  .dashboard-visibility-grid { grid-template-columns: 1fr; }
+  .cost-date-controls { width: 100%; }
+  .cost-date-controls label { flex: 1 1 140px; }
+  .cost-date-controls input { width: 100%; }
+}

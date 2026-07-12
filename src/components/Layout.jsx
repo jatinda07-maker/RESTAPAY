@@ -6,6 +6,7 @@ import { isSupabaseReady } from '../lib/supabase'
 
 const subtitles = {
   dashboard: 'Overview of your restaurant business',
+  'cost-analysis': 'Detailed food and alcohol sales, cost allocation, and profitability',
   'import-center': 'Upload Toast sales, labor, Product Mix, invoices, rebates, and backups from one workspace',
   'toast-integration': 'Monitor automatic Toast SFTP exports and daily Supabase imports',
   sales: 'Manage Toast imports, daily sales, payment methods, and sales history',

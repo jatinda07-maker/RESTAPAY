@@ -505,21 +505,21 @@ export default function Dashboard({ data, setData, setActive }) {
       </section>
 
       <div className="metric-grid">
-        <MetricCard title="Net Sales" value={money(derived.trueNetSales)} subtitle={`${derived.monthSales.length} sales rows`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />
-        <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast cash payments" icon="dollar" tone="green" onClick={() => showDetail('sales')} />
-        <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('health')} />
-        <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle="After cash spending" icon="card" tone="emerald" onClick={() => showDetail('health')} />
-        <MetricCard title="Operating Payroll" value={money(derived.operatingPayroll)} subtitle={`Counts in profit · Total paid ${money(derived.payrollTotal)}`} icon="payroll" tone="teal" onClick={() => showDetail('payroll')} />
-        <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />
-        <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />
-        <MetricCard title="Server Tips" value={money(derived.customerTipsPaid)} subtitle={`Separate from payroll profit · Checks ${money(derived.customerTipsChecks)}`} icon="receipt" tone="orange" onClick={() => showDetail('payroll')} />
-        <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle="Food + operating labor vs net sales" icon="pie" tone="indigo" onClick={() => showDetail('health')} />
-        <MetricCard title="True Food Cost" value={money(derived.departmentCosts.trueFoodCost)} subtitle={`${pct(derived.departmentCosts.foodCostPercent)} of food sales`} icon="menu-costing" tone="orange" onClick={() => showDetail('vendors', 'Food')} />
-        <MetricCard title="True Alcohol Cost" value={money(derived.departmentCosts.trueAlcoholCost)} subtitle={`${pct(derived.departmentCosts.alcoholCostPercent)} of alcohol sales`} icon="beer" tone="purple" onClick={() => showDetail('vendors')} />
+        {visible.netSales && <MetricCard title="Net Sales" value={money(derived.trueNetSales)} subtitle={`${derived.monthSales.length} sales rows`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />}
+        {visible.cashCollected && <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast cash payments" icon="dollar" tone="green" onClick={() => showDetail('sales')} />}
+        {visible.operatingProfit && <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('health')} />}
+        {visible.cashRemaining && <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle="After cash spending" icon="card" tone="emerald" onClick={() => showDetail('health')} />}
+        {visible.operatingPayroll && <MetricCard title="Operating Payroll" value={money(derived.operatingPayroll)} subtitle={`Counts in profit · Total paid ${money(derived.payrollTotal)}`} icon="payroll" tone="teal" onClick={() => showDetail('payroll')} />}
+        {visible.vendorSpend && <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />}
+        {visible.businessExpenses && <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />}
+        {visible.serverTips && <MetricCard title="Server Tips" value={money(derived.customerTipsPaid)} subtitle={`Separate from payroll profit · Checks ${money(derived.customerTipsChecks)}`} icon="receipt" tone="orange" onClick={() => showDetail('payroll')} />}
+        {visible.primeCost && <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle="Food + operating labor vs net sales" icon="pie" tone="indigo" onClick={() => showDetail('health')} />}
+        {visible.trueFoodCost && <MetricCard title="True Food Cost" value={money(derived.departmentCosts.trueFoodCost)} subtitle={`${pct(derived.departmentCosts.foodCostPercent)} of food sales`} icon="menu-costing" tone="orange" onClick={() => showDetail('vendors', 'Food')} />}
+        {visible.trueAlcoholCost && <MetricCard title="True Alcohol Cost" value={money(derived.departmentCosts.trueAlcoholCost)} subtitle={`${pct(derived.departmentCosts.alcoholCostPercent)} of alcohol sales`} icon="beer" tone="purple" onClick={() => showDetail('vendors')} />}
       </div>
 
       <div className="dashboard-grid-main">
-        <SectionCard title="Restaurant Health" icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
+        {visible.restaurantHealth && (<SectionCard title="Restaurant Health" icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
           <div className="health-block">
             <div className="health-score"><strong>{derived.healthScore}</strong><span>{healthLabel(derived.healthScore)}</span></div>
             <div className="health-meters">
@@ -528,9 +528,9 @@ export default function Dashboard({ data, setData, setActive }) {
               <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + operating labor target under 65%" />
             </div>
           </div>
-        </SectionCard>
+        </SectionCard>)}
 
-        <SectionCard title="Food & Alcohol Profitability" icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules">
+        {visible.departmentProfitability && (<SectionCard title="Food & Alcohol Profitability" icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules" action={<button type="button" className="btn secondary small-btn" onClick={() => setActive('cost-analysis')}>Open Cost Page</button>}>
           {(() => {
             const classifiedSales = derived.departmentCosts.foodSales + derived.departmentCosts.alcoholSales
             const foodShare = classifiedSales > 0 ? derived.departmentCosts.foodSales / classifiedSales * 100 : 0
@@ -579,9 +579,9 @@ export default function Dashboard({ data, setData, setActive }) {
               ]} onRowClick={row => showDetail('department', row.id)} />
             </div>
           </div>
-        </SectionCard>
+        </SectionCard>)}
 
-        <SectionCard title="Cash Position" icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
+        {visible.cashPosition && (<SectionCard title="Cash Position" icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
           <RowList rows={[
             { label: 'Cash Collected', amount: money(derived.cashSales), meta: 'From Toast sales' },
             { label: 'Cash Payroll', amount: money(derived.cashPayroll), meta: `${derived.cashPayrollRows.length} cash payroll rows` },
@@ -589,51 +589,51 @@ export default function Dashboard({ data, setData, setActive }) {
             { label: 'Invoice Spend', amount: money(derived.invoiceSpend), meta: `${derived.monthInvoices.length} invoices` },
             { label: 'Manual Expenses', amount: money(derived.manualExpenseSpend), meta: `${derived.monthExpenses.length} expenses` }
           ]} />
-        </SectionCard>
+        </SectionCard>)}
 
-        <SectionCard title="Profit & Loss" icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
+        {visible.profitLoss && (<SectionCard title="Profit & Loss" icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
           <RowList rows={[
             { label: 'Net Restaurant Sales', amount: money(derived.trueNetSales), meta: 'Net after tax/tips adjustment' },
             { label: 'Operating Payroll Cost', amount: money(derived.operatingPayroll), meta: 'Kitchen/manager labor only; server tips excluded' },
             { label: 'Vendor + Expense Spend', amount: money(derived.totalSpend), meta: 'Invoices, line items, expenses' },
             { label: 'Profit Margin', amount: pct(derived.profitMargin), meta: 'Operating profit / net sales' }
           ]} />
-        </SectionCard>
+        </SectionCard>)}
 
-        <SectionCard title="Sales Performance" icon="sales" tone="blue" total={money(derived.grossSales)} subtitle="Gross and payment mix">
+        {visible.salesPerformance && (<SectionCard title="Sales Performance" icon="sales" tone="blue" total={money(derived.grossSales)} subtitle="Gross and payment mix">
           <RowList rows={[
             { label: 'Gross Sales', amount: money(derived.grossSales), meta: 'Before adjustments' },
             { label: 'Credit Sales', amount: money(derived.creditSales), meta: 'Card payments' },
             { label: 'Tips Collected', amount: money(derived.tips), meta: `${money(derived.customerTipsPaid)} paid separately · ${money(derived.tipsWithheld)} withheld` },
             { label: 'Sales Tax', amount: money(derived.tax), meta: 'Tax collected' }
           ]} />
-        </SectionCard>
+        </SectionCard>)}
 
-        <SectionCard title="Vendor Purchases" icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">
+        {visible.vendorPurchases && (<SectionCard title="Vendor Purchases" icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">
           <RowList rows={derived.vendorRecent.map(row => ({ label: row.vendor || 'Vendor Purchase', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
           <div className="category-pills">{derived.vendorCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('vendors', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
-        </SectionCard>
+        </SectionCard>)}
 
-        <SectionCard title="Business Expenses" icon="expenses" tone="red" total={money(derived.businessSpend)} subtitle="Operating expenses">
+        {visible.businessExpensePanel && (<SectionCard title="Business Expenses" icon="expenses" tone="red" total={money(derived.businessSpend)} subtitle="Operating expenses">
           <RowList rows={derived.businessRecent.map(row => ({ label: row.vendor || row.description || 'Expense', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
           <div className="category-pills">{derived.businessCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('expenses', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
-        </SectionCard>
+        </SectionCard>)}
       </div>
 
       <div className="dashboard-grid-secondary">
-        <SectionCard title="Weekly Sales Trend" icon="trending" tone="blue" subtitle="Last seven date buckets">
+        {visible.weeklySalesTrend && (<SectionCard title="Weekly Sales Trend" icon="trending" tone="blue" subtitle="Last seven date buckets">
           <MiniBars rows={derived.salesTrend} tone="blue" />
-        </SectionCard>
-        <SectionCard title="Spending Trend" icon="pie" tone="red" subtitle="Invoice + expense activity">
+        </SectionCard>)}
+        {visible.spendingTrend && (<SectionCard title="Spending Trend" icon="pie" tone="red" subtitle="Invoice + expense activity">
           <MiniBars rows={derived.expenseTrend} tone="red" />
-        </SectionCard>
-        <SectionCard title="Restaurant Intelligence" icon="alert" tone="navy" subtitle="Suggested actions">
+        </SectionCard>)}
+        {visible.restaurantIntelligence && (<SectionCard title="Restaurant Intelligence" icon="alert" tone="navy" subtitle="Suggested actions">
           <div className="insight-list">
             <div><b>{derived.healthScore >= 70 ? 'Restaurant health is stable' : 'Restaurant health needs review'}</b><span>Review food cost, operating labor, and cash position before payroll.</span></div>
             <div><b>{derived.foodCostPct > 35 ? 'Food cost is high' : 'Food cost is under control'}</b><span>Food cost is currently {pct(derived.foodCostPct)}.</span></div>
             <div><b>{derived.cashRemaining < 0 ? 'Cash shortfall risk' : 'Cash position looks usable'}</b><span>Remaining cash is {money(derived.cashRemaining)}.</span></div>
           </div>
-        </SectionCard>
+        </SectionCard>)}
       </div>
 
       <DetailTable config={detailConfig[detailKey]} setActive={setActive} />

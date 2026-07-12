@@ -62,6 +62,7 @@ export const iconMap = {
   reports: TrendingUp,
   'price-increase': AlertTriangle,
   'menu-costing': Utensils,
+  'cost-analysis': PieChart,
   'import-center': FileUp,
   'toast-integration': Cloud,
   settings: Settings,

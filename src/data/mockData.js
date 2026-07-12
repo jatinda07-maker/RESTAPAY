@@ -1,5 +1,5 @@
 export const navItems = [
-  ['dashboard', 'Dashboard'], ['import-center', 'Import Center'], ['toast-integration', 'Toast Integration'], ['sales', 'Sales'], ['menu-costing', 'Menu Costing'], ['vendors', 'Vendors'], ['invoices', 'Invoices'],
+  ['dashboard', 'Dashboard'], ['cost-analysis', 'Food & Alcohol Cost'], ['import-center', 'Import Center'], ['toast-integration', 'Toast Integration'], ['sales', 'Sales'], ['menu-costing', 'Menu Costing'], ['vendors', 'Vendors'], ['invoices', 'Invoices'],
   ['employees', 'Employees'], ['payroll', 'Payroll'], ['expenses', 'Expenses'], ['reports', 'Reports'],
   ['price-increase', 'Price Increase'], ['settings', 'Settings']
 ]

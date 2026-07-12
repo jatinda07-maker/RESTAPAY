@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
+import CostAnalysis from './pages/CostAnalysis'
 import EntityPage from './pages/EntityPage'
 import Employees from './pages/Employees'
 import Payroll from './pages/Payroll'
@@ -24,6 +25,7 @@ function App() {
 
   return <Layout active={active} setActive={setActive}>
     {active === 'dashboard' ? <Dashboard data={data} setData={setData} setActive={setActive} />
+      : active === 'cost-analysis' ? <CostAnalysis {...shared} />
       : active === 'import-center' ? <ImportCenter {...shared} setActive={setActive} />
       : active === 'toast-integration' ? <ToastIntegration />
       : active === 'employees' ? <Employees {...shared} />

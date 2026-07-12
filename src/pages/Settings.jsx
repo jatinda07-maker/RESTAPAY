@@ -22,6 +22,48 @@ export default function Settings({ data, setData }) {
   }
   const allocations = { ...DEFAULT_ALLOCATION_RULES, ...(data.settings?.departmentAllocations || {}) }
   const defaultAlcoholSalesPercent = Number(data.settings?.defaultAlcoholSalesPercent ?? 25)
+  const defaultDashboardVisibility = {
+    netSales: true, cashCollected: true, operatingProfit: true, cashRemaining: true,
+    operatingPayroll: true, vendorSpend: true, businessExpenses: true, serverTips: true,
+    primeCost: true, trueFoodCost: true, trueAlcoholCost: true,
+    restaurantHealth: true, departmentProfitability: true, cashPosition: true,
+    profitLoss: true, salesPerformance: true, vendorPurchases: true, businessExpensePanel: true,
+    weeklySalesTrend: true, spendingTrend: true, restaurantIntelligence: true
+  }
+  const dashboardLabels = {
+    netSales: 'Net Sales', cashCollected: 'Cash Collected', operatingProfit: 'Operating Profit',
+    cashRemaining: 'Cash Remaining', operatingPayroll: 'Operating Payroll', vendorSpend: 'Vendor Spend',
+    businessExpenses: 'Business Expenses', serverTips: 'Server Tips', primeCost: 'Prime Cost',
+    trueFoodCost: 'True Food Cost', trueAlcoholCost: 'True Alcohol Cost',
+    restaurantHealth: 'Restaurant Health', departmentProfitability: 'Food & Alcohol Summary',
+    cashPosition: 'Cash Position', profitLoss: 'Profit & Loss', salesPerformance: 'Sales Performance',
+    vendorPurchases: 'Vendor Purchases', businessExpensePanel: 'Business Expense Panel',
+    weeklySalesTrend: 'Weekly Sales Trend', spendingTrend: 'Spending Trend',
+    restaurantIntelligence: 'Restaurant Intelligence'
+  }
+  const dashboardVisibility = { ...defaultDashboardVisibility, ...(data.settings?.dashboardVisibility || {}) }
+
+  function updateDashboardVisibility(key, checked) {
+    setData(prev => ({
+      ...prev,
+      settings: {
+        ...(prev.settings || {}),
+        dashboardVisibility: { ...defaultDashboardVisibility, ...(prev.settings?.dashboardVisibility || {}), [key]: checked }
+      }
+    }))
+    setStatus('Dashboard layout updated')
+  }
+
+  function setAllDashboardVisibility(checked) {
+    setData(prev => ({
+      ...prev,
+      settings: {
+        ...(prev.settings || {}),
+        dashboardVisibility: Object.fromEntries(Object.keys(defaultDashboardVisibility).map(key => [key, checked]))
+      }
+    }))
+    setStatus(checked ? 'All dashboard cards enabled' : 'Dashboard cards hidden')
+  }
 
   function updateAllocation(ruleKey, side, value) {
     const nextValue = Math.max(0, Math.min(100, Number(value || 0)))
@@ -95,6 +137,16 @@ export default function Settings({ data, setData }) {
         <p className="helper-text">Toast labor import uses this rate to calculate tip withholding before saving payroll.</p>
       </div>
 
+
+      <div className="form-card tight-card dashboard-visibility-card">
+        <div className="settings-card-title-row"><div><h2>Dashboard Cards</h2><p className="helper-text">Choose which cards appear. The dashboard grid automatically closes gaps without changing card formatting or spacing.</p></div><div className="settings-actions compact-actions"><button className="btn secondary" type="button" onClick={() => setAllDashboardVisibility(true)}>Show All</button><button className="btn secondary" type="button" onClick={() => setAllDashboardVisibility(false)}>Hide All</button></div></div>
+        <div className="dashboard-visibility-grid">
+          {Object.keys(defaultDashboardVisibility).map(key => <label className="dashboard-toggle" key={key}>
+            <input type="checkbox" checked={dashboardVisibility[key] !== false} onChange={e => updateDashboardVisibility(key, e.target.checked)} />
+            <span>{dashboardLabels[key]}</span>
+          </label>)}
+        </div>
+      </div>
 
       <div className="form-card tight-card allocation-settings-card">
         <h2>Food & Alcohol Allocation Rules</h2>

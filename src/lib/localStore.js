@@ -36,6 +36,14 @@ export const defaultData = {
   settings: {
     tipWithholdingRate: 3.5,
     defaultAlcoholSalesPercent: 25,
+    dashboardVisibility: {
+      netSales: true, cashCollected: true, operatingProfit: true, cashRemaining: true,
+      operatingPayroll: true, vendorSpend: true, businessExpenses: true, serverTips: true,
+      primeCost: true, trueFoodCost: true, trueAlcoholCost: true,
+      restaurantHealth: true, departmentProfitability: true, cashPosition: true,
+      profitLoss: true, salesPerformance: true, vendorPurchases: true, businessExpensePanel: true,
+      weeklySalesTrend: true, spendingTrend: true, restaurantIntelligence: true
+    },
     departmentAllocations: {
       managerPayroll: { food: 50, alcohol: 50 },
       kitchenPayroll: { food: 100, alcohol: 0 },
