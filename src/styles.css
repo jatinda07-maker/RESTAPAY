@@ -940,3 +940,44 @@ button{touch-action:manipulation}
 .line-row-button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px}
 .line-row-chevron{color:#94a3b8;font-size:20px;line-height:1;margin-left:2px}
 .department-cost-panel .line-row-button{padding-left:4px;padding-right:4px;border-radius:8px}
+
+/* RC11.3 department panels: preserve layout while restoring department identity */
+.department-cost-panel.department-food-panel {
+  background: linear-gradient(180deg, #f3fbf5 0%, #ffffff 48%);
+  border-color: #cfe8d5;
+}
+.department-cost-panel.department-food-panel h3 { color: #196b35; }
+.department-cost-panel.department-alcohol-panel {
+  background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 48%);
+  border-color: #dcd5fb;
+}
+.department-cost-panel.department-alcohol-panel h3 { color: #5b32a3; }
+
+
+/* RC11.4 department sales mix indicator */
+.department-sales-mix {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid #d9e3ec;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
+}
+.department-sales-mix.food-led { border-left: 5px solid #4f9d5d; background: linear-gradient(135deg, #edf9f0 0%, #ffffff 100%); }
+.department-sales-mix.alcohol-led { border-left: 5px solid #7a56c5; background: linear-gradient(135deg, #f3efff 0%, #ffffff 100%); }
+.department-sales-mix > div:first-child { display: grid; gap: 3px; }
+.department-sales-mix-kicker { color: #667085; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.department-sales-mix strong { font-size: 16px; color: #101828; }
+.department-sales-mix small { color: #667085; }
+.department-sales-mix-shares { display: flex; gap: 10px; flex: 0 0 auto; }
+.department-sales-mix-shares span { min-width: 88px; padding: 8px 12px; border: 1px solid #e1e7ee; border-radius: 10px; background: rgba(255,255,255,.84); text-align: center; display: grid; gap: 2px; }
+.department-sales-mix-shares b { font-size: 16px; color: #101828; }
+.department-sales-mix-shares small { font-size: 11px; color: #667085; }
+@media (max-width: 720px) {
+  .department-sales-mix { align-items: flex-start; flex-direction: column; }
+  .department-sales-mix-shares { width: 100%; }
+  .department-sales-mix-shares span { flex: 1; }
+}

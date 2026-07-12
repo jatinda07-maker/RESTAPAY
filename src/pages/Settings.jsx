@@ -14,7 +14,7 @@ export default function Settings({ data, setData }) {
     managerPayroll: 'Manager Payroll',
     kitchenPayroll: 'Kitchen Payroll',
     bartenderPayroll: 'Bartender / Bar Payroll',
-    supplies: 'Restaurant / Kitchen Supplies',
+    supplies: 'Shared Restaurant / Kitchen Supplies',
     cleaningSupplies: 'Cleaning Supplies',
     cintas: 'Cintas',
     utilities: 'Utilities',

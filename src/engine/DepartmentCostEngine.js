@@ -2,7 +2,7 @@ const DEFAULT_RULES = {
   managerPayroll: { food: 50, alcohol: 50 },
   kitchenPayroll: { food: 100, alcohol: 0 },
   bartenderPayroll: { food: 0, alcohol: 100 },
-  supplies: { food: 100, alcohol: 0 },
+  supplies: { food: 50, alcohol: 50 },
   cleaningSupplies: { food: 50, alcohol: 50 },
   cintas: { food: 50, alcohol: 50 },
   utilities: { food: 50, alcohol: 50 },
@@ -64,10 +64,10 @@ export function classifySpend(row = {}) {
   if (/margarita\s*(mix|base|concentrate)|marg(?:arita)?\s*(mix|base|mx)|sweet\s*(?:&|and|n)?\s*sour|sour\s*mix|bar\s*mix|margarita\s*syrup/.test(text)) return { bucket: 'alcohol', rule: 'margaritaMix', label: 'Margarita Mix' }
   if (/\bbeer\b|lager|ale|ipa|modelo|corona|bud light|michelob|coors|miller|dos equis|pacifico|tecate|keg/.test(text)) return { bucket: 'alcohol', rule: 'beer', label: 'Beer' }
   if (/liquor|tequila|mezcal|vodka|rum|whiskey|whisky|bourbon|scotch|gin|brandy|cognac|wine|champagne|prosecco|abc store|texana/.test(text)) return { bucket: 'alcohol', rule: 'liquor', label: 'Liquor / Wine' }
-  if (/cintas/.test(text)) return { bucket: 'shared', rule: 'cintas', label: 'Cintas' }
-  if (/clean|chemical|sanitizer|soap|detergent|janitorial/.test(text)) return { bucket: 'shared', rule: 'cleaningSupplies', label: 'Cleaning Supplies' }
-  if (/suppl|paper|foil|film|glove|container|to-go|takeout|straw|napkin/.test(text)) return { bucket: 'food', rule: 'supplies', label: 'Kitchen / Restaurant Supplies' }
-  if (/util|electric|power|water|natural gas|sewer/.test(text)) return { bucket: 'shared', rule: 'utilities', label: 'Utilities' }
+  if (/cintas|aramark|unifirst|uniform service|linen service|floor mat|shop towel|apron service/.test(text)) return { bucket: 'shared', rule: 'cintas', label: 'Cintas / Linen Service' }
+  if (/clean|chemical|sanitizer|soap|detergent|janitorial|ecolab|auto[- ]?chlor|pest control|terminix|orkin/.test(text)) return { bucket: 'shared', rule: 'cleaningSupplies', label: 'Cleaning Supplies' }
+  if (/suppl|paper|foil|film|glove|container|to-go|takeout|straw|napkin|packag|smallware|utensil|disposable|office depot|staples|webstaurant|restaurant supply/.test(text)) return { bucket: 'shared', rule: 'supplies', label: 'Restaurant / Kitchen Supplies' }
+  if (/util|electric|power|water|natural gas|sewer|internet|telephone|phone service|alabama power|utility board/.test(text)) return { bucket: 'shared', rule: 'utilities', label: 'Utilities' }
   if (/insurance/.test(text)) return { bucket: 'shared', rule: 'insurance', label: 'Insurance' }
   if (/food|meat|produce|grocery|chicken|beef|fish|shrimp|cheese|tortilla|rice|bean|us foods/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food Purchases' }
   if (/beverage|soda|coke|sprite|tea|lemonade|buffalo rock|mixer/.test(text)) return { bucket: 'other', rule: 'nonAlcoholBeverage', label: 'Non-alcohol Beverage' }
@@ -104,13 +104,19 @@ const ALCOHOL_MENU_PATTERN = /beer|lager|ale|ipa|draft|draught|cerveza|modelo|co
 const NON_ALCOHOL_PATTERN = /virgin|mocktail|non[- ]?alcohol|alcohol[- ]?free|kids? drink|soft drink|soda|tea|coffee|lemonade|water|juice|coke|sprite|pepsi|dr pepper/i
 
 export function classifyMenuSale(item = {}) {
-  const category = String(item.category || item.menu_category || item.sales_category || item.type || '').toLowerCase()
-  const name = String(item.name || item.item_name || item.description || item.menu_item || '').toLowerCase()
+  const category = String(item.category || item.menu_category || item.sales_category || item.type || '').trim().toLowerCase()
+  const name = String(item.name || item.item_name || item.description || item.menu_item || '').trim().toLowerCase()
   const text = `${category} ${name}`
+
+  // Toast sales categories explicitly used by this restaurant.
+  // These category matches take priority over inconsistent item-level categories.
+  if (/^(bottled beer|cocktails?\s*&\s*shots?|draft beer|margaritas?|wine)$/.test(category)) return 'alcohol'
+  if (/^(food)$/.test(category)) return 'food'
+
+  // For "No Sales Category Assigned" and service-charge rows, use the item name.
+  // Alcohol names still classify correctly; non-alcohol/service rows remain Food so
+  // the two-department report reconciles without counting a row twice.
   if (/beer|liquor|wine|alcohol|bar|cocktail|margarita|spirits?/.test(category) || ALCOHOL_MENU_PATTERN.test(text)) return 'alcohol'
-  // RestaPay reports two restaurant departments. Every non-alcohol Product Mix item,
-  // including soda, tea, coffee, juice, mocktails and other non-alcohol beverages,
-  // belongs to Food so Food + Alcohol always reconciles to classified Product Mix sales.
   return 'food'
 }
 
@@ -132,7 +138,7 @@ function menuSalesAmount(item = {}) {
   return num(item.netSales ?? item.net_sales ?? item.grossSales ?? item.gross_sales ?? item.sales ?? item.amount)
 }
 
-export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], spendRows = [], menuItems = [], settings = {} } = {}) {
+export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], employees = [], spendRows = [], menuItems = [], settings = {} } = {}) {
   const rules = allocationRules(settings)
   const totals = {
     foodPurchases: 0, alcoholPurchases: 0, beerPurchases: 0, liquorPurchases: 0, margaritaMix: 0,
@@ -163,10 +169,21 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], spe
     else { totals.otherSpend += amount; spendDetails.other.push(detailRow) }
   })
 
+  const employeeById = new Map((employees || []).filter(employee => employee?.id).map(employee => [String(employee.id), employee]))
+  const employeeByName = new Map((employees || []).filter(employee => employee?.name).map(employee => [String(employee.name).trim().toLowerCase(), employee]))
+
   payrollRows.forEach(row => {
-    const amount = payrollAmount(row)
-    const cls = classifyPayroll(row)
-    const detailRow = { ...row, amount, payrollLabel: cls.label }
+    const matchedEmployee = employeeById.get(String(row.employee_id || '')) || employeeByName.get(String(row.employee_name || row.name || '').trim().toLowerCase()) || null
+    const classifiedRow = matchedEmployee ? {
+      ...row,
+      employee_type: row.employee_type || matchedEmployee.employee_type,
+      job_type: row.job_type || matchedEmployee.job_type,
+      pay_type: row.pay_type || matchedEmployee.pay_type,
+      payroll_classification: row.payroll_classification || matchedEmployee.payroll_classification
+    } : row
+    const amount = payrollAmount(classifiedRow)
+    const cls = classifyPayroll(classifiedRow)
+    const detailRow = { ...classifiedRow, amount, payrollLabel: cls.label, employeeRecord: matchedEmployee }
     if (cls.rule === 'tips') { totals.excludedTips += amount; payrollDetails.tips.push(detailRow) }
     else if (cls.rule === 'kitchenPayroll') { totals.kitchenPayroll += amount; payrollDetails.kitchen.push(detailRow) }
     else if (cls.rule === 'bartenderPayroll') { totals.barPayroll += amount; payrollDetails.bar.push(detailRow) }

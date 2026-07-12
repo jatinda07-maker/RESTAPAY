@@ -345,6 +345,7 @@ export default function Dashboard({ data, setData, setActive }) {
     const departmentCosts = calculateDepartmentCosts({
       salesRows: monthSales,
       payrollRows: monthPayroll,
+      employees: data?.employees || [],
       spendRows: allSpendRows,
       menuItems: monthMenuItems,
       settings: data?.settings || {}
@@ -424,7 +425,8 @@ export default function Dashboard({ data, setData, setActive }) {
       'margarita-mix': { title: 'Margarita Mix Details', open: 'invoices', rows: dc.spendDetails?.margaritaMix || [], columns: spendColumns, message: 'US Foods margarita mix and sweet/sour mix are allocated to Alcohol Cost.' },
       'kitchen-payroll': { title: 'Kitchen Payroll Details', open: 'payroll', rows: dc.payrollDetails?.kitchen || [], columns: payrollColumns },
       'manager-food': { title: 'Manager Payroll — Food Allocation', open: 'payroll', rows: (dc.payrollDetails?.manager || []).map(r => ({ ...r, amount: r.foodAllocated })), columns: payrollColumns },
-      'manager-alcohol': { title: 'Manager and Bar Payroll — Alcohol Allocation', open: 'payroll', rows: [...(dc.payrollDetails?.manager || []).map(r => ({ ...r, amount: r.alcoholAllocated })), ...(dc.payrollDetails?.bar || [])], columns: payrollColumns },
+      'manager-alcohol': { title: 'Manager Payroll — Alcohol Allocation', open: 'payroll', rows: (dc.payrollDetails?.manager || []).map(r => ({ ...r, amount: r.alcoholAllocated })), columns: payrollColumns },
+      'bar-payroll': { title: 'Bar Payroll Details', open: 'payroll', rows: dc.payrollDetails?.bar || [], columns: payrollColumns },
       'food-shared': { title: 'Food Supplies and Shared Cost Details', open: 'expenses', rows: dc.spendDetails?.sharedFood || [], columns: spendColumns },
       'alcohol-shared': { title: 'Alcohol Shared Cost Details', open: 'expenses', rows: dc.spendDetails?.sharedAlcohol || [], columns: spendColumns },
       'true-food-cost': { title: 'True Food Cost Components', open: 'reports', rows: [
@@ -529,27 +531,49 @@ export default function Dashboard({ data, setData, setActive }) {
         </SectionCard>
 
         <SectionCard title="Food & Alcohol Profitability" icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules">
+          {(() => {
+            const classifiedSales = derived.departmentCosts.foodSales + derived.departmentCosts.alcoholSales
+            const foodShare = classifiedSales > 0 ? derived.departmentCosts.foodSales / classifiedSales * 100 : 0
+            const alcoholShare = classifiedSales > 0 ? derived.departmentCosts.alcoholSales / classifiedSales * 100 : 0
+            const foodLed = derived.departmentCosts.foodSales >= derived.departmentCosts.alcoholSales
+            const leadAmount = Math.abs(derived.departmentCosts.foodSales - derived.departmentCosts.alcoholSales)
+            return (
+              <div className={`department-sales-mix ${foodLed ? 'food-led' : 'alcohol-led'}`}>
+                <div>
+                  <span className="department-sales-mix-kicker">Sales Mix</span>
+                  <strong>{foodLed ? 'Food sales were higher' : 'Alcohol sales were higher'}</strong>
+                  <small>{`${foodLed ? 'Food' : 'Alcohol'} led by ${money(leadAmount)} in the selected period`}</small>
+                </div>
+                <div className="department-sales-mix-shares">
+                  <span><b>{pct(foodShare)}</b><small>Food</small></span>
+                  <span><b>{pct(alcoholShare)}</b><small>Alcohol</small></span>
+                </div>
+              </div>
+            )
+          })()}
           <div className="department-cost-grid">
-            <div className="department-cost-panel">
+            <div className="department-cost-panel department-food-panel">
               <h3>Food Department</h3>
               <RowList rows={[
                 { id: 'food-sales', label: 'Food Sales', amount: money(derived.departmentCosts.foodSales), meta: 'Toast food items from Product Mix' },
                 { id: 'food-purchases', label: 'Food Purchases', amount: money(derived.departmentCosts.foodPurchases), meta: 'Net of rebates and credits' },
                 { id: 'kitchen-payroll', label: 'Kitchen Payroll', amount: money(derived.departmentCosts.kitchenPayroll), meta: '100% allocated to food' },
                 { id: 'manager-food', label: 'Manager Allocation', amount: money(derived.departmentCosts.managerFood), meta: 'Default 50% food' },
-                { id: 'food-shared', label: 'Supplies + Shared', amount: money(derived.departmentCosts.foodSupplies + derived.departmentCosts.foodShared), meta: 'Includes food share of cleaning and Cintas' },
+                { id: 'food-shared', label: 'Shared Supplies, Cintas & Utilities', amount: money(derived.departmentCosts.foodSupplies + derived.departmentCosts.foodShared), meta: 'Food share using Settings percentages' },
                 { id: 'true-food-cost', label: 'True Food Cost', amount: money(derived.departmentCosts.trueFoodCost), meta: pct(derived.departmentCosts.foodCostPercent) },
                 { id: 'food-profit', label: 'Food Profit', amount: money(derived.departmentCosts.foodProfit), meta: `${pct(derived.departmentCosts.foodProfitMargin)} margin` }
               ]} onRowClick={row => showDetail('department', row.id)} />
             </div>
-            <div className="department-cost-panel">
+            <div className="department-cost-panel department-alcohol-panel">
               <h3>Alcohol Department</h3>
               <RowList rows={[
                 { id: 'alcohol-sales', label: 'Alcohol Sales', amount: money(derived.departmentCosts.alcoholSales), meta: 'Beer, liquor, wine, margaritas, cocktails and shots' },
                 { id: 'beer-purchases', label: 'Beer Purchases', amount: money(derived.departmentCosts.beerPurchases), meta: 'All beer vendors' },
                 { id: 'liquor-purchases', label: 'Liquor / Wine', amount: money(derived.departmentCosts.liquorPurchases), meta: 'ABC Store and all liquor/wine vendors' },
                 { id: 'margarita-mix', label: 'Margarita Mix', amount: money(derived.departmentCosts.margaritaMix), meta: 'US Foods mix allocated to alcohol' },
-                { id: 'manager-alcohol', label: 'Manager + Shared', amount: money(derived.departmentCosts.managerAlcohol + derived.departmentCosts.alcoholShared + derived.departmentCosts.barPayroll), meta: 'Alcohol share of manager, Cintas, cleaning and bar labor' },
+                { id: 'manager-alcohol', label: 'Manager Allocation', amount: money(derived.departmentCosts.managerAlcohol), meta: 'Kept separate; percentage from Settings' },
+                { id: 'bar-payroll', label: 'Bar Payroll', amount: money(derived.departmentCosts.barPayroll), meta: 'Bartender, barback and bar manager' },
+                { id: 'alcohol-shared', label: 'Shared Supplies, Cintas & Utilities', amount: money(derived.departmentCosts.alcoholShared), meta: 'Alcohol share using Settings percentages' },
                 { id: 'true-alcohol-cost', label: 'True Alcohol Cost', amount: money(derived.departmentCosts.trueAlcoholCost), meta: pct(derived.departmentCosts.alcoholCostPercent) },
                 { id: 'alcohol-profit', label: 'Alcohol Profit', amount: money(derived.departmentCosts.alcoholProfit), meta: `${pct(derived.departmentCosts.alcoholProfitMargin)} margin` }
               ]} onRowClick={row => showDetail('department', row.id)} />
