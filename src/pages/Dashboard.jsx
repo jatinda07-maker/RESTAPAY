@@ -304,7 +304,7 @@ export default function Dashboard({ data, setData, setActive }) {
       const description = row.description || row.item_name || row.name || row.item || vendor
       const category = inferCategory({ ...row, vendor, category: row.category || inv.category, description })
       return { ...row, source: 'Invoice Item', vendor, description, amount: itemAmount(row), category, date: rowDate(row, ['invoice_date', 'date']) || rowDate(inv, ['invoice_date', 'date']) }
-    }).filter(row => num(row.amount) > 0)
+    }).filter(row => num(row.amount) !== 0)
 
     const invoiceHeaderRows = monthInvoices.filter(row => !invoicesWithLineItems.has(row.id)).map(row => ({
       ...row,

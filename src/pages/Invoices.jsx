@@ -5,6 +5,7 @@ import DateControls from '../components/DateControls'
 import { createId, saveCloudData, sortByName } from '../lib/localStore'
 import { isSupabaseReady, supabase } from '../lib/supabase'
 import { applyPresetToSetters, isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange } from '../engine/DateEngine'
+import { classifySpend } from '../engine/DepartmentCostEngine'
 
 const blankInvoice = {
   vendor_id: '',
@@ -101,6 +102,25 @@ function findDuplicateInvoice(invoices, candidate, editingId = null) {
     if (editingId && inv.id === editingId) return false
     return invoiceDuplicateKey(inv) === `${vendorName}::${invoiceNumber}`
   }) || null
+}
+
+
+function suggestedInvoiceItemCategory(item = {}, inheritedCategory = 'Food', vendorName = '') {
+  const classification = classifySpend({
+    ...item,
+    vendor: vendorName,
+    vendor_name: vendorName,
+    category: item.category || inheritedCategory,
+    description: item.description || item.item_name || item.name || ''
+  })
+  if (classification.rule === 'margaritaMix') return 'Liquor'
+  if (classification.rule === 'beer') return 'Beer'
+  if (classification.rule === 'liquor') return 'Liquor'
+  if (classification.rule === 'foodPurchases') return 'Food'
+  if (classification.rule === 'supplies') return 'Supplies'
+  if (classification.rule === 'cleaningSupplies') return 'Cleaning'
+  if (classification.rule === 'governmentTax') return 'Taxes & Licenses'
+  return item.category || inheritedCategory || 'Other'
 }
 
 function inferInvoiceRows(rows) {
@@ -554,13 +574,15 @@ export default function Invoices({ data, setData }) {
         ].filter(Boolean).join(' | ')
       }))
 
+      const inheritedCategory = extracted.category || vendorMatch?.category || 'Food'
+      const extractedVendorName = extracted.vendor_name || vendorMatch?.name || ''
       setLineItems(extractedLineItems.map(item => ({
         id: item.id || createId('item'),
         description: clean(item.description),
         qty: Number(item.qty || 1),
         unit_price: Number(item.unit_price || 0),
         total: Number(item.total || 0),
-        category: item.category || extracted.category || 'Food'
+        category: suggestedInvoiceItemCategory(item, inheritedCategory, extractedVendorName)
       })))
 
       const possibleDuplicate = findDuplicateInvoice(data.invoices || [], {

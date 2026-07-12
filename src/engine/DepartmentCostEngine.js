@@ -27,8 +27,20 @@ export function allocationRules(settings = {}) {
 }
 
 function textOf(row = {}) {
-  return [row.category, row.expense_category, row.vendor, row.vendor_name, row.name, row.description, row.item_name, row.notes, row.source]
+  return [row.category, row.expense_category, row.invoice_category, row.vendor, row.vendor_name, row.name, row.description, row.item_name, row.item, row.sku, row.product_code, row.notes, row.source]
     .map(value => String(value || '').toLowerCase()).join(' ')
+}
+
+function vendorTextOf(row = {}) {
+  return [row.vendor, row.vendor_name, row.payee, row.name]
+    .map(value => String(value || '').toLowerCase()).join(' ')
+}
+
+function isGovernmentOrTaxSpend(row = {}) {
+  const vendor = vendorTextOf(row)
+  const text = textOf(row)
+  return /\bal[- ]?(?:dept|department)\s+of\s+rev(?:enue)?\b|\balabama\s+department\s+of\s+revenue\b|\bal[- ]?onespot\b|\bone\s*spot\b/.test(vendor) ||
+    /\b(sales tax|use tax|withholding tax|department of revenue|tax payment|business license|liquor license|alcohol license|permit fee)\b/.test(text)
 }
 
 function payrollText(row = {}) {
@@ -45,9 +57,13 @@ function payrollAmount(row = {}) { return num(row.total_pay || row.total || row.
 
 export function classifySpend(row = {}) {
   const text = textOf(row)
-  if (/margarita\s*(mix|base)|sweet\s*&?\s*sour|sour mix/.test(text)) return { bucket: 'alcohol', rule: 'margaritaMix', label: 'Margarita Mix' }
-  if (/beer|lager|ale|ipa|modelo|corona|bud light|michelob|coors|miller|dos equis/.test(text)) return { bucket: 'alcohol', rule: 'beer', label: 'Beer' }
-  if (/liquor|tequila|vodka|rum|whiskey|bourbon|gin|wine|abc store|texana/.test(text)) return { bucket: 'alcohol', rule: 'liquor', label: 'Liquor / Wine' }
+  // Government tax and licensing payments are operating expenses, never inventory purchases.
+  // This prevents vendors such as AL-DEPT OF REV and AL ONESPOT from being pulled into Alcohol Cost
+  // even when legacy data carries an incorrect Liquor/Alcohol category.
+  if (isGovernmentOrTaxSpend(row)) return { bucket: 'other', rule: 'governmentTax', label: 'Taxes & Licenses' }
+  if (/margarita\s*(mix|base|concentrate)|marg(?:arita)?\s*(mix|base|mx)|sweet\s*(?:&|and|n)?\s*sour|sour\s*mix|bar\s*mix|margarita\s*syrup/.test(text)) return { bucket: 'alcohol', rule: 'margaritaMix', label: 'Margarita Mix' }
+  if (/\bbeer\b|lager|ale|ipa|modelo|corona|bud light|michelob|coors|miller|dos equis|pacifico|tecate|keg/.test(text)) return { bucket: 'alcohol', rule: 'beer', label: 'Beer' }
+  if (/liquor|tequila|mezcal|vodka|rum|whiskey|whisky|bourbon|scotch|gin|brandy|cognac|wine|champagne|prosecco|abc store|texana/.test(text)) return { bucket: 'alcohol', rule: 'liquor', label: 'Liquor / Wine' }
   if (/cintas/.test(text)) return { bucket: 'shared', rule: 'cintas', label: 'Cintas' }
   if (/clean|chemical|sanitizer|soap|detergent|janitorial/.test(text)) return { bucket: 'shared', rule: 'cleaningSupplies', label: 'Cleaning Supplies' }
   if (/suppl|paper|foil|film|glove|container|to-go|takeout|straw|napkin/.test(text)) return { bucket: 'food', rule: 'supplies', label: 'Kitchen / Restaurant Supplies' }
@@ -61,8 +77,11 @@ export function classifySpend(row = {}) {
 export function classifyPayroll(row = {}) {
   const text = payrollText(row)
   if (isTips(row)) return { bucket: 'excluded', rule: 'tips', label: 'Server Tips' }
-  if (/manager|management/.test(text)) return { bucket: 'shared', rule: 'managerPayroll', label: 'Manager Payroll' }
+  // Assistant managers are regular operating payroll and are intentionally not split
+  // between Food and Alcohol. Only actual manager roles use the manager allocation rule.
+  if (/assistant manager|assistant mgr|asst\.? manager|asistente manager|assistant general manager/.test(text)) return { bucket: 'other', rule: 'otherPayroll', label: 'Assistant Manager Payroll' }
   if (/bartender|barback|bar manager/.test(text)) return { bucket: 'alcohol', rule: 'bartenderPayroll', label: 'Bar Payroll' }
+  if (/general manager|restaurant manager|store manager|\bmanager\b|management/.test(text)) return { bucket: 'shared', rule: 'managerPayroll', label: 'Manager Payroll' }
   if (/kitchen|cook|chef|prep|dishwasher|dish washer|line cook|food prep/.test(text)) return { bucket: 'food', rule: 'kitchenPayroll', label: 'Kitchen Payroll' }
   return { bucket: 'other', rule: 'otherPayroll', label: 'Other Operating Payroll' }
 }
