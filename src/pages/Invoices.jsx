@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
 import { createId, saveCloudData, sortByName } from '../lib/localStore'
+import { isSupabaseReady, supabase } from '../lib/supabase'
 import { applyPresetToSetters, isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange } from '../engine/DateEngine'
 
 const blankInvoice = {
@@ -150,105 +151,74 @@ async function fileToBase64(file) {
   })
 }
 
-const DEFAULT_GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+const MAX_AI_FILE_BYTES = 12 * 1024 * 1024
 
-function getGeminiKey(localKey = '') {
-  return clean(localKey) || clean(import.meta.env.VITE_GEMINI_API_KEY)
-}
+async function extractWithGemini(file) {
+  if (!isSupabaseReady || !supabase) {
+    throw new Error('Cloud OCR is unavailable because Supabase is not configured.')
+  }
 
-function getGeminiModels() {
-  const envModel = clean(import.meta.env.VITE_GEMINI_MODEL)
-  return envModel
-    ? [envModel, ...DEFAULT_GEMINI_MODELS.filter(model => model !== envModel)]
-    : DEFAULT_GEMINI_MODELS
-}
-
-function extractJsonText(text) {
-  const cleaned = String(text || '').replace(/```json|```/g, '').trim()
-  const start = cleaned.indexOf('{')
-  const end = cleaned.lastIndexOf('}')
-  if (start >= 0 && end > start) return cleaned.slice(start, end + 1)
-  return cleaned
-}
-
-async function extractWithGemini(file, apiKey) {
-  const key = getGeminiKey(apiKey)
-
-  if (!key) {
-    throw new Error('Gemini API key missing. Set VITE_GEMINI_API_KEY in Render, save, then Clear build cache & deploy.')
+  if (file.size > MAX_AI_FILE_BYTES) {
+    throw new Error('AI OCR supports files up to 12 MB. Compress this file and try again.')
   }
 
   const base64 = await fileToBase64(file)
+  const { data, error } = await supabase.functions.invoke('gemini-invoice', {
+    body: {
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      data: base64
+    }
+  })
 
-  const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract invoice data from this file/image/PDF. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","invoice_type":"Regular Invoice|Credit Memo|Rebate|Return Credit|Vendor Adjustment","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","total":0,"tax":0,"freight":0,"discount":0,"lineItems":[{"description":"","qty":0,"unit_price":0,"total":0,"category":""}]}. Use numbers only for amounts. If a field is unclear, use empty string or 0.`
+  if (error) {
+    let responseMessage = ''
+    let responseCode = ''
 
-  let lastError = ''
-
-  for (const model of getGeminiModels()) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: file.type || 'application/octet-stream',
-                data: base64
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1
+    try {
+      const response = error?.context
+      if (response && typeof response.clone === 'function') {
+        const cloned = response.clone()
+        const contentType = cloned.headers?.get?.('content-type') || ''
+        if (contentType.includes('application/json')) {
+          const payload = await cloned.json()
+          responseMessage = payload?.message || payload?.error || ''
+          responseCode = payload?.code || ''
+          console.error('Gemini Edge Function response:', payload)
+        } else {
+          responseMessage = await cloned.text()
         }
-      })
-    })
-
-    if (!res.ok) {
-      const errorText = await res.text().catch(() => '')
-      lastError = `Gemini ${model} failed: ${res.status}${errorText ? ' - ' + errorText.slice(0, 200) : ''}`
-
-      if (res.status === 404) continue
-      if (res.status === 400) throw new Error(`${lastError}. Check file type and Gemini model.`)
-      if (res.status === 401 || res.status === 403) throw new Error(`${lastError}. Check your Gemini API key permissions.`)
-
-      throw new Error(lastError)
+      }
+    } catch (responseError) {
+      console.error('Unable to read Gemini Edge Function error response:', responseError)
     }
 
-    const json = await res.json()
-    const text = json?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('\n') || ''
-
-    if (!text) {
-      lastError = `Gemini ${model} returned no text.`
-      continue
-    }
-
-    const parsed = JSON.parse(extractJsonText(text))
-
-    return {
-      ...parsed,
-      total: Number(parseAmount(parsed.total).toFixed(2)),
-      tax: Number(parseAmount(parsed.tax).toFixed(2)),
-      freight: Number(parseAmount(parsed.freight).toFixed(2)),
-      discount: Number(parseAmount(parsed.discount).toFixed(2)),
-      lineItems: (parsed.lineItems || []).map(item => ({
-        ...item,
-        id: createId('item'),
-        qty: Number(parseAmount(item.qty || 1).toFixed(2)),
-        unit_price: Number(parseAmount(item.unit_price).toFixed(2)),
-        total: Number(parseAmount(item.total).toFixed(2))
-      }))
-    }
+    const message = responseMessage || error?.message || 'Server-side Gemini OCR failed.'
+    throw new Error(responseCode ? `${message} [${responseCode}]` : message)
   }
 
-  throw new Error(lastError || 'Gemini extraction failed. Check model name or API key.')
+  if (!data || typeof data !== 'object') {
+    throw new Error('Server-side Gemini OCR returned an invalid response.')
+  }
+
+  if (data.ok === false) {
+    throw new Error(data.code ? `${data.message || 'Gemini OCR failed.'} [${data.code}]` : (data.message || 'Gemini OCR failed.'))
+  }
+
+  return {
+    ...data,
+    total: Number(parseAmount(data.total).toFixed(2)),
+    tax: Number(parseAmount(data.tax).toFixed(2)),
+    freight: Number(parseAmount(data.freight).toFixed(2)),
+    discount: Number(parseAmount(data.discount).toFixed(2)),
+    lineItems: (data.lineItems || []).map(item => ({
+      ...item,
+      id: createId('item'),
+      qty: Number(parseAmount(item.qty || 1).toFixed(2)),
+      unit_price: Number(parseAmount(item.unit_price).toFixed(2)),
+      total: Number(parseAmount(item.total).toFixed(2))
+    }))
+  }
 }
 
 export default function Invoices({ data, setData }) {
@@ -260,7 +230,7 @@ export default function Invoices({ data, setData }) {
   const [editingId, setEditingId] = useState(null)
   const [lineItems, setLineItems] = useState([])
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('Upload CSV/XLSX for local extraction. PDF/image/phone capture uses Gemini from Render env.')
+  const [status, setStatus] = useState('Upload CSV/XLSX for local extraction. PDF/image/phone capture uses secure server-side Gemini OCR.')
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [dateStart, setDateStart] = useState(() => readPageDateRange('invoices').start)
   const [dateEnd, setDateEnd] = useState(() => readPageDateRange('invoices').end)
@@ -558,7 +528,7 @@ export default function Invoices({ data, setData }) {
         extracted = inferInvoiceRows(rows)
         setStatus(`Local invoice extraction completed from ${file.name}. Review and save.`)
       } else {
-        extracted = await extractWithGemini(file, data.settings?.geminiApiKey)
+        extracted = await extractWithGemini(file)
         setStatus(`AI invoice extraction completed from ${mode === 'phone' ? 'camera capture' : file.name}. Review and save.`)
       }
 
@@ -606,7 +576,7 @@ export default function Invoices({ data, setData }) {
       }
     } catch (err) {
       console.error(err)
-      setStatus(err.message || 'Invoice extraction failed. Enter manually or check Gemini API key.')
+      setStatus(err.message || 'Invoice extraction failed. Enter manually or check the Gemini Edge Function status.')
     } finally {
       if (localUploadRef.current) localUploadRef.current.value = ''
       if (aiUploadRef.current) aiUploadRef.current.value = ''
@@ -675,7 +645,7 @@ export default function Invoices({ data, setData }) {
       <div className="invoice-toolbar">
         <div>
           <h2>{editingId ? 'Edit Invoice' : 'Invoice Review / Manual Entry'}</h2>
-          <span className="ai-env-note">AI OCR uses Gemini from Render environment variables.</span>
+          <span className="ai-env-note">AI OCR uses a secure Supabase Edge Function. The Gemini key is never sent to the browser.</span>
         </div>
         <div className="invoice-upload-actions compact-upload-actions">
           <label className="btn secondary file-action">

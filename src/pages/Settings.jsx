@@ -2,13 +2,13 @@ import React, { useRef, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { defaultData, RESTAPAY_KEY } from '../lib/localStore'
 import { DEFAULT_ALLOCATION_RULES } from '../engine/DepartmentCostEngine'
+import { isSupabaseReady } from '../lib/supabase'
 
 export default function Settings({ data, setData }) {
   const [status, setStatus] = useState('Backup and local settings are ready.')
   const fileRef = useRef(null)
   const rate = data.settings?.tipWithholdingRate ?? 3.5
-  const geminiKey = import.meta?.env?.VITE_GEMINI_API_KEY || data.settings?.geminiApiKey || ''
-  const geminiModel = import.meta?.env?.VITE_GEMINI_MODEL || 'gemini-2.5-flash'
+  const geminiModel = 'Configured server-side'
 
   const allocationLabels = {
     managerPayroll: 'Manager Payroll',
@@ -119,10 +119,10 @@ export default function Settings({ data, setData }) {
       <div className="form-card tight-card">
         <h2>AI / OCR Settings</h2>
         <div className="settings-status-grid">
-          <div><span>Status</span><b className={geminiKey ? 'status-ok' : 'status-warn'}>{geminiKey ? 'Connected' : 'Missing API Key'}</b></div>
+          <div><span>Status</span><b className={isSupabaseReady ? 'status-ok' : 'status-warn'}>{isSupabaseReady ? 'Secure Proxy Ready' : 'Supabase Not Configured'}</b></div>
           <div><span>Model</span><b>{geminiModel}</b></div>
         </div>
-        <p className="helper-text">Gemini key is hidden from the app UI. Add it in your project <b>.env</b> file as <b>VITE_GEMINI_API_KEY</b>, then restart npm run dev.</p>
+        <p className="helper-text">Gemini OCR now runs through the <b>gemini-invoice</b> Supabase Edge Function. Store <b>GEMINI_API_KEY</b> only as a Supabase function secret. Never add it to a VITE_ variable, GitHub, dist, or browser settings.</p>
       </div>
 
       <div className="form-card tight-card">

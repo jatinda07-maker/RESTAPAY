@@ -40,7 +40,7 @@ npm install --registry=https://registry.npmjs.org/
 Create a `.env` file in the project root:
 
 ```bash
-VITE_GEMINI_API_KEY=your-gemini-api-key
+# Gemini key is stored as a Supabase Edge Function secret
 VITE_GEMINI_MODEL=gemini-3.5-flash
 ```
 
@@ -100,12 +100,12 @@ npm run dev
 ## Latest update
 - Gemini API key field removed from Invoice screen.
 - AI / OCR status moved under Settings.
-- Gemini key is read from `.env` using `VITE_GEMINI_API_KEY`.
+- Gemini invoice OCR runs through the `gemini-invoice` Supabase Edge Function; the key is never included in the browser bundle.
 - Calendar/date picker icons are forced to orange globally.
 
 Example `.env`:
 ```env
-VITE_GEMINI_API_KEY=your_key_here
+supabase secrets set GEMINI_API_KEY=your_new_key GEMINI_MODEL=gemini-2.5-flash
 VITE_GEMINI_MODEL=gemini-2.5-flash
 ```
 

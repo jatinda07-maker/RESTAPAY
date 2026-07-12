@@ -35,7 +35,6 @@ export const defaultData = {
   customReports: [],
   settings: {
     tipWithholdingRate: 3.5,
-    geminiApiKey: '',
     defaultAlcoholSalesPercent: 25,
     departmentAllocations: {
       managerPayroll: { food: 50, alcohol: 50 },
