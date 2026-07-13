@@ -280,10 +280,16 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
   const explicitAlcoholRows = aggregateCategoryRows('alcohol_sales_categories', 'alcohol')
   const explicitOtherRows = aggregateCategoryRows('other_sales_categories', 'other')
   const explicitExcludedRows = aggregateCategoryRows('excluded_sales_categories', 'excluded')
+  const explicitFoodRowsTotal = explicitFoodRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  const explicitAlcoholRowsTotal = explicitAlcoholRows.reduce((sum, row) => sum + row.salesAmount, 0)
   const hasExplicitDepartmentTotals = explicitFoodSales !== 0 || explicitAlcoholSales !== 0 || explicitFoodRows.length > 0 || explicitAlcoholRows.length > 0
 
-  let foodSales = hasExplicitDepartmentTotals ? explicitFoodSales : foodDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
-  let alcoholSales = hasExplicitDepartmentTotals ? explicitAlcoholSales : alcoholDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  // Prefer the scalar Toast totals when present. If an older/imported row only
+  // contains the category arrays, calculate the department total from those rows.
+  // This prevents Food from falling back to the combined Product Mix total while
+  // Alcohol remains zero.
+  let foodSales = hasExplicitDepartmentTotals ? (explicitFoodSales || explicitFoodRowsTotal) : foodDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  let alcoholSales = hasExplicitDepartmentTotals ? (explicitAlcoholSales || explicitAlcoholRowsTotal) : alcoholDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
 
   const hasToastDepartmentTotals = hasExplicitDepartmentTotals || foodDepartmentRows.length > 0 || alcoholDepartmentRows.length > 0
   const alcoholSalesRows = menuSalesRows.filter(item => item.department === 'alcohol')

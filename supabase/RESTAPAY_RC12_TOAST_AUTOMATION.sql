@@ -1,25 +1,7 @@
--- RestaPay RC12.1 - Complete Toast automation schema (type-safe reset)
--- IMPORTANT: This reset drops only toast_* automation tables.
--- It does not touch employees, payroll, invoices, expenses, sales_days, or other RestaPay data.
--- Safe for the current setup because no automated Toast imports have run yet.
+-- RestaPay RC12 - Complete Toast automation schema
+-- Run in Supabase SQL Editor once, then refresh the Toast Integration page.
 
 create extension if not exists pgcrypto;
-
--- Remove partial/older Toast tables that may use UUID ids.
--- The RC12 worker generates text ids, so all related primary/foreign keys must be text.
-drop table if exists public.toast_daily_summary cascade;
-drop table if exists public.toast_menu_items cascade;
-drop table if exists public.toast_cash_management cascade;
-drop table if exists public.toast_checks cascade;
-drop table if exists public.toast_merchant_fees cascade;
-drop table if exists public.toast_payments cascade;
-drop table if exists public.toast_labor cascade;
-drop table if exists public.toast_product_mix cascade;
-drop table if exists public.toast_sales_summary cascade;
-drop table if exists public.toast_sales_categories cascade;
-drop table if exists public.toast_import_rows cascade;
-drop table if exists public.toast_import_files cascade;
-drop table if exists public.toast_import_runs cascade;
 
 create table if not exists public.toast_import_runs (
   id text primary key,
@@ -210,7 +192,7 @@ create table if not exists public.toast_daily_summary (
   merchant_fees numeric not null default 0,
   labor_pay numeric not null default 0,
   tips numeric not null default 0,
-  last_run_id text references public.toast_import_runs(id) on delete set null,
+  last_run_id text,
   updated_at timestamptz not null default now()
 );
 

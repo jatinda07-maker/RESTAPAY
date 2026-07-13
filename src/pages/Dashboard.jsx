@@ -220,7 +220,7 @@ export default function Dashboard({ data, setData, setActive }) {
   const vendors = data?.vendors || []
   const defaultDashboardVisibility = {
     netSales: true, cashCollected: true, operatingProfit: true, cashRemaining: true,
-    operatingPayroll: true, vendorSpend: true, businessExpenses: true, serverTips: true,
+    operatingPayroll: false, managementCashPayroll: true, vendorSpend: true, businessExpenses: true, serverTips: true,
     primeCost: true, trueFoodCost: true, trueAlcoholCost: true,
     restaurantHealth: true, departmentProfitability: true, cashPosition: true,
     profitLoss: true, salesPerformance: true, vendorPurchases: true, businessExpensePanel: true,
@@ -307,10 +307,21 @@ export default function Dashboard({ data, setData, setActive }) {
     const tipsWithheld = monthSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
     const trueNetSales = netSales || Math.max(0, grossSales - tax)
 
-    const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const payrollTotal = monthPayroll.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const operatingPayroll = operatingLaborRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const dcPayrollPreview = calculateDepartmentCosts({ payrollRows: monthPayroll, employees: data?.employees || [], settings: data?.settings || {} })
+    const managerPayrollTotal = (dcPayrollPreview.payrollDetails.manager || []).reduce((sum, row) => sum + num(row.amount), 0)
+    const assistantRows = (dcPayrollPreview.payrollDetails.other || []).filter(row => /assistant manager|assistant mgr|asst\.? manager|asistente manager/i.test([row.employee_type,row.job_type,row.position,row.role,row.employee_name,row.name].join(' ')))
+    const assistantManagerPayroll = assistantRows.reduce((sum, row) => sum + num(row.amount), 0)
+    const managerIds = new Set((dcPayrollPreview.payrollDetails.manager || []).map(row => String(row.id || `${row.employee_id || ''}|${row.employee_name || row.name || ''}|${row.pay_date || row.payroll_date || row.date || ''}`)))
+    const assistantIds = new Set(assistantRows.map(row => String(row.id || `${row.employee_id || ''}|${row.employee_name || row.name || ''}|${row.pay_date || row.payroll_date || row.date || ''}`)))
+    const cashPayrollBaseRows = cashPayrollRows.filter(row => {
+      const key = String(row.id || `${row.employee_id || ''}|${row.employee_name || row.name || ''}|${row.pay_date || row.payroll_date || row.date || ''}`)
+      return !managerIds.has(key) && !assistantIds.has(key)
+    })
+    const cashPayroll = cashPayrollBaseRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const managementCashPayroll = cashPayroll + managerPayrollTotal + assistantManagerPayroll
     const customerTipsPaid = customerTipRows.reduce((sum, row) => sum + rowTipsPaid(row), 0)
     const customerTipsChecks = customerTipRows.filter(isCheckPayroll).reduce((sum, row) => sum + rowTipsPaid(row), 0)
     const invoiceSpend = monthInvoices.reduce((sum, row) => sum + invoiceTotal(row), 0)
@@ -374,9 +385,9 @@ export default function Dashboard({ data, setData, setActive }) {
     const healthScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, foodCostPct - 30) * 1.5 - Math.max(0, laborPct - 28) * 1.5 - Math.max(0, primeCostPct - 65) - (operatingProfit < 0 ? 20 : 0) + (cashRemaining > 0 ? 4 : -8))))
 
     return {
-      monthSales, monthPayroll, cashPayrollRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, monthMenuItems,
+      monthSales, monthPayroll, cashPayrollRows, cashPayrollBaseRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, monthMenuItems,
       grossSales, netSales, trueNetSales, cashSales, creditSales, tax, tips, tipsWithheld,
-      cashPayroll, checkPayroll, payrollTotal, operatingPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
+      cashPayroll, checkPayroll, payrollTotal, operatingPayroll, managerPayrollTotal, assistantManagerPayroll, managementCashPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
       vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining,
       foodCostPct, laborPct, primeCostPct, profitMargin, healthScore, departmentCosts,
       categoryRows, vendorCategories, businessCategories, allSpendRows, vendorRaw, businessRaw, operatingLaborRows, customerTipRows,
@@ -468,6 +479,9 @@ export default function Dashboard({ data, setData, setActive }) {
     payroll: { title: 'Payroll Details', open: 'payroll', rows: derived.monthPayroll, columns: [
       { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Class', render: r => payrollClassification(r) }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
     ]},
+    'management-payroll': { title: 'Cash + Management Payroll Details', open: 'payroll', rows: derived.monthPayroll.filter(row => isCashPayroll(row) || /manager/i.test([row.employee_type,row.job_type,row.position,row.role,row.employee_name,row.name].join(' '))), columns: [
+      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Group', render: r => /assistant manager|assistant mgr|asst\.? manager|asistente manager/i.test([r.employee_type,r.job_type,r.position,r.role,r.employee_name,r.name].join(' ')) ? 'Assistant Manager' : /manager/i.test([r.employee_type,r.job_type,r.position,r.role,r.employee_name,r.name].join(' ')) ? 'Manager' : 'Cash Payroll' }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
+    ]},
     vendors: { title: detailCategory ? `${detailCategory} Spending Details` : 'Vendor Spending Details', open: 'invoices', rows: detailVendorRows, columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
@@ -529,7 +543,7 @@ export default function Dashboard({ data, setData, setActive }) {
         {visible.cashCollected && <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast cash payments" icon="dollar" tone="green" onClick={() => showDetail('sales')} />}
         {visible.operatingProfit && <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('health')} />}
         {visible.cashRemaining && <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle="After cash spending" icon="card" tone="emerald" onClick={() => showDetail('health')} />}
-        {visible.operatingPayroll && <MetricCard title="Operating Payroll" value={money(derived.operatingPayroll)} subtitle={`Counts in profit · Total paid ${money(derived.payrollTotal)}`} icon="payroll" tone="teal" onClick={() => showDetail('payroll')} />}
+        {visible.managementCashPayroll && <MetricCard title="Cash + Management Payroll" value={money(derived.managementCashPayroll)} subtitle={`Cash ${money(derived.cashPayroll)} · Managers ${money(derived.managerPayrollTotal)} · Assistants ${money(derived.assistantManagerPayroll)}`} icon="payroll" tone="teal" onClick={() => showDetail('management-payroll')} />}
         {visible.vendorSpend && <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />}
         {visible.businessExpenses && <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />}
         {visible.serverTips && <MetricCard title="Server Tips" value={money(derived.customerTipsPaid)} subtitle={`Separate from payroll profit · Checks ${money(derived.customerTipsChecks)}`} icon="receipt" tone="orange" onClick={() => showDetail('payroll')} />}
