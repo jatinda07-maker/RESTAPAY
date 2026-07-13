@@ -21,17 +21,19 @@ function sumRows(rows, key = 'amount') { return rows.reduce((sum, row) => sum + 
 
 function DrilldownModal({ detail, onClose }) {
   if (!detail) return null
-  const total = detail.total ?? sumRows(detail.rows || [], detail.amountKey)
+  const clickedTotal = Number(detail.expected ?? detail.total ?? 0)
+  const subtotal = sumRows(detail.rows || [], detail.amountKey)
+  const difference = clickedTotal - subtotal
   return <div className="cost-modal-backdrop" onMouseDown={onClose}>
     <section className="cost-modal" onMouseDown={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={detail.title}>
       <header><div><h2>{detail.title}</h2><p>{detail.subtitle || 'Items included in the selected total.'}</p></div><button type="button" className="icon-btn" onClick={onClose} aria-label="Close">×</button></header>
-      <div className="cost-modal-total"><span>Clicked total</span><strong>{detail.percent ? pct(total) : money(total)}</strong></div>
+      <div className="cost-modal-total"><span>Clicked total</span><strong>{detail.percent ? pct(clickedTotal) : money(clickedTotal)}</strong></div>
       <div className="table-scroll"><table>
         <thead><tr>{detail.columns.map(column => <th key={column.key}>{column.label}</th>)}</tr></thead>
         <tbody>{detail.rows?.length ? detail.rows.map((row, index) => <tr key={row.id || `${detail.title}-${index}`}>{detail.columns.map(column => <td key={column.key}>{column.render ? column.render(row) : String(row[column.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={detail.columns.length}>No matching rows in this date range.</td></tr>}</tbody>
-        <tfoot><tr><td colSpan={Math.max(1, detail.columns.length - 1)}><b>Subtotal</b></td><td><b>{detail.percent ? pct(total) : money(total)}</b></td></tr></tfoot>
+        <tfoot><tr><td colSpan={Math.max(1, detail.columns.length - 1)}><b>Subtotal</b></td><td><b>{detail.percent ? pct(subtotal) : money(subtotal)}</b></td></tr></tfoot>
       </table></div>
-      {detail.expected !== undefined && Math.abs(Number(detail.expected) - Number(total)) > 0.01 ? <div className="cost-reconcile-warning">Subtotal does not match the selected total. Difference: {money(Number(detail.expected) - Number(total))}</div> : <div className="cost-reconcile-ok">Subtotal matches the selected total.</div>}
+      {Math.abs(difference) > 0.01 ? <div className="cost-reconcile-warning">Subtotal does not match the selected total. Difference: {money(difference)}</div> : <div className="cost-reconcile-ok">Subtotal matches the selected total.</div>}
     </section>
   </div>
 }
@@ -102,7 +104,7 @@ export default function CostAnalysis({ data }) {
         <SummaryRow label="Manager Allocation" value={money(derived.managerFood)} onClick={() => openCost('Manager Allocation — Food', managerRowsFood, derived.managerFood)} />
         <SummaryRow label="Shared Supplies / Cintas / Utilities" value={money(derived.foodSupplies + derived.foodShared)} onClick={() => openCost('Shared Costs — Food', sharedFoodRows, derived.foodSupplies + derived.foodShared, 'allocatedAmount')} />
         <SummaryRow className="cost-total" label="True Food Cost" value={money(derived.trueFoodCost)} onClick={() => openComponents('True Food Cost Components', [{ label: 'Food Purchases', amount: derived.foodPurchases }, { label: 'Kitchen Payroll', amount: derived.kitchenPayroll }, { label: 'Manager Allocation', amount: derived.managerFood }, { label: 'Shared Costs', amount: derived.foodSupplies + derived.foodShared }], derived.trueFoodCost)} />
-        <SummaryRow className="cost-profit" label="Food Profit" value={money(derived.foodProfit)} note={`${pct(derived.foodProfitMargin)} margin`} onClick={() => openComponents('Food Profit Reconciliation', [{ label: 'Food Sales', amount: derived.foodSales }, { label: 'Less: True Food Cost', amount: -derived.trueFoodCost }, { label: 'Food Profit', amount: derived.foodProfit }], derived.foodProfit)} />
+        <SummaryRow className="cost-profit" label="Food Profit" value={money(derived.foodProfit)} note={`${pct(derived.foodProfitMargin)} margin`} onClick={() => openComponents('Food Profit Reconciliation', [{ label: 'Food Sales', amount: derived.foodSales }, { label: 'Less: True Food Cost', amount: -derived.trueFoodCost }], derived.foodProfit)} />
       </div></section>
 
       <section className="cost-department-card alcohol-cost-card"><header><h2>Alcohol Department</h2><span>{pct(derived.alcoholCostPercent)} cost</span></header><div className="cost-summary-list">
@@ -114,7 +116,7 @@ export default function CostAnalysis({ data }) {
         <SummaryRow label="Bar Payroll" value={money(derived.barPayroll)} onClick={() => openCost('Bar Payroll Details', derived.payrollDetails.bar || [], derived.barPayroll)} />
         <SummaryRow label="Shared Supplies / Cintas / Utilities" value={money(derived.alcoholShared)} onClick={() => openCost('Shared Costs — Alcohol', sharedAlcoholRows, derived.alcoholShared, 'allocatedAmount')} />
         <SummaryRow className="cost-total" label="True Alcohol Cost" value={money(derived.trueAlcoholCost)} onClick={() => openComponents('True Alcohol Cost Components', [{ label: 'Beer Purchases', amount: derived.beerPurchases }, { label: 'Liquor / Wine Purchases', amount: derived.liquorPurchases }, { label: 'Margarita Mix', amount: derived.margaritaMix }, { label: 'Manager Allocation', amount: derived.managerAlcohol }, { label: 'Bar Payroll', amount: derived.barPayroll }, { label: 'Shared Costs', amount: derived.alcoholShared }], derived.trueAlcoholCost)} />
-        <SummaryRow className="cost-profit" label="Alcohol Profit" value={money(derived.alcoholProfit)} note={`${pct(derived.alcoholProfitMargin)} margin`} onClick={() => openComponents('Alcohol Profit Reconciliation', [{ label: 'Alcohol Sales', amount: derived.alcoholSales }, { label: 'Less: True Alcohol Cost', amount: -derived.trueAlcoholCost }, { label: 'Alcohol Profit', amount: derived.alcoholProfit }], derived.alcoholProfit)} />
+        <SummaryRow className="cost-profit" label="Alcohol Profit" value={money(derived.alcoholProfit)} note={`${pct(derived.alcoholProfitMargin)} margin`} onClick={() => openComponents('Alcohol Profit Reconciliation', [{ label: 'Alcohol Sales', amount: derived.alcoholSales }, { label: 'Less: True Alcohol Cost', amount: -derived.trueAlcoholCost }], derived.alcoholProfit)} />
       </div></section>
     </div>
 

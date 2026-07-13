@@ -13,6 +13,7 @@ import Sales from './pages/Sales'
 import Reports from './pages/Reports'
 import Expenses from './pages/Expenses'
 import MenuCosting from './pages/MenuCosting'
+import MenuIntelligence from './pages/MenuIntelligence'
 import ImportCenter from './pages/ImportCenter'
 import ToastIntegration from './pages/ToastIntegration'
 import { useLocalData } from './lib/useLocalData'
@@ -31,6 +32,7 @@ function App() {
       : active === 'employees' ? <Employees {...shared} />
       : active === 'sales' ? <Sales {...shared} />
       : active === 'menu-costing' ? <MenuCosting {...shared} />
+      : active === 'menu-intelligence' ? <MenuIntelligence {...shared} />
       : active === 'vendors' ? <Vendors {...shared} />
       : active === 'invoices' ? <Invoices {...shared} />
       : active === 'payroll' ? <Payroll {...shared} />

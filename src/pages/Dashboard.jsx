@@ -189,16 +189,25 @@ function DetailTable({ config, setActive, onClose }) {
     if (config.open) setActive(config.open)
   }
   const rows = config.rows || []
-  const total = config.total ?? rows.reduce((sum, row) => {
-    const value = row.salesAmount ?? row.allocatedAmount ?? row.amount ?? row.line_total ?? row.total ?? 0
+  const subtotal = rows.reduce((sum, row) => {
+    const value = config.amountGetter
+      ? config.amountGetter(row)
+      : (row.salesAmount ?? row.allocatedAmount ?? row.amount ?? row.line_total ?? row.total_pay ?? row.total ?? row.regular_pay ?? 0)
     return sum + num(value)
   }, 0)
+  const clickedTotal = Number(config.expected ?? config.total ?? subtotal)
+  const difference = clickedTotal - subtotal
   return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
     <section className="table-card detail-section dashboard-detail-modal" id="dashboard-details" role="dialog" aria-modal="true" aria-label={config.title}>
       <header><div><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : null}</div><div className="detail-modal-actions">{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}>Open Full Screen</button> : null}<button type="button" className="btn primary small-btn" onClick={onClose}>Close</button></div></header>
       <div className="table-scroll"><table><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
         {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
-      </tbody><tfoot><tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Subtotal</b></td><td><b>{config.totalFormatter ? config.totalFormatter(total) : money(total)}</b></td></tr></tfoot></table></div>
+      </tbody><tfoot>
+        {config.groupSubtotals ? config.groupSubtotals.map(group => <tr key={group.label}><td colSpan={Math.max(1, config.columns.length - 1)}><b>{group.label}</b></td><td><b>{money(group.amount)}</b></td></tr>) : null}
+        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Subtotal</b></td><td><b>{config.totalFormatter ? config.totalFormatter(subtotal) : money(subtotal)}</b></td></tr>
+        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Clicked total</b></td><td><b>{config.totalFormatter ? config.totalFormatter(clickedTotal) : money(clickedTotal)}</b></td></tr>
+        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>{Math.abs(difference) < 0.01 ? 'Reconciled' : 'Difference'}</b></td><td><b>{money(difference)}</b></td></tr>
+      </tfoot></table></div>
     </section>
   </div>
 }
@@ -385,7 +394,7 @@ export default function Dashboard({ data, setData, setActive }) {
     const healthScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, foodCostPct - 30) * 1.5 - Math.max(0, laborPct - 28) * 1.5 - Math.max(0, primeCostPct - 65) - (operatingProfit < 0 ? 20 : 0) + (cashRemaining > 0 ? 4 : -8))))
 
     return {
-      monthSales, monthPayroll, cashPayrollRows, cashPayrollBaseRows, checkPayrollRows, monthInvoices, monthExpenses, monthInvoiceItems, monthMenuItems,
+      monthSales, monthPayroll, cashPayrollRows, cashPayrollBaseRows, checkPayrollRows, managerPayrollRows: dcPayrollPreview.payrollDetails.manager || [], assistantManagerRows: assistantRows, monthInvoices, monthExpenses, monthInvoiceItems, monthMenuItems,
       grossSales, netSales, trueNetSales, cashSales, creditSales, tax, tips, tipsWithheld,
       cashPayroll, checkPayroll, payrollTotal, operatingPayroll, managerPayrollTotal, assistantManagerPayroll, managementCashPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
       vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining,
@@ -479,9 +488,38 @@ export default function Dashboard({ data, setData, setActive }) {
     payroll: { title: 'Payroll Details', open: 'payroll', rows: derived.monthPayroll, columns: [
       { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Class', render: r => payrollClassification(r) }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
     ]},
-    'management-payroll': { title: 'Cash + Management Payroll Details', open: 'payroll', rows: derived.monthPayroll.filter(row => isCashPayroll(row) || /manager/i.test([row.employee_type,row.job_type,row.position,row.role,row.employee_name,row.name].join(' '))), columns: [
-      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Group', render: r => /assistant manager|assistant mgr|asst\.? manager|asistente manager/i.test([r.employee_type,r.job_type,r.position,r.role,r.employee_name,r.name].join(' ')) ? 'Assistant Manager' : /manager/i.test([r.employee_type,r.job_type,r.position,r.role,r.employee_name,r.name].join(' ')) ? 'Manager' : 'Cash Payroll' }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
+    'management-payroll': { title: 'Cash + Management Payroll Details', open: 'payroll',
+      rows: [
+        ...derived.cashPayrollBaseRows.map(row => ({ ...row, detailGroup: 'Cash Payroll' })),
+        ...derived.managerPayrollRows.map(row => ({ ...row, detailGroup: 'Manager' })),
+        ...derived.assistantManagerRows.map(row => ({ ...row, detailGroup: 'Assistant Manager' }))
+      ],
+      expected: derived.managementCashPayroll,
+      amountGetter: rowTotalPay,
+      groupSubtotals: [
+        { label: 'Cash Payroll Subtotal', amount: derived.cashPayroll },
+        { label: 'Manager Subtotal', amount: derived.managerPayrollTotal },
+        { label: 'Assistant Manager Subtotal', amount: derived.assistantManagerPayroll }
+      ],
+      columns: [
+      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Group', render: r => r.detailGroup || 'Cash Payroll' }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
     ]},
+    'profit-net-sales': { title: 'Net Restaurant Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.trueNetSales, amountGetter: r => num(r.net_sales), columns: [
+      { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date','date']) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }
+    ]},
+    'profit-payroll': { title: 'Operating Payroll Details', open: 'payroll', rows: derived.operatingLaborRows, expected: derived.operatingPayroll, amountGetter: rowTotalPay, columns: [
+      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date','payroll_date','date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Classification', render: r => payrollClassification(r) }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
+    ]},
+    'profit-spend': { title: 'Vendor + Expense Spend Details', open: 'expenses', rows: derived.allSpendRows, expected: derived.totalSpend, amountGetter: r => num(r.amount), columns: [
+      { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
+    ]},
+    'profit-summary': { title: 'Profit & Loss Reconciliation', open: 'reports', rows: [
+      { label: 'Net Restaurant Sales', amount: derived.trueNetSales }, { label: 'Less: Operating Payroll', amount: -derived.operatingPayroll }, { label: 'Less: Vendor + Expense Spend', amount: -derived.totalSpend }
+    ], expected: derived.operatingProfit, amountGetter: r => num(r.amount), columns: [{ key:'label', label:'Component' }, { key:'amount', label:'Amount', render:r=>money(r.amount) }]},
+    'sales-gross': { title: 'Gross Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.grossSales, amountGetter: r => num(r.gross_sales || r.total_sales || r.net_sales), columns: [{ key:'business_date',label:'Date',render:r=>rowDate(r,['business_date','date'])},{key:'gross_sales',label:'Gross Sales',render:r=>money(num(r.gross_sales || r.total_sales || r.net_sales))}]},
+    'sales-credit': { title: 'Credit Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.creditSales, amountGetter: r => num(r.credit_sales), columns: [{ key:'business_date',label:'Date',render:r=>rowDate(r,['business_date','date'])},{key:'credit_sales',label:'Credit Sales',render:r=>money(num(r.credit_sales))}]},
+    'sales-tips': { title: 'Tips Collected Details', open: 'sales', rows: derived.monthSales, expected: derived.tips, amountGetter: r => num(r.tips || r.tips_after_withholding), columns: [{ key:'business_date',label:'Date',render:r=>rowDate(r,['business_date','date'])},{key:'tips',label:'Tips',render:r=>money(num(r.tips || r.tips_after_withholding))}]},
+    'sales-tax': { title: 'Sales Tax Details', open: 'sales', rows: derived.monthSales, expected: derived.tax, amountGetter: r => num(r.tax), columns: [{ key:'business_date',label:'Date',render:r=>rowDate(r,['business_date','date'])},{key:'tax',label:'Sales Tax',render:r=>money(num(r.tax))}]},
     vendors: { title: detailCategory ? `${detailCategory} Spending Details` : 'Vendor Spending Details', open: 'invoices', rows: detailVendorRows, columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
@@ -627,20 +665,20 @@ export default function Dashboard({ data, setData, setActive }) {
 
         {visible.profitLoss && (<SectionCard title="Profit & Loss" icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
           <RowList rows={[
-            { label: 'Net Restaurant Sales', amount: money(derived.trueNetSales), meta: 'Net after tax/tips adjustment' },
-            { label: 'Operating Payroll Cost', amount: money(derived.operatingPayroll), meta: 'Kitchen/manager labor only; server tips excluded' },
-            { label: 'Vendor + Expense Spend', amount: money(derived.totalSpend), meta: 'Invoices, line items, expenses' },
-            { label: 'Profit Margin', amount: pct(derived.profitMargin), meta: 'Operating profit / net sales' }
-          ]} />
+            { id: 'profit-net-sales', label: 'Net Restaurant Sales', amount: money(derived.trueNetSales), meta: 'Net after tax/tips adjustment' },
+            { id: 'profit-payroll', label: 'Operating Payroll Cost', amount: money(derived.operatingPayroll), meta: 'Kitchen/manager labor only; server tips excluded' },
+            { id: 'profit-spend', label: 'Vendor + Expense Spend', amount: money(derived.totalSpend), meta: 'Invoices, line items, expenses' },
+            { id: 'profit-summary', label: 'Profit Margin', amount: pct(derived.profitMargin), meta: 'Operating profit / net sales' }
+          ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
         {visible.salesPerformance && (<SectionCard title="Sales Performance" icon="sales" tone="blue" total={money(derived.grossSales)} subtitle="Gross and payment mix">
           <RowList rows={[
-            { label: 'Gross Sales', amount: money(derived.grossSales), meta: 'Before adjustments' },
-            { label: 'Credit Sales', amount: money(derived.creditSales), meta: 'Card payments' },
-            { label: 'Tips Collected', amount: money(derived.tips), meta: `${money(derived.customerTipsPaid)} paid separately · ${money(derived.tipsWithheld)} withheld` },
-            { label: 'Sales Tax', amount: money(derived.tax), meta: 'Tax collected' }
-          ]} />
+            { id: 'sales-gross', label: 'Gross Sales', amount: money(derived.grossSales), meta: 'Before adjustments' },
+            { id: 'sales-credit', label: 'Credit Sales', amount: money(derived.creditSales), meta: 'Card payments' },
+            { id: 'sales-tips', label: 'Tips Collected', amount: money(derived.tips), meta: `${money(derived.customerTipsPaid)} paid separately · ${money(derived.tipsWithheld)} withheld` },
+            { id: 'sales-tax', label: 'Sales Tax', amount: money(derived.tax), meta: 'Tax collected' }
+          ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
         {visible.vendorPurchases && (<SectionCard title="Vendor Purchases" icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">

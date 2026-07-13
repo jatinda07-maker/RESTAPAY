@@ -10,6 +10,7 @@ const subtitles = {
   'import-center': 'Upload Toast sales, labor, Product Mix, invoices, rebates, and backups from one workspace',
   'toast-integration': 'Monitor automatic Toast SFTP exports and daily Supabase imports',
   sales: 'Manage Toast imports, daily sales, payment methods, and sales history',
+  'menu-intelligence': 'Most sold, least sold, plate cost, ingredient cost, and menu profitability',
   'menu-costing': 'Import Product Mix, estimate recipes, and calculate dish profit',
   vendors: 'Manage vendors, categories, payment terms, and contacts',
   invoices: 'Upload invoices, review totals, and organize vendor bills',

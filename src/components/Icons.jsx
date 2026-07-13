@@ -61,6 +61,7 @@ export const iconMap = {
   expenses: CreditCard,
   reports: TrendingUp,
   'price-increase': AlertTriangle,
+  'menu-intelligence': TrendingUp,
   'menu-costing': Utensils,
   'cost-analysis': PieChart,
   'import-center': FileUp,

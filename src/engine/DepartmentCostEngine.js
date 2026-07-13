@@ -246,10 +246,37 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
   })
 
   const toastDepartmentRows = [...categoryMap.values()]
-  const foodDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'food')
-  const alcoholDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'alcohol')
-  const excludedDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'excluded')
-  const otherDepartmentRows = toastDepartmentRows.filter(row => classifyToastDepartment(row.category) === 'other')
+  // Product Mix fallback must use each item's normalized department, not only the raw
+  // Toast category. Toast sometimes labels beer/margaritas as Food or Beverage.
+  // Grouping by normalized department prevents Alcohol from becoming $0 and keeps
+  // the same item out of both Food and Alcohol.
+  const buildFallbackRows = (department) => {
+    const map = new Map()
+    menuSalesRows.filter(item => item.department === department).forEach(item => {
+      const label = department === 'alcohol'
+        ? (item.normalizedCategory || item.toastDepartment || 'Alcohol')
+        : (item.toastDepartment || 'Food')
+      const key = `${department}|${label}`
+      const current = map.get(key) || {
+        id: `fallback-${department}-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        category: label,
+        department,
+        salesAmount: 0,
+        itemCount: 0,
+        items: [],
+        source: 'Toast Product Mix fallback'
+      }
+      current.salesAmount += item.salesAmount
+      current.itemCount += 1
+      current.items.push(item)
+      map.set(key, current)
+    })
+    return [...map.values()]
+  }
+  const foodDepartmentRows = buildFallbackRows('food')
+  const alcoholDepartmentRows = buildFallbackRows('alcohol')
+  const excludedDepartmentRows = buildFallbackRows('excluded')
+  const otherDepartmentRows = buildFallbackRows('other')
 
   // Sales Summary category fields are the primary source because they reconcile
   // exactly to Toast. Product Mix is used only when category totals were not imported.
