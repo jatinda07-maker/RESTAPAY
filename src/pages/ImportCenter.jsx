@@ -183,9 +183,16 @@ export default function ImportCenter({ data, setData, setActive }) {
         const rows = toastRows.length ? toastRows : genericSalesRows(workbook, file.name)
         setData(prev => {
           const sameSource = row => String(row.source_file || row.file_name || '').trim() === file.name
-          const keptSales = (prev.salesDays || []).filter(row => !sameSource(row))
+          const dates = rows.map(row => String(row.business_date || row.date || '')).filter(Boolean).sort()
+          const rangeStart = dates[0] || ''
+          const rangeEnd = dates[dates.length - 1] || ''
+          const keptSales = (prev.salesDays || []).filter(row => {
+            const date = String(row.business_date || row.date || '')
+            const overlapsRange = rangeStart && rangeEnd && date >= rangeStart && date <= rangeEnd
+            return !sameSource(row) && !overlapsRange
+          })
           const keptImports = (prev.salesImports || []).filter(row => !sameSource(row))
-          return addHistory({ ...prev, salesDays: [...rows, ...keptSales], salesImports: [{ id: createId('sales-import'), file_name: file.name, row_count: rows.length, created_at: new Date().toISOString() }, ...keptImports] }, { type: 'Toast Sales Summary', fileName: file.name, rowCount: rows.length, status: rows.length ? 'Imported' : 'No rows' })
+          return addHistory({ ...prev, salesDays: [...rows, ...keptSales], salesImports: [{ id: createId('sales-import'), file_name: file.name, row_count: rows.length, range_start: rangeStart, range_end: rangeEnd, created_at: new Date().toISOString() }, ...keptImports] }, { type: 'Toast Sales Summary', fileName: file.name, rowCount: rows.length, status: rows.length ? 'Imported' : 'No rows' })
         })
         setStatus(`Imported ${rows.length} sales rows. Saved directly to database.`)
       } else if (type === 'payroll') {

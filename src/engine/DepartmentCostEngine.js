@@ -164,6 +164,26 @@ function menuSalesAmount(item = {}) {
 }
 
 export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], employees = [], spendRows = [], menuItems = [], settings = {} } = {}) {
+  // A corrected Toast report may be imported after an older partial report for the
+  // same business dates. Keep one row per date and prefer rows carrying the full
+  // Sales Category Summary arrays. This prevents stale alcohol totals from being
+  // added to or selected ahead of the corrected import.
+  const salesRowScore = row => {
+    let score = 0
+    if (Array.isArray(row.alcohol_sales_categories) && row.alcohol_sales_categories.length) score += 100
+    if (Array.isArray(row.food_sales_categories) && row.food_sales_categories.length) score += 100
+    if (/toast sales category summary/i.test(String(row.import_note || ''))) score += 50
+    if (num(row.alcohol_sales) || num(row.food_sales)) score += 10
+    return score
+  }
+  const dedupedByDate = new Map()
+  ;(salesRows || []).forEach((row, index) => {
+    const date = String(row.business_date || row.date || '').trim()
+    const key = date || `undated-${index}`
+    const current = dedupedByDate.get(key)
+    if (!current || salesRowScore(row) >= salesRowScore(current)) dedupedByDate.set(key, row)
+  })
+  salesRows = [...dedupedByDate.values()]
   const rules = allocationRules(settings)
   const totals = {
     foodPurchases: 0, alcoholPurchases: 0, beerPurchases: 0, liquorPurchases: 0, margaritaMix: 0,

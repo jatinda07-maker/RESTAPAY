@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
 import { createId } from '../lib/localStore'
+import { parseToastSalesRows } from '../engine/ToastSalesEngine'
 import { classifyMenuSale, menuSaleCategoryLabel } from '../engine/DepartmentCostEngine'
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -366,7 +367,7 @@ export default function Sales({ data, setData }) {
     try {
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
-      const toastRows = parseToastSalesWorkbook(workbook, file.name)
+      const toastRows = parseToastSalesRows(XLSX, workbook, file.name, createId)
       const rows = toastRows.length ? toastRows : workbook.SheetNames.flatMap(name => compactRows(XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: '', raw: false }))).map(row => makeGenericSalesRow(row, file.name))
       const parsed = rows.filter(row => num(row.gross_sales) || num(row.net_sales) || num(row.cash_sales) || num(row.credit_sales) || num(row.tips))
       setPreviewRows(parsed)
@@ -393,15 +394,25 @@ export default function Sales({ data, setData }) {
   function savePreview() {
     const rows = previewRows.map(row => ({ ...row, id: createId('sale') }))
     const sourceFiles = new Set(rows.map(row => String(row.source_file || '').trim()).filter(Boolean))
+    const importedDates = rows.map(row => String(row.business_date || row.date || '')).filter(Boolean).sort()
+    const rangeStart = importedDates[0] || ''
+    const rangeEnd = importedDates[importedDates.length - 1] || ''
+    const isToastImport = rows.some(row => /toast sales category summary/i.test(String(row.import_note || '')) || Array.isArray(row.alcohol_sales_categories))
     setData(prev => {
-      // Re-importing the same Toast file must replace its older rows. Appending the
-      // corrected import leaves stale partial alcohol totals in the selected period.
-      const keptSales = (prev.salesDays || []).filter(row => !sourceFiles.has(String(row.source_file || '').trim()))
+      // Toast exports are often downloaded again with names such as "(1)" or "(2)".
+      // Replace the existing rows for the same business-date range, not only the exact
+      // filename, so stale partial department totals cannot survive a corrected import.
+      const keptSales = (prev.salesDays || []).filter(row => {
+        const sameFile = sourceFiles.has(String(row.source_file || '').trim())
+        const date = String(row.business_date || row.date || '')
+        const overlapsRange = isToastImport && rangeStart && rangeEnd && date >= rangeStart && date <= rangeEnd
+        return !sameFile && !overlapsRange
+      })
       const keptImports = (prev.salesImports || []).filter(item => !sourceFiles.has(String(item.file_name || '').trim()))
       return {
         ...prev,
         salesDays: [...rows, ...keptSales],
-        salesImports: [{ id: createId('salesimport'), file_name: rows[0]?.source_file || 'Toast Sales Import', row_count: rows.length, created_at: new Date().toISOString() }, ...keptImports]
+        salesImports: [{ id: createId('salesimport'), file_name: rows[0]?.source_file || 'Toast Sales Import', row_count: rows.length, created_at: new Date().toISOString(), range_start: rangeStart, range_end: rangeEnd }, ...keptImports]
       }
     })
     setPreviewRows([])
