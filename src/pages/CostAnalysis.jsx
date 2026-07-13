@@ -64,10 +64,10 @@ export default function CostAnalysis({ data }) {
     const itemInvoiceIds = new Set(invoiceItems.map(row => row.invoice_id).filter(Boolean))
     const itemSpend = invoiceItems.map(row => {
       const parent = invoiceById[row.invoice_id] || {}
-      return { ...row, date: rowDate(row) || rowDate(parent), vendor: parent.vendor || parent.vendor_name || row.vendor || row.vendor_name, vendor_name: parent.vendor_name || parent.vendor || row.vendor_name || row.vendor, description: row.description || row.item_name || row.name, category: row.category || parent.category, amount: invoiceAmount(row) }
+      return { ...row, _source_table: row._source_table || 'invoice_items', date: rowDate(row) || rowDate(parent), vendor: parent.vendor || parent.vendor_name || row.vendor || row.vendor_name, vendor_name: parent.vendor_name || parent.vendor || row.vendor_name || row.vendor, description: row.description || row.item_name || row.name, category: row.category || parent.category, amount: invoiceAmount(row) }
     })
-    const headerSpend = invoices.filter(row => !itemInvoiceIds.has(row.id)).map(row => ({ ...row, date: rowDate(row), vendor: row.vendor || row.vendor_name, description: row.invoice_number || row.notes || row.category, amount: invoiceAmount(row) }))
-    const expenses = (data.expenses || []).filter(row => inRange(row, start, end)).map(row => ({ ...row, date: rowDate(row), vendor: row.vendor || row.name, description: row.notes || row.name || row.category, amount: num(row.amount) }))
+    const headerSpend = invoices.filter(row => !itemInvoiceIds.has(row.id)).map(row => ({ ...row, _source_table: row._source_table || 'invoices', date: rowDate(row), vendor: row.vendor || row.vendor_name, description: row.invoice_number || row.notes || row.category, amount: invoiceAmount(row) }))
+    const expenses = (data.expenses || []).filter(row => inRange(row, start, end)).map(row => ({ ...row, _source_table: row._source_table || 'expenses', date: rowDate(row), vendor: row.vendor || row.name, description: row.notes || row.name || row.category, amount: num(row.amount) }))
     const menuItems = (data.menuItems || []).filter(row => inRange(row, start, end))
     return calculateDepartmentCosts({ salesRows, toastSalesCategories, payrollRows, employees: data.employees || [], spendRows: [...itemSpend, ...headerSpend, ...expenses], menuItems, settings: data.settings || {} })
   }, [data, start, end])
@@ -82,7 +82,7 @@ export default function CostAnalysis({ data }) {
   const sharedAlcoholRows = derived.spendDetails.sharedAlcohol || []
 
   const salesColumns = [{ key: 'category', label: 'Toast Sales Category' }, { key: 'items', label: 'Items', render: row => Number(row.itemCount || row.items || 0).toLocaleString() }, { key: 'amount', label: 'Net Sales', render: row => money(row.salesAmount ?? row.amount) }]
-  const costColumns = [{ key: 'date', label: 'Date', render: row => rowDate(row) || '-' }, { key: 'vendor', label: 'Vendor / Employee', render: row => row.vendor || row.vendor_name || row.employee_name || row.name || '-' }, { key: 'description', label: 'Item / Classification', render: row => row.description || row.item_name || row.costLabel || row.payrollLabel || row.category || '-' }, { key: 'amount', label: 'Amount', render: row => money(row.allocatedAmount ?? row.amount ?? 0) }]
+  const costColumns = [{ key: 'date', label: 'Date', render: row => rowDate(row) || '-' }, { key: 'source', label: 'Supabase Source', render: row => row._source_table || (row.employee_name ? 'payroll_entries' : 'unknown') }, { key: 'vendor', label: 'Vendor / Employee', render: row => row.vendor || row.vendor_name || row.employee_name || row.name || '-' }, { key: 'description', label: 'Item / Classification', render: row => row.description || row.item_name || row.costLabel || row.payrollLabel || row.category || '-' }, { key: 'amount', label: 'Amount', render: row => money(row.allocatedAmount ?? row.amount ?? 0) }]
   const componentColumns = [{ key: 'label', label: 'Component' }, { key: 'amount', label: 'Amount', render: row => money(row.amount) }]
 
   const openSales = (type) => {

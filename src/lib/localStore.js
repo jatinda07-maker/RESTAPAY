@@ -155,6 +155,7 @@ function normalizeTableData(tableData = {}) {
     vendorCategories: (tableData.vendor_categories || []).map(row => row.name).filter(Boolean),
     expenses: (tableData.expenses || []).map(row => ({
       ...row,
+      _source_table: 'expenses',
       date: row.expense_date || row.date,
       payment_method: row.payment_type || row.payment_method,
       is_active: row.active !== false
@@ -163,13 +164,14 @@ function normalizeTableData(tableData = {}) {
     paymentMethods: (tableData.payment_methods || []).map(row => row.name).filter(Boolean),
     invoices: (tableData.invoices || []).map(row => ({
       ...row,
+      _source_table: 'invoices',
       vendor: row.vendor_name || row.vendor || row.name,
       date: row.invoice_date || row.date,
       payment_method: row.payment_type || row.payment_method,
       invoice_type: row.invoice_type || invoiceType(row),
       total: signedInvoiceTotal(row)
     })),
-    invoiceItems: tableData.invoice_items || [],
+    invoiceItems: (tableData.invoice_items || []).map(row => ({ ...row, _source_table: 'invoice_items' })),
     salesDays: (tableData.sales_days || []).map(row => ({ ...row, date: row.business_date || row.date })),
     toastSalesCategories: (tableData.toast_sales_categories || []).map(row => ({
       ...row,
@@ -196,13 +198,22 @@ async function loadCloudTables() {
       'vendors', 'vendor_categories', 'expenses', 'expense_categories', 'payment_methods',
       'invoices', 'invoice_items', 'sales_days', 'toast_sales_categories', 'sales_imports', 'menu_items', 'menu_recipes', 'menu_imports', 'custom_reports', 'settings'
     ]
-    const entries = await Promise.all(tableNames.map(async table => {
+    const loaded = {}
+    const successful = new Set()
+    const failed = {}
+
+    await Promise.all(tableNames.map(async table => {
       const { data, error } = await supabase.from(table).select('*')
-      if (error) return [table, []]
-      return [table, data || []]
+      if (error) {
+        failed[table] = error.message || String(error)
+        loaded[table] = []
+        return
+      }
+      successful.add(table)
+      loaded[table] = data || []
     }))
-    const merged = normalizeTableData(Object.fromEntries(entries))
-    return hasMeaningfulData(merged) ? merged : null
+
+    return { data: normalizeTableData(loaded), successful, failed }
   } catch (error) {
     console.error('Failed to read Supabase tables.', error)
     return null
@@ -222,16 +233,34 @@ export async function loadCloudData() {
     if (error) throw error
 
     const appData = data?.data && hasMeaningfulData(data.data) ? mergeData(data.data) : null
-    const tableData = await loadCloudTables()
+    const cloudTables = await loadCloudTables()
+    const tableData = cloudTables?.data || null
+    const successful = cloudTables?.successful || new Set()
 
-    // Normalized tables are authoritative for transactional data. app_data remains
-    // a complete backup, but it must not overwrite newer Toast category imports.
+    // Normalized Supabase tables are authoritative even when a table is empty.
+    // app_data is only a compatibility backup for tables that could not be read.
+    const choose = (table, tableKey, appKey = tableKey) => successful.has(table)
+      ? (tableData?.[tableKey] || [])
+      : (appData?.[appKey] || [])
+
     const merged = appData || tableData ? mergeData({
       ...(appData || {}),
-      ...(tableData || {}),
-      salesDays: (tableData?.salesDays?.length ? tableData.salesDays : appData?.salesDays) || [],
-      toastSalesCategories: (tableData?.toastSalesCategories?.length ? tableData.toastSalesCategories : appData?.toastSalesCategories) || [],
-      salesImports: (tableData?.salesImports?.length ? tableData.salesImports : appData?.salesImports) || []
+      employees: choose('employees', 'employees'),
+      payrollGroups: choose('payroll_groups', 'payrollGroups'),
+      payrollEntries: choose('payroll_entries', 'payrollEntries'),
+      payrollImports: choose('payroll_imports', 'payrollImports'),
+      vendors: choose('vendors', 'vendors'),
+      expenses: choose('expenses', 'expenses'),
+      invoices: choose('invoices', 'invoices'),
+      invoiceItems: choose('invoice_items', 'invoiceItems'),
+      salesDays: choose('sales_days', 'salesDays'),
+      toastSalesCategories: choose('toast_sales_categories', 'toastSalesCategories'),
+      salesImports: choose('sales_imports', 'salesImports'),
+      menuItems: choose('menu_items', 'menuItems'),
+      menuRecipes: choose('menu_recipes', 'menuRecipes'),
+      menuImports: choose('menu_imports', 'menuImports'),
+      customReports: choose('custom_reports', 'customReports'),
+      settings: successful.has('settings') ? (tableData?.settings || defaultData.settings) : (appData?.settings || defaultData.settings)
     }) : null
 
     if (merged) {
@@ -551,6 +580,10 @@ export async function saveCloudData(data, options = {}) {
     const merged = mergeData(data)
     announceCloudStatus('saving', { message: 'Saving directly to database...', source: options.source || 'direct-save' })
 
+    // Write normalized tables first. The app_data row is only a backup and must
+    // never claim a successful save when the actual invoices/expenses tables failed.
+    await mirrorAppDataToTables(merged)
+
     const payload = {
       id: RESTAPAY_SUPABASE_STATE_ID,
       data: merged,
@@ -562,8 +595,6 @@ export async function saveCloudData(data, options = {}) {
       .upsert(payload, { onConflict: 'id' })
 
     if (error) throw error
-
-    await mirrorAppDataToTables(merged)
 
     localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
     try { localStorage.removeItem(RESTAPAY_PENDING_CLOUD_KEY) } catch {}
