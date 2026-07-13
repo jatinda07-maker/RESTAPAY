@@ -296,9 +296,9 @@ export default function Sales({ data, setData }) {
   const [previewRows, setPreviewRows] = useState([])
   const [status, setStatus] = useState('Local auto-save is active. Sales history will not disappear.')
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('all')
-  const [dateStart, setDateStart] = useState('')
-  const [dateEnd, setDateEnd] = useState('')
+  const [filter, setFilter] = useState('thisMonth')
+  const [dateStart, setDateStart] = useState(() => startOfMonthISO())
+  const [dateEnd, setDateEnd] = useState(() => today())
   const [editingId, setEditingId] = useState(null)
   const [editRow, setEditRow] = useState({})
   const [selectedIds, setSelectedIds] = useState([])
@@ -341,7 +341,7 @@ export default function Sales({ data, setData }) {
       setDateStart(lastMonday.toISOString().slice(0, 10)); setDateEnd(lastSunday.toISOString().slice(0, 10)); return
     }
     if (value === 'lastMonth') { setDateStart(new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)); setDateEnd(new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10)); return }
-    if (value === 'thisMonth' || value === 'month') { setDateStart(startOfMonthISO(now)); setDateEnd(endOfMonthISO(now)); return }
+    if (value === 'thisMonth' || value === 'month') { setDateStart(startOfMonthISO(now)); setDateEnd(today()); return }
     if (value === 'all') { setDateStart(''); setDateEnd(''); return }
   }
 
@@ -357,7 +357,7 @@ export default function Sales({ data, setData }) {
 
   const totals = useMemo(() => filteredSales.reduce((acc, row) => {
     acc.gross += num(row.gross_sales); acc.net += num(row.net_sales); acc.cash += num(row.cash_sales); acc.credit += num(row.credit_sales)
-    acc.gift += num(row.gift_card_sales); acc.online += num(row.online_orders); acc.tips += num(row.tips); acc.refunds += num(row.refunds); acc.discounts += num(row.discounts); acc.tax += num(row.tax); acc.guests += num(row.guest_count)
+    acc.gift += num(row.gift_card_sales); acc.online += num(row.other_payments ?? row.online_orders); acc.tips += num(row.tips_after_withholding ?? row.tips); acc.refunds += num(row.refunds); acc.discounts += num(row.discounts); acc.tax += num(row.tax); acc.guests += num(row.guest_count)
     return acc
   }, { gross: 0, net: 0, cash: 0, credit: 0, gift: 0, online: 0, tips: 0, refunds: 0, discounts: 0, tax: 0, guests: 0 }), [filteredSales])
 
@@ -434,7 +434,7 @@ export default function Sales({ data, setData }) {
     setSelectedIds([])
   }
 
-  const numberFields = ['gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips','tips_collected','tips_withheld','tips_after_withholding','refunds','discounts','tax','guest_count']
+  const numberFields = ['gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips_after_withholding','refunds','discounts','tax','guest_count']
   const checkedAll = filteredSales.length > 0 && filteredSales.every(row => selectedIds.includes(row.id))
 
   return <>
@@ -591,7 +591,7 @@ export default function Sales({ data, setData }) {
 
     {previewRows.length > 0 && <section className="table-card compact-table-card sales-preview-card">
       <header><h2>Sales Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreview} type="button">Save Sales</button></span></header>
-      <table className="sales-table fit-sales-table"><thead><tr><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Online</th><th>Tips</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col"></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
+      <table className="sales-table fit-sales-table"><thead><tr><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Other</th><th>Tips After Withholding</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col"></th></tr></thead><tbody>{previewRows.map(row => <tr key={row.id}>
         <td className="sales-date-cell"><input className="sales-date-input" type="date" value={row.business_date} onChange={e => updatePreview(row.id, 'business_date', e.target.value)} />{row.import_note && <small className="sales-note" title={row.import_note}>{shortNote(row.import_note)}</small>}</td>
         {numberFields.map(field => <td key={field}><input className="sales-data-input" type="number" step="0.01" value={row[field]} onChange={e => updatePreview(row.id, field, e.target.value)} onBlur={e => blurPreview(row.id, field, e.target.value)} /></td>)}
         <td><button className="delete-link" type="button" onClick={() => setPreviewRows(prev => prev.filter(item => item.id !== row.id))}>Remove</button></td>
@@ -600,7 +600,7 @@ export default function Sales({ data, setData }) {
 
     <section className="table-card compact-table-card sales-history-card">
       <header><h2>Sales History</h2><span>{filteredSales.length} rows {selectedIds.length ? <button className="delete-link small-btn" onClick={bulkDelete} type="button">Delete {selectedIds.length}</button> : null}</span></header>
-      <table className="sales-table fit-sales-table"><thead><tr><th className="sales-check-col"><input type="checkbox" checked={checkedAll} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Online</th><th>Tips</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col">Action</th></tr></thead><tbody>{filteredSales.map(row => {
+      <table className="sales-table fit-sales-table"><thead><tr><th className="sales-check-col"><input type="checkbox" checked={checkedAll} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Other</th><th>Tips After Withholding</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col">Action</th></tr></thead><tbody>{filteredSales.map(row => {
         const isEditing = editingId === row.id
         const current = isEditing ? editRow : row
         return <tr key={row.id} className={isEditing ? 'editing-row' : ''}>

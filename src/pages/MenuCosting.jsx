@@ -4,6 +4,8 @@ import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
 import { createId } from '../lib/localStore'
 
+function todayISO() { return new Date().toISOString().slice(0, 10) }
+function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
 function money(value) { return Number(value || 0).toFixed(2) }
 function num(value) {
   if (typeof value === 'number') return value
@@ -187,8 +189,8 @@ export default function MenuCosting({ data, setData }) {
   const [selectedId, setSelectedId] = useState(menuItems[0]?.id || '')
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
-  const [dateStart, setDateStart] = useState('')
-  const [dateEnd, setDateEnd] = useState('')
+  const [dateStart, setDateStart] = useState(() => startOfMonthISO())
+  const [dateEnd, setDateEnd] = useState(() => todayISO())
   const [targetFoodCost, setTargetFoodCost] = useState(Number(data.settings?.targetFoodCost || 30))
   const [targetBeerCost, setTargetBeerCost] = useState(Number(data.settings?.targetBeerCost || 24))
   const [targetLiquorCost, setTargetLiquorCost] = useState(Number(data.settings?.targetLiquorCost || 20))

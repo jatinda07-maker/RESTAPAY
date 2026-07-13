@@ -118,10 +118,12 @@ export function parseToastSalesRows(XLSX, workbook, fileName, createId) {
   const dayRows = sheetObjects(XLSX, workbook, 'Sales by day').filter(row => numeric(findValue(row, ['Net sales', 'Net Sales'])))
   const range = fileRange(fileName)
   const totalNet = round2(categories.foodTotal + categories.alcoholTotal + categories.excludedTotal + categories.otherTotal)
+  const tipWithheld = round2(payments.tips * 0.035)
+  const tipNet = round2(Math.max(payments.tips - tipWithheld, 0))
   const base = {
     gross_sales: fmt(totalNet), net_sales: fmt(totalNet), cash_sales: fmt(payments.cash), credit_sales: fmt(payments.credit),
-    gift_card_sales: fmt(payments.gift), other_payments: fmt(payments.other), online_orders: '0.00', delivery_orders: '0.00', pickup_orders: '0.00',
-    tips: fmt(payments.tips), tips_collected: fmt(payments.tips), tips_withheld: '0.00', tips_after_withholding: fmt(payments.tips),
+    gift_card_sales: fmt(payments.gift), other_payments: fmt(payments.other), online_orders: fmt(payments.other), delivery_orders: '0.00', pickup_orders: '0.00',
+    tips: fmt(tipNet), tips_collected: fmt(payments.tips), tips_withheld: fmt(tipWithheld), tips_after_withholding: fmt(tipNet),
     refunds: '0.00', voids: '0.00', discounts: '0.00', tax: fmt(payments.tax), guest_count: '0.00',
     source_file: fileName
   }
@@ -150,7 +152,9 @@ export function parseToastSalesRows(XLSX, workbook, fileName, createId) {
   const creditParts = distributeMoney(payments.credit, weights)
   const giftParts = distributeMoney(payments.gift, weights)
   const otherPaymentParts = distributeMoney(payments.other, weights)
-  const tipsParts = distributeMoney(payments.tips, weights)
+  const tipCollectedParts = distributeMoney(payments.tips, weights)
+  const tipWithheldParts = distributeMoney(tipWithheld, weights)
+  const tipNetParts = distributeMoney(tipNet, weights)
   const taxParts = distributeMoney(payments.tax, weights)
 
   return dayRows.map((row, index) => {
@@ -159,8 +163,8 @@ export function parseToastSalesRows(XLSX, workbook, fileName, createId) {
       id: createId('sale'), ...base,
       business_date: parseDate(findValue(row, ['yyyyMMdd', 'Date', 'Business Date']), range.start),
       gross_sales: fmt(dayNet), net_sales: fmt(dayNet),
-      cash_sales: fmt(cashParts[index]), credit_sales: fmt(creditParts[index]), gift_card_sales: fmt(giftParts[index]), other_payments: fmt(otherPaymentParts[index]),
-      tips: fmt(tipsParts[index]), tips_collected: fmt(tipsParts[index]), tips_after_withholding: fmt(tipsParts[index]), tax: fmt(taxParts[index]),
+      cash_sales: fmt(cashParts[index]), credit_sales: fmt(creditParts[index]), gift_card_sales: fmt(giftParts[index]), other_payments: fmt(otherPaymentParts[index]), online_orders: fmt(otherPaymentParts[index]),
+      tips: fmt(tipNetParts[index]), tips_collected: fmt(tipCollectedParts[index]), tips_withheld: fmt(tipWithheldParts[index]), tips_after_withholding: fmt(tipNetParts[index]), tax: fmt(taxParts[index]),
       guest_count: fmt(numeric(findValue(row, ['Total guests', 'Guests', 'Guest Count']))),
       food_sales: fmt(foodParts[index]), alcohol_sales: fmt(alcoholParts[index]),
       other_sales: fmt(otherParts[index]), excluded_sales: fmt(excludedParts[index]),

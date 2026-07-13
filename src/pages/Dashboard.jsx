@@ -43,12 +43,12 @@ function rangeForPreset(preset) {
     const lastMonday = new Date(lastSunday); lastMonday.setDate(lastSunday.getDate() - 6)
     return { start: isoDate(lastMonday), end: isoDate(lastSunday) }
   }
-  return { start: '', end: '' }
+  return rangeForPreset('thisMonth')
 }
 function readSavedDateRange() {
   try {
     const saved = JSON.parse(localStorage.getItem('restapay_dashboard_date_range') || '{}')
-    return { start: saved.start || '', end: saved.end || '' }
+    return { start: saved.start || rangeForPreset('thisMonth').start, end: saved.end || rangeForPreset('thisMonth').end }
   } catch {
     return { start: '', end: '' }
   }

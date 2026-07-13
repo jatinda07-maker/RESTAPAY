@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react'
 import DateControls from '../components/DateControls'
 import { Icon } from '../components/Icons'
 
+function todayISO() { return new Date().toISOString().slice(0, 10) }
+function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
 function number(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   const parsed = Number(String(value ?? '').replace(/[$,%(),]/g, '').trim())
@@ -106,8 +108,8 @@ function DetailModal({ item, onClose }) {
 }
 
 export default function MenuIntelligence({ data }) {
-  const [dateStart, setDateStart] = useState('')
-  const [dateEnd, setDateEnd] = useState('')
+  const [dateStart, setDateStart] = useState(() => startOfMonthISO())
+  const [dateEnd, setDateEnd] = useState(() => todayISO())
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
   const [selectedItem, setSelectedItem] = useState(null)

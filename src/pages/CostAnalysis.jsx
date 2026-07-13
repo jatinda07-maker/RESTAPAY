@@ -47,8 +47,8 @@ function SummaryRow({ label, value, onClick, className = '', note = '', icon = '
 }
 
 export default function CostAnalysis({ data }) {
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
+  const [start, setStart] = useState(() => presetRange('thisMonth').start)
+  const [end, setEnd] = useState(() => presetRange('thisMonth').end)
   const [detail, setDetail] = useState(null)
 
   const derived = useMemo(() => {
