@@ -214,7 +214,7 @@ export function calculateBusinessMetrics(data = {}, range = {}) {
   const salesTax = rangeSales.reduce((sum, row) => sum + num(row.tax), 0)
   const tipsBeforeWithholding = rangeSales.reduce((sum, row) => sum + num(row.tips), 0)
   const tipsWithheld = rangeSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
-  const tipsAfterWithholding = tipsBeforeWithholding
+  const tipsAfterWithholding = Math.max(0, tipsBeforeWithholding - tipsWithheld)
   const netSalesAfterTaxTips = salesRange - salesTax - tipsAfterWithholding
 
   const cashPayroll = cashPayrollRows.reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
@@ -247,7 +247,9 @@ export function calculateBusinessMetrics(data = {}, range = {}) {
   const laborPercent = salesRange > 0 ? (operatingPayroll / salesRange) * 100 : 0
   const primeCost = foodSpend + operatingPayroll
   const primeCostPercent = salesRange > 0 ? (primeCost / salesRange) * 100 : 0
-  const cashRemaining = cashSales - cashPayroll - businessExpenseRowsRaw.filter(row => String(row.payment_method || '').toLowerCase().includes('cash')).reduce((sum, row) => sum + num(row.amount), 0)
+  const cashOperatingPayroll = operatingLaborRows.filter(isCashPayroll).reduce((sum, row) => sum + num(row.total_pay || row.amount), 0)
+  const cashSpend = spendRows.filter(row => String(row.payment_method || row.payment_type || '').toLowerCase().includes('cash')).reduce((sum, row) => sum + num(row.amount), 0)
+  const cashRemaining = cashSales - cashOperatingPayroll - cashSpend
 
   const vendorPurchaseRecentRows = [...vendorPurchaseRowsRaw].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
   const businessExpenseRecentRows = [...businessExpenseRowsRaw].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))

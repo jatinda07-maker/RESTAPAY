@@ -91,7 +91,12 @@ function rowTipsPaid(row) { return Math.max(0, num(row.tips || row.tips_after_wi
 function payrollType(row) { return String(row.payment_method || row.payroll_type || row.method || row.type || row.pay_method || '').toLowerCase() }
 function isCashPayroll(row) { return payrollType(row).includes('cash') }
 function isCheckPayroll(row) { return payrollType(row).includes('check') }
-function invoiceTotal(row) { return num(row.total || row.amount || row.invoice_total || row.grand_total) }
+function invoiceTotal(row) {
+  const amount = num(row.total || row.amount || row.invoice_total || row.grand_total)
+  const text = [row.invoice_type, row.status, row.notes, row.source_file, row.invoice_number]
+    .map(value => String(value || '').toLowerCase()).join(' ')
+  return /rebate|credit memo|return credit|vendor adjustment|\bcredit\b/.test(text) ? -Math.abs(amount) : amount
+}
 function itemUnit(row) { return num(row.unit_price || row.price || row.cost || row.item_price || row.rate) }
 function itemAmount(row) { return num(row.line_total || row.total || row.amount || row.extended_price || (num(row.qty || row.quantity) * itemUnit(row))) }
 function rowTotalPay(row) { return num(row.total_pay || row.total || row.amount || row.regular_pay) }
@@ -308,17 +313,32 @@ export default function Dashboard({ data, setData, setActive }) {
     const monthExpenses = expenseRows.filter(row => inRange(rowDate(row, ['expense_date', 'date'])))
 
     const grossSales = monthSales.reduce((sum, row) => sum + num(row.gross_sales || row.total_sales || row.net_sales), 0)
-    const netSales = monthSales.reduce((sum, row) => sum + num(row.net_sales), 0)
-    const cashSales = monthSales.reduce((sum, row) => sum + num(row.cash_sales), 0)
-    const creditSales = monthSales.reduce((sum, row) => sum + num(row.credit_sales), 0)
+    // Toast is the only source of dashboard sales. Prefer each row's Net Sales,
+    // and fall back to that Toast row's Total/Gross Sales only when Net Sales is absent.
+    const toastTotalSales = monthSales.reduce((sum, row) => {
+      const hasNet = row.net_sales !== undefined && row.net_sales !== null && String(row.net_sales).trim() !== ''
+      return sum + num(hasNet ? row.net_sales : (row.total_sales || row.gross_sales))
+    }, 0)
+    const netSales = toastTotalSales
+    const cashSales = monthSales.reduce((sum, row) => sum + num(row.cash_sales || row.cash_payments || row.actual_closeout_cash), 0)
+    const creditSales = monthSales.reduce((sum, row) => sum + num(row.credit_sales || row.credit_card_sales || row.card_payments), 0)
+    const giftSales = monthSales.reduce((sum, row) => sum + num(row.gift_card_sales || row.gift_sales), 0)
+    const onlineSales = monthSales.reduce((sum, row) => sum + num(row.online_orders || row.online_sales), 0)
+    const explicitOtherSales = monthSales.reduce((sum, row) => sum + num(row.other_payments || row.other_sales || row.other_tender), 0)
     const tax = monthSales.reduce((sum, row) => sum + num(row.tax), 0)
     const tips = monthSales.reduce((sum, row) => sum + num(row.tips || row.tips_after_withholding), 0)
     const tipsWithheld = monthSales.reduce((sum, row) => sum + num(row.tips_withheld || row.tip_deduction || row.tips_withholding), 0)
-    const trueNetSales = netSales || Math.max(0, grossSales - tax)
+    const trueNetSales = toastTotalSales
+    const knownPayments = cashSales + creditSales + giftSales + onlineSales + explicitOtherSales
+    const otherSales = explicitOtherSales || Math.max(0, toastTotalSales - cashSales - creditSales - giftSales - onlineSales)
+    const paymentTotal = cashSales + creditSales + giftSales + onlineSales + otherSales
+    const salesReconciliationDifference = toastTotalSales - paymentTotal
 
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const payrollTotal = monthPayroll.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const operatingPayroll = operatingLaborRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const cashOperatingPayrollRows = operatingLaborRows.filter(isCashPayroll)
+    const cashOperatingPayroll = cashOperatingPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const dcPayrollPreview = calculateDepartmentCosts({ payrollRows: monthPayroll, employees: data?.employees || [], settings: data?.settings || {} })
     const managerPayrollTotal = (dcPayrollPreview.payrollDetails.manager || []).reduce((sum, row) => sum + num(row.amount), 0)
     const assistantRows = (dcPayrollPreview.payrollDetails.other || []).filter(row => /assistant manager|assistant mgr|asst\.? manager|asistente manager/i.test([row.employee_type,row.job_type,row.position,row.role,row.employee_name,row.name].join(' ')))
@@ -386,19 +406,35 @@ export default function Dashboard({ data, setData, setActive }) {
       settings: data?.settings || {}
     })
     const operatingProfit = departmentCosts.overallOperatingProfit
-    const cashRemaining = cashSales - cashPayroll - allSpendRows.filter(row => String(row.payment_method || row.payment_type || '').toLowerCase().includes('cash')).reduce((sum, row) => sum + num(row.amount), 0)
+    const cashSpendRows = allSpendRows.filter(row => String(row.payment_method || row.payment_type || row.pay_method || '').toLowerCase().includes('cash'))
+    const cashVendorSpend = cashSpendRows.reduce((sum, row) => sum + num(row.amount), 0)
+    // Customer tips are pass-through funds and never reduce operating cash or profit.
+    const cashRemaining = cashSales - cashOperatingPayroll - cashVendorSpend
+    const cashNeeded = Math.max(0, -cashRemaining)
     const foodCostPct = trueNetSales > 0 ? (foodSpend / trueNetSales) * 100 : 0
     const laborPct = trueNetSales > 0 ? (operatingPayroll / trueNetSales) * 100 : 0
     const primeCostPct = trueNetSales > 0 ? ((foodSpend + operatingPayroll) / trueNetSales) * 100 : 0
     const profitMargin = trueNetSales > 0 ? (operatingProfit / trueNetSales) * 100 : 0
-    const healthScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, foodCostPct - 30) * 1.5 - Math.max(0, laborPct - 28) * 1.5 - Math.max(0, primeCostPct - 65) - (operatingProfit < 0 ? 20 : 0) + (cashRemaining > 0 ? 4 : -8))))
+    const averageCheck = monthSales.reduce((sum, row) => sum + num(row.guest_count || row.guests || row.check_count), 0) > 0
+      ? trueNetSales / monthSales.reduce((sum, row) => sum + num(row.guest_count || row.guests || row.check_count), 0) : 0
+    const guestCount = monthSales.reduce((sum, row) => sum + num(row.guest_count || row.guests || row.check_count), 0)
+    const alcoholSales = departmentCosts.alcoholSales || 0
+    const margaritaSales = (departmentCosts.alcoholSalesRows || []).filter(row => /margarita/i.test([row.name,row.item_name,row.description,row.category].join(' '))).reduce((sum,row)=>sum+num(row.salesAmount || row.netSales || row.net_sales || row.grossSales),0)
+    const alcoholReconciliationDifference = alcoholSales - (departmentCosts.beerSales || 0) - (departmentCosts.wineSales || 0) - (departmentCosts.liquorSales || 0) - margaritaSales
+    const reconciliationChecks = [
+      { label: 'Toast sales vs payment mix', difference: salesReconciliationDifference },
+      { label: 'Dashboard spend vs vendor + business', difference: totalSpend - vendorSpend - businessSpend },
+      { label: 'Cash remaining formula', difference: cashRemaining - (cashSales - cashOperatingPayroll - cashVendorSpend) }
+    ]
+    const reconciliationOk = reconciliationChecks.every(check => Math.abs(check.difference) < 0.01)
+    const healthScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, foodCostPct - 30) * 1.5 - Math.max(0, laborPct - 28) * 1.5 - Math.max(0, primeCostPct - 65) - (operatingProfit < 0 ? 20 : 0) + (cashRemaining > 0 ? 4 : -8) + (reconciliationOk ? 2 : -8))))
 
     return {
       monthSales, monthPayroll, cashPayrollRows, cashPayrollBaseRows, checkPayrollRows, managerPayrollRows: dcPayrollPreview.payrollDetails.manager || [], assistantManagerRows: assistantRows, monthInvoices, monthExpenses, monthInvoiceItems, monthMenuItems,
-      grossSales, netSales, trueNetSales, cashSales, creditSales, tax, tips, tipsWithheld,
-      cashPayroll, checkPayroll, payrollTotal, operatingPayroll, managerPayrollTotal, assistantManagerPayroll, managementCashPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
-      vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining,
-      foodCostPct, laborPct, primeCostPct, profitMargin, healthScore, departmentCosts,
+      grossSales, netSales, toastTotalSales, trueNetSales, cashSales, creditSales, giftSales, onlineSales, otherSales, paymentTotal, salesReconciliationDifference, tax, tips, tipsWithheld,
+      cashPayroll, checkPayroll, payrollTotal, operatingPayroll, cashOperatingPayrollRows, cashOperatingPayroll, managerPayrollTotal, assistantManagerPayroll, managementCashPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
+      vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining, cashNeeded, cashVendorSpend,
+      foodCostPct, laborPct, primeCostPct, profitMargin, healthScore, departmentCosts, guestCount, averageCheck, margaritaSales, alcoholReconciliationDifference, reconciliationChecks, reconciliationOk,
       categoryRows, vendorCategories, businessCategories, allSpendRows, vendorRaw, businessRaw, operatingLaborRows, customerTipRows,
       vendorRecent: vendorRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
       businessRecent: businessRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
@@ -527,6 +563,9 @@ export default function Dashboard({ data, setData, setActive }) {
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
     department: departmentDetailConfig(detailCategory),
+    reconciliation: { title: 'Dashboard Reconciliation', open: 'reports', rows: derived.reconciliationChecks.map(check => ({ ...check, status: Math.abs(check.difference) < 0.01 ? 'Balanced' : 'Review' })), expected: 0, amountGetter: r => num(r.difference), columns: [
+      { key: 'label', label: 'Check' }, { key: 'status', label: 'Status' }, { key: 'difference', label: 'Difference', render: r => money(num(r.difference)) }
+    ], message: 'A $0.00 difference means the card total and its underlying sources reconcile.' },
     health: { title: 'Restaurant Health Inputs', open: 'reports', rows: [
       { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
     ], columns: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }] }
@@ -557,7 +596,7 @@ export default function Dashboard({ data, setData, setActive }) {
         <div className="command-tile is-primary">
           <span>Cash Flow</span>
           <strong>{money(derived.cashRemaining)}</strong>
-          <small>Cash collected {money(derived.cashSales)} minus cash payroll and cash expenses</small>
+          <small>Toast cash {money(derived.cashSales)} minus operating cash payroll and cash expenses</small>
         </div>
         <div className="command-tile">
           <span>Prime Cost</span>
@@ -577,18 +616,30 @@ export default function Dashboard({ data, setData, setActive }) {
       </section>
 
       <div className="metric-grid">
-        {visible.netSales && <MetricCard title="Net Sales" value={money(derived.trueNetSales)} subtitle={`${derived.monthSales.length} sales rows`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />}
+        {visible.netSales && <MetricCard title="Total Sales" value={money(derived.toastTotalSales)} subtitle={`Toast Sales Summary · ${derived.monthSales.length} rows`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />}
         {visible.cashCollected && <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast cash payments" icon="dollar" tone="green" onClick={() => showDetail('sales')} />}
         {visible.operatingProfit && <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('health')} />}
-        {visible.cashRemaining && <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle="After cash spending" icon="card" tone="emerald" onClick={() => showDetail('health')} />}
+        {visible.cashRemaining && <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle={derived.cashNeeded > 0 ? `Cash needed ${money(derived.cashNeeded)}` : "After cash payroll and cash spending"} icon="card" tone="emerald" onClick={() => showDetail('health')} />}
         {visible.managementCashPayroll && <MetricCard title="Cash + Management Payroll" value={money(derived.managementCashPayroll)} subtitle={`Cash ${money(derived.cashPayroll)} · Managers ${money(derived.managerPayrollTotal)} · Assistants ${money(derived.assistantManagerPayroll)}`} icon="payroll" tone="teal" onClick={() => showDetail('management-payroll')} />}
         {visible.vendorSpend && <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />}
         {visible.businessExpenses && <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />}
         {visible.serverTips && <MetricCard title="Server Tips" value={money(derived.customerTipsPaid)} subtitle={`Separate from payroll profit · Checks ${money(derived.customerTipsChecks)}`} icon="receipt" tone="orange" onClick={() => showDetail('payroll')} />}
-        {visible.primeCost && <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle="Food + operating labor vs net sales" icon="pie" tone="indigo" onClick={() => showDetail('health')} />}
+        {visible.primeCost && <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle="Food + operating labor; customer tips excluded" icon="pie" tone="indigo" onClick={() => showDetail('health')} />}
         {visible.trueFoodCost && <MetricCard title="True Food Cost" value={money(derived.departmentCosts.trueFoodCost)} subtitle={`${pct(derived.departmentCosts.foodCostPercent)} of food sales`} icon="menu-costing" tone="orange" onClick={() => showDetail('vendors', 'Food')} />}
         {visible.trueAlcoholCost && <MetricCard title="True Alcohol Cost" value={money(derived.departmentCosts.trueAlcoholCost)} subtitle={`${pct(derived.departmentCosts.alcoholCostPercent)} of alcohol sales`} icon="beer" tone="purple" onClick={() => showDetail('vendors')} />}
       </div>
+
+      <section className="business-health-strip" aria-label="Today business health and reconciliation">
+        <div><span>Food Cost</span><strong>{pct(derived.foodCostPct)}</strong><small>{money(derived.foodSpend)}</small></div>
+        <div><span>Alcohol Sales</span><strong>{money(derived.departmentCosts.alcoholSales)}</strong><small>Margaritas included: {money(derived.margaritaSales)}</small></div>
+        <div><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></div>
+        <div><span>Prime Cost</span><strong>{pct(derived.primeCostPct)}</strong><small>Food + operating labor</small></div>
+        <div><span>Net Profit</span><strong>{money(derived.operatingProfit)}</strong><small>{pct(derived.profitMargin)} margin</small></div>
+        <div><span>Average Check</span><strong>{money(derived.averageCheck)}</strong><small>{derived.guestCount.toLocaleString()} guests/checks</small></div>
+        <button type="button" className={`reconciliation-tile ${derived.reconciliationOk ? 'ok' : 'warning'}`} onClick={() => showDetail('reconciliation')}>
+          <span>Reconciliation</span><strong>{derived.reconciliationOk ? 'Balanced' : 'Review'}</strong><small>{derived.reconciliationOk ? 'All dashboard checks passed' : 'A total does not match its details'}</small>
+        </button>
+      </section>
 
       <div className="dashboard-grid-main">
         {visible.restaurantHealth && (<SectionCard title="Restaurant Health" icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
