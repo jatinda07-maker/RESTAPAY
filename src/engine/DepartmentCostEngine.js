@@ -163,7 +163,7 @@ function menuSalesAmount(item = {}) {
   return num(item.netSales ?? item.net_sales ?? item.grossSales ?? item.gross_sales ?? item.sales ?? item.amount)
 }
 
-export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], employees = [], spendRows = [], menuItems = [], settings = {} } = {}) {
+export function calculateDepartmentCosts({ salesRows = [], toastSalesCategories = [], payrollRows = [], employees = [], spendRows = [], menuItems = [], settings = {} } = {}) {
   // A corrected Toast report may be imported after an older partial report for the
   // same business dates. Keep one row per date and prefer rows carrying the full
   // Sales Category Summary arrays. This prevents stale alcohol totals from being
@@ -338,10 +338,20 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
     return [...map.values()]
   }
 
-  const explicitFoodRows = aggregateCategoryRows('food_sales_categories', 'food')
-  const explicitAlcoholRows = aggregateCategoryRows('alcohol_sales_categories', 'alcohol')
-  const explicitOtherRows = aggregateCategoryRows('other_sales_categories', 'other')
-  const explicitExcludedRows = aggregateCategoryRows('excluded_sales_categories', 'excluded')
+  const normalizedTableRows = (toastSalesCategories || []).map((entry, index) => ({
+    id: entry.id || `toast-category-${index}`,
+    category: String(entry.category || entry.sales_category || entry.name || 'Unclassified'),
+    department: String(entry.department || entry.department_type || '').toLowerCase(),
+    salesAmount: num(entry.salesAmount ?? entry.sales_amount ?? entry.net_sales ?? entry.amount),
+    itemCount: num(entry.itemCount ?? entry.item_count ?? entry.items),
+    source: 'Toast Sales Category Summary'
+  }))
+  const rowsForDepartment = department => normalizedTableRows.filter(row => row.department === department)
+
+  const explicitFoodRows = rowsForDepartment('food').length ? rowsForDepartment('food') : aggregateCategoryRows('food_sales_categories', 'food')
+  const explicitAlcoholRows = rowsForDepartment('alcohol').length ? rowsForDepartment('alcohol') : aggregateCategoryRows('alcohol_sales_categories', 'alcohol')
+  const explicitOtherRows = rowsForDepartment('other').length ? rowsForDepartment('other') : aggregateCategoryRows('other_sales_categories', 'other')
+  const explicitExcludedRows = rowsForDepartment('excluded').length ? rowsForDepartment('excluded') : aggregateCategoryRows('excluded_sales_categories', 'excluded')
   const explicitFoodRowsTotal = explicitFoodRows.reduce((sum, row) => sum + row.salesAmount, 0)
   const explicitAlcoholRowsTotal = explicitAlcoholRows.reduce((sum, row) => sum + row.salesAmount, 0)
   const hasExplicitDepartmentTotals = explicitFoodSales !== 0 || explicitAlcoholRowsTotal !== 0 || explicitAlcoholOverall !== 0 || explicitAlcoholComponents !== 0 || explicitFoodRows.length > 0 || explicitAlcoholRows.length > 0

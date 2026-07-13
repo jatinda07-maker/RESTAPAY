@@ -1164,3 +1164,26 @@ button{touch-action:manipulation}
 
 /* RC12.5 calculation and business-health reconciliation */
 .business-health-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin:12px 0 16px}.business-health-strip>div,.business-health-strip>button{min-width:0;border:1px solid #dfe4ea;border-radius:12px;background:#fff;padding:12px;text-align:left;box-shadow:0 1px 2px rgba(15,23,42,.04)}.business-health-strip span{display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em}.business-health-strip strong{display:block;margin-top:5px;font-size:17px;color:#0f172a}.business-health-strip small{display:block;margin-top:3px;color:#64748b;white-space:normal}.reconciliation-tile{font:inherit;cursor:pointer}.reconciliation-tile.ok{border-color:#86efac;background:#f0fdf4}.reconciliation-tile.warning{border-color:#fbbf24;background:#fffbeb}.reconciliation-tile.ok strong{color:#166534}.reconciliation-tile.warning strong{color:#92400e}@media(max-width:1200px){.business-health-strip{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:760px){.business-health-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* RC13 Food & Alcohol department color system */
+.cost-department-card{overflow:hidden;border:1px solid #dce4ec;border-radius:16px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.055)}
+.cost-department-card>header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px}
+.cost-header-title{display:flex;align-items:center;gap:12px}
+.cost-header-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;color:#fff}
+.food-cost-card>header{background:#bfe0a9;border-bottom-color:#a8cf90}
+.food-cost-card>header h2,.food-cost-card>header>span{color:#0b5f2d}
+.food-cost-card .cost-header-icon{background:#12823e}
+.alcohol-cost-card>header{background:#f97316;border-bottom-color:#ea580c}
+.alcohol-cost-card>header h2,.alcohol-cost-card>header>span{color:#fff}
+.alcohol-cost-card .cost-header-icon{background:rgba(194,65,12,.72);border:1px solid rgba(255,255,255,.22)}
+.cost-department-card>header h2{margin:0;font-size:19px;font-weight:720}
+.cost-department-card>header>span{font-size:14px;font-weight:700}
+.cost-summary-list{padding:0 18px 0}
+.cost-summary-row{grid-template-columns:42px minmax(0,1fr) auto 16px;padding:14px 0}
+.cost-row-icon{display:grid!important;place-items:center!important;width:34px;height:34px;border-radius:10px}
+.food-cost-card .cost-row-icon{background:#e7f6e9;color:#14823f}
+.alcohol-cost-card .cost-row-icon{background:#fff0e6;color:#ea580c}
+.food-cost-card .cost-summary-row.cost-total{margin:8px -18px 0;padding:16px 18px;background:rgba(191,224,169,.28);border-top:1px solid #b9dba4;border-bottom:0}
+.alcohol-cost-card .cost-summary-row.cost-total{margin:8px -18px 0;padding:16px 18px;background:rgba(249,115,22,.10);border-top:1px solid #fed7aa;border-bottom:0}
+.food-cost-card .cost-summary-row.cost-total>span>b,.food-cost-card .cost-summary-row.cost-total>strong,.food-cost-card .cost-summary-row.cost-total>i{color:#087333}
+.alcohol-cost-card .cost-summary-row.cost-total>span>b,.alcohol-cost-card .cost-summary-row.cost-total>strong,.alcohol-cost-card .cost-summary-row.cost-total>i{color:#d9480f}

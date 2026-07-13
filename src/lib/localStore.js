@@ -27,6 +27,7 @@ export const defaultData = {
   invoices: [],
   invoiceItems: [],
   salesDays: [],
+  toastSalesCategories: [],
   salesImports: [],
   menuItems: [],
   menuRecipes: [],
@@ -75,6 +76,7 @@ export function mergeData(data) {
     invoices: data?.invoices || defaultData.invoices,
     invoiceItems: data?.invoiceItems || defaultData.invoiceItems,
     salesDays: data?.salesDays || defaultData.salesDays,
+    toastSalesCategories: data?.toastSalesCategories || defaultData.toastSalesCategories,
     salesImports: data?.salesImports || defaultData.salesImports,
     menuItems: data?.menuItems || defaultData.menuItems,
     menuRecipes: data?.menuRecipes || defaultData.menuRecipes,
@@ -118,6 +120,7 @@ export function hasMeaningfulData(data) {
     merged.invoices,
     merged.invoiceItems,
     merged.salesDays,
+    merged.toastSalesCategories,
     merged.salesImports,
     merged.menuItems,
     merged.menuRecipes,
@@ -168,6 +171,14 @@ function normalizeTableData(tableData = {}) {
     })),
     invoiceItems: tableData.invoice_items || [],
     salesDays: (tableData.sales_days || []).map(row => ({ ...row, date: row.business_date || row.date })),
+    toastSalesCategories: (tableData.toast_sales_categories || []).map(row => ({
+      ...row,
+      category: row.category_name || row.category || row.sales_category || row.name,
+      salesAmount: money(row.net_sales ?? row.sales_amount ?? row.amount),
+      itemCount: money(row.quantity ?? row.item_count ?? row.items),
+      business_date: row.business_date || row.date,
+      department: String(row.normalized_department || row.department || row.department_type || '').toLowerCase()
+    })),
     salesImports: tableData.sales_imports || [],
     menuItems: tableData.menu_items || [],
     menuRecipes: (tableData.menu_recipes || []).map(row => ({ ...row, lines: row.lines || [] })),
@@ -183,7 +194,7 @@ async function loadCloudTables() {
     const tableNames = [
       'employees', 'employee_types', 'job_types', 'payroll_groups', 'payroll_entries', 'payroll_imports',
       'vendors', 'vendor_categories', 'expenses', 'expense_categories', 'payment_methods',
-      'invoices', 'invoice_items', 'sales_days', 'sales_imports', 'menu_items', 'menu_recipes', 'menu_imports', 'custom_reports', 'settings'
+      'invoices', 'invoice_items', 'sales_days', 'toast_sales_categories', 'sales_imports', 'menu_items', 'menu_recipes', 'menu_imports', 'custom_reports', 'settings'
     ]
     const entries = await Promise.all(tableNames.map(async table => {
       const { data, error } = await supabase.from(table).select('*')
@@ -210,7 +221,18 @@ export async function loadCloudData() {
 
     if (error) throw error
 
-    const merged = data?.data && hasMeaningfulData(data.data) ? mergeData(data.data) : await loadCloudTables()
+    const appData = data?.data && hasMeaningfulData(data.data) ? mergeData(data.data) : null
+    const tableData = await loadCloudTables()
+
+    // Normalized tables are authoritative for transactional data. app_data remains
+    // a complete backup, but it must not overwrite newer Toast category imports.
+    const merged = appData || tableData ? mergeData({
+      ...(appData || {}),
+      ...(tableData || {}),
+      salesDays: (tableData?.salesDays?.length ? tableData.salesDays : appData?.salesDays) || [],
+      toastSalesCategories: (tableData?.toastSalesCategories?.length ? tableData.toastSalesCategories : appData?.toastSalesCategories) || [],
+      salesImports: (tableData?.salesImports?.length ? tableData.salesImports : appData?.salesImports) || []
+    }) : null
 
     if (merged) {
       localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
@@ -426,6 +448,28 @@ async function mirrorAppDataToTables(data) {
     updated_at: row.updated_at || now
   }))
 
+  const toastSalesCategories = (data.salesDays || []).flatMap(row => {
+    const date = row.business_date || row.date || new Date().toISOString().slice(0, 10)
+    const sourceFile = text(row.source_file)
+    const groups = [
+      ['food', row.food_sales_categories],
+      ['alcohol', row.alcohol_sales_categories],
+      ['other', row.other_sales_categories],
+      ['excluded', row.excluded_sales_categories]
+    ]
+    return groups.flatMap(([department, values]) => (Array.isArray(values) ? values : []).map((entry, index) => ({
+      id: `${row.id || date}-${department}-${index}`.replace(/[^a-zA-Z0-9_-]/g, '-'),
+      business_date: date,
+      category_name: text(entry.category || entry.name) || 'Unclassified',
+      normalized_department: department,
+      quantity: money(entry.itemCount ?? entry.items),
+      net_sales: money(entry.salesAmount ?? entry.netSales ?? entry.amount),
+      source_file: sourceFile,
+      created_at: row.created_at || now,
+      updated_at: row.updated_at || now
+    })))
+  })
+
   const salesImports = (data.salesImports || []).map(row => ({
     id: row.id,
     file_name: row.file_name || row.name || 'Sales import',
@@ -474,6 +518,9 @@ async function mirrorAppDataToTables(data) {
   await replaceTable('payroll_entries', payrollEntries)
   await replaceTable('payroll_imports', payrollImports)
   await replaceTable('sales_days', salesDays)
+  // This table is present in RC12/RC13 schemas. If an older database lacks a
+  // compatible column, app_data and sales_days still retain the category arrays.
+  try { await replaceTable('toast_sales_categories', toastSalesCategories) } catch (error) { console.warn('Toast category mirror skipped.', error) }
   await replaceTable('sales_imports', salesImports)
   await replaceTable('expenses', expenses)
   await replaceTable('custom_reports', customReports)

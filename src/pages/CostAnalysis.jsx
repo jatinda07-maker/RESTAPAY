@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import DateControls from '../components/DateControls'
+import { Icon } from '../components/Icons'
 import { calculateDepartmentCosts, num } from '../engine/DepartmentCostEngine'
 
 function money(value) { return `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
@@ -38,8 +39,9 @@ function DrilldownModal({ detail, onClose }) {
   </div>
 }
 
-function SummaryRow({ label, value, onClick, className = '', note = '' }) {
+function SummaryRow({ label, value, onClick, className = '', note = '', icon = 'receipt' }) {
   return <button type="button" className={`cost-summary-row ${className}`.trim()} onClick={onClick}>
+    <span className="cost-row-icon"><Icon name={icon} size={18} /></span>
     <span><b>{label}</b>{note ? <small>{note}</small> : null}</span><strong>{value}</strong><i aria-hidden="true">›</i>
   </button>
 }
@@ -51,6 +53,7 @@ export default function CostAnalysis({ data }) {
 
   const derived = useMemo(() => {
     const salesRows = (data.salesDays || []).filter(row => inRange(row, start, end))
+    const toastSalesCategories = (data.toastSalesCategories || []).filter(row => inRange(row, start, end))
     const payrollRows = (data.payrollEntries || []).filter(row => inRange(row, start, end))
     const invoices = (data.invoices || []).filter(row => inRange(row, start, end))
     const invoiceById = Object.fromEntries((data.invoices || []).map(row => [row.id, row]))
@@ -66,7 +69,7 @@ export default function CostAnalysis({ data }) {
     const headerSpend = invoices.filter(row => !itemInvoiceIds.has(row.id)).map(row => ({ ...row, date: rowDate(row), vendor: row.vendor || row.vendor_name, description: row.invoice_number || row.notes || row.category, amount: invoiceAmount(row) }))
     const expenses = (data.expenses || []).filter(row => inRange(row, start, end)).map(row => ({ ...row, date: rowDate(row), vendor: row.vendor || row.name, description: row.notes || row.name || row.category, amount: num(row.amount) }))
     const menuItems = (data.menuItems || []).filter(row => inRange(row, start, end))
-    return calculateDepartmentCosts({ salesRows, payrollRows, employees: data.employees || [], spendRows: [...itemSpend, ...headerSpend, ...expenses], menuItems, settings: data.settings || {} })
+    return calculateDepartmentCosts({ salesRows, toastSalesCategories, payrollRows, employees: data.employees || [], spendRows: [...itemSpend, ...headerSpend, ...expenses], menuItems, settings: data.settings || {} })
   }, [data, start, end])
 
   const classifiedSales = derived.foodSales + derived.alcoholSales
@@ -97,26 +100,26 @@ export default function CostAnalysis({ data }) {
     <section className="sales-mix-banner"><div><span>Sales Mix</span><strong>{derived.foodSales >= derived.alcoholSales ? 'Food sales were higher' : 'Alcohol sales were higher'}</strong><small>{money(Math.abs(derived.foodSales - derived.alcoholSales))} difference in the selected period</small></div><div className="sales-mix-values"><span><b>{money(derived.foodSales)}</b><small>{pct(foodShare)} Food</small></span><span><b>{money(derived.alcoholSales)}</b><small>{pct(alcoholShare)} Alcohol</small></span></div></section>
 
     <div className="cost-page-grid">
-      <section className="cost-department-card food-cost-card"><header><h2>Food Department</h2><span>{pct(derived.foodCostPercent)} cost</span></header><div className="cost-summary-list">
-        <SummaryRow label="Food Sales" value={money(derived.foodSales)} note="Food + No Sales Category Assigned" onClick={() => openSales('food')} />
-        <SummaryRow label="Direct Food Cost" value={money(derived.directFoodCost ?? derived.foodPurchases)} onClick={() => openCost('Food Purchase Details', derived.spendDetails.food || [], derived.foodPurchases)} />
-        <SummaryRow label="Kitchen Payroll" value={money(derived.kitchenPayroll)} onClick={() => openCost('Kitchen Payroll Details', derived.payrollDetails.kitchen || [], derived.kitchenPayroll)} />
-        <SummaryRow label="Manager Allocation" value={money(derived.managerFood)} onClick={() => openCost('Manager Allocation — Food', managerRowsFood, derived.managerFood)} />
-        <SummaryRow label="Shared Supplies / Cintas / Utilities" value={money(derived.foodSupplies + derived.foodShared)} onClick={() => openCost('Shared Costs — Food', sharedFoodRows, derived.foodSupplies + derived.foodShared, 'allocatedAmount')} />
-        <SummaryRow className="cost-total" label="True Food Cost" value={money(derived.trueFoodCost)} onClick={() => openComponents('True Food Cost Components', [{ label: 'Food Purchases', amount: derived.foodPurchases }, { label: 'Kitchen Payroll', amount: derived.kitchenPayroll }, { label: 'Manager Allocation', amount: derived.managerFood }, { label: 'Shared Costs', amount: derived.foodSupplies + derived.foodShared }], derived.trueFoodCost)} />
-        <SummaryRow className="cost-profit" label="Food Profit" value={money(derived.foodProfit)} note={`${pct(derived.foodProfitMargin)} margin`} onClick={() => openComponents('Food Profit Reconciliation', [{ label: 'Food Sales', amount: derived.foodSales }, { label: 'Less: True Food Cost', amount: -derived.trueFoodCost }], derived.foodProfit)} />
+      <section className="cost-department-card food-cost-card"><header><div className="cost-header-title"><span className="cost-header-icon"><Icon name="utensils" size={22} /></span><h2>Food Department</h2></div><span>{pct(derived.foodCostPercent)} cost</span></header><div className="cost-summary-list">
+        <SummaryRow icon="utensils" label="Food Sales" value={money(derived.foodSales)} note="Toast FOOD sales category" onClick={() => openSales('food')} />
+        <SummaryRow icon="cart" label="Direct Food Cost" value={money(derived.directFoodCost ?? derived.foodPurchases)} onClick={() => openCost('Food Purchase Details', derived.spendDetails.food || [], derived.foodPurchases)} />
+        <SummaryRow icon="users" label="Kitchen Payroll" value={money(derived.kitchenPayroll)} onClick={() => openCost('Kitchen Payroll Details', derived.payrollDetails.kitchen || [], derived.kitchenPayroll)} />
+        <SummaryRow icon="person" label="Manager Allocation" value={money(derived.managerFood)} onClick={() => openCost('Manager Allocation — Food', managerRowsFood, derived.managerFood)} />
+        <SummaryRow icon="package" label="Shared Supplies / Cintas / Utilities" value={money(derived.foodSupplies + derived.foodShared)} onClick={() => openCost('Shared Costs — Food', sharedFoodRows, derived.foodSupplies + derived.foodShared, 'allocatedAmount')} />
+        <SummaryRow icon="trending" className="cost-total" label="True Food Cost" value={money(derived.trueFoodCost)} onClick={() => openComponents('True Food Cost Components', [{ label: 'Food Purchases', amount: derived.foodPurchases }, { label: 'Kitchen Payroll', amount: derived.kitchenPayroll }, { label: 'Manager Allocation', amount: derived.managerFood }, { label: 'Shared Costs', amount: derived.foodSupplies + derived.foodShared }], derived.trueFoodCost)} />
+        <SummaryRow icon="dollar" className="cost-profit" label="Food Profit" value={money(derived.foodProfit)} note={`${pct(derived.foodProfitMargin)} margin`} onClick={() => openComponents('Food Profit Reconciliation', [{ label: 'Food Sales', amount: derived.foodSales }, { label: 'Less: True Food Cost', amount: -derived.trueFoodCost }], derived.foodProfit)} />
       </div></section>
 
-      <section className="cost-department-card alcohol-cost-card"><header><h2>Alcohol Department</h2><span>{pct(derived.alcoholCostPercent)} cost</span></header><div className="cost-summary-list">
-        <SummaryRow label="Alcohol Sales" value={money(derived.alcoholSales)} note="Beer, cocktails, draft, margaritas and wine" onClick={() => openSales('alcohol')} />
-        <SummaryRow label="Beer Purchases" value={money(derived.beerPurchases)} onClick={() => openCost('Beer Purchase Details', derived.spendDetails.beer || [], derived.beerPurchases)} />
-        <SummaryRow label="Liquor / Wine Purchases" value={money(derived.liquorPurchases)} onClick={() => openCost('Liquor / Wine Purchase Details', derived.spendDetails.liquor || [], derived.liquorPurchases)} />
-        <SummaryRow label="Margarita Mix" value={money(derived.margaritaMix)} onClick={() => openCost('Margarita Mix Details', derived.spendDetails.margaritaMix || [], derived.margaritaMix)} />
-        <SummaryRow label="Manager Allocation" value={money(derived.managerAlcohol)} onClick={() => openCost('Manager Allocation — Alcohol', managerRowsAlcohol, derived.managerAlcohol)} />
-        <SummaryRow label="Bar Payroll" value={money(derived.barPayroll)} onClick={() => openCost('Bar Payroll Details', derived.payrollDetails.bar || [], derived.barPayroll)} />
-        <SummaryRow label="Shared Supplies / Cintas / Utilities" value={money(derived.alcoholShared)} onClick={() => openCost('Shared Costs — Alcohol', sharedAlcoholRows, derived.alcoholShared, 'allocatedAmount')} />
-        <SummaryRow className="cost-total" label="True Alcohol Cost" value={money(derived.trueAlcoholCost)} onClick={() => openComponents('True Alcohol Cost Components', [{ label: 'Beer Purchases', amount: derived.beerPurchases }, { label: 'Liquor / Wine Purchases', amount: derived.liquorPurchases }, { label: 'Margarita Mix', amount: derived.margaritaMix }, { label: 'Manager Allocation', amount: derived.managerAlcohol }, { label: 'Bar Payroll', amount: derived.barPayroll }, { label: 'Shared Costs', amount: derived.alcoholShared }], derived.trueAlcoholCost)} />
-        <SummaryRow className="cost-profit" label="Alcohol Profit" value={money(derived.alcoholProfit)} note={`${pct(derived.alcoholProfitMargin)} margin`} onClick={() => openComponents('Alcohol Profit Reconciliation', [{ label: 'Alcohol Sales', amount: derived.alcoholSales }, { label: 'Less: True Alcohol Cost', amount: -derived.trueAlcoholCost }], derived.alcoholProfit)} />
+      <section className="cost-department-card alcohol-cost-card"><header><div className="cost-header-title"><span className="cost-header-icon"><Icon name="wine" size={22} /></span><h2>Alcohol Department</h2></div><span>{pct(derived.alcoholCostPercent)} cost</span></header><div className="cost-summary-list">
+        <SummaryRow icon="wine" label="Alcohol Sales" value={money(derived.alcoholSales)} note="Beer, cocktails, draft, margaritas and wine" onClick={() => openSales('alcohol')} />
+        <SummaryRow icon="beer" label="Beer Purchases" value={money(derived.beerPurchases)} onClick={() => openCost('Beer Purchase Details', derived.spendDetails.beer || [], derived.beerPurchases)} />
+        <SummaryRow icon="wine" label="Liquor / Wine Purchases" value={money(derived.liquorPurchases)} onClick={() => openCost('Liquor / Wine Purchase Details', derived.spendDetails.liquor || [], derived.liquorPurchases)} />
+        <SummaryRow icon="beverage" label="Margarita Mix" value={money(derived.margaritaMix)} onClick={() => openCost('Margarita Mix Details', derived.spendDetails.margaritaMix || [], derived.margaritaMix)} />
+        <SummaryRow icon="person" label="Manager Allocation" value={money(derived.managerAlcohol)} onClick={() => openCost('Manager Allocation — Alcohol', managerRowsAlcohol, derived.managerAlcohol)} />
+        <SummaryRow icon="users" label="Bar Payroll" value={money(derived.barPayroll)} onClick={() => openCost('Bar Payroll Details', derived.payrollDetails.bar || [], derived.barPayroll)} />
+        <SummaryRow icon="package" label="Shared Supplies / Cintas / Utilities" value={money(derived.alcoholShared)} onClick={() => openCost('Shared Costs — Alcohol', sharedAlcoholRows, derived.alcoholShared, 'allocatedAmount')} />
+        <SummaryRow icon="trending" className="cost-total" label="True Alcohol Cost" value={money(derived.trueAlcoholCost)} onClick={() => openComponents('True Alcohol Cost Components', [{ label: 'Beer Purchases', amount: derived.beerPurchases }, { label: 'Liquor / Wine Purchases', amount: derived.liquorPurchases }, { label: 'Margarita Mix', amount: derived.margaritaMix }, { label: 'Manager Allocation', amount: derived.managerAlcohol }, { label: 'Bar Payroll', amount: derived.barPayroll }, { label: 'Shared Costs', amount: derived.alcoholShared }], derived.trueAlcoholCost)} />
+        <SummaryRow icon="dollar" className="cost-profit" label="Alcohol Profit" value={money(derived.alcoholProfit)} note={`${pct(derived.alcoholProfitMargin)} margin`} onClick={() => openComponents('Alcohol Profit Reconciliation', [{ label: 'Alcohol Sales', amount: derived.alcoholSales }, { label: 'Less: True Alcohol Cost', amount: -derived.trueAlcoholCost }], derived.alcoholProfit)} />
       </div></section>
     </div>
 
