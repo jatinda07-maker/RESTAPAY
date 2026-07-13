@@ -43,6 +43,20 @@ function isGovernmentOrTaxSpend(row = {}) {
     /\b(sales tax|use tax|withholding tax|department of revenue|tax payment|business license|liquor license|alcohol license|permit fee)\b/.test(text)
 }
 
+function sourceTableOf(row = {}) {
+  return String(row._source_table || row.source_table || '').trim().toLowerCase()
+}
+
+function isInvoiceCostSource(row = {}) {
+  const source = sourceTableOf(row)
+  return source === 'invoice_items' || source === 'invoices'
+}
+
+function isFinancialOrTransferSpend(row = {}) {
+  const text = `${vendorTextOf(row)} ${textOf(row)}`
+  return /bank of america|credit card payment|card payment|statement payment|loan payment|loan principal|mortgage|line of credit|capital one|american express|amex payment|discover payment|chase card|bank transfer|owner draw|owner distribution|cash transfer/.test(text)
+}
+
 function payrollText(row = {}) {
   return [row.payroll_classification, row.classification, row.employee_type, row.job_type, row.position, row.role, row.department, row.group_name, row.employee_name, row.name]
     .map(value => String(value || '').toLowerCase()).join(' ')
@@ -57,20 +71,23 @@ function payrollAmount(row = {}) { return num(row.total_pay || row.total || row.
 
 export function classifySpend(row = {}) {
   const text = textOf(row)
-  // Government tax and licensing payments are operating expenses, never inventory purchases.
-  // This prevents vendors such as AL-DEPT OF REV and AL ONESPOT from being pulled into Alcohol Cost
-  // even when legacy data carries an incorrect Liquor/Alcohol category.
+  const invoiceCostSource = isInvoiceCostSource(row)
+  // Payments, transfers, loans and tax/license entries are not inventory. They must
+  // never become Food or Alcohol Cost merely because a legacy category says Liquor.
+  if (isFinancialOrTransferSpend(row)) return { bucket: 'other', rule: 'financialTransfer', label: 'Financial Payment / Transfer' }
   if (isGovernmentOrTaxSpend(row)) return { bucket: 'other', rule: 'governmentTax', label: 'Taxes & Licenses' }
-  if (/margarita\s*(mix|base|concentrate)|marg(?:arita)?\s*(mix|base|mx)|sweet\s*(?:&|and|n)?\s*sour|sour\s*mix|bar\s*mix|margarita\s*syrup/.test(text)) return { bucket: 'alcohol', rule: 'margaritaMix', label: 'Margarita Mix' }
-  if (/\bbeer\b|lager|ale|ipa|modelo|corona|bud light|michelob|coors|miller|dos equis|pacifico|tecate|keg/.test(text)) return { bucket: 'alcohol', rule: 'beer', label: 'Beer' }
-  if (/liquor|tequila|mezcal|vodka|rum|whiskey|whisky|bourbon|scotch|gin|brandy|cognac|wine|champagne|prosecco|abc store|texana/.test(text)) return { bucket: 'alcohol', rule: 'liquor', label: 'Liquor / Wine' }
+  // Direct COGS is based only on categorized invoice lines (or an invoice header when
+  // that invoice truly has no line items). General expense rows stay operating expense.
+  if (invoiceCostSource && /margarita\s*(mix|base|concentrate)|marg(?:arita)?\s*(mix|base|mx)|sweet\s*(?:&|and|n)?\s*sour|sour\s*mix|bar\s*mix|margarita\s*syrup/.test(text)) return { bucket: 'alcohol', rule: 'margaritaMix', label: 'Margarita Mix' }
+  if (invoiceCostSource && /\bbeer\b|lager|ale|ipa|modelo|corona|bud light|michelob|coors|miller|dos equis|pacifico|tecate|keg/.test(text)) return { bucket: 'alcohol', rule: 'beer', label: 'Beer' }
+  if (invoiceCostSource && /liquor|tequila|mezcal|vodka|rum|whiskey|whisky|bourbon|scotch|gin|brandy|cognac|wine|champagne|prosecco|abc store|texana/.test(text)) return { bucket: 'alcohol', rule: 'liquor', label: 'Liquor / Wine' }
   if (/cintas|aramark|unifirst|uniform service|linen service|floor mat|shop towel|apron service/.test(text)) return { bucket: 'shared', rule: 'cintas', label: 'Cintas / Linen Service' }
   if (/clean|chemical|sanitizer|soap|detergent|janitorial|ecolab|auto[- ]?chlor|pest control|terminix|orkin/.test(text)) return { bucket: 'shared', rule: 'cleaningSupplies', label: 'Cleaning Supplies' }
   if (/suppl|paper|foil|film|glove|container|to-go|takeout|straw|napkin|packag|smallware|utensil|disposable|office depot|staples|webstaurant|restaurant supply/.test(text)) return { bucket: 'shared', rule: 'supplies', label: 'Restaurant / Kitchen Supplies' }
   if (/util|electric|power|water|natural gas|sewer|internet|telephone|phone service|alabama power|utility board/.test(text)) return { bucket: 'shared', rule: 'utilities', label: 'Utilities' }
   if (/insurance/.test(text)) return { bucket: 'shared', rule: 'insurance', label: 'Insurance' }
-  if (/food|meat|produce|grocery|chicken|beef|fish|shrimp|cheese|tortilla|rice|bean|us foods/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food Purchases' }
-  if (/beverage|soda|coke|sprite|tea|lemonade|buffalo rock|mixer/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food / Non-alcohol Beverage Purchases' }
+  if (invoiceCostSource && /food|meat|produce|grocery|chicken|beef|fish|shrimp|cheese|tortilla|rice|bean|us foods/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food Purchases' }
+  if (invoiceCostSource && /beverage|soda|coke|sprite|tea|lemonade|buffalo rock|mixer/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food / Non-alcohol Beverage Purchases' }
   return { bucket: 'other', rule: 'other', label: 'Other' }
 }
 
