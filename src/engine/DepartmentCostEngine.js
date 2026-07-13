@@ -312,8 +312,7 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
   const explicitExcludedRows = aggregateCategoryRows('excluded_sales_categories', 'excluded')
   const explicitFoodRowsTotal = explicitFoodRows.reduce((sum, row) => sum + row.salesAmount, 0)
   const explicitAlcoholRowsTotal = explicitAlcoholRows.reduce((sum, row) => sum + row.salesAmount, 0)
-  const explicitAlcoholSales = explicitAlcoholRowsTotal || explicitAlcoholOverall || explicitAlcoholComponents
-  const hasExplicitDepartmentTotals = explicitFoodSales !== 0 || explicitAlcoholSales !== 0 || explicitFoodRows.length > 0 || explicitAlcoholRows.length > 0
+  const hasExplicitDepartmentTotals = explicitFoodSales !== 0 || explicitAlcoholRowsTotal !== 0 || explicitAlcoholOverall !== 0 || explicitAlcoholComponents !== 0 || explicitFoodRows.length > 0 || explicitAlcoholRows.length > 0
 
   // Prefer the scalar Toast totals when present. If an older/imported row only
   // contains the category arrays, calculate the department total from those rows.
