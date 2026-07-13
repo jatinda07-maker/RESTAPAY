@@ -281,12 +281,15 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
   // Sales Summary category fields are the primary source because they reconcile
   // exactly to Toast. Product Mix is used only when category totals were not imported.
   const explicitFoodSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['food_sales', 'foodSales', 'restaurant_food_sales']), 0)
-  const explicitAlcoholSales = salesRows.reduce((sum, row) => sum +
-    rowSales(row, ['alcohol_sales', 'alcoholSales', 'bar_sales']) +
-    rowSales(row, ['beer_sales', 'beerSales']) +
-    rowSales(row, ['liquor_sales', 'liquorSales', 'spirits_sales']) +
-    rowSales(row, ['wine_sales', 'wineSales']) +
-    rowSales(row, ['cocktail_sales', 'cocktailSales', 'margarita_sales']), 0)
+  // Do not add Toast's overall alcohol total to its component totals. Some imports
+  // contain both alcohol_sales and beer/liquor/wine/margarita fields, and adding all
+  // of them double-counts alcohol. Prefer the overall field; otherwise sum components.
+  const explicitAlcoholOverall = salesRows.reduce((sum, row) => sum + rowSales(row, ['alcohol_sales', 'alcoholSales', 'bar_sales']), 0)
+  const explicitBeerSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['beer_sales', 'beerSales']), 0)
+  const explicitLiquorSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['liquor_sales', 'liquorSales', 'spirits_sales']), 0)
+  const explicitWineSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['wine_sales', 'wineSales']), 0)
+  const explicitMargaritaSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['margarita_sales', 'margaritaSales', 'cocktail_sales', 'cocktailSales']), 0)
+  const explicitAlcoholComponents = explicitBeerSales + explicitLiquorSales + explicitWineSales + explicitMargaritaSales
 
   const aggregateCategoryRows = (field, department) => {
     const map = new Map()
@@ -315,8 +318,11 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
   // contains the category arrays, calculate the department total from those rows.
   // This prevents Food from falling back to the combined Product Mix total while
   // Alcohol remains zero.
-  let foodSales = hasExplicitDepartmentTotals ? (explicitFoodSales || explicitFoodRowsTotal) : foodDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
-  let alcoholSales = hasExplicitDepartmentTotals ? (explicitAlcoholSales || explicitAlcoholRowsTotal) : alcoholDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  // Category arrays are the most complete Toast department source when present.
+  // Older scalar imports can be partial (for example only one alcohol bucket), so
+  // prefer the reconciled category-row total before scalar/component fallbacks.
+  let foodSales = hasExplicitDepartmentTotals ? (explicitFoodRowsTotal || explicitFoodSales) : foodDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
+  let alcoholSales = hasExplicitDepartmentTotals ? (explicitAlcoholRowsTotal || explicitAlcoholOverall || explicitAlcoholComponents) : alcoholDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
 
   const hasToastDepartmentTotals = hasExplicitDepartmentTotals || foodDepartmentRows.length > 0 || alcoholDepartmentRows.length > 0
   const alcoholSalesRows = menuSalesRows.filter(item => item.department === 'alcohol')
@@ -344,12 +350,21 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
   const foodProfit = foodSales - trueFoodCost
   const alcoholProfit = alcoholSales - trueAlcoholCost
   const allocatedCost = trueFoodCost + trueAlcoholCost
-  const overallOperatingProfit = netSales - allocatedCost - totals.otherPayroll - totals.otherSpend
+  // Operating profit must not depend on department allocation percentages. Use the
+  // direct accounting formula from raw source totals: Toast net sales less all
+  // non-tip operating payroll and all vendor/business spend.
+  const operatingPayrollTotal = totals.kitchenPayroll + totals.barPayroll + totals.managerPayroll + totals.otherPayroll
+  const totalOperatingSpend = spendRows.reduce((sum, row) => sum + num(row.amount || row.total || row.line_total), 0)
+  const overallOperatingProfit = netSales - operatingPayrollTotal - totalOperatingSpend
 
   return {
     ...totals,
     foodSales,
     alcoholSales,
+    beerSales: explicitBeerSales || finalAlcoholDepartmentRows.filter(row => /beer|draft/i.test(String(row.category || ''))).reduce((sum, row) => sum + num(row.salesAmount), 0),
+    wineSales: explicitWineSales || finalAlcoholDepartmentRows.filter(row => /wine|sangria|champagne|prosecco/i.test(String(row.category || ''))).reduce((sum, row) => sum + num(row.salesAmount), 0),
+    liquorSales: explicitLiquorSales || finalAlcoholDepartmentRows.filter(row => /liquor|spirits|shot/i.test(String(row.category || ''))).reduce((sum, row) => sum + num(row.salesAmount), 0),
+    margaritaSales: explicitMargaritaSales || finalAlcoholDepartmentRows.filter(row => /margarita|cocktail/i.test(String(row.category || ''))).reduce((sum, row) => sum + num(row.salesAmount), 0),
     netSales,
     trueFoodCost,
     trueAlcoholCost,

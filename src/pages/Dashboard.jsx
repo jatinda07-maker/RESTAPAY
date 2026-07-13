@@ -207,12 +207,12 @@ function DetailTable({ config, setActive, onClose }) {
       <header><div><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : null}</div><div className="detail-modal-actions">{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}>Open Full Screen</button> : null}<button type="button" className="btn primary small-btn" onClick={onClose}>Close</button></div></header>
       <div className="table-scroll"><table><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
         {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
-      </tbody><tfoot>
+      </tbody>{config.hideTotals ? null : <tfoot>
         {config.groupSubtotals ? config.groupSubtotals.map(group => <tr key={group.label}><td colSpan={Math.max(1, config.columns.length - 1)}><b>{group.label}</b></td><td><b>{money(group.amount)}</b></td></tr>) : null}
         <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Subtotal</b></td><td><b>{config.totalFormatter ? config.totalFormatter(subtotal) : money(subtotal)}</b></td></tr>
         <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Clicked total</b></td><td><b>{config.totalFormatter ? config.totalFormatter(clickedTotal) : money(clickedTotal)}</b></td></tr>
         <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>{Math.abs(difference) < 0.01 ? 'Reconciled' : 'Difference'}</b></td><td><b>{money(difference)}</b></td></tr>
-      </tfoot></table></div>
+      </tfoot>}</table></div>
     </section>
   </div>
 }
@@ -405,7 +405,7 @@ export default function Dashboard({ data, setData, setActive }) {
       menuItems: monthMenuItems,
       settings: data?.settings || {}
     })
-    const operatingProfit = departmentCosts.overallOperatingProfit
+    const operatingProfit = trueNetSales - operatingPayroll - totalSpend
     const cashSpendRows = allSpendRows.filter(row => String(row.payment_method || row.payment_type || row.pay_method || '').toLowerCase().includes('cash'))
     const cashVendorSpend = cashSpendRows.reduce((sum, row) => sum + num(row.amount), 0)
     // Customer tips are pass-through funds and never reduce operating cash or profit.
@@ -419,7 +419,7 @@ export default function Dashboard({ data, setData, setActive }) {
       ? trueNetSales / monthSales.reduce((sum, row) => sum + num(row.guest_count || row.guests || row.check_count), 0) : 0
     const guestCount = monthSales.reduce((sum, row) => sum + num(row.guest_count || row.guests || row.check_count), 0)
     const alcoholSales = departmentCosts.alcoholSales || 0
-    const margaritaSales = (departmentCosts.alcoholSalesRows || []).filter(row => /margarita/i.test([row.name,row.item_name,row.description,row.category].join(' '))).reduce((sum,row)=>sum+num(row.salesAmount || row.netSales || row.net_sales || row.grossSales),0)
+    const margaritaSales = departmentCosts.margaritaSales || (departmentCosts.alcoholSalesRows || []).filter(row => /margarita|cocktail/i.test([row.name,row.item_name,row.description,row.category].join(' '))).reduce((sum,row)=>sum+num(row.salesAmount || row.netSales || row.net_sales || row.grossSales),0)
     const alcoholReconciliationDifference = alcoholSales - (departmentCosts.beerSales || 0) - (departmentCosts.wineSales || 0) - (departmentCosts.liquorSales || 0) - margaritaSales
     const reconciliationChecks = [
       { label: 'Toast sales vs payment mix', difference: salesReconciliationDifference },
@@ -566,8 +566,8 @@ export default function Dashboard({ data, setData, setActive }) {
     reconciliation: { title: 'Dashboard Reconciliation', open: 'reports', rows: derived.reconciliationChecks.map(check => ({ ...check, status: Math.abs(check.difference) < 0.01 ? 'Balanced' : 'Review' })), expected: 0, amountGetter: r => num(r.difference), columns: [
       { key: 'label', label: 'Check' }, { key: 'status', label: 'Status' }, { key: 'difference', label: 'Difference', render: r => money(num(r.difference)) }
     ], message: 'A $0.00 difference means the card total and its underlying sources reconcile.' },
-    health: { title: 'Restaurant Health Inputs', open: 'reports', rows: [
-      { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
+    health: { title: 'Restaurant Health Inputs', open: 'reports', hideTotals: true, rows: [
+      { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Operating Profit', value: money(derived.operatingProfit) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
     ], columns: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }] }
   }
 
