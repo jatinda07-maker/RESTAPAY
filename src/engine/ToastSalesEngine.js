@@ -90,18 +90,39 @@ export function parseToastSalesCategoryTotals(XLSX, workbook) {
   }
 }
 
+export function parseToastPaymentTotals(XLSX, workbook) {
+  const rows = sheetObjects(XLSX, workbook, 'Payments summary')
+  const result = { cash: 0, credit: 0, gift: 0, other: 0, tips: 0, tax: 0, paymentTotal: 0 }
+  rows.forEach(row => {
+    const type = String(findValue(row, ['Payment type', 'Type']) || '').trim().toLowerCase()
+    const subType = String(findValue(row, ['Payment sub type', 'Sub type']) || '').trim()
+    const amount = round2(numeric(findValue(row, ['Amount'])))
+    if (type === 'cash' && !subType) result.cash += amount
+    else if ((type === 'credit/debit' || type === 'credit' || type === 'card') && !subType) result.credit += amount
+    else if (type === 'gift card' && !subType) result.gift += amount
+    else if (type === 'other' && !subType) result.other += amount
+    else if (type === 'total') {
+      result.tips = round2(numeric(findValue(row, ['Tips', 'Legacy tips'])))
+      result.tax = round2(numeric(findValue(row, ['Tax amount', 'Tax'])))
+      result.paymentTotal = round2(numeric(findValue(row, ['Amount', 'Total'])))
+    }
+  })
+  return Object.fromEntries(Object.entries(result).map(([key, value]) => [key, round2(value)]))
+}
+
 export function parseToastSalesRows(XLSX, workbook, fileName, createId) {
   const categories = parseToastSalesCategoryTotals(XLSX, workbook)
+  const payments = parseToastPaymentTotals(XLSX, workbook)
   if (!workbook.SheetNames.includes('Sales category summary') || (!categories.food.length && !categories.alcohol.length)) return []
 
   const dayRows = sheetObjects(XLSX, workbook, 'Sales by day').filter(row => numeric(findValue(row, ['Net sales', 'Net Sales'])))
   const range = fileRange(fileName)
   const totalNet = round2(categories.foodTotal + categories.alcoholTotal + categories.excludedTotal + categories.otherTotal)
   const base = {
-    gross_sales: fmt(totalNet), net_sales: fmt(totalNet), cash_sales: '0.00', credit_sales: '0.00',
-    gift_card_sales: '0.00', online_orders: '0.00', delivery_orders: '0.00', pickup_orders: '0.00',
-    tips: '0.00', tips_collected: '0.00', tips_withheld: '0.00', tips_after_withholding: '0.00',
-    refunds: '0.00', voids: '0.00', discounts: '0.00', tax: '0.00', guest_count: '0.00',
+    gross_sales: fmt(totalNet), net_sales: fmt(totalNet), cash_sales: fmt(payments.cash), credit_sales: fmt(payments.credit),
+    gift_card_sales: fmt(payments.gift), other_payments: fmt(payments.other), online_orders: '0.00', delivery_orders: '0.00', pickup_orders: '0.00',
+    tips: fmt(payments.tips), tips_collected: fmt(payments.tips), tips_withheld: '0.00', tips_after_withholding: fmt(payments.tips),
+    refunds: '0.00', voids: '0.00', discounts: '0.00', tax: fmt(payments.tax), guest_count: '0.00',
     source_file: fileName
   }
 
@@ -125,6 +146,12 @@ export function parseToastSalesRows(XLSX, workbook, fileName, createId) {
   const alcoholCategoryParts = distributeCategoryRows(categories.alcohol, weights)
   const otherCategoryParts = distributeCategoryRows(categories.other, weights)
   const excludedCategoryParts = distributeCategoryRows(categories.excluded, weights)
+  const cashParts = distributeMoney(payments.cash, weights)
+  const creditParts = distributeMoney(payments.credit, weights)
+  const giftParts = distributeMoney(payments.gift, weights)
+  const otherPaymentParts = distributeMoney(payments.other, weights)
+  const tipsParts = distributeMoney(payments.tips, weights)
+  const taxParts = distributeMoney(payments.tax, weights)
 
   return dayRows.map((row, index) => {
     const dayNet = round2(numeric(findValue(row, ['Net sales', 'Net Sales'])))
@@ -132,6 +159,8 @@ export function parseToastSalesRows(XLSX, workbook, fileName, createId) {
       id: createId('sale'), ...base,
       business_date: parseDate(findValue(row, ['yyyyMMdd', 'Date', 'Business Date']), range.start),
       gross_sales: fmt(dayNet), net_sales: fmt(dayNet),
+      cash_sales: fmt(cashParts[index]), credit_sales: fmt(creditParts[index]), gift_card_sales: fmt(giftParts[index]), other_payments: fmt(otherPaymentParts[index]),
+      tips: fmt(tipsParts[index]), tips_collected: fmt(tipsParts[index]), tips_after_withholding: fmt(tipsParts[index]), tax: fmt(taxParts[index]),
       guest_count: fmt(numeric(findValue(row, ['Total guests', 'Guests', 'Guest Count']))),
       food_sales: fmt(foodParts[index]), alcohol_sales: fmt(alcoholParts[index]),
       other_sales: fmt(otherParts[index]), excluded_sales: fmt(excludedParts[index]),

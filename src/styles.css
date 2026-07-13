@@ -1187,3 +1187,10 @@ button{touch-action:manipulation}
 .alcohol-cost-card .cost-summary-row.cost-total{margin:8px -18px 0;padding:16px 18px;background:rgba(249,115,22,.10);border-top:1px solid #fed7aa;border-bottom:0}
 .food-cost-card .cost-summary-row.cost-total>span>b,.food-cost-card .cost-summary-row.cost-total>strong,.food-cost-card .cost-summary-row.cost-total>i{color:#087333}
 .alcohol-cost-card .cost-summary-row.cost-total>span>b,.alcohol-cost-card .cost-summary-row.cost-total>strong,.alcohol-cost-card .cost-summary-row.cost-total>i{color:#d9480f}
+
+/* RC13.3: all dashboard-card icons are white inside their colored circles. */
+.dashboard-v3 .metric-icon svg,
+.dashboard-v3 .metric-icon svg * {
+  color:#fff !important;
+  stroke:#fff !important;
+}

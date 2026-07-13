@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { RESTAPAY_CLOUD_STATUS_EVENT, loadCloudData, retryPendingCloudSave } from '../lib/localStore'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
-import { calculateDepartmentCosts, menuSaleCategoryLabel } from '../engine/DepartmentCostEngine'
+import { calculateDepartmentCosts, classifySpend, menuSaleCategoryLabel } from '../engine/DepartmentCostEngine'
 
 function num(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -11,6 +11,23 @@ function num(value) {
   if (/^\(.+\)$/.test(text)) return -(Number(text.replace(/[()]/g, '')) || 0)
   return Number(text) || 0
 }
+
+function firstAmount(row = {}, keys = []) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return num(row[key])
+  }
+  return 0
+}
+function toastNetSalesAmount(row = {}) { return firstAmount(row, ['net_sales', 'netSales', 'total_sales', 'gross_sales', 'grossSales']) }
+function toastGrossSalesAmount(row = {}) { return firstAmount(row, ['gross_sales', 'grossSales', 'total_sales', 'net_sales', 'netSales']) }
+function toastCashSalesAmount(row = {}) {
+  const direct = firstAmount(row, ['cash_sales', 'cashSales', 'cash_payments', 'cashPayments', 'total_cash_payments', 'totalCashPayments'])
+  if (direct || ['cash_sales','cashSales','cash_payments','cashPayments','total_cash_payments','totalCashPayments'].some(key => row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '')) return direct
+  const paymentRows = Array.isArray(row.payment_rows) ? row.payment_rows : (Array.isArray(row.paymentRows) ? row.paymentRows : [])
+  return paymentRows.filter(payment => /^cash$/i.test(String(payment.type || payment.payment_type || '').trim())).reduce((sum, payment) => sum + firstAmount(payment, ['amount','total']), 0)
+}
+function toastCreditSalesAmount(row = {}) { return firstAmount(row, ['credit_sales', 'creditSales', 'credit_card_sales', 'card_payments', 'cardSales']) }
+
 function money(value) { return `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
 function pct(value) { return `${Number(value || 0).toFixed(1)}%` }
 function todayStr() { return new Date().toISOString().slice(0, 10) }
@@ -312,16 +329,15 @@ export default function Dashboard({ data, setData, setActive }) {
     })
     const monthExpenses = expenseRows.filter(row => inRange(rowDate(row, ['expense_date', 'date'])))
 
-    const grossSales = monthSales.reduce((sum, row) => sum + num(row.gross_sales || row.total_sales || row.net_sales), 0)
+    const grossSales = monthSales.reduce((sum, row) => sum + toastGrossSalesAmount(row), 0)
     // Toast is the only source of dashboard sales. Prefer each row's Net Sales,
     // and fall back to that Toast row's Total/Gross Sales only when Net Sales is absent.
-    const toastTotalSales = monthSales.reduce((sum, row) => {
-      const hasNet = row.net_sales !== undefined && row.net_sales !== null && String(row.net_sales).trim() !== ''
-      return sum + num(hasNet ? row.net_sales : (row.total_sales || row.gross_sales))
-    }, 0)
+    const toastTotalSales = monthSales.reduce((sum, row) => sum + toastNetSalesAmount(row), 0)
     const netSales = toastTotalSales
-    const cashSales = monthSales.reduce((sum, row) => sum + num(row.cash_sales || row.cash_payments || row.actual_closeout_cash), 0)
-    const creditSales = monthSales.reduce((sum, row) => sum + num(row.credit_sales || row.credit_card_sales || row.card_payments), 0)
+    // Cash Collected is the Toast Cash payment/sales tender. Actual Closeout Cash is
+    // a cash-drawer reconciliation figure and must never replace Toast cash sales.
+    const cashSales = monthSales.reduce((sum, row) => sum + toastCashSalesAmount(row), 0)
+    const creditSales = monthSales.reduce((sum, row) => sum + toastCreditSalesAmount(row), 0)
     const giftSales = monthSales.reduce((sum, row) => sum + num(row.gift_card_sales || row.gift_sales), 0)
     const onlineSales = monthSales.reduce((sum, row) => sum + num(row.online_orders || row.online_sales), 0)
     const explicitOtherSales = monthSales.reduce((sum, row) => sum + num(row.other_payments || row.other_sales || row.other_tender), 0)
@@ -386,9 +402,12 @@ export default function Dashboard({ data, setData, setActive }) {
     })).filter(row => num(row.amount) > 0)
 
     const allSpendRows = [...invoiceItemRows, ...invoiceHeaderRows, ...expenseSpendRows]
-    const totalSpend = allSpendRows.reduce((sum, row) => sum + num(row.amount), 0)
-    const vendorRaw = allSpendRows.filter(row => categoryGroup(row.category || row.label) === 'vendor')
-    const businessRaw = allSpendRows.filter(row => categoryGroup(row.category || row.label) === 'business')
+    // Vendor Spend is invoices only. Business Expenses are expense-table rows only.
+    // Credit-card payments, transfers, loan principal and owner draws are financing
+    // movements, not operating costs, and are excluded from profit/cash cards.
+    const vendorRaw = [...invoiceItemRows, ...invoiceHeaderRows]
+    const businessRaw = expenseSpendRows.filter(row => classifySpend(row).rule !== 'financialTransfer')
+    const totalSpend = vendorRaw.reduce((sum, row) => sum + num(row.amount), 0) + businessRaw.reduce((sum, row) => sum + num(row.amount), 0)
     const categoryRows = sumByCategoryEngine(allSpendRows, data || {})
     const vendorCategories = rollupCategoryRows(sumByCategoryEngine(vendorRaw, categoriesForGroup(data || {}, 'vendor')), 'vendor', 8)
     const businessCategories = rollupCategoryRows(sumByCategoryEngine(businessRaw, categoriesForGroup(data || {}, 'business')), 'business', 8)
@@ -405,15 +424,21 @@ export default function Dashboard({ data, setData, setActive }) {
       menuItems: monthMenuItems,
       settings: data?.settings || {}
     })
+    const directFoodCost = departmentCosts.foodPurchases || 0
+    const directAlcoholCost = (departmentCosts.beerPurchases || 0) + (departmentCosts.liquorPurchases || 0) + (departmentCosts.margaritaMix || 0)
+    const directCogs = directFoodCost + directAlcoholCost
+    const primeCost = directCogs + operatingPayroll
     const operatingProfit = trueNetSales - operatingPayroll - totalSpend
-    const cashSpendRows = allSpendRows.filter(row => String(row.payment_method || row.payment_type || row.pay_method || '').toLowerCase().includes('cash'))
+    const cashSpendRows = [...vendorRaw, ...businessRaw].filter(row => String(row.payment_method || row.payment_type || row.pay_method || '').toLowerCase().includes('cash'))
     const cashVendorSpend = cashSpendRows.reduce((sum, row) => sum + num(row.amount), 0)
     // Customer tips are pass-through funds and never reduce operating cash or profit.
     const cashRemaining = cashSales - cashOperatingPayroll - cashVendorSpend
     const cashNeeded = Math.max(0, -cashRemaining)
-    const foodCostPct = trueNetSales > 0 ? (foodSpend / trueNetSales) * 100 : 0
+    const foodCostPct = trueNetSales > 0 ? (directFoodCost / trueNetSales) * 100 : 0
     const laborPct = trueNetSales > 0 ? (operatingPayroll / trueNetSales) * 100 : 0
-    const primeCostPct = trueNetSales > 0 ? ((foodSpend + operatingPayroll) / trueNetSales) * 100 : 0
+    // Restaurant prime cost = all direct COGS (food + alcohol) + operating labor.
+    // Customer tips, transfers and loan/credit-card payments are excluded.
+    const primeCostPct = trueNetSales > 0 ? (primeCost / trueNetSales) * 100 : 0
     const profitMargin = trueNetSales > 0 ? (operatingProfit / trueNetSales) * 100 : 0
     const averageCheck = monthSales.reduce((sum, row) => sum + num(row.guest_count || row.guests || row.check_count), 0) > 0
       ? trueNetSales / monthSales.reduce((sum, row) => sum + num(row.guest_count || row.guests || row.check_count), 0) : 0
@@ -434,7 +459,7 @@ export default function Dashboard({ data, setData, setActive }) {
       grossSales, netSales, toastTotalSales, trueNetSales, cashSales, creditSales, giftSales, onlineSales, otherSales, paymentTotal, salesReconciliationDifference, tax, tips, tipsWithheld,
       cashPayroll, checkPayroll, payrollTotal, operatingPayroll, cashOperatingPayrollRows, cashOperatingPayroll, managerPayrollTotal, assistantManagerPayroll, managementCashPayroll, customerTipsPaid, customerTipsChecks, invoiceSpend, manualExpenseSpend, totalSpend,
       vendorSpend, businessSpend, foodSpend, operatingProfit, cashRemaining, cashNeeded, cashVendorSpend,
-      foodCostPct, laborPct, primeCostPct, profitMargin, healthScore, departmentCosts, guestCount, averageCheck, margaritaSales, alcoholReconciliationDifference, reconciliationChecks, reconciliationOk,
+      directFoodCost, directAlcoholCost, directCogs, primeCost, foodCostPct, laborPct, primeCostPct, profitMargin, healthScore, departmentCosts, guestCount, averageCheck, margaritaSales, alcoholReconciliationDifference, reconciliationChecks, reconciliationOk,
       categoryRows, vendorCategories, businessCategories, allSpendRows, vendorRaw, businessRaw, operatingLaborRows, customerTipRows,
       vendorRecent: vendorRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
       businessRecent: businessRaw.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 6),
@@ -518,11 +543,19 @@ export default function Dashboard({ data, setData, setActive }) {
   }
 
   const detailConfig = {
-    sales: { title: 'Sales Details', open: 'sales', rows: derived.monthSales, columns: [
+    sales: { title: 'Toast Total Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.toastTotalSales, amountGetter: toastNetSalesAmount, columns: [
       { key: 'business_date', label: 'Date' }, { key: 'gross_sales', label: 'Gross', render: r => money(num(r.gross_sales)) }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
+    ]},
+    'cash-sales': { title: 'Toast Cash Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.cashSales, amountGetter: toastCashSalesAmount, message: 'Cash Collected uses Toast Cash sales/payments only. Actual Closeout Cash is not used.', columns: [
+      { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date','date']) },
+      { key: 'cash_sales', label: 'Toast Cash Sales', render: r => money(toastCashSalesAmount(r)) },
+      { key: 'net_sales', label: 'Toast Net Sales', render: r => money(toastNetSalesAmount(r)) }
     ]},
     payroll: { title: 'Payroll Details', open: 'payroll', rows: derived.monthPayroll, columns: [
       { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date', 'payroll_date', 'date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Class', render: r => payrollClassification(r) }, { key: 'method', label: 'Method', render: r => r.payment_method || r.payroll_type || r.method || '-' }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
+    ]},
+    'server-tips': { title: 'Server Tips Details', open: 'payroll', rows: derived.customerTipRows, expected: derived.customerTipsPaid, amountGetter: rowTipsPaid, columns: [
+      { key:'pay_date',label:'Date',render:r=>rowDate(r,['pay_date','payroll_date','date']) }, { key:'employee_name',label:'Employee',render:r=>r.employee_name||r.name||'-' }, { key:'amount',label:'Tips Paid',render:r=>money(rowTipsPaid(r)) }
     ]},
     'management-payroll': { title: 'Cash + Management Payroll Details', open: 'payroll',
       rows: [
@@ -552,14 +585,38 @@ export default function Dashboard({ data, setData, setActive }) {
     'profit-summary': { title: 'Profit & Loss Reconciliation', open: 'reports', rows: [
       { label: 'Net Restaurant Sales', amount: derived.trueNetSales }, { label: 'Less: Operating Payroll', amount: -derived.operatingPayroll }, { label: 'Less: Vendor + Expense Spend', amount: -derived.totalSpend }
     ], expected: derived.operatingProfit, amountGetter: r => num(r.amount), columns: [{ key:'label', label:'Component' }, { key:'amount', label:'Amount', render:r=>money(r.amount) }]},
+    'operating-profit': { title: 'Operating Profit Reconciliation', open: 'reports', rows: [
+      { label: 'Toast Net Sales', amount: derived.trueNetSales },
+      { label: 'Less: Vendor Invoices', amount: -derived.vendorSpend },
+      { label: 'Less: Business Operating Expenses', amount: -derived.businessSpend },
+      { label: 'Less: Operating Payroll', amount: -derived.operatingPayroll }
+    ], expected: derived.operatingProfit, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}]},
+    'cash-remaining': { title: 'Cash Remaining Reconciliation', open: 'reports', rows: [
+      { label: 'Toast Cash Sales', amount: derived.cashSales },
+      { label: 'Less: Cash Operating Payroll', amount: -derived.cashOperatingPayroll },
+      { label: 'Less: Cash Vendor / Business Spending', amount: -derived.cashVendorSpend }
+    ], expected: derived.cashRemaining, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}]},
+    'prime-cost': { title: 'Prime Cost Reconciliation', open: 'reports', rows: [
+      { label: 'Direct Food Cost', amount: derived.directFoodCost },
+      { label: 'Direct Alcohol Cost', amount: derived.directAlcoholCost },
+      { label: 'Operating Payroll (tips excluded)', amount: derived.operatingPayroll }
+    ], expected: derived.primeCost, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}], message: `Prime Cost ${money(derived.primeCost)} = direct food + direct alcohol + operating payroll. Percentage ${pct(derived.primeCostPct)} of Toast net sales.`},
+    'true-food-cost': { title: 'Actual Food Cost — Invoice Line Items', open: 'invoices', rows: derived.departmentCosts.spendDetails?.food || [], expected: derived.directFoodCost, amountGetter: r => num(r.amount), columns: [
+      { key:'date',label:'Date' }, { key:'vendor',label:'Vendor' }, { key:'costLabel',label:'Category' }, { key:'description',label:'Invoice Line Item' }, { key:'amount',label:'Line Total',render:r=>money(num(r.amount)) }
+    ]},
+    'true-alcohol-cost': { title: 'Actual Alcohol Cost — Invoice Line Items', open: 'invoices', rows: [
+      ...(derived.departmentCosts.spendDetails?.beer || []), ...(derived.departmentCosts.spendDetails?.liquor || []), ...(derived.departmentCosts.spendDetails?.margaritaMix || [])
+    ], expected: derived.directAlcoholCost, amountGetter: r => num(r.amount), columns: [
+      { key:'date',label:'Date' }, { key:'vendor',label:'Vendor' }, { key:'costLabel',label:'Category' }, { key:'description',label:'Invoice Line Item' }, { key:'amount',label:'Line Total',render:r=>money(num(r.amount)) }
+    ]},
     'sales-gross': { title: 'Gross Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.grossSales, amountGetter: r => num(r.gross_sales || r.total_sales || r.net_sales), columns: [{ key:'business_date',label:'Date',render:r=>rowDate(r,['business_date','date'])},{key:'gross_sales',label:'Gross Sales',render:r=>money(num(r.gross_sales || r.total_sales || r.net_sales))}]},
     'sales-credit': { title: 'Credit Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.creditSales, amountGetter: r => num(r.credit_sales), columns: [{ key:'business_date',label:'Date',render:r=>rowDate(r,['business_date','date'])},{key:'credit_sales',label:'Credit Sales',render:r=>money(num(r.credit_sales))}]},
     'sales-tips': { title: 'Tips Collected Details', open: 'sales', rows: derived.monthSales, expected: derived.tips, amountGetter: r => num(r.tips || r.tips_after_withholding), columns: [{ key:'business_date',label:'Date',render:r=>rowDate(r,['business_date','date'])},{key:'tips',label:'Tips',render:r=>money(num(r.tips || r.tips_after_withholding))}]},
     'sales-tax': { title: 'Sales Tax Details', open: 'sales', rows: derived.monthSales, expected: derived.tax, amountGetter: r => num(r.tax), columns: [{ key:'business_date',label:'Date',render:r=>rowDate(r,['business_date','date'])},{key:'tax',label:'Sales Tax',render:r=>money(num(r.tax))}]},
-    vendors: { title: detailCategory ? `${detailCategory} Spending Details` : 'Vendor Spending Details', open: 'invoices', rows: detailVendorRows, columns: [
+    vendors: { title: detailCategory ? `${detailCategory} Spending Details` : 'Vendor Spending Details', open: 'invoices', rows: detailCategory ? detailVendorRows : derived.vendorRaw, expected: detailCategory ? undefined : derived.vendorSpend, amountGetter: r => num(r.amount), columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
-    expenses: { title: detailCategory ? `${detailCategory} Expense Details` : 'Business Expense Details', open: 'expenses', rows: detailExpenseRows, columns: [
+    expenses: { title: detailCategory ? `${detailCategory} Expense Details` : 'Business Expense Details', open: 'expenses', rows: detailCategory ? detailExpenseRows : derived.businessRaw, expected: detailCategory ? undefined : derived.businessSpend, amountGetter: r => num(r.amount), columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
     department: departmentDetailConfig(detailCategory),
@@ -617,16 +674,16 @@ export default function Dashboard({ data, setData, setActive }) {
 
       <div className="metric-grid">
         {visible.netSales && <MetricCard title="Total Sales" value={money(derived.toastTotalSales)} subtitle={`Toast Sales Summary · ${derived.monthSales.length} rows`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />}
-        {visible.cashCollected && <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast cash payments" icon="dollar" tone="green" onClick={() => showDetail('sales')} />}
-        {visible.operatingProfit && <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('health')} />}
-        {visible.cashRemaining && <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle={derived.cashNeeded > 0 ? `Cash needed ${money(derived.cashNeeded)}` : "After cash payroll and cash spending"} icon="card" tone="emerald" onClick={() => showDetail('health')} />}
+        {visible.cashCollected && <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast Cash sales/payments" icon="dollar" tone="green" onClick={() => showDetail('cash-sales')} />}
+        {visible.operatingProfit && <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('operating-profit')} />}
+        {visible.cashRemaining && <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle={derived.cashNeeded > 0 ? `Cash needed ${money(derived.cashNeeded)}` : "Toast cash minus cash payroll and cash spending"} icon="card" tone="emerald" onClick={() => showDetail('cash-remaining')} />}
         {visible.managementCashPayroll && <MetricCard title="Cash + Management Payroll" value={money(derived.managementCashPayroll)} subtitle={`Cash ${money(derived.cashPayroll)} · Managers ${money(derived.managerPayrollTotal)} · Assistants ${money(derived.assistantManagerPayroll)}`} icon="payroll" tone="teal" onClick={() => showDetail('management-payroll')} />}
         {visible.vendorSpend && <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />}
         {visible.businessExpenses && <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />}
-        {visible.serverTips && <MetricCard title="Server Tips" value={money(derived.customerTipsPaid)} subtitle={`Separate from payroll profit · Checks ${money(derived.customerTipsChecks)}`} icon="receipt" tone="orange" onClick={() => showDetail('payroll')} />}
-        {visible.primeCost && <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle="Food + operating labor; customer tips excluded" icon="pie" tone="indigo" onClick={() => showDetail('health')} />}
-        {visible.trueFoodCost && <MetricCard title="True Food Cost" value={money(derived.departmentCosts.trueFoodCost)} subtitle={`${pct(derived.departmentCosts.foodCostPercent)} of food sales`} icon="menu-costing" tone="orange" onClick={() => showDetail('vendors', 'Food')} />}
-        {visible.trueAlcoholCost && <MetricCard title="True Alcohol Cost" value={money(derived.departmentCosts.trueAlcoholCost)} subtitle={`${pct(derived.departmentCosts.alcoholCostPercent)} of alcohol sales`} icon="beer" tone="purple" onClick={() => showDetail('vendors')} />}
+        {visible.serverTips && <MetricCard title="Server Tips" value={money(derived.customerTipsPaid)} subtitle={`Separate from payroll profit · Checks ${money(derived.customerTipsChecks)}`} icon="receipt" tone="orange" onClick={() => showDetail('server-tips')} />}
+        {visible.primeCost && <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle={`${money(derived.primeCost)} · Food + alcohol COGS + labor`} icon="pie" tone="indigo" onClick={() => showDetail('prime-cost')} />}
+        {visible.trueFoodCost && <MetricCard title="True Food Cost" value={money(derived.directFoodCost)} subtitle="Actual categorized invoice line totals" icon="menu-costing" tone="orange" onClick={() => showDetail('true-food-cost')} />}
+        {visible.trueAlcoholCost && <MetricCard title="True Alcohol Cost" value={money(derived.directAlcoholCost)} subtitle="Beer + liquor/wine + margarita invoice lines" icon="beer" tone="purple" onClick={() => showDetail('true-alcohol-cost')} />}
       </div>
 
       <section className="business-health-strip" aria-label="Today business health and reconciliation">
