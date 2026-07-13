@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import { createId } from '../lib/localStore'
+import { parseToastSalesRows } from '../engine/ToastSalesEngine'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function norm(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '') }
@@ -178,8 +179,14 @@ export default function ImportCenter({ data, setData, setActive }) {
 
       if (type === 'sales') {
         if (!workbook) throw new Error('Sales import requires CSV/XLSX.')
-        const rows = genericSalesRows(workbook, file.name)
-        setData(prev => addHistory({ ...prev, salesDays: [...rows, ...(prev.salesDays || [])], salesImports: [{ id: createId('sales-import'), file_name: file.name, row_count: rows.length, created_at: new Date().toISOString() }, ...(prev.salesImports || [])] }, { type: 'Toast Sales Summary', fileName: file.name, rowCount: rows.length, status: rows.length ? 'Imported' : 'No rows' }))
+        const toastRows = parseToastSalesRows(XLSX, workbook, file.name, createId)
+        const rows = toastRows.length ? toastRows : genericSalesRows(workbook, file.name)
+        setData(prev => {
+          const sameSource = row => String(row.source_file || row.file_name || '').trim() === file.name
+          const keptSales = (prev.salesDays || []).filter(row => !sameSource(row))
+          const keptImports = (prev.salesImports || []).filter(row => !sameSource(row))
+          return addHistory({ ...prev, salesDays: [...rows, ...keptSales], salesImports: [{ id: createId('sales-import'), file_name: file.name, row_count: rows.length, created_at: new Date().toISOString() }, ...keptImports] }, { type: 'Toast Sales Summary', fileName: file.name, rowCount: rows.length, status: rows.length ? 'Imported' : 'No rows' })
+        })
         setStatus(`Imported ${rows.length} sales rows. Saved directly to database.`)
       } else if (type === 'payroll') {
         if (!workbook) throw new Error('Payroll import requires CSV/XLSX.')

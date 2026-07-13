@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "start": "vite preview --host 0.0.0.0 --port $PORT"
+    "start": "vite preview --host 0.0.0.0 --port $PORT",
+    "test:toast": "node scripts/test-toast-sales.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
