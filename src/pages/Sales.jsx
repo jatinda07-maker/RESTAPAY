@@ -84,6 +84,15 @@ function paymentAmount(rows, type, subType = '') {
   return round2(num(found?.Amount))
 }
 
+const TOAST_ALCOHOL_CATEGORY_KEYS = new Set([
+  'bottledbeer',
+  'cocktailsshots',
+  'cocktailsandshots',
+  'draftbeer',
+  'margaritas',
+  'wine'
+])
+
 function toastSalesCategories(workbook) {
   const rows = sheetObjects(workbook, 'Sales category summary')
   const food = [], alcohol = [], excluded = [], other = []
@@ -92,8 +101,9 @@ function toastSalesCategories(workbook) {
     if (!category || /^total$/i.test(category)) return
     const entry = { category, itemCount: round2(num(findValue(row, ['Items', 'Item count']))), salesAmount: round2(num(findValue(row, ['Net sales', 'Net Sales']))) }
     const key = normKey(category)
-    if (['food', 'nosalescategoryassigned'].includes(key)) food.push(entry)
-    else if (['bottledbeer', 'cocktailsshots', 'cocktailsandshots', 'draftbeer', 'margaritas', 'wine'].includes(key)) alcohol.push(entry)
+    if (key === 'food') food.push(entry)
+    else if (TOAST_ALCOHOL_CATEGORY_KEYS.has(key)) alcohol.push(entry)
+    else if (key === 'nosalescategoryassigned') other.push(entry)
     else if (['nongratsvccharges', 'nongratservicecharges', 'servicecharges', 'tips', 'tax', 'taxes', 'discounts', 'giftcards', 'giftcard'].includes(key)) excluded.push(entry)
     else other.push(entry)
   })
@@ -382,10 +392,21 @@ export default function Sales({ data, setData }) {
   }
   function savePreview() {
     const rows = previewRows.map(row => ({ ...row, id: createId('sale') }))
-    setData(prev => ({ ...prev, salesDays: [...rows, ...(prev.salesDays || [])], salesImports: [{ id: createId('salesimport'), file_name: rows[0]?.source_file || 'Toast Sales Import', row_count: rows.length, created_at: new Date().toISOString() }, ...(prev.salesImports || [])] }))
+    const sourceFiles = new Set(rows.map(row => String(row.source_file || '').trim()).filter(Boolean))
+    setData(prev => {
+      // Re-importing the same Toast file must replace its older rows. Appending the
+      // corrected import leaves stale partial alcohol totals in the selected period.
+      const keptSales = (prev.salesDays || []).filter(row => !sourceFiles.has(String(row.source_file || '').trim()))
+      const keptImports = (prev.salesImports || []).filter(item => !sourceFiles.has(String(item.file_name || '').trim()))
+      return {
+        ...prev,
+        salesDays: [...rows, ...keptSales],
+        salesImports: [{ id: createId('salesimport'), file_name: rows[0]?.source_file || 'Toast Sales Import', row_count: rows.length, created_at: new Date().toISOString() }, ...keptImports]
+      }
+    })
     setPreviewRows([])
     setSelectedIds([])
-    setStatus(`Saved ${rows.length} sales rows locally`)
+    setStatus(`Saved ${rows.length} sales rows and replaced any older import of the same Toast file`)
   }
   function startEdit(row) { setEditingId(row.id); setEditRow({ ...row }) }
   function saveEdit() {
