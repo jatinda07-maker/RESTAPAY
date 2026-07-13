@@ -226,7 +226,19 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
 
   const netSales = salesRows.reduce((sum, row) => sum + rowSales(row, ['net_sales', 'netSales', 'total_sales']), 0)
 
-  const menuSalesRows = menuItems.map(item => ({
+  const isAggregateSalesRow = (item = {}) => {
+    const name = String(item.name || item.item_name || item.description || item.menu_item || '').trim().toLowerCase()
+    const category = String(item.department || item.department_name || item.sales_department || item.category || item.menu_category || item.sales_category || item.type || '').trim().toLowerCase()
+    const text = `${category} ${name}`.replace(/\s+/g, ' ').trim()
+    return /^(total|grand total|subtotal|net sales|gross sales|total sales|sales total|all sales|food total|alcohol total|bar total)$/i.test(name) ||
+      /^(total|grand total|subtotal)$/i.test(category) ||
+      /\b(summary total|report total)\b/i.test(text)
+  }
+
+  // Product Mix must contain individual menu items only. Aggregate rows such as
+  // "Net Sales" or "Total" are excluded so Toast Total Sales is never added into
+  // Food or Alcohol Sales a second time.
+  const menuSalesRows = menuItems.filter(item => !isAggregateSalesRow(item)).map(item => ({
     ...item,
     department: classifyMenuSale(item),
     normalizedCategory: menuSaleCategoryLabel(item),
@@ -345,8 +357,14 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
   const classifiedDepartmentSales = foodSales + alcoholSales
   const otherDepartmentSales = finalOtherDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
   const excludedDepartmentSales = finalExcludedDepartmentRows.reduce((sum, row) => sum + row.salesAmount, 0)
-  const trueFoodCost = totals.foodPurchases + totals.kitchenPayroll + totals.managerFood + totals.foodSupplies + totals.foodShared
-  const trueAlcoholCost = totals.alcoholPurchases + totals.barPayroll + totals.managerAlcohol + totals.alcoholShared
+  // Keep revenue and cost completely separate. Direct department cost is inventory
+  // purchasing only; payroll and shared overhead remain separate operating expenses.
+  const directFoodCost = totals.foodPurchases
+  const directAlcoholCost = totals.alcoholPurchases
+  const trueFoodCost = directFoodCost + totals.kitchenPayroll + totals.managerFood + totals.foodSupplies + totals.foodShared
+  const trueAlcoholCost = directAlcoholCost + totals.barPayroll + totals.managerAlcohol + totals.alcoholShared
+  const foodGrossProfit = foodSales - directFoodCost
+  const alcoholGrossProfit = alcoholSales - directAlcoholCost
   const foodProfit = foodSales - trueFoodCost
   const alcoholProfit = alcoholSales - trueAlcoholCost
   const allocatedCost = trueFoodCost + trueAlcoholCost
@@ -361,6 +379,10 @@ export function calculateDepartmentCosts({ salesRows = [], payrollRows = [], emp
     ...totals,
     foodSales,
     alcoholSales,
+    directFoodCost,
+    directAlcoholCost,
+    foodGrossProfit,
+    alcoholGrossProfit,
     beerSales: explicitBeerSales || finalAlcoholDepartmentRows.filter(row => /beer|draft/i.test(String(row.category || ''))).reduce((sum, row) => sum + num(row.salesAmount), 0),
     wineSales: explicitWineSales || finalAlcoholDepartmentRows.filter(row => /wine|sangria|champagne|prosecco/i.test(String(row.category || ''))).reduce((sum, row) => sum + num(row.salesAmount), 0),
     liquorSales: explicitLiquorSales || finalAlcoholDepartmentRows.filter(row => /liquor|spirits|shot/i.test(String(row.category || ''))).reduce((sum, row) => sum + num(row.salesAmount), 0),

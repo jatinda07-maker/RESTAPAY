@@ -99,7 +99,7 @@ export default function CostAnalysis({ data }) {
     <div className="cost-page-grid">
       <section className="cost-department-card food-cost-card"><header><h2>Food Department</h2><span>{pct(derived.foodCostPercent)} cost</span></header><div className="cost-summary-list">
         <SummaryRow label="Food Sales" value={money(derived.foodSales)} note="Food + No Sales Category Assigned" onClick={() => openSales('food')} />
-        <SummaryRow label="Food Purchases" value={money(derived.foodPurchases)} onClick={() => openCost('Food Purchase Details', derived.spendDetails.food || [], derived.foodPurchases)} />
+        <SummaryRow label="Direct Food Cost" value={money(derived.directFoodCost ?? derived.foodPurchases)} onClick={() => openCost('Food Purchase Details', derived.spendDetails.food || [], derived.foodPurchases)} />
         <SummaryRow label="Kitchen Payroll" value={money(derived.kitchenPayroll)} onClick={() => openCost('Kitchen Payroll Details', derived.payrollDetails.kitchen || [], derived.kitchenPayroll)} />
         <SummaryRow label="Manager Allocation" value={money(derived.managerFood)} onClick={() => openCost('Manager Allocation — Food', managerRowsFood, derived.managerFood)} />
         <SummaryRow label="Shared Supplies / Cintas / Utilities" value={money(derived.foodSupplies + derived.foodShared)} onClick={() => openCost('Shared Costs — Food', sharedFoodRows, derived.foodSupplies + derived.foodShared, 'allocatedAmount')} />
@@ -120,7 +120,7 @@ export default function CostAnalysis({ data }) {
       </div></section>
     </div>
 
-    <section className="cost-reconciliation-strip"><span>Toast Net Sales</span><b>{money(derived.netSales)}</b><span>Food + Alcohol</span><b>{money(classifiedSales)}</b><span>Excluded / Other</span><b>{money(derived.excludedDepartmentSales + derived.otherDepartmentSales)}</b><span>Difference</span><b className={Math.abs(derived.departmentSalesDifference - derived.excludedDepartmentSales - derived.otherDepartmentSales) < 0.02 ? 'ok' : 'warn'}>{money(derived.netSales - classifiedSales - derived.excludedDepartmentSales - derived.otherDepartmentSales)}</b></section>
+    <section className="cost-reconciliation-strip"><span>Toast Total Sales</span><b>{money(derived.netSales)}</b><span>Department Sales Only</span><b>{money(classifiedSales)}</b><span>Excluded / Other</span><b>{money(derived.excludedDepartmentSales + derived.otherDepartmentSales)}</b><span>Difference</span><b className={Math.abs(derived.departmentSalesDifference - derived.excludedDepartmentSales - derived.otherDepartmentSales) < 0.02 ? 'ok' : 'warn'}>{money(derived.netSales - classifiedSales - derived.excludedDepartmentSales - derived.otherDepartmentSales)}</b></section>
     <DrilldownModal detail={detail} onClose={() => setDetail(null)} />
   </div>
 }
