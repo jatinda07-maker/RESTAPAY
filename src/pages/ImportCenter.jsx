@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import { createId } from '../lib/localStore'
 import { parseToastSalesRows } from '../engine/ToastSalesEngine'
+import { parseToastLaborRows, laborImportDiagnostics } from '../engine/ToastLaborEngine'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function norm(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '') }
@@ -123,17 +124,36 @@ function genericSalesRows(workbook, fileName) {
     return { id: createId('sale'), business_date: date, gross_sales: fmt(gross), net_sales: fmt(net), cash_sales: fmt(cash), credit_sales: fmt(credit), gift_card_sales: '0.00', online_orders: fmt(money(findValue(row, ['Online', 'DoorDash', 'Other']))), delivery_orders: '0.00', pickup_orders: '0.00', tips: fmt(money(findValue(row, ['Tips', 'Tips after withholding']))), refunds: fmt(Math.abs(money(findValue(row, ['Refunds'])))), voids: fmt(Math.abs(money(findValue(row, ['Voids'])))), discounts: fmt(Math.abs(money(findValue(row, ['Discounts'])))), tax: fmt(money(findValue(row, ['Tax', 'Taxes']))), guest_count: fmt(money(findValue(row, ['Guests', 'Guest Count']))), source_file: fileName, import_note: 'Imported from Import Center' }
   }).filter(Boolean)
 }
-function payrollRows(workbook, fileName) {
-  const rows = firstSheetRows(workbook)
-  return rows.map(row => {
-    const name = String(findValue(row, ['Employee', 'Employee Name', 'Name'])).trim()
-    const hours = money(findValue(row, ['Hours', 'Regular Hours', 'Total Hours']))
-    const total = money(findValue(row, ['Total Pay', 'Pay', 'Gross Pay', 'Amount']))
-    const tips = money(findValue(row, ['Tips', 'Tips after withholding', 'Final Tips']))
-    if (!name || (!hours && !total && !tips)) return null
-    return { id: createId('pay'), employee_name: name, employee_id: null, pay_date: parseDate(findValue(row, ['Date', 'Payroll Date', 'Business Date'])), source: fileName, pay_type: 'Hourly', payment_method: /server|waiter|waitress|tips/i.test(name) ? 'Check' : 'Cash', payroll_type: /server|waiter|waitress|tips/i.test(name) ? 'Customer Tips' : 'Operating Labor', hours: fmt(hours), regular_pay: fmt(total), tips_after_withholding: fmt(tips), tips_withheld: fmt(money(findValue(row, ['Tips Withheld', 'Withheld']))), total_pay: fmt(total || tips), extra_pay: '0.00', extra_reason: '', check_number: '' }
-  }).filter(Boolean)
+function payrollRows(workbook, fileName, payDate = today(), tipRate = 3.5) {
+  const parsed = parseToastLaborRows(XLSX, workbook, { payDate, tipRate })
+  return parsed.map(row => ({
+    id: createId('pay'),
+    employee_name: row.employee_name,
+    employee_id: null,
+    pay_date: row.pay_date || payDate,
+    source: fileName,
+    source_file: fileName,
+    source_sheet: row.source_sheet || '',
+    pay_type: Number(row.total_tips || 0) > 0 ? 'Tips' : 'Hourly',
+    payroll_type: 'Check',
+    payroll_classification: /server|waiter|waitress|bartender|front house|foh|tip/i.test(`${row.job_type || ''} ${row.employee_name || ''}`) ? 'Customer Tips' : 'Operating Labor',
+    payment_method: 'Check',
+    job_type: row.job_type || '',
+    hours: fmt(row.hours),
+    regular_pay: fmt(row.regular_pay),
+    gross_pay: fmt(row.gross_pay),
+    total_tips: fmt(row.total_tips),
+    tips: fmt(row.tips),
+    tip_deduction: fmt(row.tip_deduction),
+    tips_after_withholding: fmt(row.tips),
+    tips_withheld: fmt(row.tip_deduction),
+    total_pay: fmt(Number(row.regular_pay || 0) + Number(row.tips || 0)),
+    extra_pay: '0.00',
+    extra_reason: '',
+    check_number: row.check_number || ''
+  }))
 }
+
 function invoiceFromFile(fileName, kind) {
   const isCredit = ['rebate', 'credit', 'return'].includes(kind)
   return { id: createId('invoice'), vendor_name: '', invoice_number: fileName.replace(/\.[^.]+$/, ''), invoice_date: today(), due_date: '', category: kind === 'rebate' ? 'Food' : 'Other', payment_type: isCredit ? 'Vendor Credit' : 'Check', invoice_type: kind === 'rebate' ? 'Rebate' : kind === 'credit' ? 'Credit Memo' : kind === 'return' ? 'Return Credit' : 'Regular Invoice', status: isCredit ? 'Credit' : 'Open', total: '0.00', subtotal: '0.00', tax: '0.00', source_file: fileName, notes: isCredit ? 'Imported document placeholder. Review and enter credit amount.' : 'Imported document placeholder. Review and enter invoice total.' }
@@ -197,9 +217,15 @@ export default function ImportCenter({ data, setData, setActive }) {
         setStatus(`Imported ${rows.length} sales rows. Saved directly to database.`)
       } else if (type === 'payroll') {
         if (!workbook) throw new Error('Payroll import requires CSV/XLSX.')
-        const rows = payrollRows(workbook, file.name)
-        setData(prev => addHistory({ ...prev, payrollEntries: [...rows, ...(prev.payrollEntries || [])], payrollImports: [{ id: createId('payroll-import'), file_name: file.name, row_count: rows.length, created_at: new Date().toISOString() }, ...(prev.payrollImports || [])] }, { type: 'Toast Labor / Payroll', fileName: file.name, rowCount: rows.length, status: rows.length ? 'Imported' : 'No rows' }))
-        setStatus(`Imported ${rows.length} payroll rows. Saved directly to database.`)
+        const rows = payrollRows(workbook, file.name, today(), Number(data.settings?.tipWithholdingRate ?? 3.5))
+        const diag = laborImportDiagnostics(rows.map(row => ({ hours: row.hours, regular_pay: row.regular_pay, total_tips: row.total_tips, tips: row.tips, tip_deduction: row.tip_deduction })))
+        setData(prev => {
+          const sameSource = row => String(row.source_file || row.source || '').trim() === file.name
+          const keptEntries = (prev.payrollEntries || []).filter(row => !sameSource(row))
+          const keptImports = (prev.payrollImports || []).filter(row => String(row.file_name || '').trim() !== file.name)
+          return addHistory({ ...prev, payrollEntries: [...rows, ...keptEntries], payrollImports: [{ id: createId('payroll-import'), file_name: file.name, row_count: rows.length, created_at: new Date().toISOString() }, ...keptImports] }, { type: 'Toast Labor / Payroll', fileName: file.name, rowCount: rows.length, status: rows.length ? 'Imported' : 'No rows' })
+        })
+        setStatus(rows.length ? `Imported ${rows.length} payroll rows: ${diag.hours.toFixed(2)} hours, $${diag.regularPay.toFixed(2)} wages, $${diag.netTips.toFixed(2)} net tips. Saved directly to database.` : `No employee labor rows were found in ${file.name}.`)
       } else if (type === 'productMix') {
         if (!workbook) throw new Error('Product Mix import requires CSV/XLSX.')
         const items = productMixItems(workbook, file.name)

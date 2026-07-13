@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
 import { createId, sortByName } from '../lib/localStore'
+import { parseToastLaborRows, laborImportDiagnostics } from '../engine/ToastLaborEngine'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
@@ -386,51 +387,56 @@ export default function Payroll({ data, setData }) {
   async function handleLaborFile(event) {
     const file = event.target.files?.[0]
     if (!file) return
-    const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array' })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-    const parsed = rows.map(row => {
-      const rawName = String(findValue(row, ['Employee', 'Employee Name', 'Name', 'Team Member', 'Staff']) || '').trim()
-      const cleanName = displayToastName(rawName)
-      const employee = employees.find(emp => nameMatches(emp.name, rawName))
-      const hours = round2(num(findValue(row, ['Hours', 'Regular Hours', 'Total Hours', 'Worked Hours'])))
-      const rate = round2(num(findValue(row, ['Rate', 'Hourly Rate', 'Pay Rate'])))
-      const totalTips = round2(num(findValue(row, ['Total Tips', 'Tips', 'Non-Cash Tips', 'Declared Tips', 'Cash Tips'])))
-      const toastWithheld = findValue(row, ['Tips Withheld', 'Tip Withheld', 'Tips Withholding', 'Withheld Tips'])
-      const tipDeduction = round2(toastWithheld !== '' ? num(toastWithheld) : totalTips * (tipRate / 100))
-      const tipsAfterWithholding = round2(Math.max(totalTips - tipDeduction, 0))
-      const gross = round2(num(findValue(row, ['Gross Pay', 'Gross', 'Total Pay', 'Wages', 'Regular Pay'])))
-      const checkNumber = String(findValue(row, ['Check Number', 'Check #', 'Check No', 'Check No.', 'Payment Number', 'Reference Number']) || '').trim()
-      const regular = round2(gross || (hours * (rate || num(employee?.base_pay))))
-      return {
-        id: createId('imp'),
-        employee_id: employee?.id || '',
-        employee_name: employee?.name || cleanName || rawName,
-        raw_name: rawName,
-        is_new_employee: !employee,
-        employee_type: normalizeType(employee?.employee_type || findValue(row, ['Employee Type', 'Type', 'Job Type', 'Role', 'Department']), employeeTypeOptions),
-        job_type: employee?.job_type || '',
-        assignment_label: employeeAssignmentLabel(employee, groups),
-        hours: money(hours),
-        rate: money(rate),
-        regular_pay: money(regular),
-        gross_pay: money(gross),
-        total_tips: money(totalTips),
-        tips: money(totalTips),
-        tip_deduction: money(tipDeduction),
-        extra_pay: '0.00',
-        extra_reason: '',
-        total_pay: money(regular + totalTips - tipDeduction),
-        check_number: checkNumber,
-        payroll_type: employee?.payroll_type || 'Check',
-        pay_type: employee?.pay_type || 'Tips',
-        payroll_classification: inferPayrollClassification(employee || { pay_type: 'Tips', employee_name: cleanName || rawName })
-      }
-    }).filter(row => row.employee_name)
-    setPreviewRows(parsed)
-    setStatus(`Imported ${parsed.length} labor rows. Review and edit before adding to payroll.`)
-    event.target.value = ''
+    try {
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+      const laborRows = parseToastLaborRows(XLSX, workbook, { payDate: toastPayDate, tipRate })
+      const parsed = laborRows.map(source => {
+        const rawName = String(source.raw_name || source.employee_name || '').trim()
+        const cleanName = displayToastName(rawName)
+        const employee = employees.find(emp => nameMatches(emp.name, rawName))
+        const regular = round2(num(source.regular_pay) || defaultRegularPay(employee, source))
+        const tipsAfterWithholding = round2(num(source.tips))
+        const tipDeduction = round2(num(source.tip_deduction))
+        return {
+          id: createId('imp'),
+          employee_id: employee?.id || '',
+          employee_name: employee?.name || cleanName || rawName,
+          raw_name: rawName,
+          is_new_employee: !employee,
+          employee_type: normalizeType(employee?.employee_type || source.job_type, employeeTypeOptions),
+          job_type: employee?.job_type || source.job_type || '',
+          assignment_label: employeeAssignmentLabel(employee, groups),
+          hours: money(source.hours),
+          rate: money(source.rate),
+          regular_pay: money(regular),
+          gross_pay: money(source.gross_pay),
+          total_tips: money(source.total_tips),
+          tips: money(tipsAfterWithholding),
+          tip_deduction: money(tipDeduction),
+          extra_pay: '0.00',
+          extra_reason: '',
+          total_pay: money(regular + tipsAfterWithholding),
+          check_number: source.check_number || '',
+          payroll_type: employee?.payroll_type || 'Check',
+          pay_type: employee?.pay_type || (num(source.total_tips) > 0 ? 'Tips' : 'Hourly'),
+          payroll_classification: inferPayrollClassification(employee || { pay_type: num(source.total_tips) > 0 ? 'Tips' : 'Hourly', job_type: source.job_type, employee_name: cleanName || rawName }),
+          pay_date: source.pay_date || toastPayDate,
+          source_sheet: source.source_sheet || '',
+          source_file: file.name
+        }
+      }).filter(row => row.employee_name)
+      const diag = laborImportDiagnostics(laborRows)
+      setPreviewRows(parsed)
+      setStatus(parsed.length
+        ? `Imported ${parsed.length} labor rows from ${file.name}: ${diag.hours.toFixed(2)} hours, $${diag.regularPay.toFixed(2)} wages, $${diag.netTips.toFixed(2)} net tips, $${diag.withheld.toFixed(2)} withheld. Review before adding to payroll.`
+        : `No employee labor rows were found in ${file.name}. Confirm this is a Toast Labor Summary, Employee Time, or Payroll workbook.`)
+    } catch (error) {
+      console.error(error)
+      setStatus(error?.message || 'Labor import failed. Review the workbook and try again.')
+    } finally {
+      event.target.value = ''
+    }
   }
 
   function updatePreview(id, field, value) {
@@ -482,7 +488,7 @@ export default function Payroll({ data, setData }) {
         }
         const sourceLabel = employeeAssignmentLabel(employee, prev.payrollGroups || [])
         return {
-          id: createId('pay'), employee_id: employeeId, employee_name: employee.name || employeeName, group_name: sourceLabel, pay_date: toastPayDate,
+          id: createId('pay'), employee_id: employeeId, employee_name: employee.name || employeeName, group_name: row.source_sheet ? `Toast: ${row.source_sheet}` : sourceLabel, pay_date: row.pay_date || toastPayDate,
           pay_type: employee.pay_type || row.pay_type, payroll_type: employee.payroll_type || row.payroll_type, payroll_classification: row.payroll_classification || employee.payroll_classification || inferPayrollClassification(employee), check_number: row.check_number || '', hours: num(row.hours), regular_pay: num(row.regular_pay), tips: num(row.tips),
           tip_deduction: num(row.tip_deduction), extra_pay: num(row.extra_pay), extra_reason: row.extra_reason || '', total_pay: num(row.total_pay)
         }
@@ -491,7 +497,7 @@ export default function Payroll({ data, setData }) {
         ...prev,
         employees: sortByName([...existingEmployees, ...newEmployees]),
         payrollEntries: [...rows, ...(prev.payrollEntries || [])],
-        payrollImports: [{ id: importId, date: toastPayDate, row_count: rows.length, new_employee_count: newEmployees.length, created_at: new Date().toISOString() }, ...(prev.payrollImports || [])]
+        payrollImports: [{ id: importId, date: toastPayDate, file_name: sourceRows[0]?.source_file || '', row_count: rows.length, new_employee_count: newEmployees.length, created_at: new Date().toISOString() }, ...(prev.payrollImports || [])]
       }
     })
     setPreviewRows([])
