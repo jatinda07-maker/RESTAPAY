@@ -1348,3 +1348,24 @@ input:focus, textarea:focus, select:focus {
 .recipe-detail-enterprise{position:relative;top:auto}.recipe-detail-enterprise .section-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px}.recipe-detail-enterprise .actions{display:flex;gap:8px}
 @media(max-width:1350px){.menu-costing-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.menu-target-panel{grid-template-columns:1fr 1fr 1fr}.menu-costing-filterbar{grid-template-columns:1fr 1fr 1fr}}
 @media(max-width:820px){.menu-costing-toolbar{align-items:stretch;flex-direction:column}.menu-costing-toolbar .actions{justify-content:flex-start}.menu-costing-kpis{grid-template-columns:1fr}.menu-target-panel,.menu-costing-filterbar{grid-template-columns:1fr}.menu-costing-tabs{overflow-x:auto}.menu-costing-tabs button{white-space:nowrap}}
+
+/* RC14.5: white line icons inside every colored icon tile */
+.cost-kpi-icon svg,.cost-kpi-icon svg *,
+.menu-item-icon svg,.menu-item-icon svg *,
+.cost-header-icon svg,.cost-header-icon svg *,
+.cost-row-icon svg,.cost-row-icon svg *,
+.metric-icon svg,.metric-icon svg *,
+.section-icon svg,.section-icon svg * {
+  stroke: currentColor !important;
+}
+.cost-kpi-icon,.menu-item-icon,.cost-header-icon,
+.metric-card .metric-icon {
+  color:#fff !important;
+}
+.cost-kpi-icon svg,.cost-kpi-icon svg *,
+.menu-item-icon svg,.menu-item-icon svg *,
+.cost-header-icon svg,.cost-header-icon svg *,
+.metric-card .metric-icon svg,.metric-card .metric-icon svg * {
+  stroke:#fff !important;
+  color:#fff !important;
+}
