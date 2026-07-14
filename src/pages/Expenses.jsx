@@ -36,7 +36,7 @@ export default function Expenses({ data, setData }) {
       if (!q) return true
       return [row.name, row.category, row.vendor, row.payment_method, row.check_number, row.notes].some(v => String(v || '').toLowerCase().includes(q))
     })
-    .sort((a, b) => rowDate(b).localeCompare(rowDate(a)) || String(a.vendor || a.name || '').localeCompare(String(b.vendor || b.name || ''))), [expenses, search, dateStart, dateEnd])
+    .sort((a, b) => rowDate(a).localeCompare(rowDate(b)) || String(a.vendor || a.name || '').localeCompare(String(b.vendor || b.name || ''))), [expenses, search, dateStart, dateEnd])
 
   const summary = useMemo(() => {
     const total = filtered.reduce((sum, row) => sum + num(row.amount), 0)

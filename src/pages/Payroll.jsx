@@ -7,14 +7,7 @@ import { parseToastLaborRows, laborImportDiagnostics } from '../engine/ToastLabo
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function startOfMonthISO(date = new Date()) { return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10) }
-function readSavedDateRange() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('restapay_payroll_date_range') || '{}')
-    return { start: saved.start || startOfMonthISO(), end: saved.end || today() }
-  } catch {
-    return { start: startOfMonthISO(), end: today() }
-  }
-}
+function readSavedDateRange() { return { start: startOfMonthISO(), end: today() } }
 function saveGlobalDateRange(start, end) {
   try { localStorage.setItem('restapay_payroll_date_range', JSON.stringify({ start, end })) } catch {}
 }
@@ -114,6 +107,8 @@ export default function Payroll({ data, setData }) {
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
   const [employeeSearch, setEmployeeSearch] = useState('')
+  const [payMethodFilter, setPayMethodFilter] = useState('all')
+  const [payClassFilter, setPayClassFilter] = useState('all')
 
   function updateDateStart(value) {
     setDateStart(value)
@@ -163,18 +158,18 @@ export default function Payroll({ data, setData }) {
     return entries.filter(entry => {
       const entryDate = entry.pay_date || entry.payroll_date || entry.date
       if (!inSelectedRange(entryDate)) return false
-      if (!query) return true
-      const searchable = [
-        entry.employee_name,
-        entry.employee_id,
-        entry.group_name,
-        entry.payroll_type,
-        entry.pay_type,
-        entry.check_number
-      ].join(' ').toLowerCase()
-      return searchable.includes(query)
-    })
-  }, [entries, dateStart, dateEnd, employeeSearch])
+      const method = String(entry.payroll_type || entry.payment_method || '').toLowerCase()
+      const classification = String(entry.payroll_classification || inferPayrollClassification(entry)).toLowerCase()
+      if (payMethodFilter !== 'all' && method !== payMethodFilter) return false
+      if (payClassFilter === 'operating' && classification.includes('tip')) return false
+      if (payClassFilter === 'tips' && !classification.includes('tip')) return false
+      if (query) {
+        const searchable = [entry.employee_name, entry.employee_id, entry.group_name, entry.payroll_type, entry.pay_type, entry.check_number].join(' ').toLowerCase()
+        if (!searchable.includes(query)) return false
+      }
+      return true
+    }).sort((a, b) => String(a.pay_date || a.payroll_date || a.date || '').localeCompare(String(b.pay_date || b.payroll_date || b.date || '')) || String(a.employee_name || '').localeCompare(String(b.employee_name || '')))
+  }, [entries, dateStart, dateEnd, employeeSearch, payMethodFilter, payClassFilter])
   const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
   const activeFilterLabel = employeeSearch.trim() ? ` • Employee/search: ${employeeSearch.trim()}` : ''
 
@@ -694,11 +689,12 @@ export default function Payroll({ data, setData }) {
 
     <div className="page-filter-shell payroll-filter-shell">
       <DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}${activeFilterLabel}`) }} onPreset={applyPreset} />
-      <label className="search-box payroll-employee-search">
+      <label className="search-box payroll-employee-search emphasized-search">
         <span>Employee / Check Search</span>
         <input value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} placeholder="Search employee, group, method, check #" />
       </label>
-      {employeeSearch && <button type="button" className="btn ghost clear-filter-btn" onClick={() => setEmployeeSearch('')}>Clear Search</button>}
+      <div className="filter-dropdown-group payroll-dropdown-filters"><label>Payment<select value={payMethodFilter} onChange={e => setPayMethodFilter(e.target.value)}><option value="all">All methods</option><option value="cash">Cash</option><option value="check">Check</option></select></label><label>Class<select value={payClassFilter} onChange={e => setPayClassFilter(e.target.value)}><option value="all">All classes</option><option value="operating">Operating labor</option><option value="tips">Customer tips</option></select></label></div>
+      {(employeeSearch || payMethodFilter !== 'all' || payClassFilter !== 'all') && <button type="button" className="btn ghost clear-filter-btn" onClick={() => { setEmployeeSearch(''); setPayMethodFilter('all'); setPayClassFilter('all') }}>Clear Filters</button>}
       <span className="filter-note">Showing {filteredEntries.length} payroll rows • {rangeLabel}{activeFilterLabel}</span>
     </div>
 

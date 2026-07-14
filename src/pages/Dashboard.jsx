@@ -45,14 +45,7 @@ function rangeForPreset(preset) {
   }
   return rangeForPreset('thisMonth')
 }
-function readSavedDateRange() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('restapay_dashboard_date_range') || '{}')
-    return { start: saved.start || rangeForPreset('thisMonth').start, end: saved.end || rangeForPreset('thisMonth').end }
-  } catch {
-    return { start: '', end: '' }
-  }
-}
+function readSavedDateRange() { return rangeForPreset('thisMonth') }
 function saveGlobalDateRange(start, end) {
   try { localStorage.setItem('restapay_dashboard_date_range', JSON.stringify({ start, end })) } catch {}
 }
@@ -259,14 +252,9 @@ export default function Dashboard({ data, setData, setActive }) {
   }
   const visible = { ...defaultDashboardVisibility, ...(data?.settings?.dashboardVisibility || {}) }
 
-  useEffect(() => {
-    if (!(dateStart || dateEnd)) return
-    if (!hasDashboardRowsInRange(data || {}, dateStart, dateEnd)) {
-      setDateStart('')
-      setDateEnd('')
-      saveGlobalDateRange('', '')
-    }
-  }, [data, dateStart, dateEnd])
+  // Keep the dashboard on the requested month-to-date range even when that
+  // month has no rows. An empty current month is meaningful and must not
+  // silently expand to all historical data.
 
   function applyRange() { saveGlobalDateRange(dateStart, dateEnd); setPreset('custom'); setDetail('') }
   function applyPreset(nextPreset) {

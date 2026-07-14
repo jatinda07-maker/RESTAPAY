@@ -7,12 +7,9 @@ export function startOfMonthISO(date = new Date()) {
 }
 
 export function readPageDateRange(page = 'workspace') {
-  try {
-    const saved = JSON.parse(localStorage.getItem(`restapay_${page}_date_range`) || '{}')
-    return { start: saved.start || startOfMonthISO(), end: saved.end || todayISO() }
-  } catch {
-    return { start: startOfMonthISO(), end: todayISO() }
-  }
+  // Every workspace opens month-to-date. Users can still change the range while
+  // they remain on the page, but an old saved range never surprises them later.
+  return { start: startOfMonthISO(), end: todayISO() }
 }
 
 export function savePageDateRange(page = 'workspace', start, end) {

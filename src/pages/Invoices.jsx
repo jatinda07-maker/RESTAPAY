@@ -244,7 +244,7 @@ async function extractWithGemini(file) {
 export default function Invoices({ data, setData }) {
   const vendors = sortByName(data.vendors || [])
   const categories = data.vendorCategories || []
-  const invoices = [...(data.invoices || [])].sort((a, b) => String(b.invoice_date || b.created_at || '').localeCompare(String(a.invoice_date || a.created_at || '')))
+  const invoices = [...(data.invoices || [])].sort((a, b) => String(a.invoice_date || a.created_at || '').localeCompare(String(b.invoice_date || b.created_at || '')))
 
   const [form, setForm] = useState(blankInvoice)
   const [editingId, setEditingId] = useState(null)
@@ -307,7 +307,7 @@ export default function Invoices({ data, setData }) {
       .slice(0, 4)
       .map(([label, amount]) => ({ label, amount }))
 
-    const latestInvoice = [...rows].sort((a, b) => String(b.invoice_date || b.created_at || '').localeCompare(String(a.invoice_date || a.created_at || '')))[0]
+    const latestInvoice = [...rows].sort((a, b) => String(a.invoice_date || a.created_at || '').localeCompare(String(b.invoice_date || b.created_at || '')))[0]
 
     return {
       rows,

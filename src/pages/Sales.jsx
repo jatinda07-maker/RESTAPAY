@@ -297,6 +297,8 @@ export default function Sales({ data, setData }) {
   const [status, setStatus] = useState('Local auto-save is active. Sales history will not disappear.')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('thisMonth')
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [paymentFilter, setPaymentFilter] = useState('all')
   const [dateStart, setDateStart] = useState(() => startOfMonthISO())
   const [dateEnd, setDateEnd] = useState(() => today())
   const [editingId, setEditingId] = useState(null)
@@ -347,13 +349,19 @@ export default function Sales({ data, setData }) {
 
   const filteredSales = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return [...salesDays].sort((a, b) => String(b.business_date).localeCompare(String(a.business_date))).filter(row => {
+    return [...salesDays].sort((a, b) => String(a.business_date).localeCompare(String(b.business_date))).filter(row => {
       if (q && !String(row.business_date).includes(q) && !String(row.source_file || '').toLowerCase().includes(q) && !String(row.import_note || '').toLowerCase().includes(q)) return false
       if (dateStart && String(row.business_date) < dateStart) return false
       if (dateEnd && String(row.business_date) > dateEnd) return false
+      const sourceText = `${row.source_file || ''} ${row.import_note || ''}`.toLowerCase()
+      if (sourceFilter === 'toast' && !sourceText.includes('toast')) return false
+      if (sourceFilter === 'manual' && sourceText.includes('toast')) return false
+      if (paymentFilter === 'cash' && num(row.cash_sales) <= 0) return false
+      if (paymentFilter === 'credit' && num(row.credit_sales) <= 0) return false
+      if (paymentFilter === 'tips' && num(row.tips_after_withholding ?? row.tips) <= 0) return false
       return true
     })
-  }, [salesDays, search, dateStart, dateEnd])
+  }, [salesDays, search, dateStart, dateEnd, sourceFilter, paymentFilter])
 
   const totals = useMemo(() => filteredSales.reduce((acc, row) => {
     acc.gross += num(row.gross_sales); acc.net += num(row.net_sales); acc.cash += num(row.cash_sales); acc.credit += num(row.credit_sales)
@@ -444,7 +452,7 @@ export default function Sales({ data, setData }) {
         overflow-x: auto;
       }
       .sales-table.fit-sales-table {
-        min-width: 1320px;
+        min-width: 1640px;
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
@@ -457,8 +465,42 @@ export default function Sales({ data, setData }) {
         white-space: nowrap;
       }
       .sales-table.fit-sales-table th {
-        font-size: 12px;
-        letter-spacing: .04em;
+        font-size: 11.5px;
+        letter-spacing: .025em;
+        line-height: 1.2;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        text-align: right;
+      }
+      .sales-table.fit-sales-table th:first-child,
+      .sales-table.fit-sales-table th:nth-child(2) {
+        text-align: left;
+      }
+      .sales-table.fit-sales-table th:nth-child(3),
+      .sales-table.fit-sales-table td:nth-child(3),
+      .sales-table.fit-sales-table th:nth-child(4),
+      .sales-table.fit-sales-table td:nth-child(4),
+      .sales-table.fit-sales-table th:nth-child(5),
+      .sales-table.fit-sales-table td:nth-child(5),
+      .sales-table.fit-sales-table th:nth-child(6),
+      .sales-table.fit-sales-table td:nth-child(6),
+      .sales-table.fit-sales-table th:nth-child(7),
+      .sales-table.fit-sales-table td:nth-child(7),
+      .sales-table.fit-sales-table th:nth-child(8),
+      .sales-table.fit-sales-table td:nth-child(8),
+      .sales-table.fit-sales-table th:nth-child(10),
+      .sales-table.fit-sales-table td:nth-child(10),
+      .sales-table.fit-sales-table th:nth-child(11),
+      .sales-table.fit-sales-table td:nth-child(11),
+      .sales-table.fit-sales-table th:nth-child(12),
+      .sales-table.fit-sales-table td:nth-child(12),
+      .sales-table.fit-sales-table th:nth-child(13),
+      .sales-table.fit-sales-table td:nth-child(13) {
+        width: 96px;
+      }
+      .sales-table.fit-sales-table th:nth-child(9),
+      .sales-table.fit-sales-table td:nth-child(9) {
+        width: 145px;
       }
       .sales-table.fit-sales-table .sales-check-col {
         width: 48px;
@@ -545,7 +587,8 @@ export default function Sales({ data, setData }) {
     <div className="status-pill">{status}</div>
 
     <div className="page-filter-shell">
-      <div className="search-box sales-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date or file..." /></div>
+      <div className="search-box sales-search emphasized-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date or file..." /></div>
+      <div className="filter-dropdown-group"><label>Source<select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="toast">Toast imports</option><option value="manual">Manual entries</option></select></label><label>Contains<select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}><option value="all">All sales</option><option value="cash">Cash collected</option><option value="credit">Credit collected</option><option value="tips">Tips collected</option></select></label></div>
       <DateControls start={dateStart} end={dateEnd} onStartChange={value => { setDateStart(value); setFilter('custom') }} onEndChange={value => { setDateEnd(value); setFilter('custom') }} onApply={() => setStatus(`Showing ${filteredSales.length} sales rows${dateStart || dateEnd ? ` from ${dateStart || 'start'} to ${dateEnd || 'today'}` : ''}`)} onPreset={applyFilterPreset} />
     </div>
     {(dateStart || dateEnd) && <p className="filter-note">Showing data from {dateStart || 'first record'} to {dateEnd || 'latest record'}</p>}

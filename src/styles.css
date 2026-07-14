@@ -1194,3 +1194,121 @@ button{touch-action:manipulation}
   color:#fff !important;
   stroke:#fff !important;
 }
+
+/* RC13.7 workflow polish: visible search, compact filters and fast entry */
+.page-filter-shell {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.page-filter-shell .date-control-card {
+  flex: 1 1 680px;
+  margin: 0;
+}
+.search-box.emphasized-search,
+.page-filter-shell .search-box,
+.table-header-actions .search-box,
+.sales-search,
+.compact-search {
+  background: #fff8df !important;
+  border: 2px solid #e1a83a !important;
+  box-shadow: 0 0 0 3px rgba(225, 168, 58, .12);
+  min-height: 44px;
+}
+.search-box.emphasized-search:focus-within,
+.page-filter-shell .search-box:focus-within,
+.table-header-actions .search-box:focus-within {
+  border-color: #b97605 !important;
+  box-shadow: 0 0 0 4px rgba(225, 168, 58, .2);
+}
+.search-box input { background: transparent !important; }
+.filter-dropdown-group {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.filter-dropdown-group label {
+  display: grid;
+  gap: 4px;
+  color: #536075;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .035em;
+}
+.filter-dropdown-group select {
+  min-width: 138px;
+  min-height: 44px;
+  border: 1px solid #b8c7d9;
+  border-radius: 10px;
+  background: #eef6ff;
+  color: #172033;
+  font-weight: 650;
+  padding: 0 34px 0 11px;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: #3976d7 !important;
+  box-shadow: 0 0 0 3px rgba(57,118,215,.13) !important;
+}
+
+/* Keep payroll dense and scannable instead of tall stacked cards. */
+.payroll-table-card .payroll-entries-list {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+}
+.payroll-table-card .payroll-entry-card {
+  display: grid !important;
+  grid-template-columns: minmax(165px, 1.5fr) minmax(90px,.8fr) minmax(105px,.9fr) 76px 70px 90px 90px 82px minmax(120px,1fr) 92px 112px;
+  align-items: center;
+  gap: 8px;
+  min-height: 0 !important;
+  padding: 9px 10px !important;
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+  background: #fff;
+}
+.payroll-entry-main,
+.payroll-entry-cell,
+.payroll-entry-actions {
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+.payroll-entry-main > span,
+.payroll-entry-cell > span {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 9px !important;
+  line-height: 1.1;
+  color: #718096;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.payroll-entry-main b,
+.payroll-entry-cell b {
+  display: block;
+  font-size: 12px !important;
+  line-height: 1.25;
+  white-space: normal;
+}
+.payroll-entry-main small { font-size: 10px; }
+.payroll-entry-tags { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
+.payroll-entry-tags .tag { font-size: 9px !important; padding: 2px 5px !important; }
+.payroll-entry-actions { display: flex; gap: 5px; justify-content: flex-end; }
+.payroll-entry-actions button { min-width: 0 !important; padding: 6px 8px !important; font-size: 11px; }
+.clean-payroll-grid { gap: 10px !important; }
+.payroll-card, .group-editor-card, .manual-payroll-card, .import-card { padding: 12px !important; }
+.manual-payroll-grid { gap: 8px 10px !important; }
+.manual-payroll-grid label { gap: 3px !important; }
+.payroll-summary-row { gap: 8px !important; }
+.payroll-summary-row > div { padding: 10px 12px !important; }
+
+@media (max-width: 1450px) {
+  .payroll-table-card { overflow-x: auto; }
+  .payroll-table-card .payroll-entries-list { min-width: 1320px; }
+}

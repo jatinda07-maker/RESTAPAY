@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -21,6 +21,27 @@ import './styles.css'
 
 function App() {
   const [active, setActive] = useState('dashboard')
+
+  useEffect(() => {
+    const handleFocus = event => {
+      const input = event.target
+      if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) return
+      if (input.readOnly || input.disabled || ['date', 'file', 'checkbox', 'radio', 'color'].includes(input.type)) return
+      // Selecting the full value lets the next keystroke replace it after click or Tab.
+      // Zero placeholders are cleared immediately for faster numeric entry.
+      requestAnimationFrame(() => {
+        if (/^-?0+(\.0+)?$/.test(String(input.value || '').trim())) {
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+          setter?.call(input, '')
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+        } else {
+          input.select?.()
+        }
+      })
+    }
+    document.addEventListener('focusin', handleFocus)
+    return () => document.removeEventListener('focusin', handleFocus)
+  }, [])
   const [data, setData] = useLocalData()
   const shared = { data, setData }
 
