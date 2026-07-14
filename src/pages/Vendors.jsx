@@ -4,6 +4,24 @@ import { createId, sortByName } from '../lib/localStore'
 
 const blankVendor = { name: '', category: 'Food', default_check_number: '', contact: '', phone: '', email: '', notes: '', is_active: true }
 
+function num(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  const parsed = Number(String(value ?? '').replace(/[$,%(),]/g, '').trim())
+  return Number.isFinite(parsed) ? parsed : 0
+}
+function money(value) { return `$${num(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
+function normalizeItemName(value) {
+  return String(value || '').toLowerCase().replace(/\b(case|cs|pack|pk|bottle|btl|box|bag|each|ea)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ')
+}
+function itemUnitCost(row) {
+  const qty = num(row.quantity ?? row.qty ?? row.case_qty ?? row.pack_qty) || 1
+  const explicit = num(row.unit_cost ?? row.unitCost ?? row.price_each)
+  if (explicit) return explicit
+  const total = num(row.line_total ?? row.total ?? row.amount ?? row.extended_cost)
+  return total / qty
+}
+function itemSize(row) { return row.size || row.unit_size || row.package_size || row.pack_size || row.uom || row.unit || '-' }
+
 const categoryIconMap = {
   food: 'utensils', beer: 'beer', beverage: 'beverage', beverages: 'beverage', liquor: 'wine', wine: 'wine',
   insurance: 'shield', maintenance: 'wrench', supplies: 'package', utilities: 'zap', accounting: 'business',
@@ -31,6 +49,9 @@ export default function Vendors({ data, setData }) {
   const [status, setStatus] = useState('Local auto-save is active. Vendor data stays on this computer until Supabase sync is added.')
   const [activeFilter, setActiveFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [compareVendorA, setCompareVendorA] = useState('')
+  const [compareVendorB, setCompareVendorB] = useState('')
+  const [compareSearch, setCompareSearch] = useState('')
 
   const filtered = useMemo(() => vendors
     .filter(v => activeFilter === 'all' ? true : activeFilter === 'active' ? v.is_active !== false : v.is_active === false)
@@ -40,6 +61,41 @@ export default function Vendors({ data, setData }) {
       if (!q) return true
       return [v.name, v.category, v.default_check_number, v.contact, v.phone, v.email, v.notes].join(' ').toLowerCase().includes(q)
     }), [vendors, search, activeFilter, categoryFilter])
+
+
+  const comparisonRows = useMemo(() => {
+    if (!compareVendorA || !compareVendorB || compareVendorA === compareVendorB) return []
+    const invoiceMap = Object.fromEntries((data.invoices || []).map(inv => [inv.id, inv]))
+    const rows = (data.invoiceItems || []).map(row => {
+      const parent = invoiceMap[row.invoice_id] || {}
+      const vendor = row.vendor_name || row.vendor || parent.vendor_name || parent.vendor || ''
+      const description = row.description || row.item_name || row.name || ''
+      return { ...row, vendor, description, normalized: normalizeItemName(description), sizeLabel: itemSize(row), unitCostValue: itemUnitCost(row), invoiceDate: row.invoice_date || row.date || parent.invoice_date || parent.date || '' }
+    }).filter(row => row.normalized && (row.vendor === compareVendorA || row.vendor === compareVendorB))
+    const byVendor = vendorName => {
+      const map = new Map()
+      rows.filter(row => row.vendor === vendorName).forEach(row => {
+        const key = `${row.normalized}|${String(row.sizeLabel).toLowerCase()}`
+        const current = map.get(key)
+        if (!current || String(row.invoiceDate) > String(current.invoiceDate)) map.set(key, row)
+      })
+      return map
+    }
+    const a = byVendor(compareVendorA)
+    const b = byVendor(compareVendorB)
+    const keys = [...new Set([...a.keys(), ...b.keys()])]
+    const q = compareSearch.trim().toLowerCase()
+    return keys.map(key => {
+      const left = a.get(key)
+      const right = b.get(key)
+      const description = left?.description || right?.description || key.split('|')[0]
+      const costA = left?.unitCostValue || 0
+      const costB = right?.unitCostValue || 0
+      const difference = costA && costB ? costB - costA : 0
+      const cheaper = costA && costB ? (costA < costB ? compareVendorA : costB < costA ? compareVendorB : 'Same') : '-'
+      return { key, description, size: left?.sizeLabel || right?.sizeLabel || '-', left, right, costA, costB, difference, cheaper }
+    }).filter(row => !q || `${row.description} ${row.size}`.toLowerCase().includes(q)).sort((x, y) => x.description.localeCompare(y.description))
+  }, [data.invoices, data.invoiceItems, compareVendorA, compareVendorB, compareSearch])
 
   function update(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -147,6 +203,22 @@ export default function Vendors({ data, setData }) {
         </div>
       </div>
       <div className="form-action-footer"><button className="btn secondary" type="button" onClick={clearForm}>{editingId ? 'Cancel Edit' : 'Clear'}</button><button className="btn primary" type="button" onClick={saveVendor}><Icon name="save" /> {editingId ? 'Update Vendor' : 'Save Vendor'}</button></div>
+    </section>
+
+
+    <section className="table-card vendor-comparison-card" id="vendor-comparison">
+      <header><div><h2>Vendor Item Price Comparison</h2><p>Compare two vendors using the latest matching invoice line items, package size, quantity, and unit price.</p></div><Icon name="trending" size={22} /></header>
+      <div className="vendor-compare-controls">
+        <label>Vendor A<select value={compareVendorA} onChange={e => setCompareVendorA(e.target.value)}><option value="">Select vendor</option>{vendors.map(v => <option key={v.id || v.name} value={v.name}>{v.name}</option>)}</select></label>
+        <label>Vendor B<select value={compareVendorB} onChange={e => setCompareVendorB(e.target.value)}><option value="">Select vendor</option>{vendors.map(v => <option key={v.id || v.name} value={v.name}>{v.name}</option>)}</select></label>
+        <label className="vendor-compare-search">Search item<input value={compareSearch} onChange={e => setCompareSearch(e.target.value)} placeholder="Item name or size" /></label>
+      </div>
+      {compareVendorA && compareVendorB && compareVendorA === compareVendorB && <div className="empty-state">Choose two different vendors.</div>}
+      {compareVendorA && compareVendorB && compareVendorA !== compareVendorB && <div className="table-wrap"><table className="vendor-compare-table"><thead><tr><th>Item</th><th>Size / Unit</th><th>{compareVendorA}</th><th>{compareVendorB}</th><th>Difference</th><th>Best Price</th></tr></thead><tbody>
+        {comparisonRows.map(row => <tr key={row.key}><td><b>{row.description}</b><small>{row.left?.quantity || row.left?.qty || row.right?.quantity || row.right?.qty ? `Qty ${row.left?.quantity || row.left?.qty || row.right?.quantity || row.right?.qty}` : 'Latest invoice item'}</small></td><td>{row.size}</td><td>{row.left ? money(row.costA) : '-'}</td><td>{row.right ? money(row.costB) : '-'}</td><td className={row.difference > 0 ? 'compare-up' : row.difference < 0 ? 'compare-down' : ''}>{row.left && row.right ? money(Math.abs(row.difference)) : '-'}</td><td><span className="tag cash">{row.cheaper}</span></td></tr>)}
+        {!comparisonRows.length && <tr><td colSpan="6">No matching invoice line items were found for these vendors. Import invoices with item descriptions and sizes to compare pricing.</td></tr>}
+      </tbody></table></div>}
+      {(!compareVendorA || !compareVendorB) && <div className="empty-state">Select two vendors to activate item-by-item price comparison.</div>}
     </section>
 
     <section className="table-card compact-table-card employee-table-card">

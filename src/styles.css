@@ -1369,3 +1369,19 @@ input:focus, textarea:focus, select:focus {
   stroke:#fff !important;
   color:#fff !important;
 }
+
+/* RC14.6 vendor item comparison */
+.vendor-comparison-card { margin-bottom: 18px; overflow: hidden; }
+.vendor-comparison-card > header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.vendor-comparison-card > header p { margin:4px 0 0; color:var(--muted, #64748b); font-size:13px; }
+.vendor-compare-controls { display:grid; grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) minmax(220px,1.2fr); gap:12px; padding:16px 18px; border-top:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; background:#f8fafc; }
+.vendor-compare-controls label { display:grid; gap:6px; color:#475569; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+.vendor-compare-controls select,.vendor-compare-controls input { width:100%; min-height:42px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; padding:0 12px; color:#0f172a; }
+.vendor-compare-search input { background:#fffdf3; border-color:#e5c76b; }
+.vendor-compare-table td small { display:block; margin-top:3px; color:#64748b; }
+.vendor-compare-table th,.vendor-compare-table td { white-space:nowrap; }
+.vendor-compare-table th:first-child,.vendor-compare-table td:first-child { white-space:normal; min-width:240px; }
+.compare-up { color:#b45309; font-weight:700; }
+.compare-down { color:#15803d; font-weight:700; }
+.vendor-comparison-card .empty-state { padding:28px 18px; text-align:center; color:#64748b; }
+@media (max-width: 900px) { .vendor-compare-controls { grid-template-columns:1fr; } }
