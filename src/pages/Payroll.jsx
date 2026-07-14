@@ -114,6 +114,13 @@ export default function Payroll({ data, setData }) {
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
   const [employeeSearch, setEmployeeSearch] = useState('')
+  const [paymentFilter, setPaymentFilter] = useState('all')
+  const [classFilter, setClassFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [groupFilter, setGroupFilter] = useState('all')
+  const [showGroups, setShowGroups] = useState(false)
+  const [showManual, setShowManual] = useState(false)
+  const [showImport, setShowImport] = useState(false)
 
   function updateDateStart(value) {
     setDateStart(value)
@@ -163,6 +170,13 @@ export default function Payroll({ data, setData }) {
     return entries.filter(entry => {
       const entryDate = entry.pay_date || entry.payroll_date || entry.date
       if (!inSelectedRange(entryDate)) return false
+      const classification = entry.payroll_classification || inferPayrollClassification(entry)
+      const sourceText = String(entry.group_name || entry.source_file || entry.source || '').toLowerCase()
+      if (paymentFilter !== 'all' && String(entry.payroll_type || '').toLowerCase() !== paymentFilter) return false
+      if (classFilter !== 'all' && String(classification).toLowerCase() !== classFilter) return false
+      if (sourceFilter === 'toast' && !sourceText.includes('toast')) return false
+      if (sourceFilter === 'manual' && sourceText.includes('toast')) return false
+      if (groupFilter !== 'all' && String(entry.group_name || '').toLowerCase() !== groupFilter) return false
       if (!query) return true
       const searchable = [
         entry.employee_name,
@@ -170,11 +184,17 @@ export default function Payroll({ data, setData }) {
         entry.group_name,
         entry.payroll_type,
         entry.pay_type,
-        entry.check_number
+        entry.check_number,
+        classification,
+        entry.source_file
       ].join(' ').toLowerCase()
       return searchable.includes(query)
+    }).sort((a, b) => {
+      const ad = String(a.pay_date || a.payroll_date || a.date || '')
+      const bd = String(b.pay_date || b.payroll_date || b.date || '')
+      return bd.localeCompare(ad) || String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
     })
-  }, [entries, dateStart, dateEnd, employeeSearch])
+  }, [entries, dateStart, dateEnd, employeeSearch, paymentFilter, classFilter, sourceFilter, groupFilter])
   const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
   const activeFilterLabel = employeeSearch.trim() ? ` • Employee/search: ${employeeSearch.trim()}` : ''
 
@@ -684,6 +704,17 @@ export default function Payroll({ data, setData }) {
       .toast-import-row input[type="date"] {
         min-width: 150px;
       }
+
+      .compact-filter-shell { padding: 10px 14px; margin-bottom: 10px; }
+      .payroll-section-actions { display:flex; gap:10px; flex-wrap:wrap; margin: 0 0 12px; }
+      .payroll-section-actions .btn { min-height:38px; }
+      .collapsible-payroll-section { margin-bottom: 12px; }
+      .entry-filter-bar { display:grid; grid-template-columns:minmax(250px,1.8fr) repeat(4,minmax(130px,.8fr)) auto; gap:10px; align-items:end; padding:10px 12px; border-bottom:1px solid #e5eaf2; background:#fbfcfe; }
+      .entry-filter-bar label { display:grid; gap:4px; color:#475569; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
+      .entry-filter-bar select { height:38px; border:1px solid #cbd5e1; border-radius:9px; background:#f3f7fc; padding:0 10px; color:#0f172a; font-weight:700; }
+      .subtle-search { min-height:38px; height:38px; border:1px solid #cbd5e1 !important; background:#fff8df !important; border-radius:9px !important; box-shadow:none !important; padding:0 10px !important; }
+      .subtle-search input { background:transparent !important; border:0 !important; box-shadow:none !important; padding:0 4px !important; height:36px !important; }
+      @media (max-width:1250px){ .entry-filter-bar{grid-template-columns:repeat(3,minmax(0,1fr));}.entry-filter-bar .subtle-search{grid-column:1/-1;} }
     `}</style>
 
     <div className="page-head employee-head">
@@ -692,21 +723,21 @@ export default function Payroll({ data, setData }) {
     </div>
     <div className="status-pill">{status}</div>
 
-    <div className="page-filter-shell payroll-filter-shell">
+    <div className="page-filter-shell payroll-filter-shell compact-filter-shell">
       <DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}${activeFilterLabel}`) }} onPreset={applyPreset} />
-      <label className="search-box payroll-employee-search">
-        <span>Employee / Check Search</span>
-        <input value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} placeholder="Search employee, group, method, check #" />
-      </label>
-      {employeeSearch && <button type="button" className="btn ghost clear-filter-btn" onClick={() => setEmployeeSearch('')}>Clear Search</button>}
-      <span className="filter-note">Showing {filteredEntries.length} payroll rows • {rangeLabel}{activeFilterLabel}</span>
+    </div>
+
+    <div className="payroll-section-actions">
+      <button type="button" className={showManual ? 'btn primary' : 'btn secondary'} onClick={() => setShowManual(value => !value)}><Icon name="plus" /> Manual Payroll</button>
+      <button type="button" className={showGroups ? 'btn primary' : 'btn secondary'} onClick={() => setShowGroups(value => !value)}><Icon name="users" /> Payroll Groups / Kitchen</button>
+      <button type="button" className={showImport ? 'btn primary' : 'btn secondary'} onClick={() => setShowImport(value => !value)}><Icon name="upload" /> Import Labor</button>
     </div>
 
     <div className="payroll-summary-row">
       <div><span>Operating Payroll</span><b>${money(totals.operating)}</b><small>Counts in profit</small></div><div><span>Server Tips</span><b>${money(totals.customerTips)}</b><small>Separate from payroll cost</small></div><div><span>Cash Paid</span><b>${money(totals.cash)}</b></div><div><span>Check Paid</span><b>${money(totals.check)}</b></div><div><span>Tips Withheld</span><b>${money(totals.withheld)}</b></div>
     </div>
 
-    <div className="payroll-grid clean-payroll-grid">
+    {showGroups && <div className="payroll-grid clean-payroll-grid collapsible-payroll-section">
       <section className="form-card payroll-card tight-card">
         <h2>Payroll Groups</h2>
         <div className="payroll-row"><input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Group name or rename" /><select value={groupPayrollType} onChange={e => setGroupPayrollType(e.target.value)}><option>Cash</option><option>Check</option></select></div>
@@ -730,9 +761,9 @@ export default function Payroll({ data, setData }) {
           </div>
         </> : <div className="empty-cell">Create or select a payroll group to manage members.</div>}
       </section>
-    </div>
+    </div>}
 
-    <section className="form-card tight-card manual-payroll-card">
+    {showManual && <section className="form-card tight-card manual-payroll-card collapsible-payroll-section">
       <h2>Manual Payroll Entry</h2>
       <div className="employee-form-grid clean-grid manual-payroll-grid">
         <label>Employee
@@ -782,16 +813,16 @@ export default function Payroll({ data, setData }) {
           <button className="btn primary" onClick={addManualPayroll} type="button"><Icon name="plus" /> Add Payroll</button>
         </div>
       </div>
-    </section>
+    </section>}
 
-    <section className="form-card tight-card import-card">
+    {showImport && <section className="form-card tight-card import-card collapsible-payroll-section">
       <h2>Toast Labor Summary Import</h2>
       <div className="import-row toast-import-row">
         <label className="group-payroll-date-label">Toast payroll date <input type="date" value={toastPayDate} onChange={e => setToastPayDate(e.target.value)} /></label>
         <label className="file-button"><Icon name="upload" /> Upload CSV/XLSX<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
         <span>Extracts employees, hours, tips, gross pay, uses Toast Tips Withheld when present, otherwise applies {tipRate}% withholding, then matches employees to your project employee list and lets you choose a project employee type before saving.</span>
       </div>
-    </section>
+    </section>}
 
     {previewRows.length > 0 && <section className="table-card compact-table-card import-preview-card">
       <header><h2>Import Preview</h2><span>{previewRows.length} rows <button className="btn primary small-btn" onClick={savePreviewToPayroll} type="button">Add To Payroll</button></span></header>
@@ -806,6 +837,14 @@ export default function Payroll({ data, setData }) {
 
     <section className="table-card payroll-table-card compact-table-card">
       <header><h2>Payroll Entries</h2><span>{filteredEntries.length} rows • Total ${money(totals.total)} • {rangeLabel}{activeFilterLabel}</span></header>
+      <div className="entry-filter-bar">
+        <div className="search-box subtle-search"><Icon name="search" size={17} /><input value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} placeholder="Search employee, group, method or check #" /></div>
+        <label>Payment<select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}><option value="all">All methods</option><option value="cash">Cash</option><option value="check">Check</option></select></label>
+        <label>Class<select value={classFilter} onChange={e => setClassFilter(e.target.value)}><option value="all">All classes</option><option value="operating labor">Operating Labor</option><option value="customer tips">Customer Tips</option></select></label>
+        <label>Source<select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="toast">Toast Labor</option><option value="manual">Manual / Group</option></select></label>
+        <label>Group<select value={groupFilter} onChange={e => setGroupFilter(e.target.value)}><option value="all">All groups</option>{groups.map(group => <option key={group.id} value={String(group.name || '').toLowerCase()}>{group.name}</option>)}</select></label>
+        {(employeeSearch || paymentFilter !== 'all' || classFilter !== 'all' || sourceFilter !== 'all' || groupFilter !== 'all') && <button type="button" className="btn ghost clear-filter-btn" onClick={() => { setEmployeeSearch(''); setPaymentFilter('all'); setClassFilter('all'); setSourceFilter('all'); setGroupFilter('all') }}>Clear</button>}
+      </div>
       <div className="payroll-entries-list">
         {filteredEntries.length ? filteredEntries.map(entry => {
           const isEditing = editingEntryId === entry.id

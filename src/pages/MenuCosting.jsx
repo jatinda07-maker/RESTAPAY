@@ -189,6 +189,10 @@ export default function MenuCosting({ data, setData }) {
   const [selectedId, setSelectedId] = useState(menuItems[0]?.id || '')
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
+  const [activeTab, setActiveTab] = useState('all')
+  const [vendorFilter, setVendorFilter] = useState('all')
+  const [costFilter, setCostFilter] = useState('all')
+  const [showTargets, setShowTargets] = useState(false)
   const [dateStart, setDateStart] = useState(() => startOfMonthISO())
   const [dateEnd, setDateEnd] = useState(() => todayISO())
   const [targetFoodCost, setTargetFoodCost] = useState(Number(data.settings?.targetFoodCost || 30))
@@ -321,12 +325,17 @@ export default function MenuCosting({ data, setData }) {
     const q = search.toLowerCase().trim()
     return enrichedItems.filter(item => {
       if (q && !String(item.name).toLowerCase().includes(q) && !String(item.vendorSource).toLowerCase().includes(q) && !String(item.matrix?.label).toLowerCase().includes(q)) return false
+      if (activeTab === 'food' && item.category !== 'Food') return false
+      if (activeTab === 'alcohol' && !['Beer', 'Liquor', 'Beverage'].includes(item.category)) return false
       if (category !== 'all' && item.category !== category) return false
+      if (vendorFilter !== 'all' && item.vendorSource !== vendorFilter) return false
+      if (costFilter === 'above' && item.foodCostPct <= item.targetCostPct) return false
+      if (costFilter === 'on-target' && item.foodCostPct > item.targetCostPct) return false
       if (dateStart && item.dateStart && item.dateStart < dateStart) return false
       if (dateEnd && item.dateEnd && item.dateEnd > dateEnd) return false
       return true
     }).sort((a, b) => b.totalProfit - a.totalProfit)
-  }, [enrichedItems, search, category, dateStart, dateEnd])
+  }, [enrichedItems, search, category, activeTab, vendorFilter, costFilter, dateStart, dateEnd])
   const selected = enrichedItems.find(item => item.id === selectedId) || filteredItems[0] || enrichedItems[0]
   const selectedRecipe = selected?.recipe
   const totals = filteredItems.reduce((acc, item) => {
@@ -340,112 +349,136 @@ export default function MenuCosting({ data, setData }) {
     return acc
   }, { sales: 0, qty: 0, cost: 0, profit: 0, atRisk: 0, foodSales: 0, foodCost: 0, alcoholSales: 0, alcoholCost: 0 })
 
+  const vendorOptions = [...new Set(enrichedItems.map(item => item.vendorSource).filter(Boolean))].sort()
+  const foodItemCount = enrichedItems.filter(item => item.category === 'Food').length
+  const alcoholItemCount = enrichedItems.filter(item => ['Beer', 'Liquor', 'Beverage'].includes(item.category)).length
+  const avgFoodPct = totals.foodSales ? totals.foodCost / totals.foodSales * 100 : 0
+  const avgAlcoholPct = totals.alcoholSales ? totals.alcoholCost / totals.alcoholSales * 100 : 0
+
+  function removeMenuItem(itemId) {
+    if (!window.confirm('Delete this menu item and its saved recipe?')) return
+    setData(prev => ({
+      ...prev,
+      menuItems: (prev.menuItems || []).filter(item => item.id !== itemId),
+      menuRecipes: (prev.menuRecipes || []).filter(recipe => recipe.menuItemId !== itemId)
+    }))
+    if (selectedId === itemId) setSelectedId('')
+  }
+
   return (
-    <div className="menu-costing-page">
-      <section className="form-card menu-hero-card">
+    <div className="menu-costing-page menu-costing-enterprise">
+      <section className="menu-costing-toolbar">
         <div>
-          <span className="eyebrow">Menu Engineering</span>
-          <h2>Recipe Costing & Dish Profit</h2>
-          <p>Import Toast Product Mix, estimate recipes, connect food to US Foods, beer to your beer vendor, liquor to ABC Store, and soft drinks to Buffalo Rock. Calculate food cost, beer cost, liquor cost, gross profit, and suggested menu price.</p>
+          <h2>Food &amp; Alcohol Costing</h2>
+          <p>Track recipe costs, selling prices, margins, vendors, and target cost percentages.</p>
         </div>
         <div className="actions">
+          <button className="btn secondary" type="button" onClick={() => setShowTargets(value => !value)}><Icon name="pie" size={16} /> Cost Targets</button>
+          <button className="btn secondary" type="button" onClick={buildMissingRecipes}><Icon name="utensils" size={16} /> Build Recipes</button>
           <label className="btn primary file-action"><Icon name="upload" size={16} /> Import Product Mix<input type="file" accept=".xlsx,.xls,.csv" onChange={handleProductMixUpload} /></label>
-          <button className="btn secondary" onClick={buildMissingRecipes} type="button"><Icon name="utensils" size={16} /> Build Missing Recipes</button>
         </div>
       </section>
 
-      <section className="filter-card menu-filter-card">
+      <section className="menu-costing-kpis">
+        <article className="cost-kpi cost-kpi-food"><span className="cost-kpi-icon"><Icon name="utensils" size={25} /></span><div><small>Food Items</small><strong>{foodItemCount}</strong><span>Active recipes</span></div></article>
+        <article className="cost-kpi cost-kpi-alcohol"><span className="cost-kpi-icon"><Icon name="wine" size={25} /></span><div><small>Alcohol Items</small><strong>{alcoholItemCount}</strong><span>Beer, wine, liquor &amp; drinks</span></div></article>
+        <article className="cost-kpi cost-kpi-cogs"><span className="cost-kpi-icon"><Icon name="trending" size={25} /></span><div><small>Total COGS</small><strong>{displayMoney(totals.cost)}</strong><span>Selected period</span></div></article>
+        <article className="cost-kpi cost-kpi-target"><span className="cost-kpi-icon"><Icon name="pie" size={25} /></span><div><small>Average Food Cost %</small><strong>{pct(avgFoodPct)}</strong><span>Target {pct(targetFoodCost)}</span></div></article>
+        <article className="cost-kpi cost-kpi-target-alt"><span className="cost-kpi-icon"><Icon name="pie" size={25} /></span><div><small>Average Alcohol Cost %</small><strong>{pct(avgAlcoholPct)}</strong><span>Target {pct(targetLiquorCost)}</span></div></article>
+      </section>
+
+      {showTargets && <section className="menu-target-panel">
         <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={() => setStatus('Date filter applied.')} onPreset={applyPreset} applyLabel="Apply" />
-        <label><span>Search Dish / Vendor</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tacos, fajitas, Buffalo Rock..." /></label>
-        <label><span>Category</span><select value={category} onChange={e => setCategory(e.target.value)}><option value="all">All</option><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></label>
         <label><span>Food Target %</span><input type="number" min="1" max="90" value={targetFoodCost} onChange={e => setTargetFoodCost(Number(e.target.value || 0))} /></label>
         <label><span>Beer Target %</span><input type="number" min="1" max="90" value={targetBeerCost} onChange={e => setTargetBeerCost(Number(e.target.value || 0))} /></label>
         <label><span>Liquor Target %</span><input type="number" min="1" max="90" value={targetLiquorCost} onChange={e => setTargetLiquorCost(Number(e.target.value || 0))} /></label>
         <label><span>Soft Drink Target %</span><input type="number" min="1" max="90" value={targetBeverageCost} onChange={e => setTargetBeverageCost(Number(e.target.value || 0))} /></label>
-        <button className="btn secondary compact" type="button" onClick={saveCostTargets}><Icon name="save" size={15} /> Save Targets</button>
+        <button className="btn primary compact" type="button" onClick={saveCostTargets}><Icon name="save" size={15} /> Save Targets</button>
+      </section>}
+
+      <nav className="menu-costing-tabs" aria-label="Costing sections">
+        <button className={activeTab === 'all' ? 'active' : ''} onClick={() => setActiveTab('all')} type="button">All Items</button>
+        <button className={activeTab === 'food' ? 'active' : ''} onClick={() => setActiveTab('food')} type="button">Food Items</button>
+        <button className={activeTab === 'alcohol' ? 'active' : ''} onClick={() => setActiveTab('alcohol')} type="button">Alcohol Items</button>
+        <button type="button" onClick={() => setStatus(`${menuRecipes.length} saved recipes.`)}>Recipes</button>
+        <button type="button" onClick={() => setStatus(`${vendorOptions.length} connected vendor sources.`)}>Vendors</button>
+      </nav>
+
+      <section className="menu-costing-filterbar">
+        <label className="menu-search-field"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search item name, category, vendor..." /></label>
+        <label><span>Category</span><select value={category} onChange={e => setCategory(e.target.value)}><option value="all">All Categories</option><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></label>
+        <label><span>Vendor</span><select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)}><option value="all">All Vendors</option>{vendorOptions.map(vendor => <option key={vendor}>{vendor}</option>)}</select></label>
+        <label><span>Cost Status</span><select value={costFilter} onChange={e => setCostFilter(e.target.value)}><option value="all">All Items</option><option value="on-target">On Target</option><option value="above">Above Target</option></select></label>
+        <button className="btn secondary" type="button" onClick={() => { setSearch(''); setCategory('all'); setVendorFilter('all'); setCostFilter('all'); setActiveTab('all') }}><Icon name="refresh" size={15} /> Clear Filters</button>
       </section>
 
-      <p className="status-pill">{status}</p>
+      <p className="status-pill menu-costing-status">{status}</p>
 
-      <div className="metric-grid menu-costing-metrics">
-        <div className="metric-card tone-blue"><span className="metric-icon"><Icon name="utensils" /></span><span className="metric-label">Menu Items</span><strong>{filteredItems.length}</strong><small>From Product Mix</small></div>
-        <div className="metric-card tone-green"><span className="metric-icon"><Icon name="dollar" /></span><span className="metric-label">Estimated Sales</span><strong>{displayMoney(totals.sales)}</strong><small>Selected range</small></div>
-        <div className="metric-card tone-orange"><span className="metric-icon"><Icon name="package" /></span><span className="metric-label">Food Cost</span><strong>{displayMoney(totals.foodCost)}</strong><small>{pct(totals.foodSales ? totals.foodCost / totals.foodSales * 100 : 0)} of food sales</small></div>
-        <div className="metric-card tone-purple"><span className="metric-icon"><Icon name="wine" /></span><span className="metric-label">Alcohol & Beverage Cost</span><strong>{displayMoney(totals.alcoholCost)}</strong><small>{pct(totals.alcoholSales ? totals.alcoholCost / totals.alcoholSales * 100 : 0)} of beverage sales</small></div>
-        <div className="metric-card tone-red"><span className="metric-icon"><Icon name="alert" /></span><span className="metric-label">Items Above Target</span><strong>{totals.atRisk}</strong><small>Compared with category targets</small></div>
-      </div>
+      <section className="table-card menu-costing-table-card">
+        <header><div><h2>Costing Items</h2><small>Showing {filteredItems.length} of {enrichedItems.length} items</small></div><span className="badge neutral">Click Edit to review recipe</span></header>
+        <div className="table-wrap menu-costing-main-table">
+          <table>
+            <thead><tr><th>Item Name</th><th>Category</th><th>Vendor</th><th>Sales</th><th>Cost</th><th>Selling Price</th><th>Cost %</th><th>Target %</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              {filteredItems.map(item => (
+                <tr key={item.id} className={selected?.id === item.id ? 'selected-row' : ''}>
+                  <td><div className="menu-item-name"><span className={`menu-item-icon ${item.category === 'Food' ? 'food' : 'alcohol'}`}><Icon name={item.category === 'Food' ? 'utensils' : item.category === 'Beer' ? 'beer' : 'wine'} size={17} /></span><div><b>{item.name}</b><small>{item.recipe?.confidence || 'Needs recipe'}</small></div></div></td>
+                  <td><span className={`tag ${item.category === 'Food' ? 'green' : 'orange'}`}>{item.category}</span></td>
+                  <td>{item.vendorSource}</td>
+                  <td>{displayMoney(item.netSales || item.grossSales)}</td>
+                  <td>{displayMoney(item.dishCost)}</td>
+                  <td>{displayMoney(item.avgPrice)}</td>
+                  <td><b className={item.foodCostPct > item.targetCostPct ? 'danger-text' : 'good-text'}>{pct(item.foodCostPct)}</b></td>
+                  <td>{pct(item.targetCostPct)}</td>
+                  <td><span className={`tag ${item.foodCostPct > item.targetCostPct ? 'red' : 'green'}`}>{item.foodCostPct > item.targetCostPct ? 'Review' : 'On Target'}</span></td>
+                  <td><div className="menu-row-actions"><button className="icon-btn edit" title="Edit recipe" type="button" onClick={() => setSelectedId(item.id)}><Icon name="edit" size={15} /></button><button className="icon-btn danger" title="Delete item" type="button" onClick={() => removeMenuItem(item.id)}><Icon name="trash" size={15} /></button></div></td>
+                </tr>
+              ))}
+              {!filteredItems.length && <tr><td colSpan="10">No matching costing items were found.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <div className="menu-workspace-grid">
-        <section className="table-card">
-          <header><h2>Imported Dishes</h2><span className="badge neutral">Click a dish to review recipe</span></header>
-          <div className="table-wrap menu-table-wrap">
+      {selected && <section className="section-card recipe-detail-card recipe-detail-enterprise">
+        <header className="section-card-header">
+          <div><h2>Edit Recipe: {selected.name}</h2><small>{selected.vendorSource} · {selected.category}</small></div>
+          <div className="actions"><button className="btn secondary compact" type="button" onClick={() => setSelectedId('')}>Close</button>{selectedRecipe && <button className="btn primary compact" type="button" onClick={() => approveRecipe(selectedRecipe.id)}><Icon name="shield" size={15} /> Approve Recipe</button>}</div>
+        </header>
+        <div className="section-card-body">
+          <div className="recipe-score-grid">
+            <div><small>Selling Price</small><strong>{displayMoney(selected.avgPrice)}</strong></div>
+            <div><small>Dish Cost</small><strong>{displayMoney(selected.dishCost)}</strong></div>
+            <div><small>{selected.category === 'Food' ? 'Food Cost' : selected.category + ' Cost'}</small><strong className={selected.foodCostPct > selected.targetCostPct ? 'danger-text' : 'good-text'}>{pct(selected.foodCostPct)}</strong><small>Target {pct(selected.targetCostPct)}</small></div>
+            <div><small>Suggested Price</small><strong>{displayMoney(selected.suggestedPrice)}</strong></div>
+          </div>
+          <div className="table-wrap recipe-lines-table">
             <table>
-              <thead><tr><th>Dish</th><th>Qty</th><th>Avg Price</th><th>Dish Cost</th><th>Food Cost</th><th>Profit</th><th>Class</th></tr></thead>
+              <thead><tr><th>Ingredient</th><th>Qty</th><th>Unit</th><th>Vendor</th><th>Unit Cost</th><th>Total</th><th></th></tr></thead>
               <tbody>
-                {filteredItems.map(item => (
-                  <tr key={item.id} className={selected?.id === item.id ? 'selected-row' : ''} onClick={() => setSelectedId(item.id)}>
-                    <td><b>{item.name}</b><br /><small>{item.vendorSource} · {item.recipe?.confidence || 'Needs recipe'}</small></td>
-                    <td>{item.qtySold}</td>
-                    <td>{displayMoney(item.avgPrice)}</td>
-                    <td>{displayMoney(item.dishCost)}</td>
-                    <td><span className={`food-cost-chip ${item.foodCostPct > item.targetCostPct ? 'bad' : 'good'}`}>{pct(item.foodCostPct)}</span></td>
-                    <td>{displayMoney(item.totalProfit)}</td>
-                    <td><span className={`tag ${item.matrix?.tone || 'neutral'}`}>{item.matrix?.label}</span></td>
+                {(selectedRecipe?.lines || []).map(line => {
+                  const invoiceMatch = matchInvoiceIngredient(line.ingredient, data.invoiceItems || [])
+                  return <tr key={line.id}>
+                    <td><input list="ingredient-options" value={line.ingredient} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'ingredient', e.target.value)} /></td>
+                    <td><input type="number" value={line.qty} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'qty', e.target.value)} /></td>
+                    <td><input value={line.unit} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'unit', e.target.value)} /></td>
+                    <td><input value={invoiceMatch?.vendor || line.vendor} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'vendor', e.target.value)} /></td>
+                    <td><input type="number" step="0.01" value={line.unitCost} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'unitCost', e.target.value)} /></td>
+                    <td><b>{displayMoney(line.totalCost)}</b></td>
+                    <td><button className="icon-btn danger" title="Delete ingredient" type="button" onClick={() => deleteRecipeLine(selectedRecipe.id, line.id)}><Icon name="trash" size={14} /></button></td>
                   </tr>
-                ))}
-                {!filteredItems.length && <tr><td colSpan="7">No Product Mix items imported yet.</td></tr>}
+                })}
+                {!selectedRecipe && <tr><td colSpan="7">No recipe yet. Click Build Recipes.</td></tr>}
               </tbody>
             </table>
           </div>
-        </section>
-
-        <section className="section-card recipe-detail-card">
-          <header className="section-card-header">
-            <div><h2>{selected?.name || 'Select a dish'}</h2><small>{selected ? `${selected.vendorSource} source · ${selected.category}` : 'Import Product Mix to begin'}</small></div>
-            {selectedRecipe && <button className="btn primary compact" type="button" onClick={() => approveRecipe(selectedRecipe.id)}><Icon name="shield" size={15} /> Approve Recipe</button>}
-          </header>
-          {selected ? <div className="section-card-body">
-            <div className="recipe-score-grid">
-              <div><small>Selling Price</small><strong>{displayMoney(selected.avgPrice)}</strong></div>
-              <div><small>Dish Cost</small><strong>{displayMoney(selected.dishCost)}</strong></div>
-              <div><small>{selected.category === 'Food' ? 'Food Cost' : selected.category + ' Cost'}</small><strong className={selected.foodCostPct > selected.targetCostPct ? 'danger-text' : 'good-text'}>{pct(selected.foodCostPct)}</strong><small>Target {pct(selected.targetCostPct)}</small></div>
-              <div><small>Suggested Price</small><strong>{displayMoney(selected.suggestedPrice)}</strong></div>
-            </div>
-            <div className="table-wrap recipe-lines-table">
-              <table>
-                <thead><tr><th>Ingredient</th><th>Qty</th><th>Unit</th><th>Vendor</th><th>Unit Cost</th><th>Total</th><th></th></tr></thead>
-                <tbody>
-                  {(selectedRecipe?.lines || []).map(line => {
-                    const invoiceMatch = matchInvoiceIngredient(line.ingredient, data.invoiceItems || [])
-                    return <tr key={line.id}>
-                      <td><input list="ingredient-options" value={line.ingredient} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'ingredient', e.target.value)} /></td>
-                      <td><input type="number" value={line.qty} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'qty', e.target.value)} /></td>
-                      <td><input value={line.unit} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'unit', e.target.value)} /></td>
-                      <td><input value={invoiceMatch?.vendor || line.vendor} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'vendor', e.target.value)} /></td>
-                      <td><input type="number" step="0.01" value={line.unitCost} onChange={e => updateRecipeLine(selectedRecipe.id, line.id, 'unitCost', e.target.value)} /></td>
-                      <td><b>{displayMoney(line.totalCost)}</b></td>
-                      <td><button className="icon-btn danger" title="Delete ingredient" type="button" onClick={() => deleteRecipeLine(selectedRecipe.id, line.id)}>×</button></td>
-                    </tr>
-                  })}
-                  {!selectedRecipe && <tr><td colSpan="7">No recipe yet. Click Build Missing Recipes.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-            {selectedRecipe && <div className="recipe-add-bar">
-              <datalist id="ingredient-options">
-                {Object.entries(ingredientNames).map(([key, label]) => <option key={key} value={label} />)}
-              </datalist>
-              <span>Add common ingredient:</span>
-              {['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','lime','salt','beer','beverage'].map(key => (
-                <button key={key} className="btn soft compact" type="button" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>
-              ))}
-            </div>}
-            <div className="recipe-footer-note">
-              <b>{selectedRecipe?.confidence || 'Estimated'}</b> recipes are first-pass estimates. Edit portions once and RestaPay saves your restaurant version for future Product Mix uploads.
-            </div>
-          </div> : <div className="section-card-body">Select an item to see recipe costing.</div>}
-        </section>
-      </div>
+          {selectedRecipe && <div className="recipe-add-bar">
+            <datalist id="ingredient-options">{Object.entries(ingredientNames).map(([key, label]) => <option key={key} value={label} />)}</datalist>
+            <span>Add common ingredient:</span>
+            {['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','lime','salt','beer','beverage'].map(key => <button key={key} className="btn soft compact" type="button" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>)}
+          </div>}
+        </div>
+      </section>}
     </div>
   )
 }

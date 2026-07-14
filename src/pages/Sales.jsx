@@ -349,7 +349,7 @@ export default function Sales({ data, setData }) {
 
   const filteredSales = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return [...salesDays].sort((a, b) => String(a.business_date).localeCompare(String(b.business_date))).filter(row => {
+    return [...salesDays].sort((a, b) => String(b.business_date).localeCompare(String(a.business_date))).filter(row => {
       if (q && !String(row.business_date).includes(q) && !String(row.source_file || '').toLowerCase().includes(q) && !String(row.import_note || '').toLowerCase().includes(q)) return false
       if (dateStart && String(row.business_date) < dateStart) return false
       if (dateEnd && String(row.business_date) > dateEnd) return false
@@ -564,6 +564,14 @@ export default function Sales({ data, setData }) {
       .department-sales-summary strong {
         font-size: 20px;
       }
+
+      .compact-filter-shell { padding: 10px 14px; margin-bottom: 10px; }
+      .sales-entry-filter-bar { display:grid; grid-template-columns:minmax(260px,1.7fr) minmax(150px,.7fr) minmax(150px,.7fr) auto auto; gap:10px; align-items:end; padding:10px 12px; border-bottom:1px solid #e5eaf2; background:#fbfcfe; }
+      .sales-entry-filter-bar label { display:grid; gap:4px; color:#475569; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
+      .sales-entry-filter-bar select { height:38px; border:1px solid #cbd5e1; border-radius:9px; background:#f3f7fc; padding:0 10px; color:#0f172a; font-weight:700; }
+      .subtle-search { min-height:38px; height:38px; border:1px solid #cbd5e1 !important; background:#fff8df !important; border-radius:9px !important; box-shadow:none !important; padding:0 10px !important; }
+      .subtle-search input { background:transparent !important; border:0 !important; box-shadow:none !important; padding:0 4px !important; height:36px !important; }
+      @media (max-width:1000px){ .sales-entry-filter-bar{grid-template-columns:1fr 1fr}.sales-entry-filter-bar .subtle-search{grid-column:1/-1;} }
     `}</style>
     <div className="sales-action-bar sales-top-actions">
       <label className="btn secondary file-action">
@@ -586,9 +594,7 @@ export default function Sales({ data, setData }) {
 
     <div className="status-pill">{status}</div>
 
-    <div className="page-filter-shell">
-      <div className="search-box sales-search emphasized-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date or file..." /></div>
-      <div className="filter-dropdown-group"><label>Source<select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="toast">Toast imports</option><option value="manual">Manual entries</option></select></label><label>Contains<select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}><option value="all">All sales</option><option value="cash">Cash collected</option><option value="credit">Credit collected</option><option value="tips">Tips collected</option></select></label></div>
+    <div className="page-filter-shell compact-filter-shell">
       <DateControls start={dateStart} end={dateEnd} onStartChange={value => { setDateStart(value); setFilter('custom') }} onEndChange={value => { setDateEnd(value); setFilter('custom') }} onApply={() => setStatus(`Showing ${filteredSales.length} sales rows${dateStart || dateEnd ? ` from ${dateStart || 'start'} to ${dateEnd || 'today'}` : ''}`)} onPreset={applyFilterPreset} />
     </div>
     {(dateStart || dateEnd) && <p className="filter-note">Showing data from {dateStart || 'first record'} to {dateEnd || 'latest record'}</p>}
@@ -643,6 +649,13 @@ export default function Sales({ data, setData }) {
 
     <section className="table-card compact-table-card sales-history-card">
       <header><h2>Sales History</h2><span>{filteredSales.length} rows {selectedIds.length ? <button className="delete-link small-btn" onClick={bulkDelete} type="button">Delete {selectedIds.length}</button> : null}</span></header>
+      <div className="sales-entry-filter-bar">
+        <div className="search-box subtle-search"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date, import file or note" /></div>
+        <label>Source<select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="toast">Toast imports</option><option value="manual">Manual entries</option></select></label>
+        <label>Payment<select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}><option value="all">All sales</option><option value="cash">Cash collected</option><option value="credit">Credit collected</option><option value="tips">Tips collected</option></select></label>
+        {(search || sourceFilter !== 'all' || paymentFilter !== 'all') && <button type="button" className="btn ghost clear-filter-btn" onClick={() => { setSearch(''); setSourceFilter('all'); setPaymentFilter('all') }}>Clear</button>}
+        <span className="filter-note">Newest date first</span>
+      </div>
       <table className="sales-table fit-sales-table"><thead><tr><th className="sales-check-col"><input type="checkbox" checked={checkedAll} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Other</th><th>Tips After Withholding</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col">Action</th></tr></thead><tbody>{filteredSales.map(row => {
         const isEditing = editingId === row.id
         const current = isEditing ? editRow : row

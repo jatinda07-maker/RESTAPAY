@@ -1312,3 +1312,39 @@ input:focus, textarea:focus, select:focus {
   .payroll-table-card { overflow-x: auto; }
   .payroll-table-card .payroll-entries-list { min-width: 1320px; }
 }
+
+/* RC14.4 Food & Alcohol Costing enterprise layout */
+.menu-costing-enterprise{display:grid;gap:14px}
+.menu-costing-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:4px 2px}
+.menu-costing-toolbar h2{margin:0;font-size:24px;letter-spacing:-.03em}
+.menu-costing-toolbar p{margin:4px 0 0;color:#64748b;font-size:13px}
+.menu-costing-toolbar .actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+.menu-costing-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px}
+.cost-kpi{display:flex;align-items:center;gap:12px;min-height:96px;padding:14px;border:1px solid #dfe7f1;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.055)}
+.cost-kpi-icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;flex:0 0 auto}
+.cost-kpi>div{min-width:0}.cost-kpi small,.cost-kpi span{display:block;color:#64748b;font-size:11px;font-weight:650}.cost-kpi strong{display:block;margin:3px 0;font-size:20px;line-height:1.1;color:#0f172a}
+.cost-kpi-food .cost-kpi-icon{background:#f59e0b}.cost-kpi-alcohol .cost-kpi-icon{background:#ea580c}.cost-kpi-cogs .cost-kpi-icon{background:#059669}.cost-kpi-target .cost-kpi-icon{background:#9333ea}.cost-kpi-target-alt .cost-kpi-icon{background:#2563eb}
+.menu-target-panel{display:grid;grid-template-columns:minmax(430px,1.5fr) repeat(4,minmax(120px,.55fr)) auto;gap:10px;align-items:end;padding:12px;border:1px solid #dfe7f1;background:#fbfdff;border-radius:13px}
+.menu-target-panel .date-control-card{margin:0!important}
+.menu-costing-tabs{display:flex;align-items:center;gap:4px;border-bottom:1px solid #e5eaf1;padding:0 4px}
+.menu-costing-tabs button{border:0;background:transparent;padding:11px 15px;color:#475569;font-weight:720;cursor:pointer;border-bottom:3px solid transparent}
+.menu-costing-tabs button:hover{color:#1d4ed8}.menu-costing-tabs button.active{color:#1d4ed8;border-bottom-color:#2563eb}
+.menu-costing-filterbar{display:grid;grid-template-columns:minmax(260px,1.35fr) repeat(3,minmax(150px,.7fr)) auto;gap:10px;align-items:end}
+.menu-costing-filterbar>label:not(.menu-search-field){display:grid;gap:4px}.menu-costing-filterbar>label>span{font-size:11px;color:#64748b;font-weight:720}
+.menu-search-field{display:flex;align-items:center;gap:9px;height:42px;padding:0 12px;border:1px solid #f0c56b;background:#fffaf0;border-radius:10px;color:#92400e}
+.menu-search-field input{border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;min-height:0!important;width:100%}
+.menu-costing-status{margin:0;justify-self:start}
+.menu-costing-table-card{overflow:hidden}
+.menu-costing-table-card>header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.menu-costing-table-card>header small{display:block;color:#64748b;margin-top:3px}
+.menu-costing-main-table{overflow:auto;max-height:650px}
+.menu-costing-main-table table{min-width:1180px}
+.menu-costing-main-table th{position:sticky;top:0;z-index:2;background:#f8fafc;white-space:nowrap}
+.menu-costing-main-table td{vertical-align:middle}
+.menu-item-name{display:flex;align-items:center;gap:10px;min-width:210px}.menu-item-name small{display:block;color:#64748b;margin-top:2px}
+.menu-item-icon{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:#fff;flex:0 0 auto}.menu-item-icon.food{background:#f59e0b}.menu-item-icon.alcohol{background:#ea580c}
+.menu-row-actions{display:flex;gap:7px;justify-content:flex-end}.menu-row-actions .icon-btn{width:31px;height:31px;display:grid;place-items:center;padding:0}
+.icon-btn.edit{color:#2563eb;border-color:#bfdbfe;background:#eff6ff}.icon-btn.edit:hover{background:#dbeafe}
+.recipe-detail-enterprise{position:relative;top:auto}.recipe-detail-enterprise .section-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px}.recipe-detail-enterprise .actions{display:flex;gap:8px}
+@media(max-width:1350px){.menu-costing-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.menu-target-panel{grid-template-columns:1fr 1fr 1fr}.menu-costing-filterbar{grid-template-columns:1fr 1fr 1fr}}
+@media(max-width:820px){.menu-costing-toolbar{align-items:stretch;flex-direction:column}.menu-costing-toolbar .actions{justify-content:flex-start}.menu-costing-kpis{grid-template-columns:1fr}.menu-target-panel,.menu-costing-filterbar{grid-template-columns:1fr}.menu-costing-tabs{overflow-x:auto}.menu-costing-tabs button{white-space:nowrap}}
