@@ -1442,3 +1442,34 @@ input:focus, textarea:focus, select:focus {
 @media(max-width:1450px){.menu-costing-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 @media(max-width:900px){.menu-costing-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.vendor-source-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.menu-costing-kpis,.vendor-source-grid{grid-template-columns:1fr!important}}
+
+
+/* RC15.4 stability overrides: visible vendor comparison, compact payroll, aligned searches and costing cards */
+.nav-item[aria-label="Vendor Comparison"] .nav-icon { color:#f97316; }
+.nav-item[aria-label="Vendor Comparison"] { border-top:1px solid rgba(148,163,184,.18); border-bottom:1px solid rgba(148,163,184,.18); }
+.payroll-toolbar{display:block!important;margin-bottom:12px!important}
+.payroll-toolbar .date-control-card{width:100%!important;margin:0!important}
+.payroll-toolbar .quick-preset-group{justify-content:flex-start!important}
+.payroll-presets{display:none!important}
+.payroll-filter-row{display:grid!important;grid-template-columns:minmax(260px,1.35fr) repeat(4,minmax(145px,.8fr)) auto!important;gap:10px!important;align-items:end!important}
+.payroll-filter-row>label{margin:0!important;min-width:0!important}
+.payroll-search{display:flex!important;flex-direction:row!important;align-items:center!important;gap:9px!important;height:42px!important;padding:0 12px!important;border:1px solid #cbd8e6!important;border-radius:10px!important;background:#f5f8fc!important;overflow:hidden!important}
+.payroll-search svg{flex:0 0 auto!important;color:#64748b!important}
+.payroll-search input{position:static!important;display:block!important;flex:1 1 auto!important;width:100%!important;min-width:0!important;height:40px!important;min-height:40px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;line-height:40px!important;font-size:13px!important;font-weight:600!important;color:#0f172a!important;transform:none!important}
+.payroll-search input::placeholder{color:#64748b!important;opacity:1!important;font-size:13px!important;font-weight:600!important;line-height:40px!important}
+.payroll-kpis{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important}
+.payroll-kpi{min-height:92px!important;padding:12px 14px!important;align-items:center!important}
+.payroll-kpi>div:last-child{display:flex!important;flex-direction:column!important;justify-content:center!important;min-width:0!important}
+.payroll-kpi span,.payroll-kpi small{line-height:1.2!important}
+.payroll-kpi b{line-height:1.1!important;margin:4px 0!important}
+.menu-costing-kpis{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:12px!important;align-items:stretch!important}
+.cost-kpi{min-height:116px!important;height:100%!important;padding:16px 18px!important;display:flex!important;align-items:center!important}
+.cost-kpi>div{display:flex!important;flex-direction:column!important;justify-content:center!important;min-height:72px!important}
+.cost-kpi-icon{width:58px!important;height:58px!important;border-radius:16px!important;flex:0 0 58px!important}
+.cost-kpi-icon svg,.cost-kpi-icon svg *{stroke:#fff!important;color:#fff!important}
+.menu-costing-tabs button{cursor:pointer!important;position:relative!important;z-index:1!important}
+.compact-search,.menu-search-field{display:flex!important;align-items:center!important;gap:9px!important;height:42px!important;padding:0 12px!important;border-radius:10px!important;overflow:hidden!important}
+.compact-search input,.menu-search-field input{flex:1 1 auto!important;width:100%!important;min-width:0!important;height:40px!important;min-height:40px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;line-height:40px!important;transform:none!important}
+@media(max-width:1500px){.payroll-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}.payroll-filter-row{grid-template-columns:1fr 1fr 1fr!important}.payroll-search{grid-column:1/-1!important}.menu-costing-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:900px){.payroll-kpis,.menu-costing-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.payroll-filter-row{grid-template-columns:1fr 1fr!important}}
+@media(max-width:620px){.payroll-kpis,.menu-costing-kpis,.payroll-filter-row{grid-template-columns:1fr!important}}

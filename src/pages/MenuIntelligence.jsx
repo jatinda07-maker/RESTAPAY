@@ -195,7 +195,7 @@ export default function MenuIntelligence({ data }) {
 
     <section className="filter-card mi-filters">
       <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={() => {}} onPreset={applyPreset} applyLabel="Apply" />
-      <label><span>Search Item</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search dish or drink..." /></label>
+      <label><span>Search Item</span><input type="search" data-clear-on-focus="true" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search dish or drink..." /></label>
       <label><span>Category</span><select value={category} onChange={event => setCategory(event.target.value)}><option value="all">All Categories</option>{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
     </section>
 

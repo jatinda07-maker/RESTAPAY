@@ -406,7 +406,7 @@ export default function MenuCosting({ data, setData }) {
 
       {['all','food','alcohol'].includes(activeTab) && <>
       <section className="menu-costing-filterbar">
-        <label className="menu-search-field"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search item name, category, vendor..." /></label>
+        <label className="menu-search-field"><Icon name="search" size={18} /><input type="search" data-clear-on-focus="true" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search item name, category, vendor..." /></label>
         <label><span>Category</span><select value={category} onChange={e => setCategory(e.target.value)}><option value="all">All Categories</option><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></label>
         <label><span>Vendor</span><select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)}><option value="all">All Vendors</option>{vendorOptions.map(vendor => <option key={vendor}>{vendor}</option>)}</select></label>
         <label><span>Cost Status</span><select value={costFilter} onChange={e => setCostFilter(e.target.value)}><option value="all">All Items</option><option value="on-target">On Target</option><option value="above">Above Target</option></select></label>
@@ -459,7 +459,7 @@ export default function MenuCosting({ data, setData }) {
         </div>
       </section>}
 
-      {selected && <section className="section-card recipe-detail-card recipe-detail-enterprise">
+      {selected && ['all','food','alcohol'].includes(activeTab) && <section className="section-card recipe-detail-card recipe-detail-enterprise">
         <header className="section-card-header">
           <div><h2>Edit Recipe: {selected.name}</h2><small>{selected.vendorSource} · {selected.category}</small></div>
           <div className="actions"><button className="btn secondary compact" type="button" onClick={() => setSelectedId('')}>Close</button>{selectedRecipe && <button className="btn primary compact" type="button" onClick={() => approveRecipe(selectedRecipe.id)}><Icon name="shield" size={15} /> Approve Recipe</button>}</div>

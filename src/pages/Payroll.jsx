@@ -618,12 +618,6 @@ export default function Payroll({ data, setData, setActive }) {
 
       <div className="payroll-toolbar">
         <div className="date-range-box"><DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}`) }} onPreset={applyPreset} /></div>
-        <div className="payroll-presets">
-          <button className="btn secondary" onClick={() => applyPreset('today')}>Today</button>
-          <button className="btn secondary" onClick={() => applyPreset('lastWeek')}>Last 7 Days</button>
-          <button className="btn primary" onClick={() => applyPreset('thisMonth')}>This Month</button>
-          <button className="btn secondary" onClick={() => applyPreset('lastMonth')}>Last Month</button>
-        </div>
       </div>
 
       <div className="payroll-kpis">
@@ -648,7 +642,7 @@ export default function Payroll({ data, setData, setActive }) {
       {activeTab === 'all' && <div className="payroll-content-grid">
         <section className="payroll-main-panel">
           <div className="payroll-filter-row">
-            <label className="payroll-search"><Icon name="search" /><input value={employeeSearch} onChange={e=>setEmployeeSearch(e.target.value)} placeholder="Search employee, group, method, check #..." /></label>
+            <label className="payroll-search" aria-label="Search payroll"><Icon name="search" /><input type="search" data-clear-on-focus="true" value={employeeSearch} onChange={e=>setEmployeeSearch(e.target.value)} placeholder="Search employee, group, method, check #..." /></label>
             <label>Employee<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="all">All Employees</option>{employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></label>
             <label>Payroll Type<select value={payClassFilter} onChange={e=>setPayClassFilter(e.target.value)}><option value="all">All Types</option><option value="operating">Operating Labor</option><option value="tips">Customer Tips</option></select></label>
             <label>Payment Method<select value={payMethodFilter} onChange={e=>setPayMethodFilter(e.target.value)}><option value="all">All Methods</option><option value="cash">Cash</option><option value="check">Check</option></select></label>
