@@ -7,6 +7,7 @@ import EntityPage from './pages/EntityPage'
 import Employees from './pages/Employees'
 import Payroll from './pages/Payroll'
 import Vendors from './pages/Vendors'
+import VendorComparison from './pages/VendorComparison'
 import Invoices from './pages/Invoices'
 import Settings from './pages/Settings'
 import Sales from './pages/Sales'
@@ -55,6 +56,7 @@ function App() {
       : active === 'menu-costing' ? <MenuCosting {...shared} />
       : active === 'menu-intelligence' ? <MenuIntelligence {...shared} />
       : active === 'vendors' ? <Vendors {...shared} />
+      : active === 'vendor-comparison' ? <VendorComparison {...shared} />
       : active === 'invoices' ? <Invoices {...shared} />
       : active === 'payroll' ? <Payroll {...shared} setActive={setActive} />
       : active === 'expenses' ? <Expenses {...shared} />

@@ -50,13 +50,16 @@ import {
   Wine,
   Wrench,
   X,
-  Zap
+  Zap,
+  Scale,
+  History
 } from 'lucide-react'
 
 export const iconMap = {
   dashboard: Home,
   sales: BarChart3,
   vendors: Store,
+  'vendor-comparison': Scale,
   invoices: FileText,
   employees: Users,
   payroll: WalletCards,
@@ -114,7 +117,9 @@ export const iconMap = {
   chevronsRight: ChevronsRight,
   trending: TrendingUp,
   spreadsheet: FileSpreadsheet,
-  pie: PieChart
+  pie: PieChart,
+  compare: Scale,
+  history: History
 }
 
 export function Icon({ name, size = 20, className = '' }) {

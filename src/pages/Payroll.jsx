@@ -547,7 +547,7 @@ export default function Payroll({ data, setData, setActive }) {
       .payroll-presets { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
       .payroll-presets .btn { min-height:36px; padding:7px 12px; font-size:12px; }
       .payroll-kpis { display:grid; grid-template-columns:repeat(6,minmax(150px,1fr)); gap:12px; }
-      .payroll-kpi { border:1px solid #e3e9f2; border-radius:14px; background:#fff; padding:16px; display:flex; gap:12px; align-items:center; min-height:98px; }
+      .payroll-kpi { border:1px solid #e3e9f2; border-radius:14px; background:#fff; padding:13px 14px; display:flex; gap:11px; align-items:center; min-height:84px; overflow:hidden; }
       .payroll-kpi-icon { width:46px; height:46px; border-radius:12px; display:grid; place-items:center; flex:0 0 46px; }
       .payroll-kpi:nth-child(1) .payroll-kpi-icon { background:#2563eb; color:#fff; }
       .payroll-kpi:nth-child(2) .payroll-kpi-icon { background:#16a34a; color:#fff; }
@@ -567,17 +567,20 @@ export default function Payroll({ data, setData, setActive }) {
       .employee-icon-chip.blue{background:#2563eb}.employee-icon-chip.green{background:#16a34a}.employee-icon-chip.orange{background:#f97316}.employee-icon-chip.purple{background:#9333ea}.employee-icon-chip.teal{background:#0d9488}
       .employee-icon-chip svg,.employee-icon-chip svg *{stroke:#fff!important;color:#fff!important}
 
-      .payroll-kpi span { color:#64748b; font-size:12px; font-weight:700; }
-      .payroll-kpi b { display:block; font-size:24px; color:#0f172a; line-height:1.15; margin:3px 0; }
-      .payroll-kpi small { color:#64748b; }
+      .payroll-kpi > div:last-child { min-width:0; display:flex; flex-direction:column; justify-content:center; line-height:1.15; }
+      .payroll-kpi span { color:#64748b; font-size:12px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .payroll-kpi b { display:block; font-size:21px; color:#0f172a; line-height:1.1; margin:4px 0 3px; white-space:nowrap; }
+      .payroll-kpi small { color:#64748b; font-size:11px; line-height:1.25; min-height:14px; }
       .payroll-tabs { display:flex; gap:8px; border-bottom:1px solid #e2e8f0; padding:0; }
-      .payroll-tabs button { border:0; background:transparent; padding:10px 14px; font-size:13px; line-height:1; font-weight:800; color:#334155; border-bottom:3px solid transparent; }
+      .payroll-tabs button { border:0; background:transparent; min-height:44px; padding:0 14px; font-size:13px; line-height:1; font-weight:800; color:#334155; border-bottom:3px solid transparent; display:flex; align-items:center; justify-content:center; white-space:nowrap; }
       .payroll-tabs button.active { color:#ea7000; border-bottom-color:#ea7000; }
       .payroll-content-grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:14px; align-items:start; }
       .payroll-main-panel, .payroll-side-panel { border:1px solid #e0e7f0; border-radius:14px; background:#fff; }
       .payroll-filter-row { display:grid; grid-template-columns:minmax(240px,1.35fr) repeat(4,minmax(135px,.8fr)) auto; gap:9px; padding:12px 14px; align-items:end; }
-      .payroll-search { background:#f3f7fb; border:1px solid #cbd8e6; border-radius:9px; display:flex; align-items:center; gap:9px; padding:0 11px; height:40px; }
-      .payroll-search input { border:0; background:transparent; width:100%; outline:0; height:100%; }
+      .payroll-search { background:#f5f8fc; border:1px solid #cbd8e6; border-radius:9px; display:flex!important; flex-direction:row!important; align-items:center!important; gap:9px; padding:0 12px!important; height:42px; min-width:0; overflow:hidden; }
+      .payroll-search svg { flex:0 0 auto; color:#64748b; }
+      .payroll-search input { border:0!important; background:transparent!important; width:100%; min-width:0; outline:0; height:40px!important; padding:0!important; margin:0!important; font-size:13px!important; line-height:40px!important; color:#0f172a; box-shadow:none!important; }
+      .payroll-search input::placeholder { color:#64748b; opacity:1; font-weight:600; }
       .payroll-filter-row label { display:grid; gap:4px; color:#64748b; font-size:11px; font-weight:800; }
       .payroll-filter-row select { height:40px; border:1px solid #dbe3ef; border-radius:10px; background:#f7faff; padding:0 12px; font-weight:700; }
       .payroll-bulk-row { display:flex; gap:10px; align-items:center; padding:10px 14px; border-top:1px solid #eef2f7; border-bottom:1px solid #eef2f7; }
@@ -633,9 +636,9 @@ export default function Payroll({ data, setData, setActive }) {
       </div>
 
       <div className="payroll-quick-actions">
-        <button className="btn secondary quick-manual" onClick={() => setActiveTab('manual')}><Icon name="plus" /> Manual Payroll</button>
+        <button className="btn secondary quick-manual" onClick={() => setActiveTab('manual')}><Icon name="plus" /> Add Manual Payroll</button>
         <button className="btn secondary quick-groups" onClick={() => setActiveTab('groups')}><Icon name="users" /> Payroll Groups / Kitchen</button>
-        <label className="file-button btn secondary quick-import"><Icon name="upload" /> Import Labor<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
+        <label className="file-button btn secondary quick-import"><Icon name="upload" /> Import Labor Summary<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
       </div>
 
       <div className="payroll-tabs">

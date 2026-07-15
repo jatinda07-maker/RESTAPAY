@@ -13,6 +13,7 @@ const subtitles = {
   'menu-intelligence': 'Most sold, least sold, plate cost, ingredient cost, and menu profitability',
   'menu-costing': 'Import Product Mix, estimate recipes, and calculate dish profit',
   vendors: 'Manage vendors, categories, payment terms, and contacts',
+  'vendor-comparison': 'Compare invoice item prices, package sizes, unit costs, and vendor savings',
   invoices: 'Upload invoices, review totals, and organize vendor bills',
   employees: 'Manage employees, roles, pay types, and status',
   payroll: 'Process payroll groups, manual payroll, tips, and history',

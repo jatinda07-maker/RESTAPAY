@@ -1385,3 +1385,28 @@ input:focus, textarea:focus, select:focus {
 .compare-down { color:#15803d; font-weight:700; }
 .vendor-comparison-card .empty-state { padding:28px 18px; text-align:center; color:#64748b; }
 @media (max-width: 900px) { .vendor-compare-controls { grid-template-columns:1fr; } }
+
+/* RC15.1 Vendor Comparison module */
+.vendor-comparison-page { display:grid; gap:16px; }
+.vc-hero { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:22px 24px; border:1px solid #dbe4ef; border-radius:16px; background:linear-gradient(135deg,#ffffff 0%,#f4f8ff 100%); }
+.vc-hero h2 { margin:4px 0 6px; font-size:25px; color:#172033; }
+.vc-hero p { margin:0; color:#667085; }
+.vc-hero-icon { width:52px; height:52px; border-radius:14px; display:grid; place-items:center; background:#3157d5; color:#fff; box-shadow:0 8px 18px rgba(49,87,213,.2); }
+.vc-filters { display:grid; grid-template-columns:minmax(500px,2fr) repeat(3,minmax(160px,1fr)); align-items:end; gap:12px; }
+.vc-filters > label { display:grid; gap:6px; }
+.vc-filters > label > span { font-size:12px; font-weight:700; color:#536174; }
+.vc-toolbar { display:flex; align-items:center; gap:10px; justify-content:space-between; }
+.vc-toolbar .compact-search { max-width:520px; width:100%; }
+.vc-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.vc-summary-grid > div { padding:16px 18px; border:1px solid #e0e6ef; border-radius:14px; background:#fff; display:grid; gap:4px; }
+.vc-summary-grid span { color:#697586; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.vc-summary-grid strong { color:#172033; font-size:24px; }
+.vc-summary-grid small { color:#8491a3; }
+.vc-table-card header { padding:16px 18px; }
+.vendor-comparison-table { min-width:1120px; }
+.vendor-comparison-table td small { display:block; margin-top:3px; color:#7a8798; }
+.vendor-comparison-table th,.vendor-comparison-table td { vertical-align:middle; }
+.vc-history-modal { width:min(860px,92vw); }
+.vc-history-modal footer { display:flex; justify-content:flex-end; align-items:center; gap:14px; padding:14px 18px; border-top:1px solid #e5e7eb; }
+@media (max-width:1150px) { .vc-filters { grid-template-columns:1fr 1fr; } .vc-summary-grid { grid-template-columns:1fr 1fr; } }
+@media (max-width:700px) { .vc-filters,.vc-summary-grid { grid-template-columns:1fr; } .vc-toolbar { align-items:stretch; flex-direction:column; } }
