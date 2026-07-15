@@ -1,3 +1,4 @@
+import { diagnosticLogger } from './diagnostics'
 import { supabase, isSupabaseReady } from './supabase'
 
 export const RESTAPAY_KEY = 'restapay_v2_local_data'
@@ -99,7 +100,7 @@ export function loadData() {
     }
     return defaultData
   } catch (error) {
-    console.error('Failed to read local data', error)
+    diagnosticLogger.error('Local Storage', 'Failed to read local data', { error }); console.error('Failed to read local data', error)
     return defaultData
   }
 }
@@ -205,7 +206,7 @@ async function loadCloudTables() {
     await Promise.all(tableNames.map(async table => {
       const { data, error } = await supabase.from(table).select('*')
       if (error) {
-        failed[table] = error.message || String(error)
+        failed[table] = error.message || String(error); diagnosticLogger.warn('Supabase Table', `Unable to read ${table}`, { table, error: error.message || String(error) })
         loaded[table] = []
         return
       }
@@ -215,7 +216,7 @@ async function loadCloudTables() {
 
     return { data: normalizeTableData(loaded), successful, failed }
   } catch (error) {
-    console.error('Failed to read Supabase tables.', error)
+    diagnosticLogger.error('Supabase', 'Failed to read normalized Supabase tables', { error }); console.error('Failed to read Supabase tables.', error)
     return null
   }
 }
@@ -265,14 +266,14 @@ export async function loadCloudData() {
 
     if (merged) {
       localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
-      announceCloudStatus('saved', { message: 'Loaded from database', source: 'cloud-load' })
+      diagnosticLogger.success('Supabase', 'Loaded application data from database', { tables: Array.from(successful) }); announceCloudStatus('saved', { message: 'Loaded from database', source: 'cloud-load' })
     } else {
       announceCloudStatus('saved', { message: 'Cloud connected', source: 'cloud-load' })
     }
 
     return merged
   } catch (error) {
-    console.error('Failed to read Supabase data. Falling back to localStorage.', error)
+    diagnosticLogger.error('Supabase', 'Cloud load failed; using local backup', { error }); console.error('Failed to read Supabase data. Falling back to localStorage.', error)
     return null
   }
 }
@@ -606,13 +607,13 @@ export async function saveCloudData(data, options = {}) {
 
     localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
     try { localStorage.removeItem(RESTAPAY_PENDING_CLOUD_KEY) } catch {}
-    announceCloudStatus('saved', { message: 'Saved to database', source: options.source || 'direct-save' })
+    diagnosticLogger.success('Supabase', 'Saved normalized tables and backup state', { source: options.source || 'direct-save' }); announceCloudStatus('saved', { message: 'Saved to database', source: options.source || 'direct-save' })
 
     return { ok: true }
   } catch (error) {
     try { localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify(mergeData(data))) } catch {}
     announceCloudStatus('offline', { message: 'Database save failed. Local backup saved and ready to retry.', source: options.source || 'direct-save', error: error?.message || String(error) })
-    console.error('Failed to save Supabase data. LocalStorage backup was still saved.', error)
+    diagnosticLogger.error('Supabase', 'Database save failed; local pending backup created', { error, source: options.source || 'direct-save' }); console.error('Failed to save Supabase data. LocalStorage backup was still saved.', error)
     return { ok: false, error }
   }
 }

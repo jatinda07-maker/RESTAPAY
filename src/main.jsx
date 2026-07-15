@@ -17,11 +17,16 @@ import MenuCosting from './pages/MenuCosting'
 import MenuIntelligence from './pages/MenuIntelligence'
 import ImportCenter from './pages/ImportCenter'
 import ToastIntegration from './pages/ToastIntegration'
+import Diagnostics from './pages/Diagnostics'
+import { diagnosticLogger, installGlobalDiagnostics } from './lib/diagnostics'
 import { useLocalData } from './lib/useLocalData'
 import './styles.css'
 
+installGlobalDiagnostics()
+
 function App() {
-  const [active, setActive] = useState('dashboard')
+  const [active, setActiveState] = useState('dashboard')
+  const setActive = next => { diagnosticLogger.info('Navigation', `Opened ${next}`, { from: active, to: next }); setActiveState(next) }
 
   useEffect(() => {
     const handleFocus = event => {
@@ -68,6 +73,7 @@ function App() {
       : active === 'payroll' ? <Payroll {...shared} setActive={setActive} />
       : active === 'expenses' ? <Expenses {...shared} />
       : active === 'reports' ? <Reports {...shared} />
+      : active === 'diagnostics' ? <Diagnostics {...shared} />
       : active === 'settings' ? <Settings {...shared} />
       : <EntityPage page={active} />}
   </Layout>

@@ -53,7 +53,8 @@ import {
   Zap,
   Scale,
   History,
-  GitMerge
+  GitMerge,
+  Activity
 } from 'lucide-react'
 
 export const iconMap = {
@@ -73,6 +74,7 @@ export const iconMap = {
   'import-center': FileUp,
   'toast-integration': Cloud,
   settings: Settings,
+  diagnostics: Activity,
   cart: ShoppingCart,
   store: Store,
   calendar: Calendar,

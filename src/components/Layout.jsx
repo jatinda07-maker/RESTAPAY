@@ -10,7 +10,7 @@ const navSections = [
   { label: 'People', keys: ['employees', 'payroll'] },
   { label: 'Operations', keys: ['expenses', 'reports'] },
   { label: 'Menu & Toast', keys: ['menu-intelligence', 'menu-costing', 'import-center', 'toast-integration'] },
-  { label: 'System', keys: ['settings'] }
+  { label: 'System', keys: ['diagnostics', 'settings'] }
 ]
 
 const subtitles = {
@@ -29,6 +29,7 @@ const subtitles = {
   expenses: 'Track restaurant expenses, payment methods, and categories',
   reports: 'Generate weekly reports, exports, and custom business analysis',
   'price-increase': 'Review vendor item increases and pricing risk',
+  diagnostics: 'Review database sync, imports, errors, warnings, and downloadable support logs',
   settings: 'Manage business info, categories, backup, and app settings'
 }
 
