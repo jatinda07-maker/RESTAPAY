@@ -242,6 +242,28 @@ async function extractWithGemini(file) {
   }
 }
 
+
+function normalizeInvoiceItemForEditor(item = {}) {
+  const qty = Number(firstPresent(item.qty, item.quantity, item.count, 1) || 0)
+  const unitPrice = Number(firstPresent(item.unit_price, item.price, item.rate, item.cost, 0) || 0)
+  const total = Number(firstPresent(item.total, item.line_total, item.amount, qty * unitPrice) || 0)
+
+  return enrichInvoiceItem({
+    ...item,
+    id: item.id || createId('item'),
+    invoice_id: item.invoice_id,
+    description: clean(firstPresent(item.description, item.item_name, item.name)),
+    qty,
+    quantity: qty,
+    unit_price: unitPrice,
+    total,
+    line_total: total,
+    category: item.category || 'Other',
+    package_size: clean(firstPresent(item.package_size, item.package_label, item.unit)),
+    unit: clean(item.unit)
+  })
+}
+
 export default function Invoices({ data, setData }) {
   const vendors = sortByName(data.vendors || [])
   const categories = data.vendorCategories || []
@@ -511,12 +533,47 @@ export default function Invoices({ data, setData }) {
     clearForm()
   }
 
-  function editInvoice(inv) {
+  async function editInvoice(inv) {
     setEditingId(inv.id)
     setForm({ ...blankInvoice, ...inv })
-    setLineItems((data.invoiceItems || []).filter(item => item.invoice_id === inv.id).map(item => ({ ...item })))
     setDuplicateWarning(null)
-    setStatus(`Editing invoice: ${inv.vendor_name}`)
+
+    const invoiceId = String(inv.id || '')
+    let savedItems = (data.invoiceItems || [])
+      .filter(item => String(item.invoice_id || '') === invoiceId)
+      .map(normalizeInvoiceItemForEditor)
+
+    if (!savedItems.length && Array.isArray(inv.lineItems)) {
+      savedItems = inv.lineItems.map(item => normalizeInvoiceItemForEditor({ ...item, invoice_id: inv.id }))
+    }
+
+    if (!savedItems.length && isSupabaseReady && supabase && inv.id) {
+      setStatus(`Loading saved line items for ${inv.vendor_name}...`)
+      const { data: cloudItems, error } = await supabase
+        .from('invoice_items')
+        .select('*')
+        .eq('invoice_id', inv.id)
+        .order('created_at', { ascending: true })
+
+      if (error) {
+        console.error('Unable to load invoice line items:', error)
+        setStatus(`Invoice opened, but line items could not be loaded: ${error.message}`)
+      } else if (Array.isArray(cloudItems) && cloudItems.length) {
+        savedItems = cloudItems.map(normalizeInvoiceItemForEditor)
+        setData(prev => ({
+          ...prev,
+          invoiceItems: [
+            ...(prev.invoiceItems || []).filter(item => String(item.invoice_id || '') !== invoiceId),
+            ...cloudItems
+          ]
+        }))
+      }
+    }
+
+    setLineItems(savedItems)
+    setStatus(savedItems.length
+      ? `Editing invoice: ${inv.vendor_name} (${savedItems.length} line items loaded)`
+      : `Editing invoice: ${inv.vendor_name}. No saved line items were found.`)
     requestAnimationFrame(() => document.querySelector('.invoice-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
@@ -580,12 +637,9 @@ export default function Invoices({ data, setData }) {
 
       const inheritedCategory = extracted.category || vendorMatch?.category || 'Food'
       const extractedVendorName = extracted.vendor_name || vendorMatch?.name || ''
-      setLineItems(extractedLineItems.map(item => ({
+      setLineItems(extractedLineItems.map(item => normalizeInvoiceItemForEditor({
+        ...item,
         id: item.id || createId('item'),
-        description: clean(item.description),
-        qty: Number(item.qty || 1),
-        unit_price: Number(item.unit_price || 0),
-        total: Number(item.total || 0),
         category: suggestedInvoiceItemCategory(item, inheritedCategory, extractedVendorName)
       })))
 
