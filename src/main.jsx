@@ -28,11 +28,18 @@ function App() {
       const input = event.target
       if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) return
       if (input.readOnly || input.disabled || ['date', 'file', 'checkbox', 'radio', 'color'].includes(input.type)) return
-      // Selecting the full value lets the next keystroke replace it after click or Tab.
-      // Zero placeholders are cleared immediately for faster numeric entry.
+      // Search fields clear immediately on click or Tab, as requested.
+      // Other entry fields select their current value so the next keystroke replaces it.
       requestAnimationFrame(() => {
-        if (/^-?0+(\.0+)?$/.test(String(input.value || '').trim())) {
-          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        const isSearchField = input.type === 'search' || /search/i.test(String(input.placeholder || '')) || input.dataset.clearOnFocus === 'true'
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        if (isSearchField) {
+          if (input.value) {
+            setter?.call(input, '')
+            input.dispatchEvent(new Event('input', { bubbles: true }))
+          }
+          input.setSelectionRange?.(0, 0)
+        } else if (/^-?0+(\.0+)?$/.test(String(input.value || '').trim())) {
           setter?.call(input, '')
           input.dispatchEvent(new Event('input', { bubbles: true }))
         } else {

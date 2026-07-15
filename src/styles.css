@@ -1410,3 +1410,35 @@ input:focus, textarea:focus, select:focus {
 .vc-history-modal footer { display:flex; justify-content:flex-end; align-items:center; gap:14px; padding:14px 18px; border-top:1px solid #e5e7eb; }
 @media (max-width:1150px) { .vc-filters { grid-template-columns:1fr 1fr; } .vc-summary-grid { grid-template-columns:1fr 1fr; } }
 @media (max-width:700px) { .vc-filters,.vc-summary-grid { grid-template-columns:1fr; } .vc-toolbar { align-items:stretch; flex-direction:column; } }
+
+/* RC15.3 menu costing alignment, functional tabs, and search field normalization */
+.menu-costing-kpis{
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  align-items:stretch;
+}
+.cost-kpi{
+  min-height:112px!important;
+  height:100%;
+  padding:16px 18px!important;
+  align-items:center!important;
+}
+.cost-kpi>div{display:flex;flex-direction:column;justify-content:center;min-height:72px}
+.cost-kpi small{font-size:12px!important;line-height:1.2}
+.cost-kpi strong{font-size:22px!important;line-height:1.15!important;margin:5px 0!important}
+.cost-kpi span{font-size:11px!important;line-height:1.25}
+.menu-costing-tabs button{font-size:13px;min-height:44px;display:flex;align-items:center}
+.menu-tab-panel-card{overflow:hidden}
+.menu-tab-panel-card>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #e5eaf1}
+.menu-tab-panel-card>header h2{margin:0;font-size:18px}.menu-tab-panel-card>header p{margin:4px 0 0;color:#64748b;font-size:12px}
+.menu-tab-table{min-width:760px}.menu-tab-table th,.menu-tab-table td{vertical-align:middle}
+.vendor-source-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px}
+.vendor-source-grid article{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+.vendor-source-grid small{display:block;color:#64748b;margin-top:3px}.vendor-source-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:#2563eb;color:#fff}.vendor-source-icon svg,.vendor-source-icon svg *{stroke:#fff!important}
+.payroll-search{position:relative!important;display:flex!important;align-items:center!important;height:42px!important;padding:0 12px!important;overflow:hidden!important}
+.payroll-search input{position:static!important;display:block!important;height:40px!important;line-height:normal!important;padding:0!important;margin:0!important;transform:none!important;vertical-align:middle!important}
+.payroll-search input::placeholder{line-height:normal!important;font-size:13px!important;font-weight:600!important}
+.compact-search,.menu-search-field{position:relative;overflow:hidden}
+.compact-search input,.menu-search-field input{height:40px!important;line-height:normal!important;margin:0!important;transform:none!important}
+@media(max-width:1450px){.menu-costing-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:900px){.menu-costing-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.vendor-source-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.menu-costing-kpis,.vendor-source-grid{grid-template-columns:1fr!important}}

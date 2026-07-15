@@ -400,10 +400,11 @@ export default function MenuCosting({ data, setData }) {
         <button className={activeTab === 'all' ? 'active' : ''} onClick={() => setActiveTab('all')} type="button">All Items</button>
         <button className={activeTab === 'food' ? 'active' : ''} onClick={() => setActiveTab('food')} type="button">Food Items</button>
         <button className={activeTab === 'alcohol' ? 'active' : ''} onClick={() => setActiveTab('alcohol')} type="button">Alcohol Items</button>
-        <button type="button" onClick={() => setStatus(`${menuRecipes.length} saved recipes.`)}>Recipes</button>
-        <button type="button" onClick={() => setStatus(`${vendorOptions.length} connected vendor sources.`)}>Vendors</button>
+        <button className={activeTab === 'recipes' ? 'active' : ''} type="button" onClick={() => setActiveTab('recipes')}>Recipes</button>
+        <button className={activeTab === 'vendors' ? 'active' : ''} type="button" onClick={() => setActiveTab('vendors')}>Vendors</button>
       </nav>
 
+      {['all','food','alcohol'].includes(activeTab) && <>
       <section className="menu-costing-filterbar">
         <label className="menu-search-field"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search item name, category, vendor..." /></label>
         <label><span>Category</span><select value={category} onChange={e => setCategory(e.target.value)}><option value="all">All Categories</option><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></label>
@@ -439,6 +440,24 @@ export default function MenuCosting({ data, setData }) {
           </table>
         </div>
       </section>
+
+      </>}
+
+      {activeTab === 'recipes' && <section className="table-card menu-tab-panel-card">
+        <header><div><h2>Saved Recipes</h2><p>Review every recipe, ingredient count, estimated cost, and approval status.</p></div><span className="badge neutral">{menuRecipes.length} recipes</span></header>
+        <div className="table-wrap"><table className="menu-tab-table"><thead><tr><th>Menu Item</th><th>Category</th><th>Ingredients</th><th>Recipe Cost</th><th>Status</th><th>Action</th></tr></thead><tbody>
+          {enrichedItems.map(item => <tr key={item.id}><td><b>{item.name}</b></td><td>{item.category}</td><td>{item.recipe?.lines?.length || 0}</td><td>{displayMoney(item.dishCost)}</td><td><span className={`tag ${item.recipe?.confidence === 'Approved' ? 'green' : 'orange'}`}>{item.recipe?.confidence || 'Needs recipe'}</span></td><td><button className="icon-btn edit" type="button" title="Edit recipe" onClick={() => { setSelectedId(item.id); setActiveTab('all') }}><Icon name="edit" size={15} /></button></td></tr>)}
+          {!enrichedItems.length && <tr><td colSpan="6">Import Toast Product Mix to create menu items and recipes.</td></tr>}
+        </tbody></table></div>
+      </section>}
+
+      {activeTab === 'vendors' && <section className="table-card menu-tab-panel-card">
+        <header><div><h2>Connected Vendors</h2><p>Vendor sources found in menu recipes and imported invoice items.</p></div><span className="badge neutral">{vendorOptions.length} vendors</span></header>
+        <div className="vendor-source-grid">
+          {vendorOptions.map(vendor => { const items = enrichedItems.filter(item => item.vendorSource === vendor); return <article key={vendor}><span className="vendor-source-icon"><Icon name="store" size={19} /></span><div><b>{vendor}</b><small>{items.length} linked menu item{items.length === 1 ? '' : 's'}</small></div></article> })}
+          {!vendorOptions.length && <div className="empty-state">No vendor sources yet. Import invoices and Product Mix data first.</div>}
+        </div>
+      </section>}
 
       {selected && <section className="section-card recipe-detail-card recipe-detail-enterprise">
         <header className="section-card-header">
