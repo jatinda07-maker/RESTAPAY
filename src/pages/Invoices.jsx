@@ -31,6 +31,15 @@ function clean(v) {
   return String(v ?? '').trim()
 }
 
+function firstPresent(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return value
+    }
+  }
+  return ''
+}
+
 function norm(v) {
   return clean(v).toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
