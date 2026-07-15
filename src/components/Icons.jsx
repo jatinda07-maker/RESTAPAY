@@ -52,7 +52,8 @@ import {
   X,
   Zap,
   Scale,
-  History
+  History,
+  GitMerge
 } from 'lucide-react'
 
 export const iconMap = {

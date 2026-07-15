@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
 import { getPresetRange } from '../engine/DateEngine'
+import { enrichInvoiceItem, normalizeVendorName } from '../engine/InvoiceProductEngine'
 
 function num(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -15,7 +16,7 @@ function iso(value) {
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10)
   return date.toISOString().slice(0, 10)
 }
-function normalizeVendor(value) { return String(value || '').trim().toLowerCase() }
+function normalizeVendor(value) { return normalizeVendorName(value) }
 function normalizeName(value) {
   return String(value || '')
     .toLowerCase()
@@ -25,14 +26,12 @@ function normalizeName(value) {
     .replace(/\s+/g, ' ')
 }
 function sizeText(row) {
-  const raw = row.size || row.package_size || row.pack_size || row.unit || row.uom || row.measure || ''
-  return String(raw || '').trim() || 'Unspecified'
+  const enriched = enrichInvoiceItem(row)
+  return enriched.package_label || row.size || row.package_size || row.pack_size || row.unit || row.uom || 'Unspecified'
 }
 function unitCost(row) {
-  const explicit = num(row.unit_cost ?? row.unitCost ?? row.price_each ?? row.priceEach)
-  if (explicit) return explicit
-  const qty = num(row.quantity ?? row.qty ?? row.case_qty ?? row.pack_qty) || 1
-  return num(row.line_total ?? row.total ?? row.amount ?? row.extended_total) / qty
+  const enriched = enrichInvoiceItem(row)
+  return num(enriched.normalized_unit_cost || row.normalized_unit_cost || row.unit_cost || row.unitCost || row.price_each || row.priceEach || row.unit_price)
 }
 function invoiceDate(invoice, row) { return iso(row.invoice_date || row.date || invoice?.invoice_date || invoice?.date) }
 
@@ -67,6 +66,7 @@ export default function VendorComparison({ data }) {
         date: invoiceDate(invoice, item),
         size: sizeText(item),
         cost: unitCost(item),
+        normalizedUnit: enrichInvoiceItem(item).normalized_unit || 'unit',
         quantity: num(item.quantity ?? item.qty) || 1,
         normalized: normalizeName(description),
       }
@@ -86,8 +86,8 @@ export default function VendorComparison({ data }) {
     })
     const grouped = new Map()
     filtered.forEach(row => {
-      const key = `${row.normalized}|${String(row.size).toLowerCase()}`
-      const group = grouped.get(key) || { key, description: row.description, size: row.size, category: row.category, history: [] }
+      const key = `${row.normalized}|${String(row.normalizedUnit).toLowerCase()}`
+      const group = grouped.get(key) || { key, description: row.description, size: row.size, normalizedUnit: row.normalizedUnit, category: row.category, history: [] }
       group.history.push(row)
       grouped.set(key, group)
     })
@@ -146,13 +146,13 @@ export default function VendorComparison({ data }) {
     </div>
 
     <section className="table-card vc-table-card">
-      <header><div><h2>Item Price Comparison</h2><p>Latest normalized unit cost by item and package size</p></div></header>
+      <header><div><h2>Item Price Comparison</h2><p>Latest apples-to-apples cost per pound, liter, or each</p></div></header>
       {!vendorA || !vendorB ? <div className="empty-state">Select two vendors above to begin comparison.</div>
         : vendorA === vendorB ? <div className="empty-state">Choose two different vendors.</div>
           : <div className="table-wrap"><table className="vendor-comparison-table"><thead><tr><th>Item</th><th>Category</th><th>Size / Unit</th><th>{vendorA}</th><th>{vendorB}</th><th>Difference</th><th>Best Price</th><th>History</th></tr></thead><tbody>
             {comparison.map(row => <tr key={row.key}>
               <td><b>{row.description}</b><small>{row.history.length} purchase record{row.history.length === 1 ? '' : 's'}</small></td>
-              <td>{row.category}</td><td>{row.size}</td>
+              <td>{row.category}</td><td>{row.size}<small>per {row.normalizedUnit}</small></td>
               <td>{row.left ? <><b>{money(row.leftCost)}</b><small>{row.left.date || 'No date'}</small></> : '-'}</td>
               <td>{row.right ? <><b>{money(row.rightCost)}</b><small>{row.right.date || 'No date'}</small></> : '-'}</td>
               <td>{row.left && row.right ? money(row.savings) : '-'}</td>

@@ -6,6 +6,7 @@ import { createId, saveCloudData, sortByName } from '../lib/localStore'
 import { isSupabaseReady, supabase } from '../lib/supabase'
 import { applyPresetToSetters, isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange } from '../engine/DateEngine'
 import { classifySpend } from '../engine/DepartmentCostEngine'
+import { enrichInvoiceItem, normalizeVendorName, vendorSimilarity } from '../engine/InvoiceProductEngine'
 
 const blankInvoice = {
   vendor_id: '',
@@ -83,10 +84,7 @@ function getFirst(row, keys) {
 }
 
 function namesMatch(a, b) {
-  const left = norm(a)
-  const right = norm(b)
-  if (!left || !right) return false
-  return left === right || left.includes(right) || right.includes(left)
+  return vendorSimilarity(a, b) >= 0.9
 }
 
 function invoiceDuplicateKey(invoice) {
@@ -130,14 +128,17 @@ function inferInvoiceRows(rows) {
     const unit = parseAmount(getFirst(row, ['unit price', 'price', 'cost', 'rate']))
     const total = parseAmount(getFirst(row, ['total', 'amount', 'line total', 'extended price'])) || qty * unit
 
-    return {
+    return enrichInvoiceItem({
       id: createId('item'),
       description,
       qty,
+      unit: clean(getFirst(row, ['unit', 'uom', 'size', 'pack', 'package size'])),
+      package_size: clean(getFirst(row, ['package size', 'pack size', 'size', 'pack'])),
+      pack_count: parseAmount(getFirst(row, ['pack count', 'case pack', 'pack qty'])),
       unit_price: Number(unit.toFixed(2)),
       total: Number(total.toFixed(2)),
       category: ''
-    }
+    })
   }).filter(x => x.description && (x.total || x.unit_price || x.qty))
 
   const first = rows[0] || {}
@@ -231,7 +232,7 @@ async function extractWithGemini(file) {
     tax: Number(parseAmount(data.tax).toFixed(2)),
     freight: Number(parseAmount(data.freight).toFixed(2)),
     discount: Number(parseAmount(data.discount).toFixed(2)),
-    lineItems: (data.lineItems || []).map(item => ({
+    lineItems: (data.lineItems || []).map(item => enrichInvoiceItem({
       ...item,
       id: createId('item'),
       qty: Number(parseAmount(item.qty || 1).toFixed(2)),
@@ -374,7 +375,7 @@ export default function Invoices({ data, setData }) {
         next.total = Number((Number(next.qty || 0) * Number(next.unit_price || 0)).toFixed(2))
       }
 
-      return next
+      return enrichInvoiceItem(next)
     }))
   }
 
@@ -419,7 +420,10 @@ export default function Invoices({ data, setData }) {
       let vendorId = payload.vendor_id
       let nextVendors = currentVendors
 
-      const existingVendor = currentVendors.find(v => namesMatch(v.name, vendorName))
+      const existingVendor = currentVendors
+        .map(v => ({ vendor: v, score: vendorSimilarity(v.name, vendorName) }))
+        .filter(entry => entry.score >= 0.82)
+        .sort((a, b) => b.score - a.score)[0]?.vendor
       if (existingVendor) {
         vendorId = existingVendor.id
       } else {
@@ -441,7 +445,7 @@ export default function Invoices({ data, setData }) {
       const finalPayload = {
         ...payload,
         vendor_id: vendorId,
-        vendor_name: vendorName
+        vendor_name: existingVendor?.name || vendorName
       }
 
       if (editingId) {
@@ -762,7 +766,9 @@ export default function Invoices({ data, setData }) {
           <tr>
             <th>Description</th>
             <th>Qty</th>
-            <th>Unit</th>
+            <th>Unit Price</th>
+            <th>Pack / Size</th>
+            <th>Normalized Cost</th>
             <th>Total</th>
             <th>Category</th>
             <th>Action</th>
@@ -773,6 +779,8 @@ export default function Invoices({ data, setData }) {
             <td><input className="line-input desc" value={item.description} onChange={e => updateLine(item.id, 'description', e.target.value)} /></td>
             <td><input className="line-input qty" value={item.qty} onChange={e => updateLine(item.id, 'qty', e.target.value)} /></td>
             <td><input className="line-input money" value={money(item.unit_price)} onChange={e => updateLine(item.id, 'unit_price', e.target.value)} /></td>
+            <td><input className="line-input desc" value={item.package_size || item.package_label || item.unit || ''} onChange={e => updateLine(item.id, 'package_size', e.target.value)} placeholder="2/20 LB" /></td>
+            <td><b>{item.normalized_unit_cost ? `${formatMoney(item.normalized_unit_cost)} / ${item.normalized_unit || 'unit'}` : '-'}</b></td>
             <td><input className="line-input money" value={money(item.total)} onChange={e => updateLine(item.id, 'total', e.target.value)} /></td>
             <td>
               <select className="line-select" value={item.category || form.category} onChange={e => updateLine(item.id, 'category', e.target.value)}>

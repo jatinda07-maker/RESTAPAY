@@ -4,6 +4,15 @@ import { Icon } from './Icons'
 import { RESTAPAY_CLOUD_STATUS_EVENT } from '../lib/localStore'
 import { isSupabaseReady } from '../lib/supabase'
 
+const navSections = [
+  { label: 'Overview', keys: ['dashboard', 'sales', 'cost-analysis'] },
+  { label: 'Purchasing', keys: ['invoices', 'vendors', 'vendor-comparison', 'price-increase'] },
+  { label: 'People', keys: ['employees', 'payroll'] },
+  { label: 'Operations', keys: ['expenses', 'reports'] },
+  { label: 'Menu & Toast', keys: ['menu-intelligence', 'menu-costing', 'import-center', 'toast-integration'] },
+  { label: 'System', keys: ['settings'] }
+]
+
 const subtitles = {
   dashboard: 'Overview of your restaurant business',
   'cost-analysis': 'Detailed food and alcohol sales, cost allocation, and profitability',
@@ -85,18 +94,28 @@ export default function Layout({ active, setActive, children }) {
         </div>
 
         <nav className="nav-list" aria-label="Primary navigation">
-          {navItems.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              title={label}
-              aria-label={label}
-              onClick={() => handleNavPress(key)}
-              className={`nav-item ${active === key ? 'active' : ''}`}
-            >
-              <span className="nav-icon"><Icon name={key} size={20} /></span>
-              <span className="nav-label">{label}</span>
-            </button>
+          {navSections.map(section => (
+            <div className="nav-section" key={section.label}>
+              <div className="nav-section-label">{section.label}</div>
+              {section.keys.map(key => {
+                const item = navItems.find(([itemKey]) => itemKey === key)
+                if (!item) return null
+                const label = item[1]
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    title={label}
+                    aria-label={label}
+                    onClick={() => handleNavPress(key)}
+                    className={`nav-item ${active === key ? 'active' : ''}`}
+                  >
+                    <span className="nav-icon"><Icon name={key} size={20} /></span>
+                    <span className="nav-label">{label}</span>
+                  </button>
+                )
+              })}
+            </div>
           ))}
         </nav>
       </aside>

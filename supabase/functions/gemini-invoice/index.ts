@@ -74,7 +74,14 @@ function normalizeInvoicePayload(value: any) {
     discount: Number(value?.discount || 0),
     lineItems: lineItems.map((item: any) => ({
       description: clean(item?.description),
+      item_number: clean(item?.item_number),
+      brand: clean(item?.brand),
       qty: Number(item?.qty || 0),
+      unit: clean(item?.unit),
+      package_size: clean(item?.package_size),
+      pack_count: Number(item?.pack_count || 0),
+      unit_size_value: Number(item?.unit_size_value || 0),
+      unit_size_unit: clean(item?.unit_size_unit),
       unit_price: Number(item?.unit_price || 0),
       total: Number(item?.total || 0),
       category: clean(item?.category)
@@ -133,7 +140,7 @@ Deno.serve(async request => {
       }, 413)
     }
 
-    const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract invoice data from this file/image/PDF. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","invoice_type":"Regular Invoice|Credit Memo|Rebate|Return Credit|Vendor Adjustment","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","total":0,"tax":0,"freight":0,"discount":0,"lineItems":[{"description":"","qty":0,"unit_price":0,"total":0,"category":""}]}. Use numbers only for amounts. If a field is unclear, use empty string or 0. File name: ${fileName}`
+    const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract invoice data from this file/image/PDF. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","invoice_type":"Regular Invoice|Credit Memo|Rebate|Return Credit|Vendor Adjustment","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","total":0,"tax":0,"freight":0,"discount":0,"lineItems":[{"description":"","item_number":"","brand":"","qty":0,"unit":"","package_size":"","pack_count":0,"unit_size_value":0,"unit_size_unit":"","unit_price":0,"total":0,"category":""}]}. For US Foods, Performance Foodservice/PFG, Sysco, beverage, beer, wine, and liquor invoices, extract pack/case details exactly when printed (examples: 2/20 LB, 4/10 LB, 12/750 ML, 24/12 OZ). Use numbers only for amounts. If a field is unclear, use empty string or 0. File name: ${fileName}`
 
     const preferredModel = clean(Deno.env.get('GEMINI_MODEL'))
     const models = preferredModel

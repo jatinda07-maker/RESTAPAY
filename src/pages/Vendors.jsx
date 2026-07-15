@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { createId, sortByName } from '../lib/localStore'
+import { normalizeVendorName, vendorSimilarity } from '../engine/InvoiceProductEngine'
 
 const blankVendor = { name: '', category: 'Food', default_check_number: '', contact: '', phone: '', email: '', notes: '', is_active: true }
 
@@ -52,6 +53,8 @@ export default function Vendors({ data, setData }) {
   const [compareVendorA, setCompareVendorA] = useState('')
   const [compareVendorB, setCompareVendorB] = useState('')
   const [compareSearch, setCompareSearch] = useState('')
+  const [mergePrimaryId, setMergePrimaryId] = useState('')
+  const [mergeDuplicateId, setMergeDuplicateId] = useState('')
 
   const filtered = useMemo(() => vendors
     .filter(v => activeFilter === 'all' ? true : activeFilter === 'active' ? v.is_active !== false : v.is_active === false)
@@ -97,6 +100,51 @@ export default function Vendors({ data, setData }) {
     }).filter(row => !q || `${row.description} ${row.size}`.toLowerCase().includes(q)).sort((x, y) => x.description.localeCompare(y.description))
   }, [data.invoices, data.invoiceItems, compareVendorA, compareVendorB, compareSearch])
 
+
+  const duplicateSuggestions = useMemo(() => {
+    const results = []
+    for (let i = 0; i < vendors.length; i += 1) {
+      for (let j = i + 1; j < vendors.length; j += 1) {
+        const score = vendorSimilarity(vendors[i].name, vendors[j].name)
+        if (score >= 0.68) results.push({ a: vendors[i], b: vendors[j], score })
+      }
+    }
+    return results.sort((a, b) => b.score - a.score).slice(0, 8)
+  }, [vendors])
+
+  const mergeSummary = useMemo(() => {
+    const duplicate = vendors.find(v => v.id === mergeDuplicateId)
+    if (!duplicate) return null
+    const invoices = (data.invoices || []).filter(row => row.vendor_id === duplicate.id || normalizeVendorName(row.vendor_name) === normalizeVendorName(duplicate.name)).length
+    const invoiceIds = new Set((data.invoices || []).filter(row => row.vendor_id === duplicate.id || normalizeVendorName(row.vendor_name) === normalizeVendorName(duplicate.name)).map(row => row.id))
+    const items = (data.invoiceItems || []).filter(row => invoiceIds.has(row.invoice_id)).length
+    const expenses = (data.expenses || []).filter(row => row.vendor_id === duplicate.id || normalizeVendorName(row.vendor || row.vendor_name) === normalizeVendorName(duplicate.name)).length
+    return { invoices, items, expenses }
+  }, [vendors, mergeDuplicateId, data.invoices, data.invoiceItems, data.expenses])
+
+  function mergeVendors() {
+    if (!mergePrimaryId || !mergeDuplicateId || mergePrimaryId === mergeDuplicateId) return setStatus('Choose two different vendors to merge')
+    const primary = vendors.find(v => v.id === mergePrimaryId)
+    const duplicate = vendors.find(v => v.id === mergeDuplicateId)
+    if (!primary || !duplicate) return setStatus('Vendor selection is invalid')
+    const summary = mergeSummary || { invoices: 0, items: 0, expenses: 0 }
+    if (!window.confirm(`Merge ${duplicate.name} into ${primary.name}? This will reassign ${summary.invoices} invoices, ${summary.items} invoice items, and ${summary.expenses} expenses. The duplicate vendor will be removed.`)) return
+    setData(prev => {
+      const invoiceIds = new Set((prev.invoices || []).filter(row => row.vendor_id === duplicate.id || normalizeVendorName(row.vendor_name) === normalizeVendorName(duplicate.name)).map(row => row.id))
+      return {
+        ...prev,
+        vendors: (prev.vendors || []).filter(v => v.id !== duplicate.id),
+        invoices: (prev.invoices || []).map(row => invoiceIds.has(row.id) ? { ...row, vendor_id: primary.id, vendor_name: primary.name } : row),
+        invoiceItems: (prev.invoiceItems || []).map(row => invoiceIds.has(row.invoice_id) ? { ...row, vendor_id: primary.id, vendor_name: primary.name } : row),
+        expenses: (prev.expenses || []).map(row => row.vendor_id === duplicate.id || normalizeVendorName(row.vendor || row.vendor_name) === normalizeVendorName(duplicate.name)
+          ? { ...row, vendor_id: primary.id, vendor: primary.name, vendor_name: primary.name }
+          : row)
+      }
+    })
+    setMergeDuplicateId('')
+    setStatus(`Merged ${duplicate.name} into ${primary.name}`)
+  }
+
   function update(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
@@ -109,7 +157,16 @@ export default function Vendors({ data, setData }) {
   function saveVendor() {
     const name = form.name.trim()
     if (!name) return setStatus('Enter vendor name first')
-    const vendorPayload = { ...blankVendor, ...form, name, updated_at: new Date().toISOString() }
+    const possibleMatch = vendors
+      .filter(v => v.id !== editingId)
+      .map(v => ({ vendor: v, score: vendorSimilarity(v.name, name) }))
+      .sort((a, b) => b.score - a.score)[0]
+    if (!editingId && possibleMatch?.score >= 0.82) {
+      setMergePrimaryId(possibleMatch.vendor.id)
+      setStatus(`Possible duplicate vendor: ${possibleMatch.vendor.name}. Edit that vendor or use Merge Vendors below.`)
+      return
+    }
+    const vendorPayload = { ...blankVendor, ...form, name, normalized_name: normalizeVendorName(name), updated_at: new Date().toISOString() }
     setData(prev => {
       const current = prev.vendors || []
       if (editingId) {
@@ -205,6 +262,17 @@ export default function Vendors({ data, setData }) {
       <div className="form-action-footer"><button className="btn secondary" type="button" onClick={clearForm}>{editingId ? 'Cancel Edit' : 'Clear'}</button><button className="btn primary" type="button" onClick={saveVendor}><Icon name="save" /> {editingId ? 'Update Vendor' : 'Save Vendor'}</button></div>
     </section>
 
+
+    <section className="table-card vendor-merge-card" id="vendor-merge">
+      <header><div><h2>Vendor Duplicate Review & Merge</h2><p>Prevent US Foods, U.S. Foods, Performance Foodservice, PFG, and similar names from creating separate vendor histories.</p></div><Icon name="merge" size={22} /></header>
+      <div className="vendor-merge-grid">
+        <label>Keep as primary vendor<select value={mergePrimaryId} onChange={e => setMergePrimaryId(e.target.value)}><option value="">Select primary</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
+        <label>Merge duplicate vendor<select value={mergeDuplicateId} onChange={e => setMergeDuplicateId(e.target.value)}><option value="">Select duplicate</option>{vendors.filter(v => v.id !== mergePrimaryId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
+        <div className="vendor-merge-summary">{mergeSummary ? <><b>Records to reassign</b><br />{mergeSummary.invoices} invoices · {mergeSummary.items} line items · {mergeSummary.expenses} expenses</> : <>Select a duplicate to preview affected records.</>}</div>
+        <button type="button" className="btn primary" onClick={mergeVendors}><Icon name="merge" /> Merge Vendors</button>
+      </div>
+      {duplicateSuggestions.length > 0 && <div className="chip-row">{duplicateSuggestions.map(item => <button type="button" className="chip" key={`${item.a.id}-${item.b.id}`} onClick={() => { setMergePrimaryId(item.a.id); setMergeDuplicateId(item.b.id) }}>{item.a.name} ↔ {item.b.name} · {Math.round(item.score * 100)}%</button>)}</div>}
+    </section>
 
     <section className="table-card vendor-comparison-card" id="vendor-comparison">
       <header><div><h2>Vendor Item Price Comparison</h2><p>Compare two vendors using the latest matching invoice line items, package size, quantity, and unit price.</p></div><Icon name="trending" size={22} /></header>
