@@ -117,15 +117,6 @@ export default function VendorComparison({ data }) {
   }
 
   return <div className="vendor-comparison-page">
-    <section className="vc-hero">
-      <div>
-        <span className="eyebrow">Purchasing Intelligence</span>
-        <h2>Vendor Comparison</h2>
-        <p>Compare actual invoice line-item prices, package sizes, unit costs, and purchase history between vendors.</p>
-      </div>
-      <div className="vc-hero-icon"><Icon name="compare" size={24} /></div>
-    </section>
-
     <section className="filter-card vc-filters">
       <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={() => {}} onPreset={applyPreset} applyLabel="Apply" />
       <label><span>Vendor A</span><select value={vendorA} onChange={event => setVendorA(event.target.value)}><option value="">Select vendor</option>{vendors.map(name => <option key={name}>{name}</option>)}</select></label>

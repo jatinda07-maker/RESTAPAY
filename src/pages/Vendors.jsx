@@ -39,7 +39,35 @@ function categoryMeta(name) {
 }
 
 export default function Vendors({ data, setData }) {
-  const vendors = sortByName(data.vendors || [])
+  const vendors = useMemo(() => {
+    const merged = new Map()
+    const addVendor = (name, seed = {}) => {
+      const cleanName = String(name || '').trim()
+      if (!cleanName) return
+      const key = normalizeVendorName(cleanName) || cleanName.toLowerCase()
+      const current = merged.get(key)
+      if (current) {
+        merged.set(key, { ...seed, ...current, name: current.name || cleanName })
+        return
+      }
+      merged.set(key, {
+        id: seed.id || `linked-vendor:${key}`,
+        name: cleanName,
+        category: seed.category || 'Other',
+        default_check_number: seed.default_check_number || '',
+        contact: seed.contact || '', phone: seed.phone || '', email: seed.email || '',
+        notes: seed.notes || 'Referenced by saved purchasing records',
+        is_active: seed.is_active !== false,
+        linked_only: !seed.id,
+        ...seed,
+      })
+    }
+    ;(data.vendors || []).forEach(vendor => addVendor(vendor.name, vendor))
+    ;(data.invoices || []).forEach(invoice => addVendor(invoice.vendor_name || invoice.vendor, { category: invoice.category || 'Other', linked_only: true }))
+    ;(data.invoiceItems || []).forEach(item => addVendor(item.vendor_name || item.vendor, { category: item.category || 'Other', linked_only: true }))
+    ;(data.expenses || []).forEach(expense => addVendor(expense.vendor_name || expense.vendor, { category: expense.category || 'Other', linked_only: true }))
+    return sortByName([...merged.values()])
+  }, [data.vendors, data.invoices, data.invoiceItems, data.expenses])
   const categories = data.vendorCategories || ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other']
   const [form, setForm] = useState(blankVendor)
   const [editingId, setEditingId] = useState(null)
@@ -50,9 +78,6 @@ export default function Vendors({ data, setData }) {
   const [status, setStatus] = useState('Local auto-save is active. Vendor data stays on this computer until Supabase sync is added.')
   const [activeFilter, setActiveFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [compareVendorA, setCompareVendorA] = useState('')
-  const [compareVendorB, setCompareVendorB] = useState('')
-  const [compareSearch, setCompareSearch] = useState('')
   const [mergePrimaryId, setMergePrimaryId] = useState('')
   const [mergeDuplicateId, setMergeDuplicateId] = useState('')
 
@@ -64,41 +89,6 @@ export default function Vendors({ data, setData }) {
       if (!q) return true
       return [v.name, v.category, v.default_check_number, v.contact, v.phone, v.email, v.notes].join(' ').toLowerCase().includes(q)
     }), [vendors, search, activeFilter, categoryFilter])
-
-
-  const comparisonRows = useMemo(() => {
-    if (!compareVendorA || !compareVendorB || compareVendorA === compareVendorB) return []
-    const invoiceMap = Object.fromEntries((data.invoices || []).map(inv => [inv.id, inv]))
-    const rows = (data.invoiceItems || []).map(row => {
-      const parent = invoiceMap[row.invoice_id] || {}
-      const vendor = row.vendor_name || row.vendor || parent.vendor_name || parent.vendor || ''
-      const description = row.description || row.item_name || row.name || ''
-      return { ...row, vendor, description, normalized: normalizeItemName(description), sizeLabel: itemSize(row), unitCostValue: itemUnitCost(row), invoiceDate: row.invoice_date || row.date || parent.invoice_date || parent.date || '' }
-    }).filter(row => row.normalized && (row.vendor === compareVendorA || row.vendor === compareVendorB))
-    const byVendor = vendorName => {
-      const map = new Map()
-      rows.filter(row => row.vendor === vendorName).forEach(row => {
-        const key = `${row.normalized}|${String(row.sizeLabel).toLowerCase()}`
-        const current = map.get(key)
-        if (!current || String(row.invoiceDate) > String(current.invoiceDate)) map.set(key, row)
-      })
-      return map
-    }
-    const a = byVendor(compareVendorA)
-    const b = byVendor(compareVendorB)
-    const keys = [...new Set([...a.keys(), ...b.keys()])]
-    const q = compareSearch.trim().toLowerCase()
-    return keys.map(key => {
-      const left = a.get(key)
-      const right = b.get(key)
-      const description = left?.description || right?.description || key.split('|')[0]
-      const costA = left?.unitCostValue || 0
-      const costB = right?.unitCostValue || 0
-      const difference = costA && costB ? costB - costA : 0
-      const cheaper = costA && costB ? (costA < costB ? compareVendorA : costB < costA ? compareVendorB : 'Same') : '-'
-      return { key, description, size: left?.sizeLabel || right?.sizeLabel || '-', left, right, costA, costB, difference, cheaper }
-    }).filter(row => !q || `${row.description} ${row.size}`.toLowerCase().includes(q)).sort((x, y) => x.description.localeCompare(y.description))
-  }, [data.invoices, data.invoiceItems, compareVendorA, compareVendorB, compareSearch])
 
 
   const duplicateSuggestions = useMemo(() => {
@@ -230,8 +220,7 @@ export default function Vendors({ data, setData }) {
   }
 
   return <>
-    <div className="page-head employee-head">
-      <div><h1>Vendors</h1><p>Manage vendor records and categories locally. Invoice reader and price tracking come next.</p></div>
+    <div className="page-head employee-head single-toolbar-head">
       <div className="employee-head-actions">
         <div className="search-box"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendors..." /></div>
         <select className="filter-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">All Categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
@@ -274,27 +263,12 @@ export default function Vendors({ data, setData }) {
       {duplicateSuggestions.length > 0 && <div className="chip-row">{duplicateSuggestions.map(item => <button type="button" className="chip" key={`${item.a.id}-${item.b.id}`} onClick={() => { setMergePrimaryId(item.a.id); setMergeDuplicateId(item.b.id) }}>{item.a.name} ↔ {item.b.name} · {Math.round(item.score * 100)}%</button>)}</div>}
     </section>
 
-    <section className="table-card vendor-comparison-card" id="vendor-comparison">
-      <header><div><h2>Vendor Item Price Comparison</h2><p>Compare two vendors using the latest matching invoice line items, package size, quantity, and unit price.</p></div><Icon name="trending" size={22} /></header>
-      <div className="vendor-compare-controls">
-        <label>Vendor A<select value={compareVendorA} onChange={e => setCompareVendorA(e.target.value)}><option value="">Select vendor</option>{vendors.map(v => <option key={v.id || v.name} value={v.name}>{v.name}</option>)}</select></label>
-        <label>Vendor B<select value={compareVendorB} onChange={e => setCompareVendorB(e.target.value)}><option value="">Select vendor</option>{vendors.map(v => <option key={v.id || v.name} value={v.name}>{v.name}</option>)}</select></label>
-        <label className="vendor-compare-search">Search item<input value={compareSearch} onChange={e => setCompareSearch(e.target.value)} placeholder="Item name or size" /></label>
-      </div>
-      {compareVendorA && compareVendorB && compareVendorA === compareVendorB && <div className="empty-state">Choose two different vendors.</div>}
-      {compareVendorA && compareVendorB && compareVendorA !== compareVendorB && <div className="table-wrap"><table className="vendor-compare-table"><thead><tr><th>Item</th><th>Size / Unit</th><th>{compareVendorA}</th><th>{compareVendorB}</th><th>Difference</th><th>Best Price</th></tr></thead><tbody>
-        {comparisonRows.map(row => <tr key={row.key}><td><b>{row.description}</b><small>{row.left?.quantity || row.left?.qty || row.right?.quantity || row.right?.qty ? `Qty ${row.left?.quantity || row.left?.qty || row.right?.quantity || row.right?.qty}` : 'Latest invoice item'}</small></td><td>{row.size}</td><td>{row.left ? money(row.costA) : '-'}</td><td>{row.right ? money(row.costB) : '-'}</td><td className={row.difference > 0 ? 'compare-up' : row.difference < 0 ? 'compare-down' : ''}>{row.left && row.right ? money(Math.abs(row.difference)) : '-'}</td><td><span className="tag cash">{row.cheaper}</span></td></tr>)}
-        {!comparisonRows.length && <tr><td colSpan="6">No matching invoice line items were found for these vendors. Import invoices with item descriptions and sizes to compare pricing.</td></tr>}
-      </tbody></table></div>}
-      {(!compareVendorA || !compareVendorB) && <div className="empty-state">Select two vendors to activate item-by-item price comparison.</div>}
-    </section>
-
     <section className="table-card compact-table-card employee-table-card">
-      <header><h2>Vendor List</h2><span>{filtered.length} vendors · Sorted A-Z</span></header>
+      <header><h2>Vendor List</h2><div className="vendor-list-header-actions"><span>{filtered.length} shown of {vendors.length} · Sorted A-Z</span><button type="button" className="small-btn" onClick={() => { setSearch(''); setActiveFilter('all'); setCategoryFilter('all') }}>Show All</button></div></header>
       {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button type="button" onClick={() => bulkSetActive(true)}>Set Active</button><button type="button" onClick={() => bulkSetActive(false)}>Set Inactive</button><select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select><button onClick={bulkApplyCategory} type="button">Apply Category</button><button className="delete-link" onClick={bulkDelete} type="button">Delete Selected</button></div>}
-      <table><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every(v => selectedIds.includes(v.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Category</th><th>Default Check #</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th>Action</th></tr></thead><tbody>{filtered.map(v => <tr key={v.id}>
+      <div className="vendor-list-scroll"><table><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every(v => selectedIds.includes(v.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Category</th><th>Default Check #</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th>Action</th></tr></thead><tbody>{filtered.map(v => <tr key={v.id}>
         <td><input type="checkbox" checked={selectedIds.includes(v.id)} onChange={() => toggleSelected(v.id)} /></td>
-        <td><b>{v.name}</b><small>{v.notes || 'No notes'}</small></td>
+        <td><b>{v.name}</b><small>{v.linked_only ? 'Referenced by saved purchasing records — edit to create a full vendor record' : (v.notes || 'No notes')}</small></td>
         <td>{(() => { const meta = categoryMeta(v.category); return <span className={`tag category-tag ${meta.cls}`}><Icon name={meta.icon} size={13} /> {v.category}</span> })()}</td>
         <td>{v.default_check_number || '-'}</td>
         <td>{v.contact || '-'}</td>
@@ -302,7 +276,7 @@ export default function Vendors({ data, setData }) {
         <td>{v.email || '-'}</td>
         <td><span className={v.is_active ? 'tag cash' : 'tag neutral'}>{v.is_active ? 'Active' : 'Inactive'}</span></td>
         <td className="row-actions"><button type="button" onClick={() => editVendor(v)}>Edit</button><button className="delete-link" type="button" onClick={() => deleteVendor(v.id)}>Delete</button></td>
-      </tr>)}</tbody></table>
+      </tr>)}{!filtered.length && <tr><td colSpan="9" className="empty-cell">No vendors match the current filters. Press Show All to reset the list.</td></tr>}</tbody></table></div>
     </section>
   </>
 }

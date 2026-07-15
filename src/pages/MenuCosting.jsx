@@ -200,6 +200,7 @@ export default function MenuCosting({ data, setData }) {
   const [targetLiquorCost, setTargetLiquorCost] = useState(Number(data.settings?.targetLiquorCost || 20))
   const [targetBeverageCost, setTargetBeverageCost] = useState(Number(data.settings?.targetBeverageCost || 18))
   const [status, setStatus] = useState('Import Toast Product Mix to create dishes and estimated recipes.')
+  const [purchasedIngredientId, setPurchasedIngredientId] = useState('')
 
   function applyPreset(key) {
     const now = new Date()
@@ -290,6 +291,28 @@ export default function MenuCosting({ data, setData }) {
       })
     }))
   }
+  function addPurchasedRecipeLine(recipeId, option) {
+    if (!option) return
+    const newLine = {
+      id: createId('recipe-line'),
+      ingredient: option.name,
+      qty: 1,
+      unit: option.unit || 'each',
+      vendor: option.vendor || 'US Foods',
+      unitCost: Number(option.unitCost || 0),
+      totalCost: Number(option.unitCost || 0),
+      source: 'Invoice item',
+      invoiceItemId: option.id,
+    }
+    setData(prev => ({
+      ...prev,
+      menuRecipes: (prev.menuRecipes || []).map(recipe => recipe.id !== recipeId ? recipe : {
+        ...recipe, confidence: 'Edited', lines: [...(recipe.lines || []), newLine], updatedAt: new Date().toISOString()
+      })
+    }))
+    setPurchasedIngredientId('')
+  }
+
   function approveRecipe(recipeId) {
     setData(prev => ({ ...prev, menuRecipes: (prev.menuRecipes || []).map(recipe => recipe.id === recipeId ? { ...recipe, confidence: 'Approved', updatedAt: new Date().toISOString() } : recipe) }))
   }
@@ -305,6 +328,35 @@ export default function MenuCosting({ data, setData }) {
     setData(prev => ({ ...prev, settings: { ...(prev.settings || {}), targetFoodCost, targetBeerCost, targetLiquorCost, targetBeverageCost } }))
     setStatus('Food and alcohol cost targets saved.')
   }
+
+  const purchasedIngredientOptions = useMemo(() => {
+    const invoiceMap = Object.fromEntries((data.invoices || []).map(invoice => [String(invoice.id), invoice]))
+    const rows = []
+    const seen = new Set()
+    ;(data.invoiceItems || []).forEach(item => {
+      const invoice = invoiceMap[String(item.invoice_id || item.invoiceId)] || {}
+      const vendor = String(item.vendor_name || item.vendor || invoice.vendor_name || invoice.vendor || '').trim()
+      const vendorKey = vendor.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (!(vendorKey.includes('usfoods') || vendorKey.includes('usfoodservice'))) return
+      const category = String(item.category || invoice.category || '').toLowerCase()
+      if (/(clean|supply|chemical|equipment|paper|packag|maintenance|utility)/.test(category)) return
+      const name = String(item.item_name || item.description || item.name || '').trim()
+      if (!name) return
+      const key = name.toLowerCase().replace(/[^a-z0-9]/g, ' ')
+      if (seen.has(key)) return
+      seen.add(key)
+      const qty = num(item.quantity ?? item.qty) || 1
+      const total = num(item.line_total ?? item.total ?? item.amount)
+      const explicit = num(item.normalized_unit_cost ?? item.unit_cost ?? item.unit_price ?? item.price)
+      rows.push({
+        id: String(item.id || createId('invoice-item-option')), name, vendor: vendor || 'US Foods',
+        unit: item.normalized_unit || item.unit_size_unit || item.unit || item.uom || 'each',
+        unitCost: explicit || (total ? total / qty : 0), category: item.category || invoice.category || 'Food',
+        package: item.package_size || item.package_label || item.pack_size || '',
+      })
+    })
+    return rows.sort((a, b) => a.name.localeCompare(b.name))
+  }, [data.invoiceItems, data.invoices])
 
   const recipesByItem = useMemo(() => Object.fromEntries(menuRecipes.map(recipe => [recipe.menuItemId, recipe])), [menuRecipes])
   const enrichedItems = useMemo(() => {
@@ -491,10 +543,16 @@ export default function MenuCosting({ data, setData }) {
               </tbody>
             </table>
           </div>
-          {selectedRecipe && <div className="recipe-add-bar">
-            <datalist id="ingredient-options">{Object.entries(ingredientNames).map(([key, label]) => <option key={key} value={label} />)}</datalist>
-            <span>Add common ingredient:</span>
-            {['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','lime','salt','beer','beverage'].map(key => <button key={key} className="btn soft compact" type="button" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>)}
+          {selectedRecipe && <div className="recipe-add-stack">
+            <datalist id="ingredient-options">
+              {Object.entries(ingredientNames).map(([key, label]) => <option key={key} value={label} />)}
+              {purchasedIngredientOptions.map(option => <option key={option.id} value={option.name}>{option.vendor} · {option.package || option.unit}</option>)}
+            </datalist>
+            <div className="recipe-purchased-add">
+              <label><span>Add any edible US Foods purchase</span><select value={purchasedIngredientId} onChange={event => setPurchasedIngredientId(event.target.value)}><option value="">Select purchased invoice item</option>{purchasedIngredientOptions.map(option => <option key={option.id} value={option.id}>{option.name} · {option.package || option.unit} · {displayMoney(option.unitCost)}/{option.unit}</option>)}</select></label>
+              <button className="btn primary compact" type="button" disabled={!purchasedIngredientId} onClick={() => addPurchasedRecipeLine(selectedRecipe.id, purchasedIngredientOptions.find(option => option.id === purchasedIngredientId))}><Icon name="plus" size={14} /> Add Purchased Item</button>
+            </div>
+            <div className="recipe-add-bar"><span>Add common ingredient:</span>{['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','lime','salt','beer','beverage'].map(key => <button key={key} className="btn soft compact" type="button" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>)}</div>
           </div>}
         </div>
       </section>}
