@@ -650,7 +650,7 @@ export default function Sales({ data, setData }) {
     <section className="table-card compact-table-card sales-history-card">
       <header><h2>Sales History</h2><span>{filteredSales.length} rows {selectedIds.length ? <button className="delete-link small-btn" onClick={bulkDelete} type="button">Delete {selectedIds.length}</button> : null}</span></header>
       <div className="sales-entry-filter-bar">
-        <div className="search-box subtle-search"><Icon name="search" size={17} /><input type="search" data-clear-on-focus="true" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date, import file or note" /></div>
+        <div className="search-box subtle-search"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date, import file or note" /></div>
         <label>Source<select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="toast">Toast imports</option><option value="manual">Manual entries</option></select></label>
         <label>Payment<select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}><option value="all">All sales</option><option value="cash">Cash collected</option><option value="credit">Credit collected</option><option value="tips">Tips collected</option></select></label>
         {(search || sourceFilter !== 'all' || paymentFilter !== 'all') && <button type="button" className="btn ghost clear-filter-btn" onClick={() => { setSearch(''); setSourceFilter('all'); setPaymentFilter('all') }}>Clear</button>}

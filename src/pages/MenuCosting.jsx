@@ -53,7 +53,7 @@ function isBeerItem(name) {
 }
 function isLiquorItem(name) {
   const text = String(name || '').toLowerCase()
-  return ['texana', 'tequila', 'vodka', 'rum', 'whiskey', 'corralejo', 'don julio', 'patron', 'casamigos', 'shot', 'liquor'].some(key => text.includes(key))
+  return ['crown royal', 'crown', 'bourbon', 'scotch', 'brandy', 'cognac', 'texana', 'tequila', 'vodka', 'rum', 'whiskey', 'whisky', 'corralejo', 'don julio', 'patron', 'casamigos', 'shot', 'liquor'].some(key => text.includes(key))
 }
 function isMargaritaMixItem(name) {
   const text = String(name || '').toLowerCase()
@@ -68,6 +68,17 @@ function isBuffaloRockItem(name) {
   return ['coke', 'diet', 'sprite', 'tea', 'drink', 'soda', 'coffee', 'lemonade', 'water', 'pepsi', 'mountain dew', 'dr pepper'].some(key => text.includes(key))
 }
 function isBeverageItem(name) { return isBeerItem(name) || isLiquorItem(name) || isMargaritaDrink(name) || isMargaritaMixItem(name) || isBuffaloRockItem(name) }
+function isObviousFoodItem(name) {
+  const text = String(name || '').toLowerCase()
+  return ['steak', 'ribeye', 'sirloin', 'beef', 'chicken', 'pork', 'shrimp', 'fish', 'salmon', 'burger', 'taco', 'burrito', 'fajita', 'enchilada', 'quesadilla', 'nacho', 'salad', 'soup', 'rice', 'beans'].some(key => text.includes(key))
+}
+function categoryFromItemName(name, fallback = 'Food') {
+  if (isLiquorItem(name) || isMargaritaDrink(name)) return 'Liquor'
+  if (isBeerItem(name)) return 'Beer'
+  if (isMargaritaMixItem(name) || isBuffaloRockItem(name)) return 'Beverage'
+  if (isObviousFoodItem(name)) return 'Food'
+  return fallback || 'Food'
+}
 function vendorSourceFor(name) {
   if (isLiquorItem(name) || isMargaritaDrink(name)) return 'ABC Store + US Foods'
   if (isBeerItem(name)) return 'Beer Vendor'
@@ -156,11 +167,13 @@ function parseProductMix(workbook, fileName) {
     const net = num(findValue(row, ['Net item amt', 'Net item amount', 'Net sales'])) || gross
     if (!name || !qty) return null
     const toastDepartment = String(findValue(row, ['Sales Category', 'Sales category', 'Department', 'Menu Group', 'Menu group', 'Category']) || '').trim()
+    const detectedCategory = categoryFromItemName(name, toastDepartment || 'Food')
     return {
       id: itemSlug(`${name}-${range.start || fileName}`),
       name,
-      department: toastDepartment || ((isLiquorItem(name) || isMargaritaDrink(name)) ? 'Liquor' : isBeerItem(name) ? 'Beer' : isBeverageItem(name) ? 'Beverage' : 'Food'),
-      category: toastDepartment || ((isLiquorItem(name) || isMargaritaDrink(name)) ? 'Liquor' : isBeerItem(name) ? 'Beer' : isBeverageItem(name) ? 'Beverage' : 'Food'),
+      department: detectedCategory,
+      category: detectedCategory,
+      importedCategory: toastDepartment || '',
       vendorSource: vendorSourceFor(name),
       qtySold: qty,
       avgPrice,
@@ -228,7 +241,15 @@ export default function MenuCosting({ data, setData }) {
       const recipes = items.filter(item => !existingRecipes.has(item.id)).map(item => ({ id: createId('recipe'), menuItemId: item.id, menuItemName: item.name, targetFoodCost, confidence: 'Estimated', lines: recipeTemplate(item.name, item.avgPrice), updatedAt: new Date().toISOString() }))
       setData(prev => ({
         ...prev,
-        menuItems: [...(prev.menuItems || []).filter(row => !items.some(item => item.id === row.id)), ...items],
+        menuItems: [
+          ...(prev.menuItems || []).filter(row => !items.some(item => item.id === row.id)),
+          ...items.map(item => {
+            const existing = (prev.menuItems || []).find(row => row.id === item.id)
+            return existing?.categoryOverride
+              ? { ...item, category: existing.category, department: existing.department || existing.category, categoryOverride: true }
+              : item
+          })
+        ],
         menuRecipes: [...(prev.menuRecipes || []), ...recipes],
         menuImports: [...(prev.menuImports || []), { id: createId('menu-import'), fileName: file.name, rowCount: items.length, importedAt: new Date().toISOString() }],
         settings: { ...(prev.settings || {}), targetFoodCost }
@@ -292,6 +313,17 @@ export default function MenuCosting({ data, setData }) {
   }
   function approveRecipe(recipeId) {
     setData(prev => ({ ...prev, menuRecipes: (prev.menuRecipes || []).map(recipe => recipe.id === recipeId ? { ...recipe, confidence: 'Approved', updatedAt: new Date().toISOString() } : recipe) }))
+  }
+
+  function updateMenuItemCategory(itemId, nextCategory) {
+    const normalized = ['Food', 'Beverage', 'Beer', 'Liquor'].includes(nextCategory) ? nextCategory : 'Food'
+    setData(prev => ({
+      ...prev,
+      menuItems: (prev.menuItems || []).map(item => item.id === itemId
+        ? { ...item, category: normalized, department: normalized, categoryOverride: true, categoryUpdatedAt: new Date().toISOString() }
+        : item)
+    }))
+    setStatus(`Category updated to ${normalized}. This manual category will be kept on future Product Mix imports.`)
   }
 
   function targetForCategory(itemCategory) {
@@ -406,7 +438,7 @@ export default function MenuCosting({ data, setData }) {
 
       {['all','food','alcohol'].includes(activeTab) && <>
       <section className="menu-costing-filterbar">
-        <label className="menu-search-field"><Icon name="search" size={18} /><input type="search" data-clear-on-focus="true" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search item name, category, vendor..." /></label>
+        <label className="menu-search-field"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search item name, category, vendor..." /></label>
         <label><span>Category</span><select value={category} onChange={e => setCategory(e.target.value)}><option value="all">All Categories</option><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></label>
         <label><span>Vendor</span><select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)}><option value="all">All Vendors</option>{vendorOptions.map(vendor => <option key={vendor}>{vendor}</option>)}</select></label>
         <label><span>Cost Status</span><select value={costFilter} onChange={e => setCostFilter(e.target.value)}><option value="all">All Items</option><option value="on-target">On Target</option><option value="above">Above Target</option></select></label>
@@ -424,7 +456,7 @@ export default function MenuCosting({ data, setData }) {
               {filteredItems.map(item => (
                 <tr key={item.id} className={selected?.id === item.id ? 'selected-row' : ''}>
                   <td><div className="menu-item-name"><span className={`menu-item-icon ${item.category === 'Food' ? 'food' : 'alcohol'}`}><Icon name={item.category === 'Food' ? 'utensils' : item.category === 'Beer' ? 'beer' : 'wine'} size={17} /></span><div><b>{item.name}</b><small>{item.recipe?.confidence || 'Needs recipe'}</small></div></div></td>
-                  <td><span className={`tag ${item.category === 'Food' ? 'green' : 'orange'}`}>{item.category}</span></td>
+                  <td><select className={`menu-category-select ${item.category === 'Food' ? 'food' : 'alcohol'}`} value={item.category} onChange={e => updateMenuItemCategory(item.id, e.target.value)} aria-label={`Change category for ${item.name}`}><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></td>
                   <td>{item.vendorSource}</td>
                   <td>{displayMoney(item.netSales || item.grossSales)}</td>
                   <td>{displayMoney(item.dishCost)}</td>
@@ -459,12 +491,16 @@ export default function MenuCosting({ data, setData }) {
         </div>
       </section>}
 
-      {selected && ['all','food','alcohol'].includes(activeTab) && <section className="section-card recipe-detail-card recipe-detail-enterprise">
+      {selected && <section className="section-card recipe-detail-card recipe-detail-enterprise">
         <header className="section-card-header">
           <div><h2>Edit Recipe: {selected.name}</h2><small>{selected.vendorSource} · {selected.category}</small></div>
           <div className="actions"><button className="btn secondary compact" type="button" onClick={() => setSelectedId('')}>Close</button>{selectedRecipe && <button className="btn primary compact" type="button" onClick={() => approveRecipe(selectedRecipe.id)}><Icon name="shield" size={15} /> Approve Recipe</button>}</div>
         </header>
         <div className="section-card-body">
+          <div className="recipe-category-editor">
+            <label><span>Menu Category</span><select value={selected.category} onChange={e => updateMenuItemCategory(selected.id, e.target.value)}><option>Food</option><option>Beverage</option><option>Beer</option><option>Liquor</option></select></label>
+            <small>Manual changes save immediately and are preserved on future Product Mix imports.</small>
+          </div>
           <div className="recipe-score-grid">
             <div><small>Selling Price</small><strong>{displayMoney(selected.avgPrice)}</strong></div>
             <div><small>Dish Cost</small><strong>{displayMoney(selected.dishCost)}</strong></div>

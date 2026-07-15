@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
-import { getPresetRange, startOfMonthISO, todayISO } from '../engine/DateEngine'
+import { getPresetRange } from '../engine/DateEngine'
 
 function num(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -37,7 +37,7 @@ function unitCost(row) {
 function invoiceDate(invoice, row) { return iso(row.invoice_date || row.date || invoice?.invoice_date || invoice?.date) }
 
 export default function VendorComparison({ data }) {
-  const defaults = { start: startOfMonthISO(), end: todayISO() }
+  const defaults = getPresetRange('thisMonth')
   const [dateStart, setDateStart] = useState(defaults.start)
   const [dateEnd, setDateEnd] = useState(defaults.end)
   const [vendorA, setVendorA] = useState('')
@@ -134,7 +134,7 @@ export default function VendorComparison({ data }) {
     </section>
 
     <section className="vc-toolbar">
-      <label className="compact-search"><Icon name="search" size={17} /><input type="search" data-clear-on-focus="true" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search item, package size, or category" /></label>
+      <label className="compact-search"><Icon name="search" size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search item, package size, or category" /></label>
       <button type="button" className="btn-secondary" onClick={() => { setSearch(''); setCategory('all') }}><Icon name="refresh" size={16} /> Clear</button>
     </section>
 

@@ -24,31 +24,31 @@ function App() {
   const [active, setActive] = useState('dashboard')
 
   useEffect(() => {
-    const setNativeValue = (input, value) => {
-      const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
-      setter?.call(input, value)
-      input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }))
-      input.dispatchEvent(new Event('change', { bubbles: true }))
-    }
     const handleFocus = event => {
       const input = event.target
       if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) return
       if (input.readOnly || input.disabled || ['date', 'file', 'checkbox', 'radio', 'color'].includes(input.type)) return
-      const isSearchField = input.type === 'search' || /search/i.test(String(input.placeholder || '')) || input.dataset.clearOnFocus === 'true'
+      // Search fields clear immediately on click or Tab, as requested.
+      // Other entry fields select their current value so the next keystroke replaces it.
       requestAnimationFrame(() => {
+        const isSearchField = input.type === 'search' || /search/i.test(String(input.placeholder || '')) || input.dataset.clearOnFocus === 'true'
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
         if (isSearchField) {
-          setNativeValue(input, '')
-          input.focus({ preventScroll: true })
+          if (input.value) {
+            setter?.call(input, '')
+            input.dispatchEvent(new Event('input', { bubbles: true }))
+          }
           input.setSelectionRange?.(0, 0)
-          return
+        } else if (/^-?0+(\.0+)?$/.test(String(input.value || '').trim())) {
+          setter?.call(input, '')
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+        } else {
+          input.select?.()
         }
-        if (/^-?0+(\.0+)?$/.test(String(input.value || '').trim())) setNativeValue(input, '')
-        else input.select?.()
       })
     }
-    document.addEventListener('focusin', handleFocus, true)
-    return () => document.removeEventListener('focusin', handleFocus, true)
+    document.addEventListener('focusin', handleFocus)
+    return () => document.removeEventListener('focusin', handleFocus)
   }, [])
   const [data, setData] = useLocalData()
   const shared = { data, setData }
