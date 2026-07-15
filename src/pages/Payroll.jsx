@@ -84,7 +84,7 @@ function employeeAssignmentLabel(employee, groups = []) {
   return employee.job_type || employee.employee_type || 'Employee List'
 }
 
-export default function Payroll({ data, setData }) {
+export default function Payroll({ data, setData, setActive }) {
   const employees = sortByName((data.employees || []).filter(emp => emp.is_active !== false))
   const employeeTypeOptions = data.employeeTypes?.length ? data.employeeTypes : ['Regular', 'Manager', 'Kitchen', 'Front House', 'Seasonal', 'Other']
   const groups = sortByName(data.payrollGroups || [])
@@ -109,6 +109,9 @@ export default function Payroll({ data, setData }) {
   const [employeeSearch, setEmployeeSearch] = useState('')
   const [payMethodFilter, setPayMethodFilter] = useState('all')
   const [payClassFilter, setPayClassFilter] = useState('all')
+  const [employeeFilter, setEmployeeFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [sortOrder, setSortOrder] = useState('newest')
   const [activeTab, setActiveTab] = useState('all')
   const [selectedEntryIds, setSelectedEntryIds] = useState([])
   const [page, setPage] = useState(1)
@@ -167,13 +170,22 @@ export default function Payroll({ data, setData }) {
       if (payMethodFilter !== 'all' && method !== payMethodFilter) return false
       if (payClassFilter === 'operating' && classification.includes('tip')) return false
       if (payClassFilter === 'tips' && !classification.includes('tip')) return false
+      if (employeeFilter !== 'all' && String(entry.employee_id || '') !== employeeFilter) return false
+      const isToast = String(entry.group_name || '').startsWith('Toast:') || String(entry.source || '').toLowerCase().includes('toast')
+      if (sourceFilter === 'toast' && !isToast) return false
+      if (sourceFilter === 'manual' && isToast) return false
       if (query) {
         const searchable = [entry.employee_name, entry.employee_id, entry.group_name, entry.payroll_type, entry.pay_type, entry.check_number].join(' ').toLowerCase()
         if (!searchable.includes(query)) return false
       }
       return true
-    }).sort((a, b) => String(a.pay_date || a.payroll_date || a.date || '').localeCompare(String(b.pay_date || b.payroll_date || b.date || '')) || String(a.employee_name || '').localeCompare(String(b.employee_name || '')))
-  }, [entries, dateStart, dateEnd, employeeSearch, payMethodFilter, payClassFilter])
+    }).sort((a, b) => {
+      const aDate = String(a.pay_date || a.payroll_date || a.date || '')
+      const bDate = String(b.pay_date || b.payroll_date || b.date || '')
+      const dateCompare = sortOrder === 'oldest' ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate)
+      return dateCompare || String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
+    })
+  }, [entries, dateStart, dateEnd, employeeSearch, payMethodFilter, payClassFilter, employeeFilter, sourceFilter, sortOrder])
   const rangeLabel = `${dateStart || 'First record'} to ${dateEnd || 'Latest record'}`
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / rowsPerPage))
   const currentPage = Math.min(page, totalPages)
@@ -182,7 +194,7 @@ export default function Payroll({ data, setData }) {
   const activeFilterLabel = employeeSearch.trim() ? ` • Employee/search: ${employeeSearch.trim()}` : ''
 
 
-  useEffect(() => { setPage(1) }, [dateStart, dateEnd, employeeSearch, payMethodFilter, payClassFilter, rowsPerPage])
+  useEffect(() => { setPage(1) }, [dateStart, dateEnd, employeeSearch, payMethodFilter, payClassFilter, employeeFilter, sourceFilter, sortOrder, rowsPerPage])
 
   function toggleEntrySelection(id) {
     setSelectedEntryIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id])
@@ -530,9 +542,10 @@ export default function Payroll({ data, setData }) {
   return <>
     <style>{`
       .payroll-enterprise { display:grid; gap:16px; }
-      .payroll-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-      .payroll-toolbar .date-range-box { min-width:330px; border:1px solid #dbe3ef; border-radius:12px; background:#fff; padding:10px 14px; }
-      .payroll-toolbar-actions { margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
+      .payroll-toolbar { display:grid; grid-template-columns:minmax(420px,1fr) auto; align-items:center; gap:12px; border:1px solid #e2e8f0; border-radius:14px; background:#fff; padding:10px 12px; }
+      .payroll-toolbar .date-range-box { min-width:0; border:0; border-radius:0; background:transparent; padding:0; }
+      .payroll-presets { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+      .payroll-presets .btn { min-height:36px; padding:7px 12px; font-size:12px; }
       .payroll-kpis { display:grid; grid-template-columns:repeat(6,minmax(150px,1fr)); gap:12px; }
       .payroll-kpi { border:1px solid #e3e9f2; border-radius:14px; background:#fff; padding:16px; display:flex; gap:12px; align-items:center; min-height:98px; }
       .payroll-kpi-icon { width:46px; height:46px; border-radius:12px; display:grid; place-items:center; flex:0 0 46px; }
@@ -544,11 +557,12 @@ export default function Payroll({ data, setData }) {
       .payroll-kpi:nth-child(6) .payroll-kpi-icon { background:#22c55e; color:#fff; }
 
       .payroll-kpi-icon svg,.payroll-kpi-icon svg *{stroke:#fff!important;color:#fff!important}
-      .payroll-quick-actions{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 8px}
+      .payroll-quick-actions{display:grid;grid-template-columns:repeat(3,minmax(180px,240px));gap:10px;align-items:stretch;margin:0}
+      .payroll-quick-actions .btn,.payroll-quick-actions .file-button{height:44px;min-height:44px;border-radius:10px;padding:0 14px;font-size:13px;font-weight:800;justify-content:center;box-shadow:none}
       .payroll-quick-actions .quick-manual{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
       .payroll-quick-actions .quick-groups{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
       .payroll-quick-actions .quick-import{background:#fff7ed;border-color:#fed7aa;color:#ea580c}
-      .payroll-quick-actions .btn svg,.payroll-quick-actions .btn svg *{stroke:currentColor!important}
+      .payroll-quick-actions .btn svg,.payroll-quick-actions .file-button svg,.payroll-quick-actions .btn svg *,.payroll-quick-actions .file-button svg *{stroke:currentColor!important}
       .employee-icon-chip{width:22px;height:22px;border-radius:6px;display:inline-grid;place-items:center;margin-right:7px;color:#fff;vertical-align:middle}
       .employee-icon-chip.blue{background:#2563eb}.employee-icon-chip.green{background:#16a34a}.employee-icon-chip.orange{background:#f97316}.employee-icon-chip.purple{background:#9333ea}.employee-icon-chip.teal{background:#0d9488}
       .employee-icon-chip svg,.employee-icon-chip svg *{stroke:#fff!important;color:#fff!important}
@@ -556,16 +570,16 @@ export default function Payroll({ data, setData }) {
       .payroll-kpi span { color:#64748b; font-size:12px; font-weight:700; }
       .payroll-kpi b { display:block; font-size:24px; color:#0f172a; line-height:1.15; margin:3px 0; }
       .payroll-kpi small { color:#64748b; }
-      .payroll-tabs { display:flex; gap:24px; border-bottom:1px solid #e2e8f0; padding:0 8px; }
-      .payroll-tabs button { border:0; background:transparent; padding:12px 8px; font-weight:800; color:#334155; border-bottom:3px solid transparent; }
+      .payroll-tabs { display:flex; gap:8px; border-bottom:1px solid #e2e8f0; padding:0; }
+      .payroll-tabs button { border:0; background:transparent; padding:10px 14px; font-size:13px; line-height:1; font-weight:800; color:#334155; border-bottom:3px solid transparent; }
       .payroll-tabs button.active { color:#ea7000; border-bottom-color:#ea7000; }
       .payroll-content-grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:14px; align-items:start; }
       .payroll-main-panel, .payroll-side-panel { border:1px solid #e0e7f0; border-radius:14px; background:#fff; }
-      .payroll-filter-row { display:grid; grid-template-columns:minmax(260px,1.35fr) repeat(4,minmax(145px,.8fr)) auto auto; gap:10px; padding:14px; align-items:end; }
-      .payroll-search { background:#f7faff; border:1px solid #d7e1ed; border-radius:10px; display:flex; align-items:center; gap:9px; padding:0 12px; height:42px; }
+      .payroll-filter-row { display:grid; grid-template-columns:minmax(240px,1.35fr) repeat(4,minmax(135px,.8fr)) auto; gap:9px; padding:12px 14px; align-items:end; }
+      .payroll-search { background:#f3f7fb; border:1px solid #cbd8e6; border-radius:9px; display:flex; align-items:center; gap:9px; padding:0 11px; height:40px; }
       .payroll-search input { border:0; background:transparent; width:100%; outline:0; height:100%; }
       .payroll-filter-row label { display:grid; gap:4px; color:#64748b; font-size:11px; font-weight:800; }
-      .payroll-filter-row select { height:42px; border:1px solid #dbe3ef; border-radius:10px; background:#f7faff; padding:0 12px; font-weight:700; }
+      .payroll-filter-row select { height:40px; border:1px solid #dbe3ef; border-radius:10px; background:#f7faff; padding:0 12px; font-weight:700; }
       .payroll-bulk-row { display:flex; gap:10px; align-items:center; padding:10px 14px; border-top:1px solid #eef2f7; border-bottom:1px solid #eef2f7; }
       .payroll-bulk-row .sort-control { margin-left:auto; display:flex; gap:8px; align-items:center; }
       .payroll-table-wrap { overflow:auto; }
@@ -574,8 +588,8 @@ export default function Payroll({ data, setData }) {
       .payroll-enterprise-table td { padding:11px 10px; border-bottom:1px solid #edf1f6; color:#172033; white-space:nowrap; }
       .payroll-enterprise-table td.employee-cell { font-weight:800; }
       .payroll-enterprise-table .money-strong { font-weight:900; }
-      .payroll-mini-actions { display:flex; gap:6px; }
-      .payroll-mini-actions button { border:0; background:transparent; padding:3px; color:#2563eb; }
+      .payroll-mini-actions { display:flex; gap:4px; }
+      .payroll-mini-actions button { border:1px solid #dbe3ef; background:#fff; border-radius:7px; min-width:30px; height:30px; display:grid; place-items:center; padding:0; color:#2563eb; }
       .payroll-mini-actions button.delete { color:#ef4444; }
       .payroll-pagination { display:flex; align-items:center; gap:8px; padding:12px 14px; }
       .payroll-pagination .pages { margin:auto; display:flex; gap:6px; }
@@ -590,7 +604,7 @@ export default function Payroll({ data, setData }) {
       .group-tools { display:flex; gap:8px; margin-top:10px; }
       .tab-panel { padding:16px; }
       @media (max-width:1450px){ .payroll-kpis{grid-template-columns:repeat(3,1fr)} .payroll-content-grid{grid-template-columns:1fr} .payroll-side-panel{order:2} }
-      @media (max-width:900px){ .payroll-kpis{grid-template-columns:repeat(2,1fr)} .payroll-filter-row{grid-template-columns:1fr 1fr} .payroll-search{grid-column:1/-1} }
+      @media (max-width:900px){ .payroll-toolbar{grid-template-columns:1fr}.payroll-presets{justify-content:flex-start}.payroll-kpis{grid-template-columns:repeat(2,1fr)} .payroll-filter-row{grid-template-columns:1fr 1fr} .payroll-search{grid-column:1/-1}.payroll-quick-actions{grid-template-columns:1fr} }
     `}</style>
 
     <div className="payroll-enterprise">
@@ -601,13 +615,11 @@ export default function Payroll({ data, setData }) {
 
       <div className="payroll-toolbar">
         <div className="date-range-box"><DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={() => { saveGlobalDateRange(dateStart, dateEnd); setStatus(`Applied payroll date range: ${rangeLabel}`) }} onPreset={applyPreset} /></div>
-        <button className="btn secondary" onClick={() => applyPreset('today')}>Today</button>
-        <button className="btn secondary" onClick={() => applyPreset('lastWeek')}>Last 7 Days</button>
-        <button className="btn primary" onClick={() => applyPreset('thisMonth')}>This Month</button>
-        <button className="btn secondary" onClick={() => applyPreset('lastMonth')}>Last Month</button>
-        <div className="payroll-toolbar-actions">
-          <button className="btn primary" onClick={() => setActiveTab('manual')}><Icon name="plus" /> Add Manual Payroll</button>
-          <label className="file-button"><Icon name="upload" /> Import Labor Summary<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
+        <div className="payroll-presets">
+          <button className="btn secondary" onClick={() => applyPreset('today')}>Today</button>
+          <button className="btn secondary" onClick={() => applyPreset('lastWeek')}>Last 7 Days</button>
+          <button className="btn primary" onClick={() => applyPreset('thisMonth')}>This Month</button>
+          <button className="btn secondary" onClick={() => applyPreset('lastMonth')}>Last Month</button>
         </div>
       </div>
 
@@ -627,29 +639,28 @@ export default function Payroll({ data, setData }) {
       </div>
 
       <div className="payroll-tabs">
-        {[['all','All Payroll'],['groups','Payroll Groups'],['manual','Manual Payroll'],['tips','Tips Summary'],['history','History']].map(([id,label])=><button key={id} className={activeTab===id?'active':''} onClick={()=>setActiveTab(id)}>{label}</button>)}
+        {[['all','All Payroll'],['tips','Tips Summary'],['history','History']].map(([id,label])=><button key={id} className={activeTab===id?'active':''} onClick={()=>setActiveTab(id)}>{label}</button>)}
       </div>
 
       {activeTab === 'all' && <div className="payroll-content-grid">
         <section className="payroll-main-panel">
           <div className="payroll-filter-row">
             <label className="payroll-search"><Icon name="search" /><input value={employeeSearch} onChange={e=>setEmployeeSearch(e.target.value)} placeholder="Search employee, group, method, check #..." /></label>
-            <label>Employee<select><option>All Employees</option></select></label>
+            <label>Employee<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="all">All Employees</option>{employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></label>
             <label>Payroll Type<select value={payClassFilter} onChange={e=>setPayClassFilter(e.target.value)}><option value="all">All Types</option><option value="operating">Operating Labor</option><option value="tips">Customer Tips</option></select></label>
             <label>Payment Method<select value={payMethodFilter} onChange={e=>setPayMethodFilter(e.target.value)}><option value="all">All Methods</option><option value="cash">Cash</option><option value="check">Check</option></select></label>
-            <label>Source<select><option>All Sources</option><option>Toast Labor</option><option>Manual</option></select></label>
-            <button className="btn secondary" onClick={()=>{setEmployeeSearch('');setPayMethodFilter('all');setPayClassFilter('all')}}><Icon name="refresh" /> Clear Filters</button>
-            <button className="btn secondary"><Icon name="download" /> Export</button>
+            <label>Source<select value={sourceFilter} onChange={e=>setSourceFilter(e.target.value)}><option value="all">All Sources</option><option value="toast">Toast Labor</option><option value="manual">Manual</option></select></label>
+            <button className="btn secondary" onClick={()=>{setEmployeeSearch('');setPayMethodFilter('all');setPayClassFilter('all');setEmployeeFilter('all');setSourceFilter('all')}}><Icon name="refresh" /> Clear Filters</button>
           </div>
           <div className="payroll-bulk-row">
             <label><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisibleSelection} /> Select All ({filteredEntries.length})</label>
             <button className="btn secondary" disabled={!selectedEntryIds.length}>Archive Selected</button>
             <button className="btn danger" disabled={!selectedEntryIds.length} onClick={deleteSelectedEntries}>Delete Selected</button>
             <button className="btn secondary" disabled={!selectedEntryIds.length}><Icon name="download" /> Export Selected</button>
-            <div className="sort-control"><span>Sort by:</span><select><option>Date (Newest)</option><option>Date (Oldest)</option></select></div>
+            <div className="sort-control"><span>Sort by:</span><select value={sortOrder} onChange={e=>setSortOrder(e.target.value)}><option value="newest">Date (Newest)</option><option value="oldest">Date (Oldest)</option></select></div>
           </div>
           <div className="payroll-table-wrap"><table className="payroll-enterprise-table"><thead><tr><th></th><th>Date</th><th>Employee</th><th>Group</th><th>Type</th><th>Hours</th><th>Regular Pay</th><th>Tips After WH</th><th>Extra Pay</th><th>Total Pay</th><th>Payment</th><th>Source</th><th>Check #</th><th>Actions</th></tr></thead><tbody>
-            {pagedEntries.length ? pagedEntries.map((entry, rowIndex)=><tr key={entry.id}><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)} /></td><td>{entry.pay_date||'-'}</td><td className="employee-cell"><span className={`employee-icon-chip ${['blue','green','orange','purple','teal'][rowIndex%5]}`}><Icon name="person" size={13} /></span>{entry.employee_name}</td><td><span className="tag regular">{entry.group_name||'—'}</span></td><td><span className={`tag ${String(entry.pay_type||'').toLowerCase()}`}>{entry.pay_type||'—'}</span></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td>${money(entry.regular_pay)}</td><td>${money(entry.tips)}</td><td>${money(entry.extra_pay)}</td><td className="money-strong">${money(entry.total_pay)}</td><td><span className={entry.payroll_type==='Cash'?'tag cash':'tag check'}>{entry.payroll_type||'—'}</span></td><td>{entry.group_name?.startsWith('Toast:')?'Toast Labor':'Manual'}</td><td>{entry.check_number||'—'}</td><td><div className="payroll-mini-actions"><button onClick={()=>startEdit(entry)}>✎</button><button className="delete" onClick={()=>deleteEntry(entry.id)}>🗑</button></div></td></tr>) : <tr><td colSpan="14" className="empty-cell">No payroll entries in the selected date range.</td></tr>}
+            {pagedEntries.length ? pagedEntries.map((entry, rowIndex)=><tr key={entry.id}><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)} /></td><td>{entry.pay_date||'-'}</td><td className="employee-cell"><span className={`employee-icon-chip ${['blue','green','orange','purple','teal'][rowIndex%5]}`}><Icon name="person" size={13} /></span>{entry.employee_name}</td><td><span className="tag regular">{entry.group_name||'—'}</span></td><td><span className={`tag ${String(entry.pay_type||'').toLowerCase()}`}>{entry.pay_type||'—'}</span></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td>${money(entry.regular_pay)}</td><td>${money(entry.tips)}</td><td>${money(entry.extra_pay)}</td><td className="money-strong">${money(entry.total_pay)}</td><td><span className={entry.payroll_type==='Cash'?'tag cash':'tag check'}>{entry.payroll_type||'—'}</span></td><td>{entry.group_name?.startsWith('Toast:')?'Toast Labor':'Manual'}</td><td>{entry.check_number||'—'}</td><td><div className="payroll-mini-actions"><button title="Edit payroll entry" onClick={()=>startEdit(entry)}><Icon name="edit" size={14} /></button><button title="Edit employee" onClick={()=>{ try { localStorage.setItem('restapay_edit_employee_id', entry.employee_id || '') } catch {} ; setActive?.('employees') }}><Icon name="person" size={14} /></button><button title="Delete payroll entry" className="delete" onClick={()=>deleteEntry(entry.id)}><Icon name="trash" size={14} /></button></div></td></tr>) : <tr><td colSpan="14" className="empty-cell">No payroll entries in the selected date range.</td></tr>}
           </tbody></table></div>
           <div className="payroll-pagination"><span>Showing {filteredEntries.length ? (currentPage-1)*rowsPerPage+1 : 0} to {Math.min(currentPage*rowsPerPage,filteredEntries.length)} of {filteredEntries.length} entries</span><div className="pages"><button onClick={()=>setPage(Math.max(1,currentPage-1))}>‹</button>{Array.from({length:Math.min(totalPages,5)},(_,i)=>i+1).map(n=><button key={n} className={currentPage===n?'active':''} onClick={()=>setPage(n)}>{n}</button>)}<button onClick={()=>setPage(Math.min(totalPages,currentPage+1))}>›</button></div><label>Rows per page: <select value={rowsPerPage} onChange={e=>setRowsPerPage(Number(e.target.value))}><option>10</option><option>25</option><option>50</option></select></label></div>
         </section>

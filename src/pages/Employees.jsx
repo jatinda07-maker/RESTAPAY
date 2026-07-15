@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { createId, sortByName } from '../lib/localStore'
 
@@ -117,6 +117,17 @@ export default function Employees({ data, setData }) {
     setNewJobType('')
     setStatus(`Job type saved: ${value}`)
   }
+
+  useEffect(() => {
+    let requestedId = ''
+    try {
+      requestedId = localStorage.getItem('restapay_edit_employee_id') || ''
+      localStorage.removeItem('restapay_edit_employee_id')
+    } catch {}
+    if (!requestedId) return
+    const employee = employees.find(emp => emp.id === requestedId)
+    if (employee) editEmployee(employee)
+  }, [employees])
 
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase()

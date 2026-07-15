@@ -56,7 +56,7 @@ function App() {
       : active === 'menu-intelligence' ? <MenuIntelligence {...shared} />
       : active === 'vendors' ? <Vendors {...shared} />
       : active === 'invoices' ? <Invoices {...shared} />
-      : active === 'payroll' ? <Payroll {...shared} />
+      : active === 'payroll' ? <Payroll {...shared} setActive={setActive} />
       : active === 'expenses' ? <Expenses {...shared} />
       : active === 'reports' ? <Reports {...shared} />
       : active === 'settings' ? <Settings {...shared} />
