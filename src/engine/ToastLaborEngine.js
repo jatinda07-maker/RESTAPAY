@@ -27,11 +27,11 @@ const ALIASES = {
   regularPay: ['Regular Pay', 'Regular Wages', 'Wages', 'Labor Cost', 'Hourly Pay'],
   overtimePay: ['Overtime Pay', 'OT Pay'],
   grossPay: ['Gross Pay', 'Gross Wages', 'Total Pay', 'Pay Amount', 'Earnings'],
-  totalTips: ['Total Tips', 'Tips', 'Declared Tips', 'Tips Earned'],
-  creditTips: ['Credit Card Tips', 'Credit Tips', 'Non-Cash Tips', 'Non Cash Tips'],
-  cashTips: ['Cash Tips'],
-  netTips: ['Tips After Withholding', 'Tips After Withheld', 'Net Tips', 'Final Tips'],
-  withheld: ['Tips Withheld', 'Tip Withheld', 'Tips Withholding', 'Withheld Tips', 'Tip Deduction'],
+  totalTips: ['Total Tips', 'Tips', 'Declared Tips', 'Tips Earned', 'Tips Paid', 'Total Tips Paid', 'Employee Tips', 'Tip Amount'],
+  creditTips: ['Credit Card Tips', 'Credit Tips', 'Non-Cash Tips', 'Non Cash Tips', 'Card Tips', 'CC Tips', 'Credit Card Gratuity'],
+  cashTips: ['Cash Tips', 'Declared Cash Tips', 'Cash Gratuity'],
+  netTips: ['Tips After Withholding', 'Tips After Withheld', 'Net Tips', 'Final Tips', 'Tips Net', 'Net Tip Pay'],
+  withheld: ['Tips Withheld', 'Tip Withheld', 'Tips Withholding', 'Withheld Tips', 'Tip Deduction', 'Tips Deducted', 'Tip Withhold'],
   checkNumber: ['Check Number', 'Check #', 'Check No', 'Check No.', 'Payment Number', 'Reference Number']
 }
 
@@ -43,6 +43,13 @@ function find(row, aliases) {
   for (const alias of aliases) {
     const value = map[norm(alias)]
     if (value !== undefined && value !== '') return value
+  }
+  const entries = Object.entries(map)
+  for (const alias of aliases) {
+    const wanted = norm(alias)
+    if (wanted.length < 4) continue
+    const match = entries.find(([key, value]) => value !== undefined && value !== '' && (key.includes(wanted) || wanted.includes(key)))
+    if (match) return match[1]
   }
   return ''
 }
