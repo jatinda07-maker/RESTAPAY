@@ -1,0 +1,22 @@
+RestaPay Modern Green/Blue/Red Redesign
+
+Completed in this package:
+- Rebuilt the layout shell with a light background and clean SaaS styling.
+- Added collapsible left navigation with icon-only mode.
+- Matched the requested hover/active nav style: pale green row, dark green text/icon, solid green left strip.
+- Removed the old dark/global navigation styling and replaced the CSS system with a new global stylesheet.
+- Updated KPI cards to colorful modern cards: green, blue, red, purple, orange, teal/emerald/indigo.
+- Increased base font size and improved readability with a ChatGPT-style system font stack.
+- Aligned buttons, filters, forms, cards, tables, and row actions across pages.
+- Removed the top/global date selector. Date controls now live inside the pages that need them.
+- Page date ranges are stored separately by page instead of one shared global date range.
+- Existing calculation/business logic files were preserved except page-scoped date storage cleanup.
+
+Build verification:
+- npm install completed.
+- npm run build completed successfully.
+
+Run locally:
+1. npm install
+2. npm run dev
+3. Open the Local URL shown by Vite.

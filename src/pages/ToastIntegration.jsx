@@ -19,10 +19,12 @@ export default function ToastIntegration() {
   const [loading, setLoading] = useState(true)
   const [schemaReady, setSchemaReady] = useState(false)
   const [message, setMessage] = useState('Checking Toast automation status...')
+  const [lastChecked, setLastChecked] = useState(null)
 
   async function loadStatus() {
     if (!isSupabaseReady || !supabase) {
       setMessage('Supabase is not configured in this build. The Toast worker cannot report status yet.')
+      setLastChecked(new Date().toISOString())
       setLoading(false)
       return
     }
@@ -45,6 +47,7 @@ export default function ToastIntegration() {
       setFeeRows(results[3].data || [])
       setMessage('Toast automation tables are ready. The secure Render cron job can now import exports.')
     }
+    setLastChecked(new Date().toISOString())
     setLoading(false)
   }
 
@@ -57,6 +60,23 @@ export default function ToastIntegration() {
     return files.filter(file => String(file.business_date || file.imported_at || '').slice(0, 10) === today).length
   }, [files])
   const merchantFees = useMemo(() => feeRows.reduce((sum, row) => sum + Number(row.fee_amount || 0), 0), [feeRows])
+  const workerHealth = useMemo(() => {
+    if (!schemaReady) return { tone: 'red', label: 'Schema setup needed', detail: 'Toast database tables could not be read.' }
+    if (!latest) return { tone: 'orange', label: 'Configured — no run yet', detail: 'Supabase tables work, but no Render worker run has been recorded.' }
+    const stamp = latest.finished_at || latest.started_at
+    const ageHours = stamp ? (Date.now() - new Date(stamp).getTime()) / 3600000 : Infinity
+    if (latest.status === 'failed') return { tone: 'red', label: 'Last run failed', detail: latest.message || 'Open Recent Import Runs for details.' }
+    if (latest.status === 'success' && ageHours <= 48) return { tone: 'green', label: 'Connected', detail: `Successful worker import ${formatDate(stamp)}.` }
+    if (latest.status === 'success') return { tone: 'orange', label: 'Connected — import is stale', detail: `Last success was ${Math.floor(ageHours)} hours ago.` }
+    return { tone: 'orange', label: latest.status || 'Pending', detail: latest.message || 'Worker has not completed a successful import.' }
+  }, [schemaReady, latest])
+
+  const connectionChecks = useMemo(() => [
+    { label: 'Browser → Supabase', ok: isSupabaseReady && schemaReady, detail: isSupabaseReady ? (schemaReady ? 'Toast tables can be queried.' : 'Supabase configured, Toast schema query failed.') : 'VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing.' },
+    { label: 'Render worker → Supabase', ok: Boolean(latest), detail: latest ? `Run record found: ${latest.status || 'unknown'}.` : 'No toast_import_runs record found yet.' },
+    { label: 'Toast SFTP → Render worker', ok: latest?.status === 'success', detail: latest?.status === 'success' ? `${latest.files_imported || 0} files imported in the last successful run.` : 'The browser cannot open the private SFTP connection directly; a successful worker run is the proof of connection.' },
+    { label: 'Normalized Toast data', ok: files.length > 0 || daily.length > 0, detail: files.length || daily.length ? `${files.length} recent files and ${daily.length} daily summaries are readable.` : 'No imported Toast rows are visible yet.' }
+  ], [schemaReady, latest, files.length, daily.length])
 
   return (
     <div className="toast-integration-page">
@@ -70,6 +90,17 @@ export default function ToastIntegration() {
       </section>
 
       <p className={`status-pill ${schemaReady ? 'success' : ''}`}>{message}</p>
+
+      <section className="table-card toast-connection-audit">
+        <header>
+          <div><h2>Toast Connection Check</h2><p>Checks the real data path: Toast SFTP → Render worker → Supabase → RestaPay.</p></div>
+          <div className="toast-health-actions"><span className={`tag ${workerHealth.tone}`}>{workerHealth.label}</span><small>Checked {formatDate(lastChecked)}</small></div>
+        </header>
+        <div className="toast-connection-checks">
+          {connectionChecks.map(check => <article key={check.label} className={check.ok ? 'ok' : 'needs-attention'}><span className="toast-check-icon"><Icon name={check.ok ? 'check' : 'alertTriangle'} size={17} /></span><div><b>{check.label}</b><small>{check.detail}</small></div></article>)}
+        </div>
+        <div className="toast-connection-note"><Icon name="shield" size={16} /><span>RestaPay cannot test the private Toast SFTP key from the browser. A recent successful row in <b>toast_import_runs</b> plus imported files confirms the connection works.</span></div>
+      </section>
 
       <div className="metric-grid toast-integration-metrics">
         <div className="metric-card tone-green"><span className="metric-icon"><Icon name="cloud" /></span><span className="metric-label">Database Schema</span><strong>{schemaReady ? 'Ready' : 'Setup Needed'}</strong><small>{schemaReady ? 'Toast tables found' : 'Run RC12 SQL migration'}</small></div>

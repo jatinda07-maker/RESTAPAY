@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
+import DateControls from '../components/DateControls'
+import { applyPresetToSetters, isDateInRange, readPageDateRange, savePageDateRange } from '../engine/DateEngine'
 import { createId, sortByName } from '../lib/localStore'
 import { normalizeVendorName, vendorSimilarity } from '../engine/InvoiceProductEngine'
 
@@ -80,6 +82,10 @@ export default function Vendors({ data, setData }) {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [mergePrimaryId, setMergePrimaryId] = useState('')
   const [mergeDuplicateId, setMergeDuplicateId] = useState('')
+  const initialRange = readPageDateRange('vendors')
+  const [start, setStart] = useState(initialRange.start)
+  const [end, setEnd] = useState(initialRange.end)
+  const [activeTab, setActiveTab] = useState('list')
 
   const filtered = useMemo(() => vendors
     .filter(v => activeFilter === 'all' ? true : activeFilter === 'active' ? v.is_active !== false : v.is_active === false)
@@ -90,6 +96,56 @@ export default function Vendors({ data, setData }) {
       return [v.name, v.category, v.default_check_number, v.contact, v.phone, v.email, v.notes].join(' ').toLowerCase().includes(q)
     }), [vendors, search, activeFilter, categoryFilter])
 
+
+  const vendorActivity = useMemo(() => {
+    const byVendor = new Map()
+    const ensure = (name, seed = {}) => {
+      const clean = String(name || '').trim()
+      if (!clean) return null
+      const key = normalizeVendorName(clean) || clean.toLowerCase()
+      if (!byVendor.has(key)) byVendor.set(key, { key, name: clean, vendor_id: seed.vendor_id || '', invoice_count: 0, invoice_spend: 0, expense_count: 0, expense_spend: 0, last_activity: '' })
+      return byVendor.get(key)
+    }
+    ;(data.invoices || []).forEach(row => {
+      const date = String(row.invoice_date || row.date || row.created_at || '').slice(0, 10)
+      if (!isDateInRange(date, start, end)) return
+      const activity = ensure(row.vendor_name || row.vendor, row)
+      if (!activity) return
+      activity.invoice_count += 1
+      activity.invoice_spend += num(row.total ?? row.amount ?? row.subtotal)
+      if (!activity.last_activity || date > activity.last_activity) activity.last_activity = date
+    })
+    ;(data.expenses || []).forEach(row => {
+      const date = String(row.expense_date || row.date || row.created_at || '').slice(0, 10)
+      if (!isDateInRange(date, start, end)) return
+      const activity = ensure(row.vendor_name || row.vendor, row)
+      if (!activity) return
+      activity.expense_count += 1
+      activity.expense_spend += num(row.amount ?? row.total)
+      if (!activity.last_activity || date > activity.last_activity) activity.last_activity = date
+    })
+    return [...byVendor.values()].map(row => ({ ...row, total_spend: row.invoice_spend + row.expense_spend })).sort((a, b) => b.total_spend - a.total_spend || a.name.localeCompare(b.name))
+  }, [data.invoices, data.expenses, start, end])
+
+  const activityByVendor = useMemo(() => new Map(vendorActivity.map(row => [row.key, row])), [vendorActivity])
+  const rangeTotals = useMemo(() => vendorActivity.reduce((totals, row) => ({
+    vendors: totals.vendors + 1,
+    invoices: totals.invoices + row.invoice_count,
+    invoiceSpend: totals.invoiceSpend + row.invoice_spend,
+    expenseSpend: totals.expenseSpend + row.expense_spend,
+  }), { vendors: 0, invoices: 0, invoiceSpend: 0, expenseSpend: 0 }), [vendorActivity])
+
+  function applyDateRange(nextStart = start, nextEnd = end) {
+    savePageDateRange('vendors', nextStart, nextEnd)
+    setStatus(`Vendor activity range updated: ${nextStart || 'All'} to ${nextEnd || 'All'}`)
+  }
+
+  function applyPreset(key) {
+    applyPresetToSetters(key, setStart, setEnd, (nextStart, nextEnd) => {
+      savePageDateRange('vendors', nextStart, nextEnd)
+      setStatus(`Vendor activity range updated: ${nextStart || 'All'} to ${nextEnd || 'All'}`)
+    })
+  }
 
   const duplicateSuggestions = useMemo(() => {
     const results = []
@@ -219,18 +275,58 @@ export default function Vendors({ data, setData }) {
     setStatus('Vendor category removed locally')
   }
 
-  return <>
-    <div className="page-head employee-head single-toolbar-head">
-      <div className="employee-head-actions">
-        <div className="search-box"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendors..." /></div>
-        <select className="filter-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">All Categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
-        <select className="filter-select" value={activeFilter} onChange={e => setActiveFilter(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+  return <div className="vendors-page compact-workspace-page">
+    <section className="vendor-toolbar-shell">
+      <DateControls
+        start={start}
+        end={end}
+        onStartChange={setStart}
+        onEndChange={setEnd}
+        onApply={() => applyDateRange()}
+        onPreset={applyPreset}
+        showLabels={false}
+        applyLabel="Apply"
+      />
+      <div className="vendor-range-metrics">
+        <div><span>Vendors Used</span><strong>{rangeTotals.vendors}</strong></div>
+        <div><span>Invoices</span><strong>{rangeTotals.invoices}</strong></div>
+        <div><span>Invoice Spend</span><strong>{money(rangeTotals.invoiceSpend)}</strong></div>
+        <div><span>Other Spend</span><strong>{money(rangeTotals.expenseSpend)}</strong></div>
       </div>
-    </div>
-    <div className="status-pill">{status}</div>
+    </section>
 
-    <section className="form-card tight-card employee-form-card">
-      <h2>{editingId ? 'Edit Vendor — changes update the same row' : 'Add New Vendor'}</h2>
+    <div className="workspace-tabs vendor-workspace-tabs" role="tablist" aria-label="Vendor workspace">
+      <button type="button" className={activeTab === 'list' ? 'active' : ''} onClick={() => setActiveTab('list')}><Icon name="vendors" size={16} /> Vendor List</button>
+      <button type="button" className={activeTab === 'form' ? 'active' : ''} onClick={() => setActiveTab('form')}><Icon name={editingId ? 'edit' : 'plus'} size={16} /> {editingId ? 'Edit Vendor' : 'Add Vendor'}</button>
+      <button type="button" className={activeTab === 'duplicates' ? 'active' : ''} onClick={() => setActiveTab('duplicates')}><Icon name="merge" size={16} /> Duplicate Review</button>
+      <button type="button" className={activeTab === 'activity' ? 'active' : ''} onClick={() => setActiveTab('activity')}><Icon name="history" size={16} /> Activity</button>
+    </div>
+
+    <div className="status-strip compact-status-strip">{status}</div>
+
+    {activeTab === 'list' && <section className="table-card compact-table-card employee-table-card vendor-list-card">
+      <div className="vendor-list-controls">
+        <div className="search-box subtle-search"><Icon name="search" size={17} /><input value={search} onFocus={e => { setSearch(''); requestAnimationFrame(() => e.currentTarget.select()) }} onChange={e => setSearch(e.target.value)} placeholder="Search vendors..." /></div>
+        <select className="filter-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">All Categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+        <select className="filter-select" value={activeFilter} onChange={e => setActiveFilter(e.target.value)}><option value="all">All Statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <button type="button" className="small-btn" onClick={() => { setSearch(''); setActiveFilter('all'); setCategoryFilter('all') }}>Show All</button>
+      </div>
+      <header><h2>Vendor List</h2><div className="vendor-list-header-actions"><span>{filtered.length} shown of {vendors.length} · Sorted A-Z</span></div></header>
+      {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button type="button" onClick={() => bulkSetActive(true)}>Set Active</button><button type="button" onClick={() => bulkSetActive(false)}>Set Inactive</button><select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select><button onClick={bulkApplyCategory} type="button">Apply Category</button><button className="delete-link" onClick={bulkDelete} type="button">Delete Selected</button></div>}
+      <div className="vendor-list-scroll"><table><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every(v => selectedIds.includes(v.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Category</th><th>Spend in Range</th><th>Last Activity</th><th>Contact</th><th>Status</th><th>Action</th></tr></thead><tbody>{filtered.map(v => { const activity = activityByVendor.get(normalizeVendorName(v.name) || String(v.name || '').toLowerCase()); return <tr key={v.id}>
+        <td><input type="checkbox" checked={selectedIds.includes(v.id)} onChange={() => toggleSelected(v.id)} /></td>
+        <td><b>{v.name}</b><small>{v.linked_only ? 'Referenced by saved purchasing records — edit to create a full vendor record' : (v.notes || 'No notes')}</small></td>
+        <td>{(() => { const meta = categoryMeta(v.category); return <span className={`tag category-tag ${meta.cls}`}><Icon name={meta.icon} size={13} /> {v.category}</span> })()}</td>
+        <td><b>{money(activity?.total_spend || 0)}</b><small>{activity?.invoice_count || 0} invoices</small></td>
+        <td>{activity?.last_activity || '—'}</td>
+        <td>{v.contact || v.phone || v.email || '—'}</td>
+        <td><span className={v.is_active ? 'tag cash' : 'tag neutral'}>{v.is_active ? 'Active' : 'Inactive'}</span></td>
+        <td className="row-actions"><button type="button" onClick={() => { editVendor(v); setActiveTab('form') }}>Edit</button><button className="delete-link" type="button" onClick={() => deleteVendor(v.id)}>Delete</button></td>
+      </tr>})}{!filtered.length && <tr><td colSpan="8" className="empty-cell">No vendors match the current filters. Press Show All to reset the list.</td></tr>}</tbody></table></div>
+    </section>}
+
+    {activeTab === 'form' && <section className="form-card tight-card employee-form-card vendor-editor-card">
+      <h2>{editingId ? 'Edit Vendor' : 'Add New Vendor'}</h2>
       <div className="employee-form-grid vendor-form-grid">
         <label>Vendor name <span>*</span><input value={form.name} onChange={e => update('name', e.target.value)} placeholder="Vendor name" /></label>
         <label>Category <span>*</span><select value={form.category} onChange={e => update('category', e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select></label>
@@ -241,42 +337,24 @@ export default function Vendors({ data, setData }) {
         <label className="wide-2">Notes<input value={form.notes} onChange={e => update('notes', e.target.value)} placeholder="Notes, account number, delivery info" /></label>
         <label className="check-line vendor-active"><input type="checkbox" checked={form.is_active} onChange={e => update('is_active', e.target.checked)} /> Active vendor</label>
       </div>
-      <div className="type-manager-grid compact-types">
-        <div className="type-box">
-          <h3>Vendor Categories</h3>
-          <div className="mini-add-row"><input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Add category" /><button onClick={addCategory} type="button">Add</button></div>
-          <div className="chip-row">{categories.map(c => { const meta = categoryMeta(c); return <button key={c} className={`chip category-chip ${meta.cls}`} type="button" onClick={() => deleteCategory(c)} title="Click to remove category"><Icon name={meta.icon} size={15} /> <span>{c}</span><Icon name="x" size={13} /></button> })}</div>
-        </div>
-      </div>
-      <div className="form-action-footer"><button className="btn secondary" type="button" onClick={clearForm}>{editingId ? 'Cancel Edit' : 'Clear'}</button><button className="btn primary" type="button" onClick={saveVendor}><Icon name="save" /> {editingId ? 'Update Vendor' : 'Save Vendor'}</button></div>
-    </section>
+      <details className="compact-details"><summary>Manage Vendor Categories</summary><div className="type-box"><div className="mini-add-row"><input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Add category" /><button onClick={addCategory} type="button">Add</button></div><div className="chip-row">{categories.map(c => { const meta = categoryMeta(c); return <button key={c} className={`chip category-chip ${meta.cls}`} type="button" onClick={() => deleteCategory(c)} title="Click to remove category"><Icon name={meta.icon} size={15} /> <span>{c}</span><Icon name="x" size={13} /></button> })}</div></div></details>
+      <div className="form-action-footer"><button className="btn secondary" type="button" onClick={() => { clearForm(); setActiveTab('list') }}>{editingId ? 'Cancel Edit' : 'Cancel'}</button><button className="btn primary" type="button" onClick={() => { saveVendor(); if (form.name.trim()) setActiveTab('list') }}><Icon name="save" /> {editingId ? 'Update Vendor' : 'Save Vendor'}</button></div>
+    </section>}
 
-
-    <section className="table-card vendor-merge-card" id="vendor-merge">
-      <header><div><h2>Vendor Duplicate Review & Merge</h2><p>Prevent US Foods, U.S. Foods, Performance Foodservice, PFG, and similar names from creating separate vendor histories.</p></div><Icon name="merge" size={22} /></header>
+    {activeTab === 'duplicates' && <section className="table-card vendor-merge-card" id="vendor-merge">
+      <header><div><h2>Vendor Duplicate Review & Merge</h2><p>Merge similar names into one vendor history without losing invoices, items, or expenses.</p></div><Icon name="merge" size={22} /></header>
       <div className="vendor-merge-grid">
         <label>Keep as primary vendor<select value={mergePrimaryId} onChange={e => setMergePrimaryId(e.target.value)}><option value="">Select primary</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
         <label>Merge duplicate vendor<select value={mergeDuplicateId} onChange={e => setMergeDuplicateId(e.target.value)}><option value="">Select duplicate</option>{vendors.filter(v => v.id !== mergePrimaryId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
         <div className="vendor-merge-summary">{mergeSummary ? <><b>Records to reassign</b><br />{mergeSummary.invoices} invoices · {mergeSummary.items} line items · {mergeSummary.expenses} expenses</> : <>Select a duplicate to preview affected records.</>}</div>
         <button type="button" className="btn primary" onClick={mergeVendors}><Icon name="merge" /> Merge Vendors</button>
       </div>
-      {duplicateSuggestions.length > 0 && <div className="chip-row">{duplicateSuggestions.map(item => <button type="button" className="chip" key={`${item.a.id}-${item.b.id}`} onClick={() => { setMergePrimaryId(item.a.id); setMergeDuplicateId(item.b.id) }}>{item.a.name} ↔ {item.b.name} · {Math.round(item.score * 100)}%</button>)}</div>}
-    </section>
+      {duplicateSuggestions.length > 0 ? <div className="duplicate-suggestion-list">{duplicateSuggestions.map(item => <button type="button" className="duplicate-suggestion-row" key={`${item.a.id}-${item.b.id}`} onClick={() => { setMergePrimaryId(item.a.id); setMergeDuplicateId(item.b.id) }}><span>{item.a.name}</span><Icon name="merge" size={15} /><span>{item.b.name}</span><b>{Math.round(item.score * 100)}% match</b></button>)}</div> : <p className="empty-cell">No likely duplicate vendor names found.</p>}
+    </section>}
 
-    <section className="table-card compact-table-card employee-table-card">
-      <header><h2>Vendor List</h2><div className="vendor-list-header-actions"><span>{filtered.length} shown of {vendors.length} · Sorted A-Z</span><button type="button" className="small-btn" onClick={() => { setSearch(''); setActiveFilter('all'); setCategoryFilter('all') }}>Show All</button></div></header>
-      {selectedIds.length > 0 && <div className="bulk-bar"><b>{selectedIds.length} selected</b><button type="button" onClick={() => bulkSetActive(true)}>Set Active</button><button type="button" onClick={() => bulkSetActive(false)}>Set Inactive</button><select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select><button onClick={bulkApplyCategory} type="button">Apply Category</button><button className="delete-link" onClick={bulkDelete} type="button">Delete Selected</button></div>}
-      <div className="vendor-list-scroll"><table><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every(v => selectedIds.includes(v.id))} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th>Name</th><th>Category</th><th>Default Check #</th><th>Contact</th><th>Phone</th><th>Email</th><th>Status</th><th>Action</th></tr></thead><tbody>{filtered.map(v => <tr key={v.id}>
-        <td><input type="checkbox" checked={selectedIds.includes(v.id)} onChange={() => toggleSelected(v.id)} /></td>
-        <td><b>{v.name}</b><small>{v.linked_only ? 'Referenced by saved purchasing records — edit to create a full vendor record' : (v.notes || 'No notes')}</small></td>
-        <td>{(() => { const meta = categoryMeta(v.category); return <span className={`tag category-tag ${meta.cls}`}><Icon name={meta.icon} size={13} /> {v.category}</span> })()}</td>
-        <td>{v.default_check_number || '-'}</td>
-        <td>{v.contact || '-'}</td>
-        <td>{v.phone || '-'}</td>
-        <td>{v.email || '-'}</td>
-        <td><span className={v.is_active ? 'tag cash' : 'tag neutral'}>{v.is_active ? 'Active' : 'Inactive'}</span></td>
-        <td className="row-actions"><button type="button" onClick={() => editVendor(v)}>Edit</button><button className="delete-link" type="button" onClick={() => deleteVendor(v.id)}>Delete</button></td>
-      </tr>)}{!filtered.length && <tr><td colSpan="9" className="empty-cell">No vendors match the current filters. Press Show All to reset the list.</td></tr>}</tbody></table></div>
-    </section>
-  </>
+    {activeTab === 'activity' && <section className="table-card compact-table-card vendor-activity-card">
+      <header><div><h2>Vendor Activity</h2><p>Purchasing totals for the selected date range.</p></div><span className="badge neutral">{start || 'All'} → {end || 'All'}</span></header>
+      <div className="table-wrap"><table><thead><tr><th>Vendor</th><th>Invoices</th><th>Invoice Spend</th><th>Other Expenses</th><th>Total Spend</th><th>Last Activity</th></tr></thead><tbody>{vendorActivity.map(row => <tr key={row.key}><td><b>{row.name}</b></td><td>{row.invoice_count}</td><td>{money(row.invoice_spend)}</td><td>{money(row.expense_spend)}</td><td><b>{money(row.total_spend)}</b></td><td>{row.last_activity || '—'}</td></tr>)}{!vendorActivity.length && <tr><td colSpan="6" className="empty-cell">No vendor activity in this date range.</td></tr>}</tbody></table></div>
+    </section>}
+  </div>
 }

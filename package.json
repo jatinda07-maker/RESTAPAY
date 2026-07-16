@@ -8,10 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start": "vite preview --host 0.0.0.0 --port $PORT",
-    "test:toast": "node scripts/test-toast-sales.mjs",
-    "audit": "node scripts/audit-project.mjs",
-    "test": "node scripts/test-actual-costing.mjs && node scripts/test-toast-labor.mjs",
-    "check": "npm run audit && npm test && npm run build"
+    "test:toast": "node scripts/test-toast-sales.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

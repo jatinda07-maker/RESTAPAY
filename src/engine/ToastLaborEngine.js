@@ -38,24 +38,16 @@ const ALIASES = {
 function makeMap(row = {}) {
   return Object.fromEntries(Object.entries(row).map(([key, value]) => [norm(key), value]))
 }
-function findExact(row, aliases) {
+function find(row, aliases) {
   const map = makeMap(row)
   for (const alias of aliases) {
     const value = map[norm(alias)]
     if (value !== undefined && value !== '') return value
   }
-  return ''
-}
-function find(row, aliases) {
-  const exact = findExact(row, aliases)
-  if (exact !== '') return exact
-  const map = makeMap(row)
   const entries = Object.entries(map)
   for (const alias of aliases) {
     const wanted = norm(alias)
-    // Avoid broad fuzzy matches for generic labels such as "Tips", "Hours", or "Rate".
-    // Those can otherwise match a more specific sibling column (for example Credit Card Tips).
-    if (wanted.length < 6) continue
+    if (wanted.length < 4) continue
     const match = entries.find(([key, value]) => value !== undefined && value !== '' && (key.includes(wanted) || wanted.includes(key)))
     if (match) return match[1]
   }
@@ -136,7 +128,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const overtimePay = num(find(row, ALIASES.overtimePay))
     const grossPay = num(find(row, ALIASES.grossPay))
     const pay = round2(grossPay || regularPay + overtimePay || hours * rate)
-    const explicitTotalTips = findExact(row, ALIASES.totalTips)
+    const explicitTotalTips = find(row, ALIASES.totalTips)
     const creditTips = num(find(row, ALIASES.creditTips))
     const cashTips = num(find(row, ALIASES.cashTips))
     const totalTips = round2(explicitTotalTips !== '' ? num(explicitTotalTips) : creditTips + cashTips)
