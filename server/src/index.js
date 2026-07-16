@@ -11,6 +11,7 @@ const app = express()
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const syncScript = path.join(currentDir, 'syncToastJob.js')
 let activeSync = null
+let activeChild = null
 
 app.use(cors({ origin: config.allowedOrigin === '*' ? true : config.allowedOrigin }))
 app.use(express.json({ limit: '1mb' }))
@@ -41,6 +42,7 @@ function executeSync() {
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe']
     })
+    activeChild = child
     let stdout = ''
     let stderr = ''
     const timeout = setTimeout(() => child.kill('SIGTERM'), config.syncTimeoutMs)
@@ -53,15 +55,30 @@ function executeSync() {
       process.stderr.write(chunk)
     })
     child.on('error', reject)
-    child.on('close', async code => {
+    child.on('close', async (code, signal) => {
       clearTimeout(timeout)
+      activeChild = null
       try {
-        const run = await latestRun()
+        let run = await latestRun()
+        if (run?.status === 'running' && (signal || code !== 0)) {
+          const message = signal
+            ? `Toast sync interrupted by ${signal}. The next run will resume and skip files already imported.`
+            : `Toast sync stopped before completion with exit code ${code}.`
+          const { data, error } = await supabaseAdmin
+            .from('toast_import_runs')
+            .update({ status: 'cancelled', finished_at: new Date().toISOString(), error_count: Number(run.error_count || 0) + 1, message })
+            .eq('id', run.id)
+            .select('*')
+            .maybeSingle()
+          if (error) throw error
+          run = data || run
+        }
         const payload = {
           ok: code === 0 && run?.status === 'success',
           exitCode: code,
+          signal: signal || null,
           run,
-          output: stdout.trim().split('\n').slice(-20),
+          output: stdout.trim().split('\n').filter(Boolean).slice(-20),
           errorOutput: stderr.trim().split('\n').filter(Boolean).slice(-20)
         }
         if (payload.ok) resolve(payload)
@@ -70,7 +87,7 @@ function executeSync() {
         reject(error)
       }
     })
-  }).finally(() => { activeSync = null })
+  }).finally(() => { activeSync = null; activeChild = null })
   return activeSync
 }
 
@@ -140,5 +157,18 @@ app.use((error, _req, res, _next) => {
     details: error.payload || undefined
   })
 })
+
+
+async function shutdown(signal) {
+  console.log(`Received ${signal}; stopping Toast sync service...`)
+  if (activeChild && !activeChild.killed) {
+    activeChild.kill('SIGTERM')
+    await new Promise(resolve => setTimeout(resolve, 750))
+  }
+  process.exit(0)
+}
+
+process.once('SIGINT', () => { shutdown('SIGINT').catch(error => { console.error(error); process.exit(1) }) })
+process.once('SIGTERM', () => { shutdown('SIGTERM').catch(error => { console.error(error); process.exit(1) }) })
 
 app.listen(config.port, () => console.log(`RestaPay Toast Sync listening on port ${config.port}`))
