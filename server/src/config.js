@@ -26,7 +26,10 @@ export const config = {
   port: Number(process.env.PORT || 8787),
   allowedOrigin: process.env.ALLOWED_ORIGIN || '*',
   syncApiKey: process.env.TOAST_SYNC_API_KEY || '',
-  syncTimeoutMs: Number(process.env.TOAST_SYNC_TIMEOUT_MS || 10 * 60 * 1000),
+  syncTimeoutMs: Number(process.env.TOAST_SYNC_TIMEOUT_MS || 30 * 60 * 1000),
+  autoSyncEnabled: !/^(false|0|no)$/i.test(process.env.TOAST_AUTO_SYNC_ENABLED || 'true'),
+  autoSyncHour: Number(process.env.TOAST_AUTO_SYNC_HOUR || 6),
+  autoSyncMinute: Number(process.env.TOAST_AUTO_SYNC_MINUTE || 30),
   supabaseUrl: required('SUPABASE_URL'),
   supabaseServiceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
   toast: {

@@ -89,6 +89,10 @@ export default function ToastIntegration() {
     return files.filter(file => String(file.business_date || file.imported_at || '').slice(0, 10) === today).length
   }, [files])
   const merchantFees = useMemo(() => feeRows.reduce((sum, row) => sum + Number(row.fee_amount || 0), 0), [feeRows])
+  const normalizedTotal = useMemo(() => Object.values(workerApiStatus?.normalizedCounts || {}).reduce((sum, count) => sum + Number(count || 0), 0), [workerApiStatus])
+  const scheduleLabel = workerApiStatus?.schedule?.enabled
+    ? `${String(workerApiStatus.schedule.hour).padStart(2, '0')}:${String(workerApiStatus.schedule.minute).padStart(2, '0')} ${workerApiStatus.schedule.timezone || ''}`
+    : 'Disabled'
   const workerHealth = useMemo(() => {
     if (!schemaReady) return { tone: 'red', label: 'Schema setup needed', detail: 'Toast database tables could not be read.' }
     if (!latest) return { tone: 'orange', label: 'Configured — no run yet', detail: 'Supabase tables work, but no Render worker run has been recorded.' }
@@ -146,8 +150,8 @@ export default function ToastIntegration() {
       <div className="metric-grid toast-integration-metrics">
         <div className="metric-card tone-green"><span className="metric-icon"><Icon name="cloud" /></span><span className="metric-label">Database Schema</span><strong>{schemaReady ? 'Ready' : 'Setup Needed'}</strong><small>{schemaReady ? 'Toast tables found' : 'Run RC12 SQL migration'}</small></div>
         <div className="metric-card tone-blue"><span className="metric-icon"><Icon name="refresh" /></span><span className="metric-label">Last Import</span><strong>{latest?.status || 'No runs'}</strong><small>{formatDate(latest?.finished_at || latest?.started_at)}</small></div>
-        <div className="metric-card tone-purple"><span className="metric-icon"><Icon name="spreadsheet" /></span><span className="metric-label">Files Today</span><strong>{todayFiles}</strong><small>{latest ? `${latest.rows_imported || 0} rows last run` : 'No imports yet'}</small></div>
-        <div className="metric-card tone-orange"><span className="metric-icon"><Icon name="calendar" /></span><span className="metric-label">Schedule</span><strong>Daily</strong><small>6:30 AM Central</small></div>
+        <div className="metric-card tone-purple"><span className="metric-icon"><Icon name="spreadsheet" /></span><span className="metric-label">Normalized Rows</span><strong>{normalizedTotal.toLocaleString()}</strong><small>{todayFiles} files visible today</small></div>
+        <div className="metric-card tone-orange"><span className="metric-icon"><Icon name="calendar" /></span><span className="metric-label">Automatic Schedule</span><strong>{workerApiStatus?.schedule?.enabled ? 'Daily' : 'Off'}</strong><small>{scheduleLabel}</small></div>
       </div>
 
       {latestDaily && <section className="table-card toast-latest-summary">
@@ -171,7 +175,7 @@ export default function ToastIntegration() {
             <div><b>Username</b><span>IsabellaMexicanDataExports</span></div>
             <div><b>Export ID</b><span>144385</span></div>
             <div><b>Private key</b><span>Render Secret File: /etc/secrets/toast_restapay</span></div>
-            <div><b>Recommended schedule</b><span>6:30 AM Central daily</span></div>
+            <div><b>Automatic schedule</b><span>{scheduleLabel}</span></div>
             <div><b>Manual test command</b><span>npm run test (inside toast-worker)</span></div>
           </div>
         </section>

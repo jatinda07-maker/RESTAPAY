@@ -55,6 +55,17 @@ function rowDate(row, fallback) {
 }
 function reportType(name = '', rows = []) {
   const file = name.toLowerCase()
+  // Toast's standard export names are more reliable than broad header matching.
+  if (/^timeentries\./.test(file)) return 'Labor'
+  if (/^paymentdetails\./.test(file)) return 'Payments'
+  if (/^checkdetails\./.test(file) || /^orderdetails\./.test(file)) return 'Checks'
+  if (/^cashentries\./.test(file)) return 'Cash Management'
+  if (/^itemselectiondetails\./.test(file) || /^allitemsreport\./.test(file) || /^modifiersselectiondetails\./.test(file)) return 'Product Mix'
+  if (/^menuexport/.test(file)) return 'Menu'
+  if (/sales.?category|category.?summary/.test(file)) return 'Sales Categories'
+  if (/sales.?summary|restaurant.?summary|accountingreport/.test(file)) return 'Sales Summary'
+  if (/kitchentimings|houseaccountexport/.test(file)) return 'Other'
+
   const headers = Object.keys(rows[0] || {}).join(' ').toLowerCase()
   const source = `${file} ${headers}`
   if (/product.?mix|item.?selection|all.?items/.test(source)) return 'Product Mix'
@@ -62,10 +73,9 @@ function reportType(name = '', rows = []) {
   if (/sales.?category|category.?summary/.test(source)) return 'Sales Categories'
   if (/sales.?summary|restaurant.?summary/.test(source)) return 'Sales Summary'
   if (/payment|credit.?card|settlement|processing|deposit/.test(source)) return 'Payments'
-  if (/check.?detail|checks?/.test(source)) return 'Checks'
+  if (/check.?detail|check.?number/.test(source)) return 'Checks'
   if (/cash.?management|cash.?activity|closeout/.test(source)) return 'Cash Management'
   if (/menu/.test(source)) return 'Menu'
-  if (/order/.test(source)) return 'Orders'
   return 'Other'
 }
 function departmentFromCategory(category = '') {
@@ -82,12 +92,30 @@ function departmentFromItem(row = {}) {
   const item = text(value(row, ['Item Name', 'Menu Item', 'Name', 'Description'])).toLowerCase()
   return /beer|lager|ale|ipa|draft|margarita|cocktail|shot|wine|tequila|vodka|rum|whiskey|bourbon|gin|mezcal|sangria/.test(item) ? 'Alcohol' : 'Food'
 }
+function flattenJsonRows(value, pathParts = []) {
+  if (Array.isArray(value)) return value.flatMap((item, index) => flattenJsonRows(item, [...pathParts, String(index)]))
+  if (!value || typeof value !== 'object') return []
+  const scalar = {}
+  const nested = []
+  for (const [key, item] of Object.entries(value)) {
+    if (item && typeof item === 'object') nested.push([key, item])
+    else scalar[key] = item
+  }
+  const looksLikeMenuItem = Object.keys(scalar).some(key => /name|guid|id|price|salescategory|menugroup/i.test(key))
+  const rows = looksLikeMenuItem ? [{ __jsonPath: pathParts.join('.'), ...scalar }] : []
+  for (const [key, item] of nested) rows.push(...flattenJsonRows(item, [...pathParts, key]))
+  return rows
+}
 function parseRows(buffer, fileName) {
   const ext = path.extname(fileName).toLowerCase()
   if (ext === '.csv' || ext === '.txt') return parseCsv(buffer.toString('utf8').replace(/^\uFEFF/, ''), { columns: true, skip_empty_lines: true, relax_column_count: true, trim: true })
   if (ext === '.xlsx' || ext === '.xls') {
     const book = XLSX.read(buffer, { type: 'buffer', cellDates: true })
     return book.SheetNames.flatMap(sheetName => XLSX.utils.sheet_to_json(book.Sheets[sheetName], { defval: '', raw: false }).map(row => ({ __sheet: sheetName, ...row })))
+  }
+  if (ext === '.json') {
+    const parsed = JSON.parse(buffer.toString('utf8').replace(/^\uFEFF/, ''))
+    return flattenJsonRows(parsed)
   }
   return []
 }
@@ -104,7 +132,7 @@ async function tableExists(name) {
   return !error
 }
 async function assertSchema() {
-  const needed = ['toast_import_runs', 'toast_import_files', 'toast_import_rows', 'toast_sales_categories', 'toast_product_mix', 'toast_labor', 'toast_payments', 'toast_merchant_fees']
+  const needed = ['toast_import_runs', 'toast_import_files', 'toast_import_rows', 'toast_sales_categories', 'toast_sales_summary', 'toast_product_mix', 'toast_labor', 'toast_payments', 'toast_merchant_fees', 'toast_checks', 'toast_cash_management', 'toast_menu_items', 'toast_daily_summary']
   const missing = []
   for (const table of needed) if (!(await tableExists(table))) missing.push(table)
   if (missing.length) throw new Error(`Toast database schema is missing: ${missing.join(', ')}. Run supabase/RESTAPAY_RC12_TOAST_AUTOMATION.sql first.`)
@@ -238,20 +266,40 @@ async function syncMerchantFeeExpenses(feeRows) {
   if (result.error) console.warn(`Merchant fees were saved to toast_merchant_fees but could not be mirrored to expenses: ${result.error.message}`)
 }
 async function refreshDailySummary(businessDate, runId) {
-  const [{ data: categories }, { data: summaries }, { data: fees }, { data: labor }] = await Promise.all([
+  const [{ data: categories }, { data: summaries }, { data: productMix }, { data: checks }, { data: payments }, { data: fees }, { data: labor }] = await Promise.all([
     supabase.from('toast_sales_categories').select('normalized_department,net_sales').eq('business_date', businessDate),
-    supabase.from('toast_sales_summary').select('net_sales,tips').eq('business_date', businessDate),
+    supabase.from('toast_sales_summary').select('net_sales,tips,tax,cash_sales,credit_sales').eq('business_date', businessDate),
+    supabase.from('toast_product_mix').select('normalized_department,net_sales').eq('business_date', businessDate),
+    supabase.from('toast_checks').select('net_sales,tax,tip,total').eq('business_date', businessDate),
+    supabase.from('toast_payments').select('payment_type,gross_amount,tip_amount,net_amount').eq('business_date', businessDate),
     supabase.from('toast_merchant_fees').select('fee_amount').eq('business_date', businessDate),
     supabase.from('toast_labor').select('total_pay,tips').eq('business_date', businessDate)
   ])
-  const food = (categories || []).filter(row => row.normalized_department === 'Food').reduce((sum, row) => sum + number(row.net_sales), 0)
-  const alcohol = (categories || []).filter(row => row.normalized_department === 'Alcohol').reduce((sum, row) => sum + number(row.net_sales), 0)
-  const other = (categories || []).filter(row => row.normalized_department === 'Other').reduce((sum, row) => sum + number(row.net_sales), 0)
-  const toastNet = (summaries || []).reduce((sum, row) => sum + number(row.net_sales), 0) || food + alcohol + other
+  const departmentRows = (categories || []).length ? categories : (productMix || [])
+  const food = departmentRows.filter(row => row.normalized_department === 'Food').reduce((sum, row) => sum + number(row.net_sales), 0)
+  const alcohol = departmentRows.filter(row => row.normalized_department === 'Alcohol').reduce((sum, row) => sum + number(row.net_sales), 0)
+  const other = departmentRows.filter(row => row.normalized_department === 'Other').reduce((sum, row) => sum + number(row.net_sales), 0)
+  const summaryNet = (summaries || []).reduce((sum, row) => sum + number(row.net_sales), 0)
+  const checkNet = (checks || []).reduce((sum, row) => sum + number(row.net_sales), 0)
+  const toastNet = summaryNet || checkNet || food + alcohol + other
   const merchantFees = (fees || []).reduce((sum, row) => sum + number(row.fee_amount), 0)
   const laborPay = (labor || []).reduce((sum, row) => sum + number(row.total_pay) - number(row.tips), 0)
-  const tips = (summaries || []).reduce((sum, row) => sum + number(row.tips), 0)
-  const result = await supabase.from('toast_daily_summary').upsert({ business_date: businessDate, food_sales: food, alcohol_sales: alcohol, other_sales: other, toast_net_sales: toastNet, merchant_fees: merchantFees, labor_pay: laborPay, tips, last_run_id: runId, updated_at: new Date().toISOString() }, { onConflict: 'business_date' })
+  const summaryTips = (summaries || []).reduce((sum, row) => sum + number(row.tips), 0)
+  const checkTips = (checks || []).reduce((sum, row) => sum + number(row.tip), 0)
+  const paymentTips = (payments || []).reduce((sum, row) => sum + number(row.tip_amount), 0)
+  const tips = summaryTips || checkTips || paymentTips
+  const result = await supabase.from('toast_daily_summary').upsert({
+    business_date: businessDate,
+    food_sales: food,
+    alcohol_sales: alcohol,
+    other_sales: other,
+    toast_net_sales: toastNet,
+    merchant_fees: merchantFees,
+    labor_pay: laborPay,
+    tips,
+    last_run_id: runId,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'business_date' })
   if (result.error) throw result.error
 }
 

@@ -12,6 +12,7 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const syncScript = path.join(currentDir, 'syncToastJob.js')
 let activeSync = null
 let activeChild = null
+let lastAutomaticSyncDate = null
 
 app.use(cors({ origin: config.allowedOrigin === '*' ? true : config.allowedOrigin }))
 app.use(express.json({ limit: '1mb' }))
@@ -34,6 +35,51 @@ async function latestRun() {
   return data || null
 }
 
+
+
+function zonedParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: config.toast.timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(date)
+  return Object.fromEntries(parts.map(part => [part.type, part.value]))
+}
+
+function nextScheduledSync() {
+  if (!config.autoSyncEnabled) return null
+  const now = new Date()
+  for (let offset = 0; offset < 3; offset += 1) {
+    const candidate = new Date(now.getTime() + offset * 86400000)
+    const parts = zonedParts(candidate)
+    const dateKey = `${parts.year}-${parts.month}-${parts.day}`
+    const currentMinutes = Number(parts.hour) * 60 + Number(parts.minute)
+    const targetMinutes = config.autoSyncHour * 60 + config.autoSyncMinute
+    if (offset > 0 || currentMinutes < targetMinutes) return { date: dateKey, hour: config.autoSyncHour, minute: config.autoSyncMinute, timezone: config.toast.timezone }
+  }
+  return null
+}
+
+async function maybeRunAutomaticSync() {
+  if (!config.autoSyncEnabled || activeSync) return
+  const parts = zonedParts()
+  const dateKey = `${parts.year}-${parts.month}-${parts.day}`
+  const currentMinutes = Number(parts.hour) * 60 + Number(parts.minute)
+  const targetMinutes = config.autoSyncHour * 60 + config.autoSyncMinute
+  if (currentMinutes < targetMinutes || currentMinutes > targetMinutes + 4 || lastAutomaticSyncDate === dateKey) return
+  lastAutomaticSyncDate = dateKey
+  console.log(`Starting automatic Toast sync for ${dateKey} at ${parts.hour}:${parts.minute} ${config.toast.timezone}`)
+  executeSync().catch(error => console.error('Automatic Toast sync failed:', error.message))
+}
+
+async function normalizedCounts() {
+  const tables = ['toast_sales_summary', 'toast_sales_categories', 'toast_product_mix', 'toast_labor', 'toast_payments', 'toast_checks', 'toast_cash_management', 'toast_menu_items', 'toast_daily_summary']
+  const result = {}
+  await Promise.all(tables.map(async table => {
+    const { count, error } = await supabaseAdmin.from(table).select('*', { count: 'exact', head: true })
+    result[table] = error ? null : Number(count || 0)
+  }))
+  return result
+}
 
 async function cancelStaleRuns() {
   const cutoff = new Date(Date.now() - Math.max(config.syncTimeoutMs * 2, 30 * 60 * 1000)).toISOString()
@@ -121,7 +167,15 @@ app.get('/api/toast/status', async (_req, res, next) => {
       connected: run?.status === 'success',
       exportId: config.toast.exportId,
       lastSyncAt: run?.finished_at || run?.started_at || null,
-      lastRun: run
+      lastRun: run,
+      schedule: {
+        enabled: config.autoSyncEnabled,
+        hour: config.autoSyncHour,
+        minute: config.autoSyncMinute,
+        timezone: config.toast.timezone,
+        next: nextScheduledSync()
+      },
+      normalizedCounts: await normalizedCounts()
     })
   } catch (error) { next(error) }
 })
@@ -183,4 +237,6 @@ process.once('SIGINT', () => { shutdown('SIGINT').catch(error => { console.error
 process.once('SIGTERM', () => { shutdown('SIGTERM').catch(error => { console.error(error); process.exit(1) }) })
 
 cancelStaleRuns().catch(error => console.warn(error))
+setInterval(() => { maybeRunAutomaticSync().catch(error => console.error(error)) }, 60000).unref()
+maybeRunAutomaticSync().catch(error => console.error(error))
 app.listen(config.port, () => console.log(`RestaPay Toast Sync listening on port ${config.port}`))
