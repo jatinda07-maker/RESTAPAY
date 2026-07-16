@@ -20,6 +20,8 @@ export default function ToastIntegration() {
   const [schemaReady, setSchemaReady] = useState(false)
   const [message, setMessage] = useState('Checking Toast automation status...')
   const [lastChecked, setLastChecked] = useState(null)
+  const [workerAction, setWorkerAction] = useState('')
+  const apiUrl = String(import.meta.env.VITE_TOAST_SYNC_API_URL || '').replace(/\/$/, '')
 
   async function loadStatus() {
     if (!isSupabaseReady || !supabase) {
@@ -49,6 +51,19 @@ export default function ToastIntegration() {
     }
     setLastChecked(new Date().toISOString())
     setLoading(false)
+  }
+
+
+  async function callWorker(path, label) {
+    if (!apiUrl) { setWorkerAction('Toast worker API URL is missing. Add VITE_TOAST_SYNC_API_URL to the frontend environment.'); return }
+    setWorkerAction(`${label}...`)
+    try {
+      const response = await fetch(`${apiUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || `Worker returned ${response.status}`)
+      setWorkerAction(payload.message || `${label} completed successfully.`)
+      await loadStatus()
+    } catch (error) { setWorkerAction(`${label} failed: ${error.message}`) }
   }
 
   useEffect(() => { loadStatus() }, [])
@@ -86,10 +101,10 @@ export default function ToastIntegration() {
           <h2>Toast SFTP Integration</h2>
           <p>Toast exports are downloaded by a secure Render cron job, parsed into dedicated Supabase tables, and made available to RestaPay on every computer. The private SSH key never enters the browser.</p>
         </div>
-        <button className="btn secondary" type="button" onClick={loadStatus} disabled={loading}><Icon name="refresh" size={16} /> {loading ? 'Checking...' : 'Refresh Status'}</button>
+        <div className="actions"><button className="btn secondary" type="button" onClick={loadStatus} disabled={loading}><Icon name="refresh" size={16} /> {loading ? 'Checking...' : 'Refresh Status'}</button><button className="btn secondary" type="button" onClick={() => callWorker('/api/toast/test', 'Testing SFTP connection')} disabled={!apiUrl}><Icon name="cloud" size={16} /> Test Connection</button><button className="btn primary" type="button" onClick={() => callWorker('/api/toast/sync', 'Running Toast sync')} disabled={!apiUrl}><Icon name="download" size={16} /> Run Sync Now</button></div>
       </section>
 
-      <p className={`status-pill ${schemaReady ? 'success' : ''}`}>{message}</p>
+      <p className={`status-pill ${schemaReady ? 'success' : ''}`}>{message}</p>{workerAction && <p className={`status-pill ${workerAction.includes('failed') || workerAction.includes('missing') ? '' : 'success'}`}>{workerAction}</p>}
 
       <section className="table-card toast-connection-audit">
         <header>
