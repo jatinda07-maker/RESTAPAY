@@ -36,6 +36,7 @@ export const config = {
     exportId: process.env.TOAST_EXPORT_ID || '144385',
     timezone: process.env.TOAST_TIMEZONE || 'America/Chicago',
     lookbackDays: Number(process.env.TOAST_LOOKBACK_DAYS || 8),
-    privateKey
+    privateKey,
+    passphrase: process.env.TOAST_PRIVATE_KEY_PASSPHRASE || process.env.TOAST_SFTP_PRIVATE_KEY_PASSPHRASE || ''
   }
 }

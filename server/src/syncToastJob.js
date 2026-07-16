@@ -262,61 +262,176 @@ let rowsImported = 0
 let duplicatesSkipped = 0
 let errorCount = 0
 let latestBusinessDate = null
+let processedFiles = 0
+let totalFiles = 0
+
+async function updateRun(patch = {}) {
+  const payload = {
+    files_imported: filesImported,
+    files_skipped: filesSkipped,
+    rows_imported: rowsImported,
+    duplicates_skipped: duplicatesSkipped,
+    error_count: errorCount,
+    processed_files: processedFiles,
+    total_files: totalFiles,
+    progress_percent: totalFiles ? Math.min(100, Math.round((processedFiles / totalFiles) * 100)) : 0,
+    heartbeat_at: new Date().toISOString(),
+    ...patch
+  }
+  const { error } = await supabase.from('toast_import_runs').update(payload).eq('id', runId)
+  if (error) throw error
+}
 
 await assertSchema()
-await supabase.from('toast_import_runs').insert({ id: runId, status: 'running', started_at: new Date().toISOString(), message: dryRun ? 'Dry run started' : 'Scheduled import started' })
+await supabase.from('toast_import_runs').insert({
+  id: runId,
+  status: 'running',
+  started_at: new Date().toISOString(),
+  heartbeat_at: new Date().toISOString(),
+  message: dryRun ? 'Dry run started' : 'Connecting to Toast SFTP...'
+})
 
 try {
   const privateKey = await loadPrivateKey()
-  await sftp.connect({ host: process.env.TOAST_SFTP_HOST, port: Number(process.env.TOAST_SFTP_PORT || 22), username: process.env.TOAST_SFTP_USERNAME, privateKey, readyTimeout: 30000 })
+  await sftp.connect({
+    host: process.env.TOAST_SFTP_HOST,
+    port: Number(process.env.TOAST_SFTP_PORT || 22),
+    username: process.env.TOAST_SFTP_USERNAME,
+    privateKey,
+    passphrase: process.env.TOAST_PRIVATE_KEY_PASSPHRASE || process.env.TOAST_SFTP_PRIVATE_KEY_PASSPHRASE || undefined,
+    readyTimeout: 30000,
+    keepaliveInterval: 10000,
+    keepaliveCountMax: 3
+  })
   const folders = await listDateFolders()
   if (!folders.length) throw new Error(`No Toast date folders found in the last ${lookbackDays} days for export ${exportId}.`)
   if (!dryRun) await ensureBucket()
 
+  const work = []
   for (const folder of folders) {
-    latestBusinessDate = folder.businessDate
     const entries = (await sftp.list(folder.remotePath)).filter(item => item.type !== 'd')
-    for (const entry of entries) {
-      const remoteFile = `${folder.remotePath}/${entry.name}`
-      const buffer = await sftp.get(remoteFile)
-      const fileHash = digest(buffer)
-      const { data: existing } = await supabase.from('toast_import_files').select('id,status,file_hash').eq('remote_path', remoteFile).maybeSingle()
-      if (existing?.status === 'Imported' && existing.file_hash === fileHash) {
-        filesSkipped += 1
-        duplicatesSkipped += 1
-        continue
-      }
-      const rows = parseRows(buffer, entry.name)
-      const type = reportType(entry.name, rows)
-      const fileId = existing?.id || id('toast-file')
-      if (!dryRun) {
-        const storagePath = `${folder.folder}/${entry.name}`
-        const upload = await supabase.storage.from(bucket).upload(storagePath, buffer, { upsert: true, contentType: entry.name.toLowerCase().endsWith('.csv') ? 'text/csv' : 'application/octet-stream' })
-        if (upload.error) throw upload.error
-        const fileRecord = { id: fileId, run_id: runId, business_date: folder.businessDate, report_type: type, file_name: entry.name, remote_path: remoteFile, storage_path: storagePath, file_hash: fileHash, file_size: entry.size || buffer.length, row_count: rows.length, status: 'Imported', error_message: '', imported_at: new Date().toISOString() }
-        const upsert = await supabase.from('toast_import_files').upsert(fileRecord, { onConflict: 'remote_path' })
-        if (upsert.error) throw upsert.error
-        await supabase.from('toast_import_rows').delete().eq('file_id', fileId)
-        const rawRows = rows.map((row, index) => ({ id: id('toast-row'), file_id: fileId, run_id: runId, business_date: folder.businessDate, report_type: type, row_number: index + 1, row_hash: digest(JSON.stringify(row)), data: row }))
-        for (let start = 0; start < rawRows.length; start += 500) {
-          const insert = await supabase.from('toast_import_rows').insert(rawRows.slice(start, start + 500))
-          if (insert.error) throw insert.error
-        }
-        await writeTypedRows(type, rows, { fileId, businessDate: folder.businessDate, fileName: entry.name })
-      }
-      filesImported += 1
-      rowsImported += rows.length
-      console.log(`${dryRun ? '[dry-run] ' : ''}${folder.businessDate} ${entry.name} -> ${type}: ${rows.length} rows`)
+    for (const entry of entries) work.push({ folder, entry, remoteFile: `${folder.remotePath}/${entry.name}` })
+  }
+  totalFiles = work.length
+  await updateRun({ message: `Found ${totalFiles} Toast export files across ${folders.length} business day(s).` })
+
+  for (const item of work) {
+    const { folder, entry, remoteFile } = item
+    latestBusinessDate = folder.businessDate
+    await updateRun({
+      business_date: folder.businessDate,
+      current_business_date: folder.businessDate,
+      current_file: entry.name,
+      current_report_type: 'Detecting',
+      message: `Processing ${entry.name}`
+    })
+
+    const { data: existing } = await supabase
+      .from('toast_import_files')
+      .select('id,status,file_hash,file_size,remote_modified_at')
+      .eq('remote_path', remoteFile)
+      .maybeSingle()
+
+    const remoteModifiedAt = entry.modifyTime ? new Date(entry.modifyTime).toISOString() : null
+    const metadataMatches = existing?.status === 'Imported'
+      && Number(existing.file_size || 0) === Number(entry.size || 0)
+      && (!remoteModifiedAt || !existing.remote_modified_at || new Date(existing.remote_modified_at).getTime() === new Date(remoteModifiedAt).getTime())
+
+    if (metadataMatches) {
+      filesSkipped += 1
+      duplicatesSkipped += 1
+      processedFiles += 1
+      await updateRun({ message: `Skipped unchanged file ${entry.name}` })
+      continue
     }
-    if (!dryRun) await refreshDailySummary(folder.businessDate, runId)
+
+    const buffer = await sftp.get(remoteFile)
+    const fileHash = digest(buffer)
+    if (existing?.status === 'Imported' && existing.file_hash === fileHash) {
+      filesSkipped += 1
+      duplicatesSkipped += 1
+      processedFiles += 1
+      if (!dryRun) {
+        await supabase.from('toast_import_files').update({
+          file_size: entry.size || buffer.length,
+          remote_modified_at: remoteModifiedAt,
+          checked_at: new Date().toISOString()
+        }).eq('id', existing.id)
+      }
+      await updateRun({ message: `Skipped duplicate file ${entry.name}` })
+      continue
+    }
+
+    const rows = parseRows(buffer, entry.name)
+    const type = reportType(entry.name, rows)
+    const fileId = existing?.id || id('toast-file')
+    await updateRun({ current_report_type: type, message: `Importing ${entry.name} (${rows.length} rows)` })
+
+    if (!dryRun) {
+      const storagePath = `${folder.folder}/${entry.name}`
+      const upload = await supabase.storage.from(bucket).upload(storagePath, buffer, {
+        upsert: true,
+        contentType: entry.name.toLowerCase().endsWith('.csv') ? 'text/csv' : 'application/octet-stream'
+      })
+      if (upload.error) throw upload.error
+      const fileRecord = {
+        id: fileId,
+        run_id: runId,
+        business_date: folder.businessDate,
+        report_type: type,
+        file_name: entry.name,
+        remote_path: remoteFile,
+        storage_path: storagePath,
+        file_hash: fileHash,
+        file_size: entry.size || buffer.length,
+        remote_modified_at: remoteModifiedAt,
+        checked_at: new Date().toISOString(),
+        row_count: rows.length,
+        status: 'Imported',
+        error_message: '',
+        imported_at: new Date().toISOString()
+      }
+      const upsert = await supabase.from('toast_import_files').upsert(fileRecord, { onConflict: 'remote_path' })
+      if (upsert.error) throw upsert.error
+      await supabase.from('toast_import_rows').delete().eq('file_id', fileId)
+      const rawRows = rows.map((row, index) => ({
+        id: id('toast-row'), file_id: fileId, run_id: runId,
+        business_date: folder.businessDate, report_type: type,
+        row_number: index + 1, row_hash: digest(JSON.stringify(row)), data: row
+      }))
+      for (let start = 0; start < rawRows.length; start += 500) {
+        const insert = await supabase.from('toast_import_rows').insert(rawRows.slice(start, start + 500))
+        if (insert.error) throw insert.error
+      }
+      await writeTypedRows(type, rows, { fileId, businessDate: folder.businessDate, fileName: entry.name })
+    }
+
+    filesImported += 1
+    rowsImported += rows.length
+    processedFiles += 1
+    console.log(`${dryRun ? '[dry-run] ' : ''}${folder.businessDate} ${entry.name} -> ${type}: ${rows.length} rows`)
+    await updateRun({ message: `Completed ${entry.name}` })
+
+    const nextItem = work[processedFiles]
+    if (!nextItem || nextItem.folder.businessDate !== folder.businessDate) {
+      if (!dryRun) await refreshDailySummary(folder.businessDate, runId)
+    }
   }
 
-  const message = dryRun ? `Dry run found ${filesImported} changed files, ${filesSkipped} unchanged files, and ${rowsImported} rows.` : `Imported ${filesImported} new/changed files and ${rowsImported} rows; skipped ${filesSkipped} unchanged files.`
-  await supabase.from('toast_import_runs').update({ status: 'success', business_date: latestBusinessDate, files_imported: filesImported, files_skipped: filesSkipped, rows_imported: rowsImported, duplicates_skipped: duplicatesSkipped, error_count: errorCount, finished_at: new Date().toISOString(), message }).eq('id', runId)
+  const message = dryRun
+    ? `Dry run found ${filesImported} changed files, ${filesSkipped} unchanged files, and ${rowsImported} rows.`
+    : `Imported ${filesImported} new/changed files and ${rowsImported} rows; skipped ${filesSkipped} unchanged files.`
+  await updateRun({
+    status: 'success', business_date: latestBusinessDate, finished_at: new Date().toISOString(),
+    progress_percent: 100, current_file: '', current_report_type: '', message
+  })
 } catch (error) {
   errorCount += 1
   console.error(error)
-  await supabase.from('toast_import_runs').update({ status: 'failed', business_date: latestBusinessDate, files_imported: filesImported, files_skipped: filesSkipped, rows_imported: rowsImported, duplicates_skipped: duplicatesSkipped, error_count: errorCount, finished_at: new Date().toISOString(), message: error.message }).eq('id', runId)
+  await updateRun({
+    status: 'failed', business_date: latestBusinessDate, finished_at: new Date().toISOString(),
+    message: error.message
+  }).catch(updateError => console.error('Unable to save failed Toast run status:', updateError))
   process.exitCode = 1
 } finally {
   await sftp.end().catch(() => {})

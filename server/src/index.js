@@ -34,6 +34,17 @@ async function latestRun() {
   return data || null
 }
 
+
+async function cancelStaleRuns() {
+  const cutoff = new Date(Date.now() - Math.max(config.syncTimeoutMs * 2, 30 * 60 * 1000)).toISOString()
+  const { error } = await supabaseAdmin
+    .from('toast_import_runs')
+    .update({ status: 'cancelled', finished_at: new Date().toISOString(), message: 'Automatically cancelled stale sync after service restart.' })
+    .eq('status', 'running')
+    .lt('heartbeat_at', cutoff)
+  if (error && !/heartbeat_at/i.test(error.message || '')) console.warn('Unable to cancel stale Toast runs:', error.message)
+}
+
 function executeSync() {
   if (activeSync) return activeSync
   activeSync = new Promise((resolve, reject) => {
@@ -171,4 +182,5 @@ async function shutdown(signal) {
 process.once('SIGINT', () => { shutdown('SIGINT').catch(error => { console.error(error); process.exit(1) }) })
 process.once('SIGTERM', () => { shutdown('SIGTERM').catch(error => { console.error(error); process.exit(1) }) })
 
+cancelStaleRuns().catch(error => console.warn(error))
 app.listen(config.port, () => console.log(`RestaPay Toast Sync listening on port ${config.port}`))

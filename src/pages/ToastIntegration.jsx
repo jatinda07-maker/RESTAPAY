@@ -76,7 +76,11 @@ export default function ToastIntegration() {
     } catch (error) { setWorkerAction(`${label} failed: ${error.message}`) }
   }
 
-  useEffect(() => { loadStatus() }, [])
+  useEffect(() => {
+    loadStatus()
+    const timer = window.setInterval(() => loadStatus(), workerApiStatus?.syncing || runs[0]?.status === 'running' ? 3000 : 15000)
+    return () => window.clearInterval(timer)
+  }, [apiUrl, workerApiStatus?.syncing, runs[0]?.status])
 
   const latest = runs[0]
   const latestDaily = daily[0]
@@ -116,6 +120,17 @@ export default function ToastIntegration() {
       </section>
 
       <p className={`status-pill ${schemaReady ? 'success' : ''}`}>{message}</p>{workerAction && <p className={`status-pill ${workerAction.includes('failed') || workerAction.includes('missing') ? '' : 'success'}`}>{workerAction}</p>}
+
+      {latest?.status === 'running' && <section className="table-card toast-live-progress">
+        <header><div><h2>Toast Sync in Progress</h2><p>{latest.message || 'Processing Toast exports...'}</p></div><span className="tag orange">{Number(latest.progress_percent || 0)}%</span></header>
+        <div className="toast-progress-track"><span style={{ width: `${Math.max(2, Number(latest.progress_percent || 0))}%` }} /></div>
+        <div className="toast-progress-meta">
+          <span><b>{latest.processed_files || 0}</b> of <b>{latest.total_files || 0}</b> files</span>
+          <span>{latest.current_business_date || latest.business_date || 'Preparing date'}</span>
+          <span>{latest.current_report_type || 'Detecting report'}</span>
+          <span className="toast-current-file">{latest.current_file || 'Connecting...'}</span>
+        </div>
+      </section>}
 
       <section className="table-card toast-connection-audit">
         <header>
