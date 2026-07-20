@@ -25,40 +25,56 @@ export default function ToastIntegration() {
   const apiUrl = String(import.meta.env.VITE_TOAST_SYNC_API_URL || '').replace(/\/$/, '')
 
   async function loadStatus() {
-    if (!isSupabaseReady || !supabase) {
-      setMessage('Supabase is not configured in this build. The Toast worker cannot report status yet.')
-      setLastChecked(new Date().toISOString())
-      setLoading(false)
-      return
-    }
     setLoading(true)
+
     const workerStatusPromise = apiUrl
-      ? fetch(`${apiUrl}/api/toast/status`).then(async response => {
+      ? fetch(`${apiUrl}/api/toast/status`, { cache: 'no-store' }).then(async response => {
           const payload = await response.json().catch(() => ({}))
           if (!response.ok) throw new Error(payload.error || `Worker returned ${response.status}`)
           return payload
-        }).catch(error => ({ ok: false, error: error.message }))
-      : Promise.resolve({ ok: false, error: 'VITE_TOAST_SYNC_API_URL is not configured.' })
-    const results = await Promise.all([
-      supabase.from('toast_import_runs').select('*').order('started_at', { ascending: false }).limit(20),
-      supabase.from('toast_import_files').select('*').order('imported_at', { ascending: false }).limit(50),
-      supabase.from('toast_daily_summary').select('*').order('business_date', { ascending: false }).limit(31),
-      supabase.from('toast_merchant_fees').select('*').order('business_date', { ascending: false }).limit(50),
+        }).catch(error => ({ ok: false, connected: false, error: error.message }))
+      : Promise.resolve({ ok: false, connected: false, error: 'VITE_TOAST_SYNC_API_URL is not configured.' })
+
+    const databasePromises = isSupabaseReady && supabase
+      ? [
+          supabase.from('toast_import_runs').select('*').order('started_at', { ascending: false }).limit(20),
+          supabase.from('toast_import_files').select('*').order('imported_at', { ascending: false }).limit(50),
+          supabase.from('toast_daily_summary').select('*').order('business_date', { ascending: false }).limit(31),
+          supabase.from('toast_merchant_fees').select('*').order('business_date', { ascending: false }).limit(50)
+        ]
+      : [Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null })]
+
+    const [runResult, fileResult, dailyResult, feeResult, workerStatus] = await Promise.all([
+      ...databasePromises,
       workerStatusPromise
     ])
-    setWorkerApiStatus(results[4])
-    const firstError = results.find(result => result.error)?.error
-    if (firstError) {
-      setSchemaReady(false)
-      setMessage(`Toast tables are not ready: ${firstError.message}. Run supabase/RESTAPAY_RC12_TOAST_AUTOMATION.sql in Supabase SQL Editor.`)
+
+    setWorkerApiStatus(workerStatus)
+
+    const workerRun = workerStatus?.lastRun ? [workerStatus.lastRun] : []
+    const nextRuns = runResult?.data?.length ? runResult.data : workerRun
+    setRuns(nextRuns)
+    setFiles(fileResult?.data || [])
+    setDaily(dailyResult?.data || [])
+    setFeeRows(feeResult?.error ? [] : (feeResult?.data || []))
+
+    const coreDatabaseError = runResult?.error || fileResult?.error || dailyResult?.error
+    const workerHealthy = Boolean(workerStatus?.ok && workerStatus?.configured)
+    const databaseHealthy = Boolean(isSupabaseReady && !coreDatabaseError)
+    const ready = workerHealthy || databaseHealthy
+
+    setSchemaReady(ready)
+    if (workerHealthy) {
+      const syncState = workerStatus.syncing ? 'Sync is currently running.' : 'Automation is ready.'
+      setMessage(`Toast cloud connection is active. ${syncState}`)
+    } else if (databaseHealthy) {
+      setMessage('Toast database tables are ready, but the Render sync API could not be reached.')
+    } else if (!isSupabaseReady) {
+      setMessage(workerStatus?.error || 'Frontend Supabase settings and Toast sync API URL are missing.')
     } else {
-      setSchemaReady(true)
-      setRuns(results[0].data || [])
-      setFiles(results[1].data || [])
-      setDaily(results[2].data || [])
-      setFeeRows(results[3].data || [])
-      setMessage('Toast automation tables are ready. The secure Render cron job can now import exports.')
+      setMessage(`Toast status check needs attention: ${coreDatabaseError?.message || workerStatus?.error || 'Unknown connection error.'}`)
     }
+
     setLastChecked(new Date().toISOString())
     setLoading(false)
   }
@@ -82,7 +98,7 @@ export default function ToastIntegration() {
     return () => window.clearInterval(timer)
   }, [apiUrl, workerApiStatus?.syncing, runs[0]?.status])
 
-  const latest = runs[0]
+  const latest = runs[0] || workerApiStatus?.lastRun
   const latestDaily = daily[0]
   const todayFiles = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -94,23 +110,26 @@ export default function ToastIntegration() {
     ? `${String(workerApiStatus.schedule.hour).padStart(2, '0')}:${String(workerApiStatus.schedule.minute).padStart(2, '0')} ${workerApiStatus.schedule.timezone || ''}`
     : 'Disabled'
   const workerHealth = useMemo(() => {
-    if (!schemaReady) return { tone: 'red', label: 'Schema setup needed', detail: 'Toast database tables could not be read.' }
-    if (!latest) return { tone: 'orange', label: 'Configured — no run yet', detail: 'Supabase tables work, but no Render worker run has been recorded.' }
+    if (workerApiStatus?.ok && workerApiStatus?.connected) {
+      if (workerApiStatus?.syncing) return { tone: 'orange', label: 'Syncing now', detail: 'Toast SFTP is connected and a sync is in progress.' }
+    }
+    if (!schemaReady) return { tone: 'red', label: 'Connection needs attention', detail: workerApiStatus?.error || 'Toast data services could not be reached.' }
+    if (!latest) return { tone: 'orange', label: 'Configured — no run yet', detail: 'Services are configured, but no completed worker run has been recorded.' }
     const stamp = latest.finished_at || latest.started_at
     const ageHours = stamp ? (Date.now() - new Date(stamp).getTime()) / 3600000 : Infinity
     if (latest.status === 'failed') return { tone: 'red', label: 'Last run failed', detail: latest.message || 'Open Recent Import Runs for details.' }
     if (latest.status === 'success' && ageHours <= 48) return { tone: 'green', label: 'Connected', detail: `Successful worker import ${formatDate(stamp)}.` }
     if (latest.status === 'success') return { tone: 'orange', label: 'Connected — import is stale', detail: `Last success was ${Math.floor(ageHours)} hours ago.` }
     return { tone: 'orange', label: latest.status || 'Pending', detail: latest.message || 'Worker has not completed a successful import.' }
-  }, [schemaReady, latest])
+  }, [schemaReady, latest, workerApiStatus])
 
   const connectionChecks = useMemo(() => [
-    { label: 'Browser → Supabase', ok: isSupabaseReady && schemaReady, detail: isSupabaseReady ? (schemaReady ? 'Toast tables can be queried.' : 'Supabase configured, Toast schema query failed.') : 'VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing.' },
+    { label: 'Browser → Supabase', ok: Boolean(isSupabaseReady && !(!runs.length && !files.length && !daily.length && workerApiStatus?.ok)), detail: isSupabaseReady ? 'Frontend Supabase configuration is present.' : 'Frontend can still show worker status, but direct table drilldowns require Supabase environment variables.' },
     { label: 'Browser → Render sync API', ok: Boolean(workerApiStatus?.ok), detail: workerApiStatus?.ok ? (workerApiStatus.syncing ? 'Worker API is reachable and a sync is running.' : 'Worker API is reachable and ready.') : (workerApiStatus?.error || (apiUrl ? 'Worker API could not be reached.' : 'VITE_TOAST_SYNC_API_URL is missing.')) },
-    { label: 'Render worker → Supabase', ok: Boolean(latest), detail: latest ? `Run record found: ${latest.status || 'unknown'}.` : 'No toast_import_runs record found yet.' },
-    { label: 'Toast SFTP → Render worker', ok: latest?.status === 'success', detail: latest?.status === 'success' ? `${latest.files_imported || 0} files imported in the last successful run.` : 'Use Test Connection or Run Sync Now. A successful run confirms the private SFTP connection.' },
-    { label: 'Normalized Toast data', ok: files.length > 0 || daily.length > 0, detail: files.length || daily.length ? `${files.length} recent files and ${daily.length} daily summaries are readable.` : 'No imported Toast rows are visible yet.' }
-  ], [schemaReady, latest, files.length, daily.length, workerApiStatus, apiUrl])
+    { label: 'Render worker → Supabase', ok: Boolean(workerApiStatus?.ok && !workerApiStatus?.databaseError), detail: workerApiStatus?.databaseError || (latest ? `Latest run: ${latest.status || 'unknown'}.` : 'Worker is reachable; no run has been recorded yet.') },
+    { label: 'Toast SFTP → Render worker', ok: Boolean(workerApiStatus?.connected), detail: workerApiStatus?.connected ? 'Private SFTP connection is active.' : (workerApiStatus?.error || 'Use Test Connection or Run Sync Now to verify the private SFTP connection.') },
+    { label: 'Normalized Toast data', ok: normalizedTotal > 0 || files.length > 0 || daily.length > 0, detail: normalizedTotal > 0 ? `${normalizedTotal.toLocaleString()} normalized Toast rows are available.` : (files.length || daily.length ? `${files.length} recent files and ${daily.length} daily summaries are readable.` : 'No imported Toast rows are visible yet.') }
+  ], [schemaReady, latest, files.length, daily.length, workerApiStatus, apiUrl, normalizedTotal, runs.length])
 
   return (
     <div className="toast-integration-page">
@@ -148,7 +167,7 @@ export default function ToastIntegration() {
       </section>
 
       <div className="metric-grid toast-integration-metrics">
-        <div className="metric-card tone-green"><span className="metric-icon"><Icon name="cloud" /></span><span className="metric-label">Database Schema</span><strong>{schemaReady ? 'Ready' : 'Setup Needed'}</strong><small>{schemaReady ? 'Toast tables found' : 'Run RC12 SQL migration'}</small></div>
+        <div className="metric-card tone-green"><span className="metric-icon"><Icon name="cloud" /></span><span className="metric-label">Database Schema</span><strong>{schemaReady ? 'Ready' : 'Attention'}</strong><small>{schemaReady ? 'Toast data services available' : 'Check API and Supabase settings'}</small></div>
         <div className="metric-card tone-blue"><span className="metric-icon"><Icon name="refresh" /></span><span className="metric-label">Last Import</span><strong>{latest?.status || 'No runs'}</strong><small>{formatDate(latest?.finished_at || latest?.started_at)}</small></div>
         <div className="metric-card tone-purple"><span className="metric-icon"><Icon name="spreadsheet" /></span><span className="metric-label">Normalized Rows</span><strong>{normalizedTotal.toLocaleString()}</strong><small>{todayFiles} files visible today</small></div>
         <div className="metric-card tone-orange"><span className="metric-icon"><Icon name="calendar" /></span><span className="metric-label">Automatic Schedule</span><strong>{workerApiStatus?.schedule?.enabled ? 'Daily' : 'Off'}</strong><small>{scheduleLabel}</small></div>
