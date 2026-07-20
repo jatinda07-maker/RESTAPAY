@@ -388,6 +388,84 @@ async function syncMerchantFeeExpenses(feeRows) {
   const result = await supabase.from('expenses').upsert(expenses, { onConflict: 'id' })
   if (result.error) console.warn(`Merchant fees were saved to toast_merchant_fees but could not be mirrored to expenses: ${result.error.message}`)
 }
+
+async function fetchAllRows(table, columns, businessDate, pageSize = 1000) {
+  const all = []
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .eq('business_date', businessDate)
+      .range(start, start + pageSize - 1)
+    if (error) throw error
+    const batch = data || []
+    all.push(...batch)
+    if (batch.length < pageSize) break
+  }
+  return all
+}
+
+async function ensureSalesCategoriesFromProductMix(businessDate) {
+  const { count, error: countError } = await supabase
+    .from('toast_sales_categories')
+    .select('*', { count: 'exact', head: true })
+    .eq('business_date', businessDate)
+  if (countError) throw countError
+  if (Number(count || 0) > 0) return 0
+
+  const productRows = await fetchAllRows(
+    'toast_product_mix',
+    'file_id,source_file,sales_category,normalized_department,net_sales,quantity',
+    businessDate
+  )
+  if (!productRows.length) return 0
+
+  const grouped = new Map()
+  for (const row of productRows) {
+    const categoryName = text(row.sales_category) || 'No Sales Category Assigned'
+    const key = categoryName.toUpperCase()
+    const current = grouped.get(key) || {
+      categoryName,
+      normalizedDepartment: departmentFromCategory(categoryName),
+      netSales: 0,
+      quantity: 0,
+      fileId: row.file_id
+    }
+    current.netSales += number(row.net_sales)
+    current.quantity += number(row.quantity)
+    if (!current.fileId && row.file_id) current.fileId = row.file_id
+    grouped.set(key, current)
+  }
+
+  const sourceFile = 'Derived from Product Mix'
+  const payload = [...grouped.values()]
+    .filter(item => item.fileId)
+    .map(item => ({
+      ...baseRecord(
+        item.fileId,
+        businessDate,
+        sourceFile,
+        { derived_from: 'toast_product_mix', category_name: item.categoryName },
+        `derived-category-${item.categoryName}`
+      ),
+      category_name: item.categoryName,
+      normalized_department: item.normalizedDepartment,
+      net_sales: item.netSales,
+      quantity: item.quantity
+    }))
+
+  if (!payload.length) return 0
+  for (let start = 0; start < payload.length; start += 500) {
+    const { error } = await supabase.from('toast_sales_categories').upsert(
+      payload.slice(start, start + 500),
+      { onConflict: 'business_date,category_name,source_file' }
+    )
+    if (error) throw error
+  }
+  console.log(`${businessDate} derived ${payload.length} sales category row(s) from Product Mix.`)
+  return payload.length
+}
+
 async function refreshDailySummary(businessDate, runId) {
   const [{ data: categories }, { data: summaries }, { data: productMix }, { data: checks }, { data: payments }, { data: fees }, { data: labor }] = await Promise.all([
     supabase.from('toast_sales_categories').select('normalized_department,net_sales').eq('business_date', businessDate),
@@ -649,6 +727,13 @@ try {
           await updateRun({ message: `Daily summary failed for ${folder.businessDate}: ${summaryError.message}` })
         }
       }
+    }
+  }
+
+  if (!dryRun) {
+    for (const businessDate of [...new Set(folders.map(folder => folder.businessDate))]) {
+      await ensureSalesCategoriesFromProductMix(businessDate)
+      await refreshDailySummary(businessDate, runId)
     }
   }
 
