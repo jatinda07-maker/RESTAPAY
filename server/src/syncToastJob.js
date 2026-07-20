@@ -207,6 +207,10 @@ function baseRecord(fileId, businessDate, fileName, raw, suffix = '') {
     : id('toast-data')
   return { id: recordId, file_id: fileId, business_date: businessDate, source_file: fileName, raw }
 }
+function categoryBaseRecord(fileId, businessDate, fileName, suffix = '') {
+  const { raw: _raw, ...record } = baseRecord(fileId, businessDate, fileName, null, suffix)
+  return record
+}
 function rowCells(row = {}) {
   return Object.entries(row)
     .filter(([key]) => !key.startsWith('__'))
@@ -252,7 +256,7 @@ function accountingCategoryRows(rows, businessDate, fileId, fileName) {
     totals.set(key, (totals.get(key) || 0) + number(amountCell))
   }
   return [...totals.entries()].map(([categoryName, netSales]) => ({
-    ...baseRecord(fileId, businessDate, fileName, { extracted_from: 'AccountingReport.xls', category_name: categoryName }, `category-${categoryName}`),
+    ...categoryBaseRecord(fileId, businessDate, fileName, `category-${categoryName}`),
     category_name: categoryName,
     normalized_department: departmentFromCategory(categoryName),
     net_sales: netSales,
@@ -275,7 +279,7 @@ async function writeTypedRows(type, rows, context) {
       grouped.set(key, current)
     }
     const payload = [...grouped.values()].map(item => ({
-      ...baseRecord(fileId, item.businessDate, fileName, item.raw, `category-${item.categoryName}`),
+      ...categoryBaseRecord(fileId, item.businessDate, fileName, `category-${item.categoryName}`),
       category_name: item.categoryName,
       normalized_department: departmentFromCategory(item.categoryName),
       net_sales: item.netSales,
@@ -441,11 +445,10 @@ async function ensureSalesCategoriesFromProductMix(businessDate) {
   const payload = [...grouped.values()]
     .filter(item => item.fileId)
     .map(item => ({
-      ...baseRecord(
+      ...categoryBaseRecord(
         item.fileId,
         businessDate,
         sourceFile,
-        { derived_from: 'toast_product_mix', category_name: item.categoryName },
         `derived-category-${item.categoryName}`
       ),
       category_name: item.categoryName,
