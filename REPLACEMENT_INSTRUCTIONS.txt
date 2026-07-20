@@ -1,0 +1,37 @@
+RESTAPAY Toast Sync Duplicate-Safe Fix
+
+FASTEST REPLACEMENT
+1. Stop the Render backend deployment if it is currently rebuilding.
+2. In your RESTAPAY project, replace:
+   server/src/syncToastJob.js
+   with the file in changed-files/server/src/syncToastJob.js
+3. Commit and push the clean-main branch.
+4. Redeploy the Render backend service.
+5. Run POST /api/toast/sync once.
+
+WHAT WAS FIXED
+- AccountingReport.xls is parsed as a formatted worksheet instead of a normal header table.
+- Sales Summary rows are consolidated to one row per business date/source file.
+- Sales Summary and Sales Category writes use conflict-safe upserts.
+- A previously marked Imported AccountingReport with no normalized Sales Summary is automatically retried.
+- Files are marked Processing until raw and normalized rows complete.
+- A single file failure is recorded and no longer aborts every remaining file.
+- Failed files remain retryable on the next run.
+- Raw-row and normalized summary IDs are stable where uniqueness is required.
+- Daily summary refresh errors are recorded without destroying the whole run.
+
+VERIFY AFTER DEPLOYMENT
+Invoke-RestMethod -Method POST -Uri "https://restapay-toast-sync.onrender.com/api/toast/sync"
+Invoke-RestMethod -Uri "https://restapay-toast-sync.onrender.com/api/toast/status"
+
+Expected after completion:
+- syncing: False
+- lastRun.status: success
+- lastRun.progress_percent: 100
+- toast_sales_summary greater than 0
+- AccountingReport.xls no longer produces duplicate-key failure
+
+TESTING PERFORMED
+- Node syntax validation passed for every server/src/*.js file.
+- git diff whitespace validation passed for the changed importer.
+- Full Vite build could not be rerun in the isolated packaging environment because the package cache returned corrupted tarball/ENOENT errors. The frontend source was not changed by this fix.

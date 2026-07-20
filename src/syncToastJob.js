@@ -289,7 +289,7 @@ async function writeTypedRows(type, rows, context) {
     if (/accountingreport/i.test(fileName)) {
       payload = [summarizeAccountingRows(rows, businessDate, fileId, fileName)]
       const categories = accountingCategoryRows(rows, businessDate, fileId, fileName)
-      await replaceRows('toast_sales_categories', fileId, categories, { onConflict: 'business_date,category_name,source_file', replaceBy: [...new Map(categories.map(row => [`${row.business_date}|${row.source_file}`, { business_date: row.business_date, source_file: row.source_file }])).values()] })
+      await replaceRows('toast_sales_categories', fileId, categories, { onConflict: 'business_date,category_name,source_file' })
     } else {
       const grouped = new Map()
       for (const row of rows) {
@@ -309,7 +309,7 @@ async function writeTypedRows(type, rows, context) {
       }
       payload = [...grouped.entries()].map(([date, metrics]) => ({ ...baseRecord(fileId, date, fileName, metrics.raw, 'summary'), ...metrics, raw: metrics.raw }))
     }
-    await replaceRows('toast_sales_summary', fileId, payload, { onConflict: 'business_date,source_file', replaceBy: payload.map(row => ({ business_date: row.business_date, source_file: row.source_file })) })
+    await replaceRows('toast_sales_summary', fileId, payload, { onConflict: 'business_date,source_file' })
     return
   }
   if (type === 'Product Mix') {
