@@ -504,7 +504,7 @@ try {
 
       const existingResult = await supabase
         .from('toast_import_files')
-        .select('id,status,report_type,file_hash,file_size,remote_modified_at')
+        .select('id,status,report_type,file_hash,file_size,remote_modified_at,imported_at')
         .eq('remote_path', remoteFile)
         .maybeSingle()
       if (existingResult.error) throw existingResult.error
@@ -569,7 +569,7 @@ try {
               row_count: rows.length,
               status: 'Processing',
               error_message: '',
-              imported_at: null
+              imported_at: existing?.imported_at || new Date().toISOString()
             }
             const processingUpsert = await supabase.from('toast_import_files').upsert(processingRecord, { onConflict: 'remote_path' })
             if (processingUpsert.error) throw processingUpsert.error
@@ -627,7 +627,7 @@ try {
           checked_at: new Date().toISOString(),
           status: 'Failed',
           error_message: String(fileError?.message || fileError),
-          imported_at: null
+          imported_at: existing?.imported_at || new Date().toISOString()
         }
         const failed = await supabase.from('toast_import_files').upsert(failedRecord, { onConflict: 'remote_path' })
         if (failed.error) console.error(`Unable to mark ${entry.name} as failed:`, failed.error)
