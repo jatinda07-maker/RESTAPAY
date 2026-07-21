@@ -113,7 +113,7 @@ export default function Payroll({ data, setData, setActive }) {
   const [employeeFilter, setEmployeeFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [sortOrder, setSortOrder] = useState('newest')
-  const [activeTab, setActiveTab] = useState('review')
+  const [activeTab, setActiveTab] = useState('tips-review')
   const [selectedEntryIds, setSelectedEntryIds] = useState([])
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
@@ -692,6 +692,39 @@ export default function Payroll({ data, setData, setActive }) {
     setStatus(`Saved ${sourceRows.length} imported payroll rows and added unmatched employees to the employee list`)
   }
 
+
+  const toastTipsReviewRows = useMemo(() => toastReviewRows.filter(row => {
+    const text = [row.payroll_classification, row.pay_type, row.job_name, row.employee_name, row.raw_employee_name].map(value => String(value || '').toLowerCase()).join(' ')
+    return num(row.original_tips) > 0 || num(row.tips) > 0 || num(row.tip_deduction) > 0 || /server|waiter|waitress|bartender|front house|foh|customer tip/.test(text)
+  }), [toastReviewRows])
+
+  const toastKitchenReviewRows = useMemo(() => {
+    const tipIds = new Set(toastTipsReviewRows.map(row => row.id))
+    return toastReviewRows.filter(row => !tipIds.has(row.id))
+  }, [toastReviewRows, toastTipsReviewRows])
+
+  function renderToastReviewPanel(rows, title, description) {
+    const rowIds = rows.map(row => row.id)
+    const selectedInTab = selectedToastIds.filter(id => rowIds.includes(id))
+    const allSelected = rows.length > 0 && selectedInTab.length === rows.length
+    const toggleAll = () => {
+      if (allSelected) setSelectedToastIds(current => current.filter(id => !rowIds.includes(id)))
+      else setSelectedToastIds(current => Array.from(new Set([...current, ...rowIds])))
+    }
+
+    return <div className="tab-panel toast-payroll-review">
+      <section className="table-card">
+        <header><div><h2>{title}</h2><p>{description}</p></div><div className="actions"><button className="btn secondary" onClick={loadToastLaborReview} disabled={toastReviewLoading}><Icon name="refresh" /> {toastReviewLoading ? 'Loading...' : 'Refresh Toast Labor'}</button><button className="btn primary" onClick={approveToastRows} disabled={!selectedToastIds.length}><Icon name="check" /> Approve Selected ({selectedToastIds.length})</button></div></header>
+        {toastReviewError && <div className="status-pill">{toastReviewError}</div>}
+        <div className="payroll-bulk-row"><label><input type="checkbox" checked={allSelected} onChange={toggleAll} /> Select All In This Tab</label><span className="review-note">{rows.length} pending rows. Original Toast values remain visible until approval.</span></div>
+        <div className="payroll-table-wrap"><table className="payroll-enterprise-table toast-review-table"><thead><tr><th></th><th>Date</th><th>Toast Employee</th><th>Match Employee</th><th>Job</th><th>Hours</th><th>Wages</th><th>Original Tips</th><th>Withheld</th><th>Tips After WH</th><th>Extra Pay</th><th>Method</th><th>Check #</th><th>Total</th></tr></thead><tbody>
+          {rows.map(row => <tr key={row.id} className={row.is_new_employee ? 'review-warning' : ''}><td><input type="checkbox" checked={selectedToastIds.includes(row.id)} onChange={() => toggleToastSelection(row.id)} /></td><td>{row.business_date}</td><td><b>{displayToastName(row.raw_employee_name)}</b>{row.is_new_employee && <small className="new-employee-flag">New employee</small>}</td><td><select value={row.employee_id} onChange={e => updateToastReview(row.id, 'employee_id', e.target.value)}><option value="">Create new employee</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></td><td>{row.job_name || '—'}</td><td><input type="number" step="0.01" value={row.hours} onChange={e => updateToastReview(row.id, 'hours', e.target.value)} /></td><td><input type="number" step="0.01" value={row.regular_pay} onChange={e => updateToastReview(row.id, 'regular_pay', e.target.value)} /></td><td>${money(row.original_tips)}</td><td><input type="number" step="0.01" value={row.tip_deduction} onChange={e => updateToastReview(row.id, 'tip_deduction', e.target.value)} /></td><td><input type="number" step="0.01" value={row.tips} onChange={e => updateToastReview(row.id, 'tips', e.target.value)} /></td><td><input type="number" step="0.01" value={row.extra_pay} onChange={e => updateToastReview(row.id, 'extra_pay', e.target.value)} /></td><td><select value={row.payroll_type} onChange={e => updateToastReview(row.id, 'payroll_type', e.target.value)}><option>Cash</option><option>Check</option></select></td><td><input value={row.check_number} onChange={e => updateToastReview(row.id, 'check_number', e.target.value)} /></td><td className="money-strong">${money(row.total_pay)}</td></tr>)}
+          {!rows.length && <tr><td colSpan="14" className="empty-cell">{toastReviewLoading ? 'Loading automatic Toast labor...' : 'No pending employees in this payroll tab for the selected date range.'}</td></tr>}
+        </tbody></table></div>
+      </section>
+    </div>
+  }
+
   return <>
     <style>{`
       .payroll-enterprise { display:grid; gap:16px; }
@@ -818,27 +851,17 @@ export default function Payroll({ data, setData, setActive }) {
 
       <div className="payroll-quick-actions">
         <button className="btn secondary quick-manual" onClick={() => setActiveTab('manual')}><Icon name="plus" /> Add Manual Payroll</button>
-        <button className="btn secondary quick-groups" onClick={() => setActiveTab('groups')}><Icon name="users" /> Payroll Groups / Kitchen</button>
+        <button className="btn secondary quick-groups" onClick={() => setActiveTab('groups')}><Icon name="users" /> Payroll Groups</button>
         <label className="file-button btn secondary quick-import"><Icon name="upload" /> Import Labor Summary<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile} /></label>
       </div>
 
       <div className="payroll-tabs">
-        {[['review',`Toast Review (${toastReviewRows.length})`],['all','All Payroll'],['tips','Tips Summary'],['history','History']].map(([id,label])=><button key={id} className={activeTab===id?'active':''} onClick={()=>setActiveTab(id)}>{label}</button>)}
+        {[['tips-review',`Tips Payroll (${toastTipsReviewRows.length})`],['kitchen-review',`Kitchen Payroll (${toastKitchenReviewRows.length})`],['review',`All Pending (${toastReviewRows.length})`],['all','All Payroll'],['tips','Tips History'],['history','History']].map(([id,label])=><button key={id} className={activeTab===id?'active':''} onClick={()=>setActiveTab(id)}>{label}</button>)}
       </div>
 
-
-
-      {activeTab === 'review' && <div className="tab-panel toast-payroll-review">
-        <section className="table-card">
-          <header><div><h2>Automatic Toast Payroll Review</h2><p>Sales and labor pull automatically every day. Review hours, wages, tips, withholding, payment method and extra pay before approval.</p></div><div className="actions"><button className="btn secondary" onClick={loadToastLaborReview} disabled={toastReviewLoading}><Icon name="refresh" /> {toastReviewLoading ? 'Loading...' : 'Refresh Toast Labor'}</button><button className="btn primary" onClick={approveToastRows} disabled={!selectedToastIds.length}><Icon name="check" /> Approve Selected ({selectedToastIds.length})</button></div></header>
-          {toastReviewError && <div className="status-pill">{toastReviewError}</div>}
-          <div className="payroll-bulk-row"><label><input type="checkbox" checked={toastReviewRows.length > 0 && selectedToastIds.length === toastReviewRows.length} onChange={() => setSelectedToastIds(selectedToastIds.length === toastReviewRows.length ? [] : toastReviewRows.map(row => row.id))} /> Select All Pending</label><span className="review-note">Original Toast values remain visible; only approved rows enter payroll.</span></div>
-          <div className="payroll-table-wrap"><table className="payroll-enterprise-table toast-review-table"><thead><tr><th></th><th>Date</th><th>Toast Employee</th><th>Match Employee</th><th>Job</th><th>Hours</th><th>Wages</th><th>Original Tips</th><th>Withheld</th><th>Tips After WH</th><th>Extra Pay</th><th>Method</th><th>Check #</th><th>Total</th></tr></thead><tbody>
-            {toastReviewRows.map(row => <tr key={row.id} className={row.is_new_employee ? 'review-warning' : ''}><td><input type="checkbox" checked={selectedToastIds.includes(row.id)} onChange={() => toggleToastSelection(row.id)} /></td><td>{row.business_date}</td><td><b>{displayToastName(row.raw_employee_name)}</b>{row.is_new_employee && <small className="new-employee-flag">New employee</small>}</td><td><select value={row.employee_id} onChange={e => updateToastReview(row.id, 'employee_id', e.target.value)}><option value="">Create new employee</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></td><td>{row.job_name || '—'}</td><td><input type="number" step="0.01" value={row.hours} onChange={e => updateToastReview(row.id, 'hours', e.target.value)} /></td><td><input type="number" step="0.01" value={row.regular_pay} onChange={e => updateToastReview(row.id, 'regular_pay', e.target.value)} /></td><td>${money(row.original_tips)}</td><td><input type="number" step="0.01" value={row.tip_deduction} onChange={e => updateToastReview(row.id, 'tip_deduction', e.target.value)} /></td><td><input type="number" step="0.01" value={row.tips} onChange={e => updateToastReview(row.id, 'tips', e.target.value)} /></td><td><input type="number" step="0.01" value={row.extra_pay} onChange={e => updateToastReview(row.id, 'extra_pay', e.target.value)} /></td><td><select value={row.payroll_type} onChange={e => updateToastReview(row.id, 'payroll_type', e.target.value)}><option>Cash</option><option>Check</option></select></td><td><input value={row.check_number} onChange={e => updateToastReview(row.id, 'check_number', e.target.value)} /></td><td className="money-strong">${money(row.total_pay)}</td></tr>)}
-            {!toastReviewRows.length && <tr><td colSpan="14" className="empty-cell">{toastReviewLoading ? 'Loading automatic Toast labor...' : 'No unapproved Toast labor rows in this date range.'}</td></tr>}
-          </tbody></table></div>
-        </section>
-      </div>}
+      {activeTab === 'tips-review' && renderToastReviewPanel(toastTipsReviewRows, 'Tips Payroll Review', 'Review servers, bartenders and other tipped employees separately. Original tips, exact withholding and tips after withholding remain visible before approval.')}
+      {activeTab === 'kitchen-review' && renderToastReviewPanel(toastKitchenReviewRows, 'Kitchen Payroll Review', 'Review kitchen and other non-tipped operating labor separately before adding it to payroll.')}
+      {activeTab === 'review' && renderToastReviewPanel(toastReviewRows, 'All Pending Toast Payroll', 'Review all pending Toast labor together. Nothing enters payroll until you approve the selected rows.')}
 
       {activeTab === 'all' && <div className="payroll-content-grid">
         <section className="payroll-main-panel">
