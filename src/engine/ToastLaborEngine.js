@@ -68,6 +68,50 @@ function parseDate(value, fallback = '') {
   return Number.isNaN(date.getTime()) ? fallback : date.toISOString().slice(0, 10)
 }
 
+
+function parseDateTokens(value) {
+  const raw = text(value)
+  if (!raw) return []
+  const matches = []
+  const patterns = [
+    /\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/g,
+    /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g
+  ]
+  for (const pattern of patterns) {
+    let match
+    while ((match = pattern.exec(raw))) {
+      if (match[1].length === 4) matches.push(`${match[1]}-${String(match[2]).padStart(2, '0')}-${String(match[3]).padStart(2, '0')}`)
+      else {
+        const year = match[3].length === 2 ? `20${match[3]}` : match[3]
+        matches.push(`${year}-${String(match[1]).padStart(2, '0')}-${String(match[2]).padStart(2, '0')}`)
+      }
+    }
+  }
+  return matches.filter((value, index, all) => all.indexOf(value) === index)
+}
+
+export function detectToastLaborPeriod(XLSX, workbook) {
+  const labeled = []
+  const allDates = []
+  for (const sheetName of workbook.SheetNames || []) {
+    const sheet = workbook.Sheets[sheetName]
+    if (!sheet) continue
+    const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }).slice(0, 60)
+    for (const row of matrix) {
+      const line = row.map(text).filter(Boolean).join(' | ')
+      const dates = parseDateTokens(line)
+      if (!dates.length) continue
+      allDates.push(...dates)
+      if (/date range|report range|pay period|payroll period|business date|week ending|period start|period end|from.+to/i.test(line)) labeled.push(...dates)
+    }
+  }
+  const candidates = (labeled.length ? labeled : allDates).filter(Boolean).sort()
+  if (!candidates.length) return { start: '', end: '', label: '' }
+  const start = candidates[0]
+  const end = candidates[candidates.length - 1]
+  return { start, end, label: start === end ? start : `${start} to ${end}` }
+}
+
 function headerScore(values = []) {
   const keys = values.map(norm).filter(Boolean)
   const includesAny = aliases => aliases.some(alias => keys.includes(norm(alias)))
@@ -110,7 +154,8 @@ function isSummaryName(value) {
 }
 
 export function parseToastLaborRows(XLSX, workbook, options = {}) {
-  const fallbackDate = options.payDate || ''
+  const reportPeriod = options.reportPeriod || detectToastLaborPeriod(XLSX, workbook)
+  const fallbackDate = reportPeriod.end || options.payDate || ''
   const tipRate = Number(options.tipRate ?? 3.5) || 0
   const sheets = candidateSheets(XLSX, workbook)
   const selected = sheets.filter((sheet, index) => index === 0 || /labor|employee|payroll|time|tips|team/i.test(sheet.name))
@@ -143,6 +188,9 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
       employee_external_id: text(find(row, ALIASES.employeeId)),
       job_type: text(find(row, ALIASES.job)),
       pay_date: parseDate(find(row, ALIASES.date), fallbackDate),
+      period_start: reportPeriod.start || '',
+      period_end: reportPeriod.end || '',
+      period_label: reportPeriod.label || '',
       hours,
       regular_hours: round2(regularHours),
       overtime_hours: round2(overtimeHours),

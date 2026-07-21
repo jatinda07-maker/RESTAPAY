@@ -1,24 +1,33 @@
+import assert from 'node:assert/strict'
 import * as XLSX from 'xlsx'
-import { parseToastLaborRows, laborImportDiagnostics } from '../src/engine/ToastLaborEngine.js'
+import { detectToastLaborPeriod, parseToastLaborRows, laborImportDiagnostics } from '../src/engine/ToastLaborEngine.js'
 
-const wb = XLSX.utils.book_new()
-const rows = [
+const matrix = [
   ['Toast Labor Summary'],
-  ['Generated report'],
+  ['Date Range', '07/14/2026 - 07/20/2026'],
   [],
-  ['Employee Name','Job','Regular Hours','OT Hours','Total Hours','Hourly Rate','Gross Pay','Credit Card Tips','Cash Tips','Tips Withheld','Check #'],
-  ['Doe, Jane','Server',30,2,32,10,340,120,30,5.25,'101'],
-  ['Smith, John','Cook',40,0,40,15,600,0,0,0,'102'],
-  ['Grand Total','',70,2,72,'',940,120,30,5.25,'']
+  ['Employee', 'Job', 'Total Hours', 'Hourly Rate', 'Regular Pay', 'Total Tips'],
+  ['Capuano, Haleigh', 'Server', 40, 4, 160, 2240.97],
+  ['Cruz, Israel', 'General Manager', 50, 25, 1250, 100]
 ]
-XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Labor Summary')
-const parsed = parseToastLaborRows(XLSX, wb, { payDate: '2026-07-13', tipRate: 3.5 })
-const diag = laborImportDiagnostics(parsed)
-console.log(JSON.stringify({ parsed, diag }, null, 2))
-if (parsed.length !== 2) throw new Error(`Expected 2 rows, got ${parsed.length}`)
-if (diag.hours !== 72) throw new Error(`Expected 72 hours, got ${diag.hours}`)
-if (diag.regularPay !== 940) throw new Error(`Expected 940 pay, got ${diag.regularPay}`)
-if (diag.totalTips !== 150) throw new Error(`Expected 150 tips, got ${diag.totalTips}`)
-if (diag.withheld !== 5.25) throw new Error(`Expected 5.25 withheld, got ${diag.withheld}`)
-if (diag.netTips !== 144.75) throw new Error(`Expected 144.75 net tips, got ${diag.netTips}`)
-console.log('PASS: Toast labor workbook title rows, multi-column tips, hours, wages, and totals parsed correctly.')
+const ws = XLSX.utils.aoa_to_sheet(matrix)
+const wb = XLSX.utils.book_new()
+XLSX.utils.book_append_sheet(wb, ws, 'Labor Summary')
+
+const period = detectToastLaborPeriod(XLSX, wb)
+assert.deepEqual(period, { start: '2026-07-14', end: '2026-07-20', label: '2026-07-14 to 2026-07-20' })
+
+const rows = parseToastLaborRows(XLSX, wb, { payDate: '2026-07-21', tipRate: 3.5, reportPeriod: period })
+assert.equal(rows.length, 2)
+assert.equal(rows[0].pay_date, '2026-07-20')
+assert.equal(rows[0].period_start, '2026-07-14')
+assert.equal(rows[0].period_end, '2026-07-20')
+assert.equal(rows[0].total_tips, 2240.97)
+assert.equal(rows[0].tip_deduction, 78.43)
+assert.equal(rows[0].tips, 2162.54)
+
+const diag = laborImportDiagnostics(rows)
+assert.equal(diag.hours, 90)
+assert.equal(diag.regularPay, 1410)
+assert.equal(diag.totalTips, 2340.97)
+console.log('Toast labor import tests passed')
