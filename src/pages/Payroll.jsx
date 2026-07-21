@@ -24,6 +24,31 @@ function findValue(row, keys) {
   return ''
 }
 
+
+function normalizeImportDate(value, fallback = today()) {
+  if (!value) return fallback
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10)
+  const raw = String(value).trim()
+  if (!raw) return fallback
+  const iso = raw.match(/^(\d{4})[-\/]([01]?\d)[-\/]([0-3]?\d)/)
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`
+  const us = raw.match(/^([01]?\d)[-\/]([0-3]?\d)[-\/](\d{2}|\d{4})/)
+  if (us) {
+    const year = us[3].length === 2 ? `20${us[3]}` : us[3]
+    return `${year}-${String(us[1]).padStart(2, '0')}-${String(us[2]).padStart(2, '0')}`
+  }
+  const parsed = new Date(raw)
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString().slice(0, 10)
+}
+
+function importedRowDate(source = {}, fallback = today()) {
+  const raw = source.raw && typeof source.raw === 'object' ? source.raw : source
+  const candidate = source.pay_date || source.business_date || source.date || source.shift_date || source.clock_in_date || findValue(raw, [
+    'Pay Date', 'Payroll Date', 'Business Date', 'Date', 'Shift Date', 'Clock In Date', 'Time Entry Date', 'Work Date'
+  ])
+  return normalizeImportDate(candidate, fallback)
+}
+
 function normalizeName(value) {
   return String(value || '')
     .toLowerCase()
@@ -353,6 +378,12 @@ export default function Payroll({ data, setData, setActive }) {
     setSelectedEntryIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id])
   }
 
+  function toggleTabSelection(entries) {
+    const ids = entries.map(entry => entry.id)
+    const allSelected = ids.length > 0 && ids.every(id => selectedEntryIds.includes(id))
+    setSelectedEntryIds(prev => allSelected ? prev.filter(id => !ids.includes(id)) : Array.from(new Set([...prev, ...ids])))
+  }
+
   function toggleVisibleSelection() {
     const ids = pagedEntries.map(entry => entry.id)
     setSelectedEntryIds(prev => allVisibleSelected ? prev.filter(id => !ids.includes(id)) : Array.from(new Set([...prev, ...ids])))
@@ -653,7 +684,7 @@ export default function Payroll({ data, setData, setActive }) {
           payroll_type: employee?.payroll_type || 'Check',
           pay_type: employee?.pay_type || (num(source.total_tips) > 0 ? 'Tips' : 'Hourly'),
           payroll_classification: inferPayrollClassification(employee || { pay_type: num(source.total_tips) > 0 ? 'Tips' : 'Hourly', job_type: source.job_type, employee_name: cleanName || rawName }),
-          pay_date: source.pay_date || toastPayDate,
+          pay_date: importedRowDate(source, toastPayDate),
           source_sheet: source.source_sheet || '',
           source_file: file.name
         }
@@ -720,7 +751,7 @@ export default function Payroll({ data, setData, setActive }) {
         }
         const sourceLabel = employeeAssignmentLabel(employee, prev.payrollGroups || [])
         return {
-          id: createId('pay'), employee_id: employeeId, employee_name: employee.name || employeeName, group_name: row.source_sheet ? `Toast: ${row.source_sheet}` : sourceLabel, pay_date: row.pay_date || toastPayDate,
+          id: createId('pay'), employee_id: employeeId, employee_name: employee.name || employeeName, group_name: row.source_sheet ? `Toast: ${row.source_sheet}` : sourceLabel, pay_date: importedRowDate(row, toastPayDate),
           pay_type: employee.pay_type || row.pay_type, payroll_type: employee.payroll_type || row.payroll_type, payroll_classification: row.payroll_classification || employee.payroll_classification || inferPayrollClassification(employee), check_number: row.check_number || '', hours: num(row.hours), regular_pay: num(row.regular_pay), tips: num(row.tips),
           tip_deduction: num(row.tip_deduction), extra_pay: num(row.extra_pay), extra_reason: row.extra_reason || '', total_pay: num(row.total_pay)
         }
@@ -807,9 +838,9 @@ export default function Payroll({ data, setData, setActive }) {
       .payroll-modern{display:grid;gap:14px;color:#13213a}
       .payroll-modern *{box-sizing:border-box}
       .payroll-modern .page-head{margin-bottom:0}
-      .payroll-modern .payroll-tabs{display:flex;align-items:center;gap:18px;padding:0 8px;border-bottom:1px solid #e4eaf2;background:#fff;overflow:auto}
-      .payroll-modern .payroll-tabs button{border:0;background:transparent;padding:15px 3px 13px;font-size:13px;font-weight:800;color:#25314a;border-bottom:3px solid transparent;white-space:nowrap}
-      .payroll-modern .payroll-tabs button.active{color:#1463e8;border-bottom-color:#1463e8}
+      .payroll-modern .payroll-tabs{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid #dfe7f1;border-radius:12px;background:#eef3f8;overflow:auto}
+      .payroll-modern .payroll-tabs button{border:1px solid transparent;background:transparent;padding:10px 14px;font-size:12px;font-weight:800;color:#43516a;border-radius:8px;white-space:nowrap}
+      .payroll-modern .payroll-tabs button.active{color:#0f5fd8;background:#fff;border-color:#cfdbea;box-shadow:0 2px 8px rgba(22,52,92,.08)}
       .payroll-filter-card,.payroll-summary-card,.payroll-table-card,.payroll-dashboard-card{background:#fff;border:1px solid #e1e8f1;border-radius:13px;box-shadow:0 3px 14px rgba(22,39,74,.045)}
       .payroll-filter-card{display:grid;grid-template-columns:1.05fr 1fr 1fr 1.15fr auto;gap:18px;padding:18px 22px;align-items:end}
       .payroll-filter-card label{display:grid;gap:7px;font-size:10px;font-weight:900;letter-spacing:.035em;color:#52627c;text-transform:uppercase}
@@ -839,6 +870,13 @@ export default function Payroll({ data, setData, setActive }) {
       .payroll-detail-row td{padding:0 12px 14px;background:#fbfcfe}.payroll-detail-grid{display:grid;grid-template-columns:repeat(8,1fr);border:1px solid #e3e9f1;border-radius:9px;background:#fff;padding:14px 18px;gap:0}.payroll-detail-item{padding:0 18px;border-right:1px solid #e4eaf2}.payroll-detail-item:first-child{padding-left:0}.payroll-detail-item:last-child{border-right:0}.payroll-detail-item span{display:block;color:#657188;font-size:10px;font-weight:800;margin-bottom:7px}.payroll-detail-item b{font-size:13px}.negative{color:#dc2b3e}.positive{color:#138d42}
       .payroll-pagination{display:flex;align-items:center;padding:12px 16px;gap:10px}.payroll-pagination .pages{margin:auto;display:flex;gap:6px}.payroll-pagination button{min-width:32px;height:32px;border:1px solid #d8e2ef;border-radius:7px;background:#fff}.payroll-pagination button.active{background:#1769e8;color:#fff;border-color:#1769e8}
       .payroll-footer-total{position:sticky;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(6,1fr) 1.5fr;align-items:center;background:#fff;border:1px solid #dfe7f0;border-radius:12px;padding:14px 18px;box-shadow:0 -5px 18px rgba(15,31,60,.08)}.payroll-footer-total div{text-align:center;border-right:1px solid #e4eaf2}.payroll-footer-total div:last-of-type{border-right:0}.payroll-footer-total b{display:block;font-size:18px}.payroll-footer-total span{font-size:10px;color:#607087;font-weight:800}.payroll-footer-total .approve-box{margin-left:18px;border:0}.payroll-footer-total .approve-box button{width:100%;height:50px;justify-content:center}
+
+      .payroll-edit-overlay{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.42);display:grid;place-items:center;padding:24px}
+      .payroll-edit-modal{width:min(760px,96vw);background:#fff;border:1px solid #dfe7f1;border-radius:14px;box-shadow:0 24px 70px rgba(15,23,42,.24);overflow:hidden}
+      .payroll-edit-modal header{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 20px;border-bottom:1px solid #e7edf4;background:#f8fafc}.payroll-edit-modal h2{margin:0;font-size:18px}.payroll-edit-modal p{margin:4px 0 0;color:#64748b;font-size:12px}.payroll-edit-modal .modal-close{border:0;background:#eef2f7;width:32px;height:32px;border-radius:8px;font-size:20px;cursor:pointer}
+      .payroll-edit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:20px}.payroll-edit-grid label{display:grid;gap:6px;font-size:11px;font-weight:800;color:#52627c}.payroll-edit-grid label.wide{grid-column:span 3}.payroll-edit-grid input,.payroll-edit-grid select{height:40px;border:1px solid #d8e2ef;border-radius:8px;padding:0 10px;background:#fff}
+      .payroll-edit-modal footer{display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid #e7edf4;background:#f8fafc}
+      .bulk-selected-count{font-size:11px;font-weight:800;color:#1463e8;background:#edf4ff;border:1px solid #cfe0ff;border-radius:999px;padding:6px 10px;white-space:nowrap}
       .payroll-dashboard-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.payroll-dashboard-card{padding:18px}.payroll-dashboard-card h3{margin:0 0 8px;font-size:13px}.payroll-dashboard-card b{font-size:24px}.payroll-dashboard-card p{color:#68768b;font-size:11px;margin:5px 0 14px}
       .manual-panel,.groups-panel{padding:18px}.manual-panel .employee-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.manual-panel label{display:grid;gap:6px;font-size:11px;font-weight:800;color:#52627c}.manual-panel input,.manual-panel select,.groups-panel input,.groups-panel select{height:40px;border:1px solid #d8e2ef;border-radius:8px;padding:0 10px;background:#fff}
       .group-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}.group-card{border:1px solid #e1e8f1;border-radius:12px;padding:16px;background:#fff}.group-card header{display:flex;justify-content:space-between;align-items:center}.group-card ul{padding-left:18px;color:#52627c;font-size:12px;min-height:70px}
@@ -884,16 +922,18 @@ export default function Payroll({ data, setData, setActive }) {
         <div className="payroll-actionbar">
           <label className="file-button btn primary"><Icon name="upload"/> Import Labor Summary<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile}/></label>
           <button className="btn secondary" onClick={()=>setActiveTab('manual')}><Icon name="plus"/> Add Manual Payroll</button>
-          <button className="btn secondary" onClick={()=>toggleAllVisible(viewPagedEntries)}>{allViewSelected?'Clear Page':'Select Page'}</button>
-          <div className="right"><button className="btn secondary" onClick={exportSelectedEntries}><Icon name="download"/> Export</button><button className="btn danger" onClick={deleteSelectedEntries}>Delete Selected</button><button className="btn success">Approve Payroll</button></div>
+          <button className="btn secondary" onClick={()=>toggleTabSelection(tabEntries)}>{tabEntries.length > 0 && tabEntries.every(entry=>selectedEntryIds.includes(entry.id)) ? `Clear All (${tabEntries.length})` : `Select All (${tabEntries.length})`}</button>
+          <button className="btn secondary" onClick={toggleVisibleSelection}>{allVisibleSelected ? `Clear Page (${viewPagedEntries.length})` : `Select Page (${viewPagedEntries.length})`}</button>
+          <span className="bulk-selected-count">{selectedEntryIds.length} selected</span>
+          <div className="right"><button className="btn secondary" onClick={exportSelectedEntries}><Icon name="download"/> Export Selected</button><button className="btn danger" onClick={deleteSelectedEntries}>Delete Selected</button><button className="btn success">Approve Payroll</button></div>
         </div>
-        <table className="payroll-clean-table"><thead><tr><th></th><th>Employee</th><th>Hours</th><th>Payroll Type</th><th>Final Check</th><th>Status</th><th>Check #</th><th>Actions</th></tr></thead><tbody>
+        <table className="payroll-clean-table"><thead><tr><th><input type="checkbox" checked={tabEntries.length>0 && tabEntries.every(entry=>selectedEntryIds.includes(entry.id))} onChange={()=>toggleTabSelection(tabEntries)} /></th><th>Date</th><th>Employee</th><th>Hours</th><th>Payroll Type</th><th>Final Check</th><th>Status</th><th>Check #</th><th>Actions</th></tr></thead><tbody>
           {viewPagedEntries.length ? viewPagedEntries.map((entry,index)=>{
             const open=expandedEntryIds.includes(entry.id)
             const isTips=String(entry.payroll_classification||inferPayrollClassification(entry)).toLowerCase().includes('tip') || num(entry.tips)>0
             const initials=String(entry.employee_name||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()
-            return <React.Fragment key={entry.id}><tr><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)}/></td><td><div className="employee-name-cell"><span className="employee-avatar">{initials}</span><div><b>{entry.employee_name}</b><small>{entry.group_name||entry.pay_type||'Employee'}</small></div></div></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td><span className={`payroll-type-pill ${isTips?'tips':'kitchen'}`}>{isTips?'Tips Payroll':'Kitchen Payroll'}</span></td><td className="money-final">${money(entry.total_pay)}</td><td><span className="status-pill-modern">Pending</span></td><td><input className="check-input" value={entry.check_number||''} placeholder="—" onChange={e=>setData(prev=>({...prev,payrollEntries:(prev.payrollEntries||[]).map(row=>row.id===entry.id?{...row,check_number:e.target.value}:row)}))}/></td><td><div className="row-actions"><button title="Edit" onClick={()=>startEdit(entry)}><Icon name="edit" size={14}/></button><button title="Expand" onClick={()=>toggleExpandedEntry(entry.id)}><Icon name={open?'chevronUp':'chevronDown'} size={14}/></button></div></td></tr>{open&&<tr className="payroll-detail-row"><td colSpan="8"><div className="payroll-detail-grid"><div className="payroll-detail-item"><span>Regular Pay</span><b>${money(entry.regular_pay)}</b></div><div className="payroll-detail-item"><span>Overtime Pay</span><b>${money(entry.overtime_pay)}</b></div><div className="payroll-detail-item"><span>Original Tips</span><b>${money(num(entry.tips)+num(entry.tip_deduction))}</b></div><div className="payroll-detail-item"><span>Tips Withheld</span><b className="negative">${money(entry.tip_deduction)}</b></div><div className="payroll-detail-item"><span>Net Tips</span><b className="positive">${money(entry.tips)}</b></div><div className="payroll-detail-item"><span>Extra Pay</span><b>${money(entry.extra_pay)}</b></div><div className="payroll-detail-item"><span>Pay Date</span><b>{entry.pay_date||'—'}</b></div><div className="payroll-detail-item"><span>Method</span><b>{entry.payroll_type||'—'}</b></div></div></td></tr>}</React.Fragment>
-          }) : <tr><td colSpan="8" className="empty-cell">No payroll entries in the selected date range.</td></tr>}
+            return <React.Fragment key={entry.id}><tr><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)}/></td><td className="pay-date-cell">{entry.pay_date||'—'}</td><td><div className="employee-name-cell"><span className="employee-avatar">{initials}</span><div><b>{entry.employee_name}</b><small>{entry.group_name||entry.pay_type||'Employee'}</small></div></div></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td><span className={`payroll-type-pill ${isTips?'tips':'kitchen'}`}>{isTips?'Tips Payroll':'Kitchen Payroll'}</span></td><td className="money-final">${money(entry.total_pay)}</td><td><span className="status-pill-modern">Pending</span></td><td><input className="check-input" value={entry.check_number||''} placeholder="—" onChange={e=>setData(prev=>({...prev,payrollEntries:(prev.payrollEntries||[]).map(row=>row.id===entry.id?{...row,check_number:e.target.value}:row)}))}/></td><td><div className="row-actions"><button title="Edit" onClick={()=>startEdit(entry)}><Icon name="edit" size={14}/></button><button title="Expand" onClick={()=>toggleExpandedEntry(entry.id)}><Icon name={open?'chevronUp':'chevronDown'} size={14}/></button></div></td></tr>{open&&<tr className="payroll-detail-row"><td colSpan="9"><div className="payroll-detail-grid"><div className="payroll-detail-item"><span>Regular Pay</span><b>${money(entry.regular_pay)}</b></div><div className="payroll-detail-item"><span>Overtime Pay</span><b>${money(entry.overtime_pay)}</b></div><div className="payroll-detail-item"><span>Original Tips</span><b>${money(num(entry.tips)+num(entry.tip_deduction))}</b></div><div className="payroll-detail-item"><span>Tips Withheld</span><b className="negative">${money(entry.tip_deduction)}</b></div><div className="payroll-detail-item"><span>Net Tips</span><b className="positive">${money(entry.tips)}</b></div><div className="payroll-detail-item"><span>Extra Pay</span><b>${money(entry.extra_pay)}</b></div><div className="payroll-detail-item"><span>Pay Date</span><b>{entry.pay_date||'—'}</b></div><div className="payroll-detail-item"><span>Method</span><b>{entry.payroll_type||'—'}</b></div></div></td></tr>}</React.Fragment>
+          }) : <tr><td colSpan="9" className="empty-cell">No payroll entries in the selected date range.</td></tr>}
         </tbody></table>
         <div className="payroll-pagination"><span>Showing {tabEntries.length ? (viewCurrentPage-1)*rowsPerPage+1 : 0} to {Math.min(viewCurrentPage*rowsPerPage,tabEntries.length)} of {tabEntries.length}</span><div className="pages"><button onClick={()=>setPage(Math.max(1,viewCurrentPage-1))}>‹</button>{Array.from({length:Math.min(viewTotalPages,5)},(_,i)=>i+1).map(n=><button key={n} className={viewCurrentPage===n?'active':''} onClick={()=>setPage(n)}>{n}</button>)}<button onClick={()=>setPage(Math.min(viewTotalPages,viewCurrentPage+1))}>›</button></div><label>Rows: <select value={rowsPerPage} onChange={e=>setRowsPerPage(Number(e.target.value))}><option>10</option><option>25</option><option>50</option></select></label></div>
       </section>}
@@ -902,7 +942,9 @@ export default function Payroll({ data, setData, setActive }) {
 
       {activeTab === 'groups' && <section className="payroll-table-card groups-panel"><div className="payroll-actionbar"><h2>Payroll Groups</h2><div className="right"><input value={groupName} onChange={e=>setGroupName(e.target.value)} placeholder="New group name"/><button className="btn primary" onClick={createGroup}><Icon name="plus"/> Add Group</button></div></div><div className="group-cards">{groups.map(group=>{const members=employees.filter(emp=>(group.memberIds||[]).includes(emp.id));return <div className="group-card" key={group.id}><header><h3>{group.name}</h3><span>{members.length} members</span></header><p><b>Method:</b> {group.payroll_type||'Cash'}</p><ul>{members.slice(0,6).map(emp=><li key={emp.id}>{emp.name} — {emp.job_type||emp.pay_type}</li>)}</ul><div className="row-actions"><button onClick={()=>setSelectedGroupId(group.id)}><Icon name="edit" size={14}/></button><button className="delete" onClick={()=>{setSelectedGroupId(group.id);setTimeout(deleteGroup,0)}}><Icon name="trash" size={14}/></button></div></div>})}</div></section>}
 
-      {previewRows.length>0 && <section className="payroll-table-card import-preview"><div className="payroll-actionbar"><div><h2>Labor Summary Review</h2><small>{previewRows.length} rows ready to add</small></div><div className="right"><button className="btn secondary" onClick={()=>setPreviewRows([])}>Cancel</button><button className="btn primary" onClick={savePreviewToPayroll}>Add To Payroll</button></div></div><table className="payroll-clean-table"><thead><tr><th></th><th>Employee</th><th>Hours</th><th>Payroll Type</th><th>Final Check</th><th>Status</th><th>Check #</th><th></th></tr></thead><tbody>{previewRows.map(row=><tr key={row.id}><td></td><td><b>{row.employee_name}</b><small>{row.job_type||row.source_sheet}</small></td><td>{row.hours}</td><td>{row.pay_type}</td><td className="money-final">${money(row.total_pay)}</td><td><span className="status-pill-modern">Review</span></td><td>{row.check_number||'—'}</td><td></td></tr>)}</tbody></table></section>}
+      {previewRows.length>0 && <section className="payroll-table-card import-preview"><div className="payroll-actionbar"><div><h2>Labor Summary Review</h2><small>{previewRows.length} rows ready to add</small></div><div className="right"><button className="btn secondary" onClick={()=>setPreviewRows([])}>Cancel</button><button className="btn primary" onClick={savePreviewToPayroll}>Add To Payroll</button></div></div><table className="payroll-clean-table"><thead><tr><th></th><th>Date</th><th>Employee</th><th>Hours</th><th>Payroll Type</th><th>Final Check</th><th>Status</th><th>Check #</th><th></th></tr></thead><tbody>{previewRows.map(row=><tr key={row.id}><td></td><td className="pay-date-cell">{row.pay_date||toastPayDate}</td><td><b>{row.employee_name}</b><small>{row.job_type||row.source_sheet}</small></td><td>{row.hours}</td><td>{row.pay_type}</td><td className="money-final">${money(row.total_pay)}</td><td><span className="status-pill-modern">Review</span></td><td>{row.check_number||'—'}</td><td></td></tr>)}</tbody></table></section>}
+
+      {editingEntryId && <div className="payroll-edit-overlay" onClick={()=>setEditingEntryId(null)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Payroll Entry</h2><p>Update the employee's weekly payroll details.</p></div><button className="modal-close" onClick={()=>setEditingEntryId(null)}>×</button></header><div className="payroll-edit-grid"><label>Pay Date<input type="date" value={entryForm.pay_date||''} onChange={e=>setEntryForm(prev=>({...prev,pay_date:e.target.value}))}/></label><label>Hours<input type="number" step="0.01" value={entryForm.hours||''} onChange={e=>setEntryForm(prev=>({...prev,hours:e.target.value}))}/></label><label>Regular Pay<input type="number" step="0.01" value={entryForm.regular_pay||''} onChange={e=>setEntryForm(prev=>({...prev,regular_pay:e.target.value}))}/></label><label>Net Tips<input type="number" step="0.01" value={entryForm.tips||''} onChange={e=>setEntryForm(prev=>({...prev,tips:e.target.value}))}/></label><label>Tips Withheld<input type="number" step="0.01" value={entryForm.tip_deduction||''} onChange={e=>setEntryForm(prev=>({...prev,tip_deduction:e.target.value}))}/></label><label>Extra Pay<input type="number" step="0.01" value={entryForm.extra_pay||''} onChange={e=>setEntryForm(prev=>({...prev,extra_pay:e.target.value}))}/></label><label>Check Number<input value={entryForm.check_number||''} onChange={e=>setEntryForm(prev=>({...prev,check_number:e.target.value}))}/></label><label className="wide">Extra Pay Reason<input value={entryForm.extra_reason||''} onChange={e=>setEntryForm(prev=>({...prev,extra_reason:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setEditingEntryId(null)}>Cancel</button><button className="btn primary" onClick={saveEntryEdit}>Save Changes</button></footer></section></div>}
 
       {['all','tips','kitchen','history'].includes(activeTab) && <div className="payroll-footer-total"><div><b>{viewTotals.employees.size}</b><span>Employees</span></div><div><b>{money(viewTotals.hours)}</b><span>Total Hours</span></div><div><b className="positive">${money(viewTotals.originalTips)}</b><span>Original Tips</span></div><div><b className="negative">${money(viewTotals.withheld)}</b><span>Tips Withheld</span></div><div><b>${money(viewTotals.extra)}</b><span>Extra Pay</span></div><div><b>${money(viewTotals.final)}</b><span>Final Checks</span></div><div className="approve-box"><button className="btn success"><Icon name="check"/> Approve Payroll</button></div></div>}
     </div>
