@@ -155,6 +155,8 @@ export default function Payroll({ data, setData, setActive }) {
   const [toastReviewLoading, setToastReviewLoading] = useState(false)
   const [toastReviewError, setToastReviewError] = useState('')
   const [expandedEntryIds, setExpandedEntryIds] = useState([])
+  const [approvalOpen, setApprovalOpen] = useState(false)
+  const [approvalEntryIds, setApprovalEntryIds] = useState([])
 
 
   const employeeFilterOptions = useMemo(() => {
@@ -883,6 +885,58 @@ export default function Payroll({ data, setData, setActive }) {
   const viewPagedEntries = tabEntries.slice((viewCurrentPage - 1) * rowsPerPage, viewCurrentPage * rowsPerPage)
   const allViewSelected = viewPagedEntries.length > 0 && viewPagedEntries.every(entry => selectedEntryIds.includes(entry.id))
 
+
+  const approvalRows = useMemo(() => entries.filter(entry => approvalEntryIds.includes(entry.id)), [entries, approvalEntryIds])
+  const approvalChecks = useMemo(() => {
+    const grouped = new Map()
+    approvalRows.forEach(entry => {
+      const key = String(entry.employee_id || normalizeName(entry.employee_name))
+      const current = grouped.get(key) || {
+        employee_id: entry.employee_id || '', employee_name: entry.employee_name || 'Employee',
+        amount: 0, line_count: 0, payroll_type: entry.payroll_type || 'Check', check_number: entry.check_number || ''
+      }
+      current.amount += num(entry.total_pay)
+      current.line_count += 1
+      if (!current.check_number && entry.check_number) current.check_number = entry.check_number
+      if (String(entry.payroll_type || '').toLowerCase() === 'cash') current.payroll_type = 'Cash'
+      grouped.set(key, current)
+    })
+    return Array.from(grouped.values()).sort((a,b) => a.employee_name.localeCompare(b.employee_name))
+  }, [approvalRows])
+
+  function openApprovalWindow() {
+    const pending = tabEntries.filter(entry => String(entry.approval_status || 'Pending').toLowerCase() !== 'approved')
+    const chosen = selectedEntryIds.length ? pending.filter(entry => selectedEntryIds.includes(entry.id)) : pending
+    if (!chosen.length) return setStatus('No pending payroll entries are available to approve in this view.')
+    setApprovalEntryIds(chosen.map(entry => entry.id))
+    setApprovalOpen(true)
+  }
+
+  function confirmPayrollApproval() {
+    if (!approvalRows.length) return
+    const approvedAt = new Date().toISOString()
+    const batchId = createId('check-batch')
+    const checkRows = approvalChecks
+      .filter(row => String(row.payroll_type).toLowerCase() === 'check')
+      .map(row => ({
+        id: createId('paycheck'), batch_id: batchId, employee_id: row.employee_id, employee_name: row.employee_name,
+        pay_period_start: dateStart, pay_period_end: dateEnd, amount: round2(row.amount), check_number: row.check_number || '',
+        status: 'Ready to Make Check', created_at: approvedAt, source: 'Payroll Approval'
+      }))
+    const approvedIds = new Set(approvalEntryIds)
+    setData(prev => ({
+      ...prev,
+      payrollEntries: (prev.payrollEntries || []).map(entry => approvedIds.has(entry.id)
+        ? { ...entry, approval_status: 'Approved', approved_at: approvedAt, check_batch_id: batchId }
+        : entry),
+      payrollChecks: [...checkRows, ...(prev.payrollChecks || [])]
+    }))
+    setSelectedEntryIds(prev => prev.filter(id => !approvedIds.has(id)))
+    setApprovalOpen(false)
+    setApprovalEntryIds([])
+    setStatus(`Approved ${approvedIds.size} payroll lines. ${checkRows.length} employee checks were added to Make Checks.`)
+  }
+
   function toggleExpandedEntry(id) {
     setExpandedEntryIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id])
   }
@@ -937,6 +991,12 @@ export default function Payroll({ data, setData, setActive }) {
       .group-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}.group-card{border:1px solid #e1e8f1;border-radius:12px;padding:16px;background:#fff}.group-card header{display:flex;justify-content:space-between;align-items:center}.group-card ul{padding-left:18px;color:#52627c;font-size:12px;min-height:70px}
       .import-preview{margin-top:14px}
       @media(max-width:1250px){.payroll-summary-card{grid-template-columns:repeat(3,1fr);gap:14px}.payroll-stat{border-right:0;padding:0}.payroll-filter-card{grid-template-columns:repeat(2,1fr)}.payroll-filter-card .reset-btn{justify-self:start}.payroll-detail-grid{grid-template-columns:repeat(4,1fr);gap:14px}.payroll-detail-item{border-right:0;padding:0}.payroll-dashboard-grid{grid-template-columns:repeat(2,1fr)}}
+
+      .payroll-approval-modal{width:min(920px,94vw);max-height:88vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(15,23,42,.28)}
+      .payroll-approval-modal header{display:flex;justify-content:space-between;gap:18px;padding:20px 22px;border-bottom:1px solid #e5eaf0}.payroll-approval-modal h2{margin:0;font-size:20px}.payroll-approval-modal p{margin:5px 0 0;color:#64748b;font-size:12px}
+      .approval-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 22px;background:#f8fafc}.approval-summary div{padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}.approval-summary span{display:block;color:#64748b;font-size:11px}.approval-summary b{display:block;margin-top:3px;font-size:18px;color:#172033}
+      .approval-table-wrap{padding:0 22px 18px;overflow:auto}.approval-table{width:100%;border-collapse:collapse}.approval-table th,.approval-table td{padding:11px 9px;border-bottom:1px solid #e9eef4;text-align:left;font-size:12px}.approval-table th{color:#526174;text-transform:uppercase;font-size:10px;letter-spacing:.04em}
+      .payroll-approval-modal footer{display:flex;justify-content:flex-end;gap:10px;padding:15px 22px;border-top:1px solid #e5eaf0}.status-pill-modern.approved{background:#e8f7ee;color:#18794e;border-color:#bfe5cc}
       @media(max-width:760px){.payroll-filter-card{grid-template-columns:1fr}.payroll-summary-card{grid-template-columns:1fr 1fr}.payroll-clean-table th:nth-child(3),.payroll-clean-table td:nth-child(3),.payroll-clean-table th:nth-child(4),.payroll-clean-table td:nth-child(4),.payroll-clean-table th:nth-child(6),.payroll-clean-table td:nth-child(6){display:none}.payroll-footer-total{grid-template-columns:repeat(2,1fr)}.payroll-footer-total .approve-box{grid-column:1/-1;margin:12px 0 0}.manual-panel .employee-form-grid{grid-template-columns:1fr}.group-cards{grid-template-columns:1fr}}
     `}</style>
 
@@ -980,14 +1040,14 @@ export default function Payroll({ data, setData, setActive }) {
           <button className="btn secondary" onClick={()=>toggleTabSelection(tabEntries)}>{tabEntries.length > 0 && tabEntries.every(entry=>selectedEntryIds.includes(entry.id)) ? `Clear All (${tabEntries.length})` : `Select All (${tabEntries.length})`}</button>
           <button className="btn secondary" onClick={toggleVisibleSelection}>{allVisibleSelected ? `Clear Page (${viewPagedEntries.length})` : `Select Page (${viewPagedEntries.length})`}</button>
           <span className="bulk-selected-count">{selectedEntryIds.length} selected</span>
-          <div className="right"><button className="btn secondary" onClick={exportSelectedEntries}><Icon name="download"/> Export Selected</button><button className="btn danger" onClick={deleteSelectedEntries}>Delete Selected</button><button className="btn success">Approve Payroll</button></div>
+          <div className="right"><button className="btn secondary" onClick={exportSelectedEntries}><Icon name="download"/> Export Selected</button><button className="btn danger" onClick={deleteSelectedEntries}>Delete Selected</button><button className="btn success" onClick={openApprovalWindow}><Icon name="check"/> Approve Payroll</button></div>
         </div>
         <table className="payroll-clean-table"><thead><tr><th><input type="checkbox" checked={tabEntries.length>0 && tabEntries.every(entry=>selectedEntryIds.includes(entry.id))} onChange={()=>toggleTabSelection(tabEntries)} /></th><th>Date</th><th>Employee</th><th>Hours</th><th>Payroll Type</th><th>Final Check</th><th>Status</th><th>Check #</th><th>Actions</th></tr></thead><tbody>
           {viewPagedEntries.length ? viewPagedEntries.map((entry,index)=>{
             const open=expandedEntryIds.includes(entry.id)
             const isTips=String(entry.payroll_classification||inferPayrollClassification(entry)).toLowerCase().includes('tip') || num(entry.tips)>0
             const initials=String(entry.employee_name||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()
-            return <React.Fragment key={entry.id}><tr><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)}/></td><td className="pay-date-cell">{entry.pay_date||'—'}</td><td><div className="employee-name-cell"><span className="employee-avatar">{initials}</span><div><b>{entry.employee_name}</b><small>{entry.group_name||entry.pay_type||'Employee'}</small></div></div></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td><span className={`payroll-type-pill ${isTips?'tips':'kitchen'}`}>{isTips?'Tips Payroll':'Kitchen Payroll'}</span></td><td className="money-final">${money(entry.total_pay)}</td><td><span className="status-pill-modern">Pending</span></td><td><input className="check-input" value={entry.check_number||''} placeholder="—" onChange={e=>setData(prev=>({...prev,payrollEntries:(prev.payrollEntries||[]).map(row=>row.id===entry.id?{...row,check_number:e.target.value}:row)}))}/></td><td><div className="row-actions"><button title="Edit" onClick={()=>startEdit(entry)}><Icon name="edit" size={14}/></button><button title="Expand" onClick={()=>toggleExpandedEntry(entry.id)}><Icon name={open?'chevronUp':'chevronDown'} size={14}/></button></div></td></tr>{open&&<tr className="payroll-detail-row"><td colSpan="9"><div className="payroll-detail-grid"><div className="payroll-detail-item"><span>Regular Pay</span><b>${money(entry.regular_pay)}</b></div><div className="payroll-detail-item"><span>Overtime Pay</span><b>${money(entry.overtime_pay)}</b></div><div className="payroll-detail-item"><span>Original Tips</span><b>${money(num(entry.tips)+num(entry.tip_deduction))}</b></div><div className="payroll-detail-item"><span>Tips Withheld</span><b className="negative">${money(entry.tip_deduction)}</b></div><div className="payroll-detail-item"><span>Net Tips</span><b className="positive">${money(entry.tips)}</b></div><div className="payroll-detail-item"><span>Extra Pay</span><b>${money(entry.extra_pay)}</b></div><div className="payroll-detail-item"><span>Pay Date</span><b>{entry.pay_date||'—'}</b></div><div className="payroll-detail-item"><span>Method</span><b>{entry.payroll_type||'—'}</b></div></div></td></tr>}</React.Fragment>
+            return <React.Fragment key={entry.id}><tr><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)}/></td><td className="pay-date-cell">{entry.pay_date||'—'}</td><td><div className="employee-name-cell"><span className="employee-avatar">{initials}</span><div><b>{entry.employee_name}</b><small>{entry.group_name||entry.pay_type||'Employee'}</small></div></div></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td><span className={`payroll-type-pill ${isTips?'tips':'kitchen'}`}>{isTips?'Tips Payroll':'Kitchen Payroll'}</span></td><td className="money-final">${money(entry.total_pay)}</td><td><span className={`status-pill-modern ${String(entry.approval_status||'Pending').toLowerCase()==='approved'?'approved':''}`}>{entry.approval_status||'Pending'}</span></td><td><input className="check-input" value={entry.check_number||''} placeholder="—" onChange={e=>setData(prev=>({...prev,payrollEntries:(prev.payrollEntries||[]).map(row=>row.id===entry.id?{...row,check_number:e.target.value}:row)}))}/></td><td><div className="row-actions"><button title="Edit" onClick={()=>startEdit(entry)}><Icon name="edit" size={14}/></button><button title="Expand" onClick={()=>toggleExpandedEntry(entry.id)}><Icon name={open?'chevronUp':'chevronDown'} size={14}/></button></div></td></tr>{open&&<tr className="payroll-detail-row"><td colSpan="9"><div className="payroll-detail-grid"><div className="payroll-detail-item"><span>Regular Pay</span><b>${money(entry.regular_pay)}</b></div><div className="payroll-detail-item"><span>Overtime Pay</span><b>${money(entry.overtime_pay)}</b></div><div className="payroll-detail-item"><span>Original Tips</span><b>${money(num(entry.tips)+num(entry.tip_deduction))}</b></div><div className="payroll-detail-item"><span>Tips Withheld</span><b className="negative">${money(entry.tip_deduction)}</b></div><div className="payroll-detail-item"><span>Net Tips</span><b className="positive">${money(entry.tips)}</b></div><div className="payroll-detail-item"><span>Extra Pay</span><b>${money(entry.extra_pay)}</b></div><div className="payroll-detail-item"><span>Pay Date</span><b>{entry.pay_date||'—'}</b></div><div className="payroll-detail-item"><span>Method</span><b>{entry.payroll_type||'—'}</b></div></div></td></tr>}</React.Fragment>
           }) : <tr><td colSpan="9" className="empty-cell">No payroll entries in the selected date range.</td></tr>}
         </tbody></table>
         <div className="payroll-pagination"><span>Showing {tabEntries.length ? (viewCurrentPage-1)*rowsPerPage+1 : 0} to {Math.min(viewCurrentPage*rowsPerPage,tabEntries.length)} of {tabEntries.length}</span><div className="pages"><button onClick={()=>setPage(Math.max(1,viewCurrentPage-1))}>‹</button>{Array.from({length:Math.min(viewTotalPages,5)},(_,i)=>i+1).map(n=><button key={n} className={viewCurrentPage===n?'active':''} onClick={()=>setPage(n)}>{n}</button>)}<button onClick={()=>setPage(Math.min(viewTotalPages,viewCurrentPage+1))}>›</button></div><label>Rows: <select value={rowsPerPage} onChange={e=>setRowsPerPage(Number(e.target.value))}><option>10</option><option>25</option><option>50</option></select></label></div>
@@ -999,9 +1059,17 @@ export default function Payroll({ data, setData, setActive }) {
 
       {previewRows.length>0 && <section className="payroll-table-card import-preview"><div className="payroll-actionbar"><div><h2>Labor Summary Review</h2><small>{previewRows.length} rows ready to add{previewRows[0]?.period_label ? ` • Toast report: ${previewRows[0].period_label}` : ''}</small></div><div className="right"><button className="btn secondary" onClick={()=>setPreviewRows([])}>Cancel</button><button className="btn primary" onClick={savePreviewToPayroll}>Add To Payroll</button></div></div><div className="import-review-scroll"><table className="labor-review-table"><thead><tr><th>Pay Date</th><th>Toast Period</th><th>Employee</th><th>Hours</th><th>Regular Pay</th><th>Original Tips</th><th>3.5% Withheld</th><th>Final Tips</th><th>Extra Pay</th><th>Final Check</th><th>Pay Type</th><th>Payment</th><th>Check #</th><th>Status</th></tr></thead><tbody>{previewRows.map(row=><tr key={row.id}><td className="pay-date-cell">{row.pay_date||toastPayDate}</td><td>{row.period_label||row.pay_date||'—'}</td><td><b>{row.employee_name}</b><small>{row.job_type||row.source_sheet}</small></td><td>{row.hours}</td><td>${money(row.regular_pay)}</td><td>${money(row.total_tips)}</td><td className="negative">-${money(row.tip_deduction)}</td><td className="positive">${money(row.tips)}</td><td>${money(row.extra_pay)}</td><td className="money-final">${money(row.total_pay)}</td><td>{row.pay_type}</td><td>{row.payroll_type}</td><td>{row.check_number||'—'}</td><td><span className="status-pill-modern">Review</span></td></tr>)}</tbody></table></div></section>}
 
+
+      {approvalOpen && <div className="payroll-edit-overlay" onClick={()=>setApprovalOpen(false)}><section className="payroll-approval-modal" onClick={e=>e.stopPropagation()}>
+        <header><div><h2>Approve Payroll & Make Checks</h2><p>Review the selected payroll lines. Approval creates one check per employee while keeping every daily payroll line intact.</p></div><button className="modal-close" onClick={()=>setApprovalOpen(false)}>×</button></header>
+        <div className="approval-summary"><div><span>Payroll Lines</span><b>{approvalRows.length}</b></div><div><span>Employees</span><b>{approvalChecks.length}</b></div><div><span>Checks to Create</span><b>{approvalChecks.filter(r=>String(r.payroll_type).toLowerCase()==='check').length}</b></div><div><span>Total Approved</span><b>${money(approvalRows.reduce((s,r)=>s+num(r.total_pay),0))}</b></div></div>
+        <div className="approval-table-wrap"><table className="approval-table"><thead><tr><th>Employee</th><th>Lines</th><th>Method</th><th>Check #</th><th>Amount</th><th>Result</th></tr></thead><tbody>{approvalChecks.map(row=><tr key={row.employee_id||row.employee_name}><td><b>{row.employee_name}</b></td><td>{row.line_count}</td><td>{row.payroll_type}</td><td>{row.check_number||'Assign later'}</td><td className="money-final">${money(row.amount)}</td><td>{String(row.payroll_type).toLowerCase()==='check'?'Add to Make Checks':'Approve as Cash'}</td></tr>)}</tbody></table></div>
+        <footer><button className="btn secondary" onClick={()=>setApprovalOpen(false)}>Cancel</button><button className="btn success" onClick={confirmPayrollApproval}><Icon name="check"/> Approve & Add Checks</button></footer>
+      </section></div>}
+
       {editingEntryId && <div className="payroll-edit-overlay" onClick={()=>setEditingEntryId(null)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Payroll Entry</h2><p>Update the employee's weekly payroll details.</p></div><button className="modal-close" onClick={()=>setEditingEntryId(null)}>×</button></header><div className="payroll-edit-grid"><label>Pay Date<input type="date" value={entryForm.pay_date||''} onChange={e=>setEntryForm(prev=>({...prev,pay_date:e.target.value}))}/></label><label>Hours<input type="number" step="0.01" value={entryForm.hours||''} onChange={e=>setEntryForm(prev=>({...prev,hours:e.target.value}))}/></label><label>Regular Pay<input type="number" step="0.01" value={entryForm.regular_pay||''} onChange={e=>setEntryForm(prev=>({...prev,regular_pay:e.target.value}))}/></label><label>Net Tips<input type="number" step="0.01" value={entryForm.tips||''} onChange={e=>setEntryForm(prev=>({...prev,tips:e.target.value}))}/></label><label>Tips Withheld<input type="number" step="0.01" value={entryForm.tip_deduction||''} onChange={e=>setEntryForm(prev=>({...prev,tip_deduction:e.target.value}))}/></label><label>Extra Pay<input type="number" step="0.01" value={entryForm.extra_pay||''} onChange={e=>setEntryForm(prev=>({...prev,extra_pay:e.target.value}))}/></label><label>Check Number<input value={entryForm.check_number||''} onChange={e=>setEntryForm(prev=>({...prev,check_number:e.target.value}))}/></label><label className="wide">Extra Pay Reason<input value={entryForm.extra_reason||''} onChange={e=>setEntryForm(prev=>({...prev,extra_reason:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setEditingEntryId(null)}>Cancel</button><button className="btn primary" onClick={saveEntryEdit}>Save Changes</button></footer></section></div>}
 
-      {['all','tips','kitchen','history'].includes(activeTab) && <div className="payroll-footer-total"><div><b>{viewTotals.employees.size}</b><span>Employees</span></div><div><b>{money(viewTotals.hours)}</b><span>Total Hours</span></div><div><b className="positive">${money(viewTotals.originalTips)}</b><span>Original Tips</span></div><div><b className="negative">${money(viewTotals.withheld)}</b><span>Tips Withheld</span></div><div><b>${money(viewTotals.extra)}</b><span>Extra Pay</span></div><div><b>${money(viewTotals.final)}</b><span>Final Checks</span></div><div className="approve-box"><button className="btn success"><Icon name="check"/> Approve Payroll</button></div></div>}
+      {['all','tips','kitchen','history'].includes(activeTab) && <div className="payroll-footer-total"><div><b>{viewTotals.employees.size}</b><span>Employees</span></div><div><b>{money(viewTotals.hours)}</b><span>Total Hours</span></div><div><b className="positive">${money(viewTotals.originalTips)}</b><span>Original Tips</span></div><div><b className="negative">${money(viewTotals.withheld)}</b><span>Tips Withheld</span></div><div><b>${money(viewTotals.extra)}</b><span>Extra Pay</span></div><div><b>${money(viewTotals.final)}</b><span>Final Checks</span></div><div className="approve-box"><button className="btn success" onClick={openApprovalWindow}><Icon name="check"/> Approve Payroll</button></div></div>}
     </div>
   </>
 }
