@@ -97,7 +97,28 @@ function payrollClassification(row = {}) {
 }
 function isCustomerTips(row) { return payrollClassification(row) === 'Customer Tips' }
 function isOperatingLabor(row) { return !isCustomerTips(row) }
-function rowTipsPaid(row) { return Math.max(0, num(row.tips || row.tips_after_withheld || row.tips_after_withholding || row.final_tips) - num(row.tip_deduction || row.tips_withheld || row.tips_withholding)) }
+function rowTipsPaid(row) {
+  // Payroll stores `tips` as the net amount after withholding. Only subtract
+  // withholding when the row provides original/gross tips instead of net tips.
+  const netKeys = ['tips_after_withheld', 'tips_after_withholding', 'final_tips', 'net_tips']
+  for (const key of netKeys) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return Math.max(0, num(row[key]))
+  }
+  if (row.tips !== undefined && row.tips !== null && String(row.tips).trim() !== '') return Math.max(0, num(row.tips))
+  const original = firstAmount(row, ['original_tips', 'gross_tips', 'tips_original'])
+  const withheld = firstAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding'])
+  return Math.max(0, original - withheld)
+}
+function rowOperatingPay(row) {
+  // Operating labor includes wages, overtime and extra pay for every employee,
+  // including servers. Customer tips are pass-through and are excluded only
+  // from the labor/profit calculation, not by excluding the whole employee row.
+  const explicitWages = firstAmount(row, ['regular_pay', 'regularPay'])
+    + firstAmount(row, ['overtime_pay', 'overtimePay'])
+    + firstAmount(row, ['extra_pay', 'extraPay'])
+  if (explicitWages > 0) return explicitWages
+  return Math.max(0, rowTotalPay(row) - rowTipsPaid(row))
+}
 function payrollType(row) { return String(row.payment_method || row.payroll_type || row.method || row.type || row.pay_method || '').toLowerCase() }
 function isCashPayroll(row) { return payrollType(row).includes('cash') }
 function isCheckPayroll(row) { return payrollType(row).includes('check') }
@@ -150,15 +171,18 @@ function MetricCard({ title, value, subtitle, icon, tone = 'blue', onClick }) {
   )
 }
 
-function SectionCard({ title, icon, tone = 'blue', total, subtitle, action, children }) {
+function SectionCard({ title, icon, tone = 'blue', total, subtitle, action, onOpen, children }) {
   return (
     <section className={`section-card tone-${tone}`}>
       <header className="section-card-header">
-        <div className="section-title-wrap">
-          <span className="section-icon"><Icon name={icon} size={18} /></span>
-          <div><h2>{title}</h2>{subtitle ? <small>{subtitle}</small> : null}</div>
-        </div>
-        <div className="section-total">{total ? <strong>{total}</strong> : null}{action}</div>
+        <button type="button" className="section-card-title-button" onClick={onOpen} disabled={!onOpen} aria-label={onOpen ? `Open ${title} details` : undefined}>
+          <div className="section-title-wrap">
+            <span className="section-icon"><Icon name={icon} size={18} /></span>
+            <div><h2>{title}</h2>{subtitle ? <small>{subtitle}</small> : null}</div>
+          </div>
+          <div className="section-total">{total ? <strong>{total}</strong> : null}</div>
+        </button>
+        {action ? <div className="section-card-action">{action}</div> : null}
       </header>
       <div className="section-card-body">{children}</div>
     </section>
@@ -306,8 +330,8 @@ export default function Dashboard({ data, setData, setActive }) {
     const monthPayroll = payroll.filter(row => inRange(rowDate(row, ['pay_date', 'payroll_date', 'date'])))
     const cashPayrollRows = monthPayroll.filter(isCashPayroll)
     const checkPayrollRows = monthPayroll.filter(isCheckPayroll)
-    const operatingLaborRows = monthPayroll.filter(isOperatingLabor)
-    const customerTipRows = monthPayroll.filter(isCustomerTips)
+    const operatingLaborRows = monthPayroll.filter(row => rowOperatingPay(row) > 0)
+    const customerTipRows = monthPayroll.filter(row => rowTipsPaid(row) > 0)
     const monthInvoices = invoices.filter(row => inRange(rowDate(row, ['invoice_date', 'date'])))
     const invoiceById = Object.fromEntries(invoices.map(inv => [inv.id, inv]))
     const monthInvoiceItems = invoiceItems.filter(row => {
@@ -340,9 +364,9 @@ export default function Dashboard({ data, setData, setActive }) {
 
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const payrollTotal = monthPayroll.reduce((sum, row) => sum + rowTotalPay(row), 0)
-    const operatingPayroll = operatingLaborRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const operatingPayroll = operatingLaborRows.reduce((sum, row) => sum + rowOperatingPay(row), 0)
     const cashOperatingPayrollRows = operatingLaborRows.filter(isCashPayroll)
-    const cashOperatingPayroll = cashOperatingPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const cashOperatingPayroll = cashOperatingPayrollRows.reduce((sum, row) => sum + rowOperatingPay(row), 0)
     const dcPayrollPreview = calculateDepartmentCosts({ payrollRows: monthPayroll, employees: data?.employees || [], settings: data?.settings || {} })
     const managerPayrollTotal = (dcPayrollPreview.payrollDetails.manager || []).reduce((sum, row) => sum + num(row.amount), 0)
     const assistantRows = (dcPayrollPreview.payrollDetails.other || []).filter(row => /assistant manager|assistant mgr|asst\.? manager|asistente manager/i.test([row.employee_type,row.job_type,row.position,row.role,row.employee_name,row.name].join(' ')))
@@ -638,26 +662,26 @@ export default function Dashboard({ data, setData, setActive }) {
       </section>
 
       <section className="dashboard-command-row" aria-label="Dashboard quick operating summary">
-        <div className="command-tile is-primary">
+        <button type="button" className="command-tile is-primary" onClick={() => showDetail('cash-remaining')}>
           <span>Cash Flow</span>
           <strong>{money(derived.cashRemaining)}</strong>
           <small>Toast cash {money(derived.cashSales)} minus operating cash payroll and cash expenses</small>
-        </div>
-        <div className="command-tile">
+        </button>
+        <button type="button" className="command-tile" onClick={() => showDetail('prime-cost')}>
           <span>Prime Cost</span>
           <strong>{pct(derived.primeCostPct)}</strong>
           <small>Food + payroll against net restaurant sales</small>
-        </div>
-        <div className="command-tile">
+        </button>
+        <button type="button" className="command-tile" onClick={() => showDetail('operating-payroll')}>
           <span>Labor Mix</span>
           <strong>{pct(derived.laborPct)}</strong>
           <small>Cash {money(derived.cashPayroll)} · Check {money(derived.checkPayroll)}</small>
-        </div>
-        <div className="command-tile">
+        </button>
+        <button type="button" className="command-tile" onClick={() => showDetail('true-food-cost')}>
           <span>Food Cost</span>
           <strong>{pct(derived.foodCostPct)}</strong>
           <small>{money(derived.foodSpend)} food spend in selected range</small>
-        </div>
+        </button>
       </section>
 
       <div className="metric-grid">
@@ -675,30 +699,30 @@ export default function Dashboard({ data, setData, setActive }) {
       </div>
 
       <section className="business-health-strip" aria-label="Today business health and reconciliation">
-        <div><span>Food Cost</span><strong>{pct(derived.foodCostPct)}</strong><small>{money(derived.foodSpend)}</small></div>
-        <div><span>Alcohol Sales</span><strong>{money(derived.departmentCosts.alcoholSales)}</strong><small>Margaritas included: {money(derived.margaritaSales)}</small></div>
-        <div><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></div>
-        <div><span>Prime Cost</span><strong>{pct(derived.primeCostPct)}</strong><small>Food + operating labor</small></div>
-        <div><span>Net Profit</span><strong>{money(derived.operatingProfit)}</strong><small>{pct(derived.profitMargin)} margin</small></div>
-        <div><span>Average Check</span><strong>{money(derived.averageCheck)}</strong><small>{derived.guestCount.toLocaleString()} guests/checks</small></div>
+        <button type="button" onClick={() => showDetail('true-food-cost')}><span>Food Cost</span><strong>{pct(derived.foodCostPct)}</strong><small>{money(derived.foodSpend)}</small></button>
+        <button type="button" onClick={() => showDetail('department', 'alcohol-sales')}><span>Alcohol Sales</span><strong>{money(derived.departmentCosts.alcoholSales)}</strong><small>Margaritas included: {money(derived.margaritaSales)}</small></button>
+        <button type="button" onClick={() => showDetail('operating-payroll')}><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></button>
+        <button type="button" onClick={() => showDetail('prime-cost')}><span>Prime Cost</span><strong>{pct(derived.primeCostPct)}</strong><small>Food + alcohol COGS + labor</small></button>
+        <button type="button" onClick={() => showDetail('operating-profit')}><span>Net Profit</span><strong>{money(derived.operatingProfit)}</strong><small>{pct(derived.profitMargin)} margin</small></button>
+        <button type="button" onClick={() => showDetail('sales')}><span>Average Check</span><strong>{money(derived.averageCheck)}</strong><small>{derived.guestCount.toLocaleString()} guests/checks</small></button>
         <button type="button" className={`reconciliation-tile ${derived.reconciliationOk ? 'ok' : 'warning'}`} onClick={() => showDetail('reconciliation')}>
           <span>Reconciliation</span><strong>{derived.reconciliationOk ? 'Balanced' : 'Review'}</strong><small>{derived.reconciliationOk ? 'All dashboard checks passed' : 'A total does not match its details'}</small>
         </button>
       </section>
 
       <div className="dashboard-grid-main">
-        {visible.restaurantHealth && (<SectionCard title="Restaurant Health" icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
+        {visible.restaurantHealth && (<SectionCard title="Restaurant Health" onOpen={() => showDetail('health')} icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
           <div className="health-block">
             <div className="health-score"><strong>{derived.healthScore}</strong><span>{healthLabel(derived.healthScore)}</span></div>
             <div className="health-meters">
               <ProgressMeter label="Food Cost" value={derived.foodCostPct} tone="orange" caption={`${money(derived.foodSpend)} food spend`} />
               <ProgressMeter label="Operating Labor" value={derived.laborPct} tone="teal" caption={`${money(derived.operatingPayroll)} excludes customer tips`} />
-              <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + operating labor target under 65%" />
+              <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + alcohol COGS + operating labor target under 65%" />
             </div>
           </div>
         </SectionCard>)}
 
-        {visible.departmentProfitability && (<SectionCard title="Food & Alcohol Profitability" icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules" action={<button type="button" className="btn secondary small-btn" onClick={() => setActive('cost-analysis')}>Open Cost Page</button>}>
+        {visible.departmentProfitability && (<SectionCard title="Food & Alcohol Profitability" onOpen={() => setActive('cost-analysis')} icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules" action={<button type="button" className="btn secondary small-btn" onClick={() => setActive('cost-analysis')}>Open Cost Page</button>}>
           {(() => {
             const classifiedSales = derived.departmentCosts.foodSales + derived.departmentCosts.alcoholSales
             const foodShare = classifiedSales > 0 ? derived.departmentCosts.foodSales / classifiedSales * 100 : 0
@@ -749,17 +773,17 @@ export default function Dashboard({ data, setData, setActive }) {
           </div>
         </SectionCard>)}
 
-        {visible.cashPosition && (<SectionCard title="Cash Position" icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
+        {visible.cashPosition && (<SectionCard title="Cash Position" onOpen={() => showDetail('cash-remaining')} icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
           <RowList rows={[
-            { label: 'Cash Collected', amount: money(derived.cashSales), meta: 'From Toast sales' },
-            { label: 'Cash Payroll', amount: money(derived.cashPayroll), meta: `${derived.cashPayrollRows.length} cash payroll rows` },
-            { label: 'Server Tips Paid', amount: money(derived.customerTipsPaid), meta: 'Tracked separately from operating payroll' },
-            { label: 'Invoice Spend', amount: money(derived.invoiceSpend), meta: `${derived.monthInvoices.length} invoices` },
-            { label: 'Manual Expenses', amount: money(derived.manualExpenseSpend), meta: `${derived.monthExpenses.length} expenses` }
-          ]} />
+            { id: 'cash-sales', label: 'Cash Collected', amount: money(derived.cashSales), meta: 'From Toast sales' },
+            { id: 'cash-payroll', label: 'Cash Payroll', amount: money(derived.cashPayroll), meta: `${derived.cashPayrollRows.length} cash payroll rows` },
+            { id: 'server-tips', label: 'Server Tips Paid', amount: money(derived.customerTipsPaid), meta: 'Tracked separately from operating payroll' },
+            { id: 'vendors', label: 'Invoice Spend', amount: money(derived.invoiceSpend), meta: `${derived.monthInvoices.length} invoices` },
+            { id: 'expenses', label: 'Manual Expenses', amount: money(derived.manualExpenseSpend), meta: `${derived.monthExpenses.length} expenses` }
+          ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
-        {visible.profitLoss && (<SectionCard title="Profit & Loss" icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
+        {visible.profitLoss && (<SectionCard title="Profit & Loss" onOpen={() => showDetail('operating-profit')} icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
           <RowList rows={[
             { id: 'profit-net-sales', label: 'Net Restaurant Sales', amount: money(derived.trueNetSales), meta: 'Net after tax/tips adjustment' },
             { id: 'profit-payroll', label: 'Operating Payroll Cost', amount: money(derived.operatingPayroll), meta: 'Kitchen/manager labor only; server tips excluded' },
@@ -768,7 +792,7 @@ export default function Dashboard({ data, setData, setActive }) {
           ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
-        {visible.salesPerformance && (<SectionCard title="Sales Performance" icon="sales" tone="blue" total={money(derived.grossSales)} subtitle="Gross and payment mix">
+        {visible.salesPerformance && (<SectionCard title="Sales Performance" onOpen={() => showDetail('sales')} icon="sales" tone="blue" total={money(derived.grossSales)} subtitle="Gross and payment mix">
           <RowList rows={[
             { id: 'sales-gross', label: 'Gross Sales', amount: money(derived.grossSales), meta: 'Before adjustments' },
             { id: 'sales-credit', label: 'Credit Sales', amount: money(derived.creditSales), meta: 'Card payments' },
@@ -777,25 +801,25 @@ export default function Dashboard({ data, setData, setActive }) {
           ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
-        {visible.vendorPurchases && (<SectionCard title="Vendor Purchases" icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">
-          <RowList rows={derived.vendorRecent.map(row => ({ label: row.vendor || 'Vendor Purchase', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
+        {visible.vendorPurchases && (<SectionCard title="Vendor Purchases" onOpen={() => showDetail('vendors')} icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">
+          <RowList rows={derived.vendorRecent.map(row => ({ onClick: () => setActive('invoices'), label: row.vendor || 'Vendor Purchase', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
           <div className="category-pills">{derived.vendorCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('vendors', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
         </SectionCard>)}
 
-        {visible.businessExpensePanel && (<SectionCard title="Business Expenses" icon="expenses" tone="red" total={money(derived.businessSpend)} subtitle="Operating expenses">
-          <RowList rows={derived.businessRecent.map(row => ({ label: row.vendor || row.description || 'Expense', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
+        {visible.businessExpensePanel && (<SectionCard title="Business Expenses" onOpen={() => showDetail('expenses')} icon="expenses" tone="red" total={money(derived.businessSpend)} subtitle="Operating expenses">
+          <RowList rows={derived.businessRecent.map(row => ({ onClick: () => setActive('expenses'), label: row.vendor || row.description || 'Expense', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
           <div className="category-pills">{derived.businessCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('expenses', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
         </SectionCard>)}
       </div>
 
       <div className="dashboard-grid-secondary">
-        {visible.weeklySalesTrend && (<SectionCard title="Weekly Sales Trend" icon="trending" tone="blue" subtitle="Last seven date buckets">
+        {visible.weeklySalesTrend && (<SectionCard title="Weekly Sales Trend" onOpen={() => showDetail('sales')} icon="trending" tone="blue" subtitle="Last seven date buckets">
           <MiniBars rows={derived.salesTrend} tone="blue" />
         </SectionCard>)}
-        {visible.spendingTrend && (<SectionCard title="Spending Trend" icon="pie" tone="red" subtitle="Invoice + expense activity">
+        {visible.spendingTrend && (<SectionCard title="Spending Trend" onOpen={() => showDetail('expenses')} icon="pie" tone="red" subtitle="Invoice + expense activity">
           <MiniBars rows={derived.expenseTrend} tone="red" />
         </SectionCard>)}
-        {visible.restaurantIntelligence && (<SectionCard title="Restaurant Intelligence" icon="alert" tone="navy" subtitle="Suggested actions">
+        {visible.restaurantIntelligence && (<SectionCard title="Restaurant Intelligence" onOpen={() => showDetail('health')} icon="alert" tone="navy" subtitle="Suggested actions">
           <div className="insight-list">
             <div><b>{derived.healthScore >= 70 ? 'Restaurant health is stable' : 'Restaurant health needs review'}</b><span>Review food cost, operating labor, and cash position before payroll.</span></div>
             <div><b>{derived.foodCostPct > 35 ? 'Food cost is high' : 'Food cost is under control'}</b><span>Food cost is currently {pct(derived.foodCostPct)}.</span></div>

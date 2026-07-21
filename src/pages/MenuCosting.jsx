@@ -91,7 +91,29 @@ function ing(key, qty, unit = 'portion', cost = baseCosts[key], vendor = 'US Foo
 function recipeTemplate(name, avgPrice = 0) {
   const text = String(name || '').toLowerCase()
   let lines = []
-  if (isBeverageItem(text)) {
+  if (text.includes('cheese dip')) {
+    lines = [ing('queso', text.includes('large') ? 8 : 4, 'oz', baseCosts.queso / 4), ing('beverage', text.includes('large') ? 2 : 1, 'oz', .08, 'US Foods'), ing('seasoning', 1, 'portion')]
+  } else if (text.includes('salsa') && !text.includes('pico')) {
+    lines = [ing('tomato', 10, 'oz', .06), ing('onion', 1.5, 'oz', .05), ing('seasoning', 1, 'portion'), ing('pepper', .5, 'oz', .08)]
+  } else if (text.includes('pico de gallo')) {
+    lines = [ing('tomato', 3, 'oz', .06), ing('onion', 1, 'oz', .05), ing('pepper', .25, 'oz', .08), ing('lime', .5, 'each', .12), ing('seasoning', 1, 'portion')]
+  } else if (text.includes('chunky guacamole')) {
+    lines = [ing('avocado', 2, 'each', .95), ing('tomato', 1.5, 'oz', .06), ing('onion', 1, 'oz', .05), ing('pepper', .25, 'oz', .08), ing('lime', .5, 'each', .12), ing('seasoning', 1, 'portion')]
+  } else if (text.includes('guacamole salad')) {
+    lines = [ing('avocado', 1, 'each', .95), ing('lettuce', 2, 'oz', .08), ing('tomato', 1, 'oz', .06), ing('onion', .5, 'oz', .05), ing('lime', .25, 'each', .12)]
+  } else if (text.includes('arroz tex')) {
+    lines = [ing('rice', 8, 'oz', .08), ing('steak', 4, 'oz', .40), ing('chicken', 3, 'oz', .24), ing('shrimp', 5, 'each', .28), ing('pepper', 2, 'oz', .08), ing('onion', 2, 'oz', .05), ing('tomato', 1, 'oz', .06), ing('queso', 3, 'oz', baseCosts.queso / 4), ing('seasoning', 1, 'portion'), ing('oil', 1, 'portion')]
+  } else if (text.includes('arroz mex')) {
+    lines = [ing('rice', 8, 'oz', .08), ing('steak', 6, 'oz', .40), ing('pepper', 2, 'oz', .08), ing('onion', 2, 'oz', .05), ing('tomato', 1, 'oz', .06), ing('queso', 3, 'oz', baseCosts.queso / 4), ing('seasoning', 1, 'portion')]
+  } else if (text.includes('fajitas texanas') || text.includes('fajita texana')) {
+    lines = [ing('steak', 4, 'oz', .40), ing('chicken', 4, 'oz', .24), ing('shrimp', 5, 'each', .28), ing('pepper', 2, 'oz', .08), ing('onion', 2, 'oz', .05), ing('tomato', 1, 'oz', .06), ing('flourTortilla', 3, 'each'), ing('rice', 4, 'oz', .08), ing('beans', 4, 'oz', .08), ing('lettuce', 1, 'oz', .08), ing('sourCream', 1, 'oz', .22), ing('guacamole', 1, 'oz', .55), ing('seasoning', 1, 'portion')]
+  } else if (text.includes('isabella dip')) {
+    lines = [ing('beef', 5, 'oz', .28), ing('queso', 6, 'oz', baseCosts.queso / 4), ing('tomato', 1, 'oz', .06), ing('onion', .5, 'oz', .05), ing('pepper', .25, 'oz', .08), ing('chips', 4, 'oz', .12)]
+  } else if (text.includes('choriqueso')) {
+    lines = [ing('pork', 4, 'oz', .30), ing('queso', 6, 'oz', baseCosts.queso / 4), ing('chips', 4, 'oz', .12)]
+  } else if (text.includes('chips') && text.includes('salsa')) {
+    lines = [ing('chips', text.includes('double') ? 8 : 4, 'oz', .12), ing('salsa', text.includes('double') ? 8 : 4, 'oz', .09)]
+  } else if (isBeverageItem(text)) {
     if (isMargaritaDrink(text)) {
       lines = [ing('liquor', 1.5, 'oz', baseCosts.liquor, 'ABC Store'), ing('margaritaMix', 4, 'oz', baseCosts.margaritaMix / 4, 'US Foods'), ing('lime', 1, 'wedge', baseCosts.lime, 'US Foods'), ing('salt', 1, 'rim', baseCosts.salt, 'US Foods')]
     } else if (isLiquorItem(text)) {
@@ -337,7 +359,7 @@ export default function MenuCosting({ data, setData }) {
       const invoice = invoiceMap[String(item.invoice_id || item.invoiceId)] || {}
       const vendor = String(item.vendor_name || item.vendor || invoice.vendor_name || invoice.vendor || '').trim()
       const vendorKey = vendor.toLowerCase().replace(/[^a-z0-9]/g, '')
-      if (!(vendorKey.includes('usfoods') || vendorKey.includes('usfoodservice'))) return
+      if (!(vendorKey.includes('usfoods') || vendorKey.includes('usfoodservice') || vendorKey.includes('performancefood') || vendorKey.includes('pfg'))) return
       const category = String(item.category || invoice.category || '').toLowerCase()
       if (/(clean|supply|chemical|equipment|paper|packag|maintenance|utility)/.test(category)) return
       const name = String(item.item_name || item.description || item.name || '').trim()
@@ -349,7 +371,7 @@ export default function MenuCosting({ data, setData }) {
       const total = num(item.line_total ?? item.total ?? item.amount)
       const explicit = num(item.normalized_unit_cost ?? item.unit_cost ?? item.unit_price ?? item.price)
       rows.push({
-        id: String(item.id || createId('invoice-item-option')), name, vendor: vendor || 'US Foods',
+        id: String(item.id || createId('invoice-item-option')), name, vendor: vendor || 'Food Vendor',
         unit: item.normalized_unit || item.unit_size_unit || item.unit || item.uom || 'each',
         unitCost: explicit || (total ? total / qty : 0), category: item.category || invoice.category || 'Food',
         package: item.package_size || item.package_label || item.pack_size || '',
@@ -549,7 +571,7 @@ export default function MenuCosting({ data, setData }) {
               {purchasedIngredientOptions.map(option => <option key={option.id} value={option.name}>{option.vendor} · {option.package || option.unit}</option>)}
             </datalist>
             <div className="recipe-purchased-add">
-              <label><span>Add any edible US Foods purchase</span><select value={purchasedIngredientId} onChange={event => setPurchasedIngredientId(event.target.value)}><option value="">Select purchased invoice item</option>{purchasedIngredientOptions.map(option => <option key={option.id} value={option.id}>{option.name} · {option.package || option.unit} · {displayMoney(option.unitCost)}/{option.unit}</option>)}</select></label>
+              <label><span>Add any edible US Foods or Performance purchase</span><select value={purchasedIngredientId} onChange={event => setPurchasedIngredientId(event.target.value)}><option value="">Select purchased invoice item</option>{purchasedIngredientOptions.map(option => <option key={option.id} value={option.id}>{option.name} · {option.package || option.unit} · {displayMoney(option.unitCost)}/{option.unit}</option>)}</select></label>
               <button className="btn primary compact" type="button" disabled={!purchasedIngredientId} onClick={() => addPurchasedRecipeLine(selectedRecipe.id, purchasedIngredientOptions.find(option => option.id === purchasedIngredientId))}><Icon name="plus" size={14} /> Add Purchased Item</button>
             </div>
             <div className="recipe-add-bar"><span>Add common ingredient:</span>{['chicken','steak','beef','cheese','rice','beans','flourTortilla','liquor','margaritaMix','lime','salt','beer','beverage'].map(key => <button key={key} className="btn soft compact" type="button" onClick={() => addRecipeLine(selectedRecipe.id, key)}>{ingredientNames[key]}</button>)}</div>

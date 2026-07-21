@@ -128,7 +128,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const overtimePay = num(find(row, ALIASES.overtimePay))
     const grossPay = num(find(row, ALIASES.grossPay))
     const pay = round2(grossPay || regularPay + overtimePay || hours * rate)
-    const explicitTotalTips = find(row, ALIASES.totalTips)
+    const explicitTotalTips = has(row, ALIASES.totalTips) ? find(row, ALIASES.totalTips) : ''
     const creditTips = num(find(row, ALIASES.creditTips))
     const cashTips = num(find(row, ALIASES.cashTips))
     const totalTips = round2(explicitTotalTips !== '' ? num(explicitTotalTips) : creditTips + cashTips)
