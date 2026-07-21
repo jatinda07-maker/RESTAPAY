@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import { isSupabaseReady, supabase } from '../lib/supabase'
 
@@ -22,18 +22,49 @@ export default function ToastIntegration() {
   const [lastChecked, setLastChecked] = useState(null)
   const [workerAction, setWorkerAction] = useState('')
   const [workerApiStatus, setWorkerApiStatus] = useState(null)
-  const apiUrl = String(import.meta.env.VITE_TOAST_SYNC_API_URL || '').replace(/\/$/, '')
+  const apiUrl = String(
+    import.meta.env.VITE_TOAST_SYNC_API_URL ||
+    'https://restapay-toast-sync.onrender.com'
+  ).replace(/\/$/, '')
 
-  async function loadStatus() {
+  const requestJson = useCallback(async (url, options = {}, attempts = 2) => {
+    let lastError
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 15000)
+      try {
+        const response = await fetch(url, {
+          cache: 'no-store',
+          mode: 'cors',
+          ...options,
+          headers: { Accept: 'application/json', ...(options.headers || {}) },
+          signal: controller.signal
+        })
+        const text = await response.text()
+        let payload = {}
+        if (text) {
+          try { payload = JSON.parse(text) }
+          catch { throw new Error(`Worker returned invalid JSON (${response.status}).`) }
+        }
+        if (!response.ok) throw new Error(payload.error || payload.message || `Worker returned ${response.status}`)
+        return payload
+      } catch (error) {
+        lastError = error
+        if (attempt < attempts) await new Promise(resolve => window.setTimeout(resolve, 800 * attempt))
+      } finally {
+        window.clearTimeout(timeout)
+      }
+    }
+    if (lastError?.name === 'AbortError') throw new Error('Render API request timed out after 15 seconds.')
+    if (lastError instanceof TypeError) throw new Error('Browser could not reach the Render API. Check CORS and VITE_TOAST_SYNC_API_URL.')
+    throw lastError || new Error('Unknown Render API error.')
+  }, [])
+
+  const loadStatus = useCallback(async () => {
     setLoading(true)
 
-    const workerStatusPromise = apiUrl
-      ? fetch(`${apiUrl}/api/toast/status`, { cache: 'no-store' }).then(async response => {
-          const payload = await response.json().catch(() => ({}))
-          if (!response.ok) throw new Error(payload.error || `Worker returned ${response.status}`)
-          return payload
-        }).catch(error => ({ ok: false, connected: false, error: error.message }))
-      : Promise.resolve({ ok: false, connected: false, error: 'VITE_TOAST_SYNC_API_URL is not configured.' })
+    const workerStatusPromise = requestJson(`${apiUrl}/api/toast/status`, {}, 3)
+      .catch(error => ({ ok: false, connected: false, error: error.message }))
 
     const databasePromises = isSupabaseReady && supabase
       ? [
@@ -44,59 +75,65 @@ export default function ToastIntegration() {
         ]
       : [Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null })]
 
-    const [runResult, fileResult, dailyResult, feeResult, workerStatus] = await Promise.all([
-      ...databasePromises,
-      workerStatusPromise
-    ])
+    try {
+      const [runResult, fileResult, dailyResult, feeResult, workerStatus] = await Promise.all([
+        ...databasePromises,
+        workerStatusPromise
+      ])
 
-    setWorkerApiStatus(workerStatus)
+      setWorkerApiStatus(workerStatus)
 
-    const workerRun = workerStatus?.lastRun ? [workerStatus.lastRun] : []
-    const nextRuns = runResult?.data?.length ? runResult.data : workerRun
-    setRuns(nextRuns)
-    setFiles(fileResult?.data || [])
-    setDaily(dailyResult?.data || [])
-    setFeeRows(feeResult?.error ? [] : (feeResult?.data || []))
+      const effectiveWorkerStatus = workerStatus
+      const workerRun = effectiveWorkerStatus?.lastRun ? [effectiveWorkerStatus.lastRun] : []
+      const nextRuns = runResult?.data?.length ? runResult.data : workerRun
+      setRuns(nextRuns)
+      setFiles(fileResult?.data || [])
+      setDaily(dailyResult?.data || [])
+      setFeeRows(feeResult?.error ? [] : (feeResult?.data || []))
 
-    const coreDatabaseError = runResult?.error || fileResult?.error || dailyResult?.error
-    const workerHealthy = Boolean(workerStatus?.ok && workerStatus?.configured)
-    const databaseHealthy = Boolean(isSupabaseReady && !coreDatabaseError)
-    const ready = workerHealthy || databaseHealthy
+      const coreDatabaseError = runResult?.error || fileResult?.error || dailyResult?.error
+      const workerHealthy = Boolean(effectiveWorkerStatus?.ok && effectiveWorkerStatus?.configured)
+      const databaseHealthy = Boolean(isSupabaseReady && !coreDatabaseError)
+      const ready = workerHealthy || databaseHealthy
 
-    setSchemaReady(ready)
-    if (workerHealthy) {
-      const syncState = workerStatus.syncing ? 'Sync is currently running.' : 'Automation is ready.'
-      setMessage(`Toast cloud connection is active. ${syncState}`)
-    } else if (databaseHealthy) {
-      setMessage('Toast database tables are ready, but the Render sync API could not be reached.')
-    } else if (!isSupabaseReady) {
-      setMessage(workerStatus?.error || 'Frontend Supabase settings and Toast sync API URL are missing.')
-    } else {
-      setMessage(`Toast status check needs attention: ${coreDatabaseError?.message || workerStatus?.error || 'Unknown connection error.'}`)
+      setSchemaReady(ready)
+      if (workerHealthy) {
+        const syncState = effectiveWorkerStatus.syncing ? 'Sync is currently running.' : 'Automation is ready.'
+        const temporaryNote = workerStatus?.ok ? '' : ` Last refresh warning: ${workerStatus?.error}`
+        setMessage(`Toast cloud connection is active. ${syncState}${temporaryNote}`)
+      } else if (databaseHealthy) {
+        setMessage(`Toast database tables are ready, but the Render sync API could not be reached: ${workerStatus?.error || 'Unknown network error.'}`)
+      } else if (!isSupabaseReady) {
+        setMessage(workerStatus?.error || 'Frontend Supabase settings and Toast sync API URL are missing.')
+      } else {
+        setMessage(`Toast status check needs attention: ${coreDatabaseError?.message || workerStatus?.error || 'Unknown connection error.'}`)
+      }
+    } finally {
+      setLastChecked(new Date().toISOString())
+      setLoading(false)
     }
-
-    setLastChecked(new Date().toISOString())
-    setLoading(false)
-  }
-
+  }, [apiUrl, requestJson])
 
   async function callWorker(path, label) {
-    if (!apiUrl) { setWorkerAction('Toast worker API URL is missing. Add VITE_TOAST_SYNC_API_URL to the frontend environment.'); return }
     setWorkerAction(`${label}...`)
     try {
-      const response = await fetch(`${apiUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error || `Worker returned ${response.status}`)
+      const payload = await requestJson(`${apiUrl}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }, 2)
       setWorkerAction(payload.message || `${label} completed successfully.`)
       await loadStatus()
-    } catch (error) { setWorkerAction(`${label} failed: ${error.message}`) }
+    } catch (error) {
+      setWorkerAction(`${label} failed: ${error.message}`)
+    }
   }
 
   useEffect(() => {
     loadStatus()
-    const timer = window.setInterval(() => loadStatus(), workerApiStatus?.syncing || runs[0]?.status === 'running' ? 3000 : 15000)
+    const intervalMs = workerApiStatus?.syncing || runs[0]?.status === 'running' ? 3000 : 30000
+    const timer = window.setInterval(loadStatus, intervalMs)
     return () => window.clearInterval(timer)
-  }, [apiUrl, workerApiStatus?.syncing, runs[0]?.status])
+  }, [loadStatus, workerApiStatus?.syncing, runs[0]?.status])
 
   const latest = runs[0] || workerApiStatus?.lastRun
   const latestDaily = daily[0]
