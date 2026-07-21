@@ -327,7 +327,7 @@ async function writeTypedRows(type, rows, context) {
       if (!employeeName) return null
       const regularPay = number(value(row, ['Regular Pay', 'Wages', 'Hourly Pay']))
       const overtimePay = number(value(row, ['Overtime Pay', 'OT Pay']))
-      const tips = number(value(row, ['Tips', 'Net Tips', 'Tips After Withholding']))
+      const tips = number(value(row, ['Total Tips', 'Tips', 'Non-Cash Tips', 'Declared Tips', 'Net Tips', 'Tips After Withholding']))
       return { ...baseRecord(fileId, rowDate(row, businessDate), fileName, row), employee_name: employeeName, job_name: text(value(row, ['Job', 'Job Name', 'Role'])), regular_hours: number(value(row, ['Regular Hours', 'Hours'])), overtime_hours: number(value(row, ['Overtime Hours', 'OT Hours'])), regular_pay: regularPay, overtime_pay: overtimePay, tips, total_pay: number(value(row, ['Total Pay', 'Gross Pay'], regularPay + overtimePay + tips)) }
     }).filter(Boolean)
     await replaceRows('toast_labor', fileId, payload)

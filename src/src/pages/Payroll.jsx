@@ -218,12 +218,9 @@ export default function Payroll({ data, setData, setActive }) {
       const approvedToastIds = new Set((entries || []).map(row => String(row.source_toast_labor_id || '')).filter(Boolean))
       const review = (laborRows || []).filter(row => !approvedToastIds.has(String(row.id))).map(row => {
         const employee = employees.find(emp => nameMatches(emp.name, row.employee_name))
-        const rawLabor = row.raw && typeof row.raw === 'object' ? row.raw : {}
-        const rawOriginalTips = findValue(rawLabor, ['Total Tips', 'Tips', 'Non-Cash Tips', 'Declared Tips', 'Original Tips'])
-        const rawWithheld = findValue(rawLabor, ['Tips Withheld', 'Tip Withheld', 'Withheld Tips', 'Tip Deduction'])
-        const originalTips = round2(num(rawOriginalTips !== '' ? rawOriginalTips : row.tips))
-        const withheld = round2(rawWithheld !== '' ? num(rawWithheld) : originalTips * (tipRate / 100))
-        const netTips = round2(Math.max(0, originalTips - withheld))
+        const originalTips = round2(num(row.tips))
+        const withheld = round2(originalTips * (tipRate / 100))
+        const netTips = round2(originalTips - withheld)
         const regularPay = round2(num(row.regular_pay) + num(row.overtime_pay))
         return {
           ...row,
@@ -741,7 +738,7 @@ export default function Payroll({ data, setData, setActive }) {
       .payroll-filter-row select { height:40px; border:1px solid #dbe3ef; border-radius:10px; background:#f7faff; padding:0 12px; font-weight:700; }
       .payroll-bulk-row { display:flex; gap:10px; align-items:center; padding:10px 14px; border-top:1px solid #eef2f7; border-bottom:1px solid #eef2f7; }
       .payroll-bulk-row .sort-control { margin-left:auto; display:flex; gap:8px; align-items:center; }
-      .payroll-table-wrap { width:100%; overflow-x:hidden; }
+      .payroll-table-wrap { overflow:auto; }
       .payroll-enterprise-table { width:100%; min-width:1100px; border-collapse:collapse; font-size:12px; }
       .payroll-enterprise-table th { color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:.03em; padding:11px 10px; text-align:left; background:#fbfcfe; border-bottom:1px solid #e5ebf3; white-space:nowrap; }
       .payroll-enterprise-table td { padding:11px 10px; border-bottom:1px solid #edf1f6; color:#172033; white-space:nowrap; }
@@ -765,25 +762,9 @@ export default function Payroll({ data, setData, setActive }) {
       .toast-payroll-review { padding:0; }
       .toast-payroll-review .table-card header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
       .toast-payroll-review .table-card header p { margin:4px 0 0; color:#64748b; }
-      .toast-review-table { width:100%; min-width:0; table-layout:fixed; }
-      .toast-review-table input,.toast-review-table select { width:100%; min-width:0; height:32px; border:1px solid #dbe3ef; border-radius:7px; padding:0 6px; background:#fff; font-size:11px; box-sizing:border-box; }
-      .toast-review-table th,.toast-review-table td { padding:8px 5px; font-size:11px; overflow:hidden; text-overflow:ellipsis; }
-      .toast-review-table th { white-space:normal; line-height:1.15; }
-      .toast-review-table td { white-space:nowrap; }
-      .toast-review-table th:nth-child(1),.toast-review-table td:nth-child(1){width:34px}
-      .toast-review-table th:nth-child(2),.toast-review-table td:nth-child(2){width:88px}
-      .toast-review-table th:nth-child(3),.toast-review-table td:nth-child(3){width:145px}
-      .toast-review-table th:nth-child(4),.toast-review-table td:nth-child(4){width:170px}
-      .toast-review-table th:nth-child(5),.toast-review-table td:nth-child(5){width:68px}
-      .toast-review-table th:nth-child(6),.toast-review-table td:nth-child(6){width:72px}
-      .toast-review-table th:nth-child(7),.toast-review-table td:nth-child(7){width:86px}
-      .toast-review-table th:nth-child(8),.toast-review-table td:nth-child(8){width:92px}
-      .toast-review-table th:nth-child(9),.toast-review-table td:nth-child(9){width:82px}
-      .toast-review-table th:nth-child(10),.toast-review-table td:nth-child(10){width:92px}
-      .toast-review-table th:nth-child(11),.toast-review-table td:nth-child(11){width:80px}
-      .toast-review-table th:nth-child(12),.toast-review-table td:nth-child(12){width:82px}
-      .toast-review-table th:nth-child(13),.toast-review-table td:nth-child(13){width:76px}
-      .toast-review-table th:nth-child(14),.toast-review-table td:nth-child(14){width:82px}
+      .toast-review-table { min-width:1500px; }
+      .toast-review-table input,.toast-review-table select { min-width:90px; height:34px; border:1px solid #dbe3ef; border-radius:7px; padding:0 7px; background:#fff; }
+      .toast-review-table select { min-width:155px; }
       .toast-review-table .review-warning { background:#fffaf0; }
       .new-employee-flag { display:block; color:#b45309; font-weight:800; margin-top:3px; }
       .review-note { color:#64748b; margin-left:auto; font-size:12px; }

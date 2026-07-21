@@ -22,10 +22,10 @@ export default function ToastIntegration() {
   const [lastChecked, setLastChecked] = useState(null)
   const [workerAction, setWorkerAction] = useState('')
   const [workerApiStatus, setWorkerApiStatus] = useState(null)
-  const configuredApiUrl = String(import.meta.env.VITE_TOAST_SYNC_API_URL || '').trim()
-  const apiUrl = /^https?:\/\//i.test(configuredApiUrl)
-    ? configuredApiUrl.replace(/\/$/, '')
-    : 'https://restapay-toast-sync.onrender.com'
+  const apiUrl = String(
+    import.meta.env.VITE_TOAST_SYNC_API_URL ||
+    'https://restapay-toast-sync.onrender.com'
+  ).replace(/\/$/, '')
 
   const requestJson = useCallback(async (url, options = {}, attempts = 2) => {
     let lastError
