@@ -13,7 +13,7 @@ services:
       - key: VITE_SUPABASE_ANON_KEY
         sync: false
       - key: VITE_TOAST_SYNC_API_URL
-        sync: false
+        value: https://restapay-toast-sync.onrender.com
 
   - type: web
     name: restapay-toast-sync-api
