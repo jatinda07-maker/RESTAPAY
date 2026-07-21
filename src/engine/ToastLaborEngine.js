@@ -18,7 +18,7 @@ const ALIASES = {
   name: ['Employee', 'Employee Name', 'Team Member', 'Team Member Name', 'Staff', 'Staff Name', 'Name'],
   employeeId: ['Employee ID', 'Employee Id', 'Team Member ID', 'Team Member Id', 'Payroll ID'],
   job: ['Job', 'Job Title', 'Job Type', 'Role', 'Department', 'Position'],
-  date: ['Date', 'Business Date', 'Payroll Date', 'Pay Date', 'Week Ending', 'Period End'],
+  date: ['Date', 'Business Date', 'Business Day', 'Shift Date', 'Date Worked', 'Work Date', 'Clock In Date', 'Payroll Date', 'Pay Date', 'Week Ending', 'Period End'],
   regularHours: ['Regular Hours', 'Reg Hours', 'Regular Hrs', 'Reg Hrs'],
   overtimeHours: ['Overtime Hours', 'OT Hours', 'Overtime Hrs', 'OT Hrs'],
   doubleHours: ['Double Time Hours', 'Doubletime Hours', 'DT Hours'],
@@ -158,11 +158,16 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
   const fallbackDate = reportPeriod.end || options.payDate || ''
   const tipRate = Number(options.tipRate ?? 3.5) || 0
   const sheets = candidateSheets(XLSX, workbook)
-  const selected = sheets.filter((sheet, index) => index === 0 || /labor|employee|payroll|time|tips|team/i.test(sheet.name))
+  const selected = sheets.filter((sheet, index) => index === 0 || /labor|employee|payroll|time|tips|team|shift|daily/i.test(sheet.name))
   const sourceRows = selected.flatMap(sheet => sheet.rows.map(row => ({ row, sheetName: sheet.name })))
+
   const parsed = sourceRows.map(({ row, sheetName }) => {
     const rawName = text(find(row, ALIASES.name))
     if (isSummaryName(rawName)) return null
+
+    const rowDateValue = find(row, ALIASES.date)
+    const sheetDate = parseDateTokens(sheetName)[0] || ''
+    const explicitDate = parseDate(rowDateValue, sheetDate)
     const regularHours = num(find(row, ALIASES.regularHours))
     const overtimeHours = num(find(row, ALIASES.overtimeHours))
     const doubleHours = num(find(row, ALIASES.doubleHours))
@@ -182,12 +187,14 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const withheld = round2(explicitWithheld !== '' ? num(explicitWithheld) : explicitNetTips !== '' ? Math.max(totalTips - num(explicitNetTips), 0) : totalTips * tipRate / 100)
     const netTips = round2(explicitNetTips !== '' ? num(explicitNetTips) : Math.max(totalTips - withheld, 0))
     if (!hours && !pay && !totalTips && !netTips) return null
+
     return {
       raw_name: rawName,
       employee_name: rawName,
       employee_external_id: text(find(row, ALIASES.employeeId)),
       job_type: text(find(row, ALIASES.job)),
-      pay_date: parseDate(find(row, ALIASES.date), fallbackDate),
+      pay_date: explicitDate || fallbackDate,
+      has_business_date: Boolean(explicitDate),
       period_start: reportPeriod.start || '',
       period_end: reportPeriod.end || '',
       period_label: reportPeriod.label || '',
@@ -200,12 +207,53 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
       total_tips: totalTips,
       tips: netTips,
       tip_deduction: withheld,
+      has_explicit_withholding: explicitWithheld !== '' || explicitNetTips !== '',
       check_number: text(find(row, ALIASES.checkNumber)),
       source_sheet: sheetName,
       source_columns: Object.keys(row)
     }
   }).filter(Boolean)
-  return parsed
+
+  // Toast workbooks often contain both an employee summary and dated shift/day detail.
+  // When dated detail exists, discard undated summary rows so totals are not duplicated.
+  const datedRows = parsed.filter(row => row.has_business_date)
+  const rowsToGroup = datedRows.length ? datedRows : parsed
+  const grouped = new Map()
+
+  for (const row of rowsToGroup) {
+    const employeeKey = norm(row.employee_external_id || row.employee_name)
+    const dateKey = row.pay_date || fallbackDate
+    const key = `${employeeKey}::${dateKey}`
+    const current = grouped.get(key)
+    if (!current) {
+      grouped.set(key, { ...row, source_sheets: [row.source_sheet] })
+      continue
+    }
+    const combinedTips = round2(current.total_tips + row.total_tips)
+    const combinedDeduction = current.has_explicit_withholding || row.has_explicit_withholding
+      ? round2(current.tip_deduction + row.tip_deduction)
+      : round2(combinedTips * tipRate / 100)
+    grouped.set(key, {
+      ...current,
+      job_type: current.job_type || row.job_type,
+      hours: round2(current.hours + row.hours),
+      regular_hours: round2(current.regular_hours + row.regular_hours),
+      overtime_hours: round2(current.overtime_hours + row.overtime_hours),
+      regular_pay: round2(current.regular_pay + row.regular_pay),
+      gross_pay: round2(current.gross_pay + row.gross_pay),
+      total_tips: combinedTips,
+      tip_deduction: combinedDeduction,
+      tips: round2(Math.max(combinedTips - combinedDeduction, 0)),
+      has_explicit_withholding: current.has_explicit_withholding || row.has_explicit_withholding,
+      check_number: current.check_number || row.check_number,
+      source_sheet: current.source_sheet === row.source_sheet ? current.source_sheet : 'Multiple Toast sheets',
+      source_sheets: [...new Set([...(current.source_sheets || []), row.source_sheet])]
+    })
+  }
+
+  return [...grouped.values()].sort((a, b) =>
+    String(a.pay_date).localeCompare(String(b.pay_date)) || String(a.employee_name).localeCompare(String(b.employee_name))
+  )
 }
 
 export function laborImportDiagnostics(rows = []) {
