@@ -73,9 +73,9 @@ export default function Layout({ active, setActive, children }) {
     : cloudStatus.status === 'offline' && String(cloudStatus.message || '').toLowerCase().includes('not configured')
       ? 'Cloud Setup Needed'
       : cloudStatus.status === 'offline'
-        ? 'Offline Backup'
+        ? 'Not Saved'
         : cloudStatus.status === 'local'
-          ? 'Local Backup'
+          ? 'Waiting for Cloud'
           : 'Cloud Saved'
 
   return (

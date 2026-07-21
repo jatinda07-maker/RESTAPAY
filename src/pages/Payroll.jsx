@@ -137,7 +137,7 @@ export default function Payroll({ data, setData, setActive }) {
   const [entryForm, setEntryForm] = useState({ regular_pay: '', hours: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '', payroll_classification: 'Operating Labor' })
   const [manualForm, setManualForm] = useState({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', payroll_classification: 'Operating Labor', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
   const [previewRows, setPreviewRows] = useState([])
-  const [status, setStatus] = useState('Local auto-save is active. Payroll groups and entries will not disappear.')
+  const [status, setStatus] = useState('Supabase-only save is active. Unsaved changes will be blocked before leaving Payroll.')
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
   const [employeeSearch, setEmployeeSearch] = useState('')
@@ -155,6 +155,44 @@ export default function Payroll({ data, setData, setActive }) {
   const [toastReviewLoading, setToastReviewLoading] = useState(false)
   const [toastReviewError, setToastReviewError] = useState('')
   const [expandedEntryIds, setExpandedEntryIds] = useState([])
+
+
+  const employeeFilterOptions = useMemo(() => {
+    const byName = new Map()
+    const add = (name, id = '') => {
+      const label = String(name || '').trim()
+      const key = normalizeName(label)
+      if (!key) return
+      const existing = byName.get(key) || { key, label, ids: new Set() }
+      if (id) existing.ids.add(String(id))
+      if (!existing.label || label.localeCompare(existing.label) < 0) existing.label = label
+      byName.set(key, existing)
+    }
+    employees.forEach(emp => add(emp.name, emp.id))
+    entries.forEach(entry => add(entry.employee_name, entry.employee_id))
+    return Array.from(byName.values())
+      .map(option => ({ ...option, value: `name:${option.key}` }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [employees, entries])
+
+  useEffect(() => {
+    const handleCloudStatus = event => {
+      const status = event.detail?.status
+      window.__restapayCloudSavePending = status === 'saving' || status === 'offline'
+    }
+    const handleBeforeUnload = event => {
+      if (!window.__restapayCloudSavePending) return
+      event.preventDefault()
+      event.returnValue = 'Payroll changes have not been saved to Supabase.'
+      return event.returnValue
+    }
+    window.addEventListener('restapay-cloud-status', handleCloudStatus)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('restapay-cloud-status', handleCloudStatus)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   function updateDateStart(value) {
     setDateStart(value)
@@ -209,7 +247,10 @@ export default function Payroll({ data, setData, setActive }) {
       if (payMethodFilter !== 'all' && method !== payMethodFilter) return false
       if (payClassFilter === 'operating' && classification.includes('tip')) return false
       if (payClassFilter === 'tips' && !classification.includes('tip')) return false
-      if (employeeFilter !== 'all' && String(entry.employee_id || '') !== employeeFilter) return false
+      if (employeeFilter !== 'all') {
+        const optionKey = employeeFilter.replace(/^name:/, '')
+        if (normalizeName(entry.employee_name) !== optionKey) return false
+      }
       const isToast = String(entry.group_name || '').startsWith('Toast:') || String(entry.source || '').toLowerCase().includes('toast')
       if (sourceFilter === 'toast' && !isToast) return false
       if (sourceFilter === 'manual' && isToast) return false
@@ -909,7 +950,7 @@ export default function Payroll({ data, setData, setActive }) {
       {['dashboard','all','tips','kitchen','history'].includes(activeTab) && <>
         <section className="payroll-filter-card">
           <label>Payroll Week (Mon–Sun)<div><DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={()=>{saveGlobalDateRange(dateStart,dateEnd);setStatus(`Applied payroll date range: ${rangeLabel}`)}} onPreset={applyPreset}/></div></label>
-          <label>Employee<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="all">All Employees</option>{employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></label>
+          <label>Employee<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="all">All Employees</option>{employeeFilterOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label>Payroll Type<select value={payClassFilter} onChange={e=>setPayClassFilter(e.target.value)}><option value="all">All Types</option><option value="tips">Tips Payroll</option><option value="operating">Kitchen / Operating</option></select></label>
           <label>Search<div className="search-box"><Icon name="search" size={16}/><input value={employeeSearch} onChange={e=>setEmployeeSearch(e.target.value)} placeholder="Search employee..."/></div></label>
           <button className="reset-btn" onClick={()=>{setEmployeeFilter('all');setPayClassFilter('all');setPayMethodFilter('all');setSourceFilter('all');setEmployeeSearch('')}}>Reset</button>

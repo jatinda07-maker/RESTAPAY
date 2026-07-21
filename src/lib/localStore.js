@@ -89,24 +89,16 @@ export function mergeData(data) {
 }
 
 export function loadData() {
+  // Supabase is the only persistent source of truth. Remove legacy local data
+  // so stale browser records can never overwrite or confuse cloud records.
   try {
-    const keys = [RESTAPAY_KEY, ...RESTAPAY_LEGACY_KEYS]
-    for (const key of keys) {
-      const raw = localStorage.getItem(key)
-      if (!raw) continue
-      const merged = mergeData(JSON.parse(raw))
-      if (key !== RESTAPAY_KEY) localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
-      return merged
-    }
-    return defaultData
-  } catch (error) {
-    diagnosticLogger.error('Local Storage', 'Failed to read local data', { error }); console.error('Failed to read local data', error)
-    return defaultData
-  }
+    ;[RESTAPAY_KEY, RESTAPAY_PENDING_CLOUD_KEY, ...RESTAPAY_LEGACY_KEYS].forEach(key => localStorage.removeItem(key))
+  } catch {}
+  return mergeData(defaultData)
 }
 
-export function saveData(data) {
-  localStorage.setItem(RESTAPAY_KEY, JSON.stringify(mergeData(data)))
+export function saveData() {
+  // Intentionally disabled: business data is persisted only in Supabase.
 }
 
 export function hasMeaningfulData(data) {
@@ -265,7 +257,6 @@ export async function loadCloudData() {
     }) : null
 
     if (merged) {
-      localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
       diagnosticLogger.success('Supabase', 'Loaded application data from database', { tables: Array.from(successful) }); announceCloudStatus('saved', { message: 'Loaded from database', source: 'cloud-load' })
     } else {
       announceCloudStatus('saved', { message: 'Cloud connected', source: 'cloud-load' })
@@ -273,7 +264,7 @@ export async function loadCloudData() {
 
     return merged
   } catch (error) {
-    diagnosticLogger.error('Supabase', 'Cloud load failed; using local backup', { error }); console.error('Failed to read Supabase data. Falling back to localStorage.', error)
+    diagnosticLogger.error('Supabase', 'Cloud load failed', { error }); console.error('Failed to read Supabase data.', error)
     return null
   }
 }
@@ -579,18 +570,15 @@ async function mirrorAppDataToTables(data) {
 }
 
 export async function saveCloudData(data, options = {}) {
+  window.__restapayCloudSavePending = true
   if (!isSupabaseReady) {
-    try { localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify(mergeData(data))) } catch {}
-    announceCloudStatus('offline', { message: 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before building.', source: options.source || 'direct-save' })
+    announceCloudStatus('offline', { message: 'Supabase is not configured. Data has not been saved.', source: options.source || 'direct-save' })
     return { ok: false, reason: 'Supabase env vars missing' }
   }
 
   try {
     const merged = mergeData(data)
-    announceCloudStatus('saving', { message: 'Saving directly to database...', source: options.source || 'direct-save' })
-
-    // Write normalized tables first. The app_data row is only a backup and must
-    // never claim a successful save when the actual invoices/expenses tables failed.
+    announceCloudStatus('saving', { message: 'Saving directly to Supabase...', source: options.source || 'direct-save' })
     await mirrorAppDataToTables(merged)
 
     const payload = {
@@ -598,35 +586,24 @@ export async function saveCloudData(data, options = {}) {
       data: merged,
       updated_at: new Date().toISOString()
     }
-
-    const { error } = await supabase
-      .from('app_data')
-      .upsert(payload, { onConflict: 'id' })
-
+    const { error } = await supabase.from('app_data').upsert(payload, { onConflict: 'id' })
     if (error) throw error
 
-    localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
-    try { localStorage.removeItem(RESTAPAY_PENDING_CLOUD_KEY) } catch {}
-    diagnosticLogger.success('Supabase', 'Saved normalized tables and backup state', { source: options.source || 'direct-save' }); announceCloudStatus('saved', { message: 'Saved to database', source: options.source || 'direct-save' })
-
+    window.__restapayCloudSavePending = false
+    diagnosticLogger.success('Supabase', 'Saved normalized tables and backup state', { source: options.source || 'direct-save' })
+    announceCloudStatus('saved', { message: 'Saved to Supabase', source: options.source || 'direct-save' })
     return { ok: true }
   } catch (error) {
-    try { localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify(mergeData(data))) } catch {}
-    announceCloudStatus('offline', { message: 'Database save failed. Local backup saved and ready to retry.', source: options.source || 'direct-save', error: error?.message || String(error) })
-    diagnosticLogger.error('Supabase', 'Database save failed; local pending backup created', { error, source: options.source || 'direct-save' }); console.error('Failed to save Supabase data. LocalStorage backup was still saved.', error)
+    window.__restapayCloudSavePending = true
+    announceCloudStatus('offline', { message: 'Supabase save failed. Data is not saved; remain on this screen and retry.', source: options.source || 'direct-save', error: error?.message || String(error) })
+    diagnosticLogger.error('Supabase', 'Database save failed', { error, source: options.source || 'direct-save' })
+    console.error('Failed to save Supabase data.', error)
     return { ok: false, error }
   }
 }
 
 export async function retryPendingCloudSave() {
-  try {
-    const raw = localStorage.getItem(RESTAPAY_PENDING_CLOUD_KEY)
-    if (!raw) return { ok: true, reason: 'No pending cloud save' }
-    return await saveCloudData(JSON.parse(raw), { source: 'retry-pending' })
-  } catch (error) {
-    announceCloudStatus('offline', { message: 'Pending cloud retry failed.', error: error?.message || String(error) })
-    return { ok: false, error }
-  }
+  return { ok: true, reason: 'Local pending saves are disabled in Supabase-only mode' }
 }
 
 export function createId(prefix) {
