@@ -103,12 +103,25 @@ function inferImportedPayType(employee, source = {}) {
   return 'Hourly'
 }
 
-function totalPayrollPay(row = {}) {
-  const regular = num(row.regular_pay)
-  const tips = num(row.tips)
-  const deduction = num(row.tip_deduction)
-  const extra = num(row.extra_pay)
-  return regular + tips + extra
+function payrollAmounts(row = {}, withholdingRate = 3.5) {
+  const regular = round2(num(row.regular_pay) + num(row.overtime_pay))
+  const extra = round2(num(row.extra_pay))
+  const storedOriginal = Math.max(num(row.original_tips), num(row.total_tips))
+  const storedNet = num(row.tips)
+  const storedWithheld = num(row.tip_deduction)
+  const originalTips = round2(storedOriginal > 0 ? storedOriginal : storedNet + storedWithheld)
+  const withheld = round2(originalTips > 0
+    ? (storedWithheld > 0 ? storedWithheld : originalTips * num(withholdingRate) / 100)
+    : 0)
+  const netTips = round2(originalTips > 0
+    ? Math.max(originalTips - withheld, 0)
+    : Math.max(storedNet, 0))
+  const finalPay = round2(regular + netTips + extra)
+  return { regular, extra, originalTips, withheld, netTips, finalPay }
+}
+
+function totalPayrollPay(row = {}, withholdingRate = 3.5) {
+  return payrollAmounts(row, withholdingRate).finalPay
 }
 
 function employeeAssignmentLabel(employee, groups = []) {
@@ -869,16 +882,17 @@ export default function Payroll({ data, setData, setActive }) {
   }, [activeTab, filteredEntries])
 
   const viewTotals = useMemo(() => tabEntries.reduce((acc, entry) => {
+    const amounts = payrollAmounts(entry, tipRate)
     acc.hours += num(entry.hours)
-    acc.regular += num(entry.regular_pay)
-    acc.originalTips += num(entry.tips) + num(entry.tip_deduction)
-    acc.withheld += num(entry.tip_deduction)
-    acc.netTips += num(entry.tips)
-    acc.extra += num(entry.extra_pay)
-    acc.final += num(entry.total_pay)
+    acc.regular += amounts.regular
+    acc.originalTips += amounts.originalTips
+    acc.withheld += amounts.withheld
+    acc.netTips += amounts.netTips
+    acc.extra += amounts.extra
+    acc.final += amounts.finalPay
     acc.employees.add(entry.employee_id || entry.employee_name)
     return acc
-  }, { hours: 0, regular: 0, originalTips: 0, withheld: 0, netTips: 0, extra: 0, final: 0, employees: new Set() }), [tabEntries])
+  }, { hours: 0, regular: 0, originalTips: 0, withheld: 0, netTips: 0, extra: 0, final: 0, employees: new Set() }), [tabEntries, tipRate])
 
   const viewTotalPages = Math.max(1, Math.ceil(tabEntries.length / rowsPerPage))
   const viewCurrentPage = Math.min(page, viewTotalPages)
@@ -895,14 +909,14 @@ export default function Payroll({ data, setData, setActive }) {
         employee_id: entry.employee_id || '', employee_name: entry.employee_name || 'Employee',
         amount: 0, line_count: 0, payroll_type: entry.payroll_type || 'Check', check_number: entry.check_number || ''
       }
-      current.amount += num(entry.total_pay)
+      current.amount += payrollAmounts(entry, tipRate).finalPay
       current.line_count += 1
       if (!current.check_number && entry.check_number) current.check_number = entry.check_number
       if (String(entry.payroll_type || '').toLowerCase() === 'cash') current.payroll_type = 'Cash'
       grouped.set(key, current)
     })
     return Array.from(grouped.values()).sort((a,b) => a.employee_name.localeCompare(b.employee_name))
-  }, [approvalRows])
+  }, [approvalRows, tipRate])
 
   function openApprovalWindow() {
     const pending = tabEntries.filter(entry => String(entry.approval_status || 'Pending').toLowerCase() !== 'approved')
@@ -926,9 +940,20 @@ export default function Payroll({ data, setData, setActive }) {
     const approvedIds = new Set(approvalEntryIds)
     setData(prev => ({
       ...prev,
-      payrollEntries: (prev.payrollEntries || []).map(entry => approvedIds.has(entry.id)
-        ? { ...entry, approval_status: 'Approved', approved_at: approvedAt, check_batch_id: batchId }
-        : entry),
+      payrollEntries: (prev.payrollEntries || []).map(entry => {
+        if (!approvedIds.has(entry.id)) return entry
+        const amounts = payrollAmounts(entry, tipRate)
+        return {
+          ...entry,
+          original_tips: amounts.originalTips,
+          tips: amounts.netTips,
+          tip_deduction: amounts.withheld,
+          total_pay: amounts.finalPay,
+          approval_status: 'Approved',
+          approved_at: approvedAt,
+          check_batch_id: batchId
+        }
+      }),
       payrollChecks: [...checkRows, ...(prev.payrollChecks || [])]
     }))
     setSelectedEntryIds(prev => prev.filter(id => !approvedIds.has(id)))
@@ -1047,7 +1072,8 @@ export default function Payroll({ data, setData, setActive }) {
             const open=expandedEntryIds.includes(entry.id)
             const isTips=String(entry.payroll_classification||inferPayrollClassification(entry)).toLowerCase().includes('tip') || num(entry.tips)>0
             const initials=String(entry.employee_name||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()
-            return <React.Fragment key={entry.id}><tr><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)}/></td><td className="pay-date-cell">{entry.pay_date||'—'}</td><td><div className="employee-name-cell"><span className="employee-avatar">{initials}</span><div><b>{entry.employee_name}</b><small>{entry.group_name||entry.pay_type||'Employee'}</small></div></div></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td><span className={`payroll-type-pill ${isTips?'tips':'kitchen'}`}>{isTips?'Tips Payroll':'Kitchen Payroll'}</span></td><td className="money-final">${money(entry.total_pay)}</td><td><span className={`status-pill-modern ${String(entry.approval_status||'Pending').toLowerCase()==='approved'?'approved':''}`}>{entry.approval_status||'Pending'}</span></td><td><input className="check-input" value={entry.check_number||''} placeholder="—" onChange={e=>setData(prev=>({...prev,payrollEntries:(prev.payrollEntries||[]).map(row=>row.id===entry.id?{...row,check_number:e.target.value}:row)}))}/></td><td><div className="row-actions"><button title="Edit" onClick={()=>startEdit(entry)}><Icon name="edit" size={14}/></button><button title="Expand" onClick={()=>toggleExpandedEntry(entry.id)}><Icon name={open?'chevronUp':'chevronDown'} size={14}/></button></div></td></tr>{open&&<tr className="payroll-detail-row"><td colSpan="9"><div className="payroll-detail-grid"><div className="payroll-detail-item"><span>Regular Pay</span><b>${money(entry.regular_pay)}</b></div><div className="payroll-detail-item"><span>Overtime Pay</span><b>${money(entry.overtime_pay)}</b></div><div className="payroll-detail-item"><span>Original Tips</span><b>${money(num(entry.tips)+num(entry.tip_deduction))}</b></div><div className="payroll-detail-item"><span>Tips Withheld</span><b className="negative">${money(entry.tip_deduction)}</b></div><div className="payroll-detail-item"><span>Net Tips</span><b className="positive">${money(entry.tips)}</b></div><div className="payroll-detail-item"><span>Extra Pay</span><b>${money(entry.extra_pay)}</b></div><div className="payroll-detail-item"><span>Pay Date</span><b>{entry.pay_date||'—'}</b></div><div className="payroll-detail-item"><span>Method</span><b>{entry.payroll_type||'—'}</b></div></div></td></tr>}</React.Fragment>
+            const amounts=payrollAmounts(entry, tipRate)
+            return <React.Fragment key={entry.id}><tr><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)}/></td><td className="pay-date-cell">{entry.pay_date||'—'}</td><td><div className="employee-name-cell"><span className="employee-avatar">{initials}</span><div><b>{entry.employee_name}</b><small>{entry.group_name||entry.pay_type||'Employee'}</small></div></div></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td><span className={`payroll-type-pill ${isTips?'tips':'kitchen'}`}>{isTips?'Tips Payroll':'Kitchen Payroll'}</span></td><td className="money-final">${money(amounts.finalPay)}</td><td><span className={`status-pill-modern ${String(entry.approval_status||'Pending').toLowerCase()==='approved'?'approved':''}`}>{entry.approval_status||'Pending'}</span></td><td><input className="check-input" value={entry.check_number||''} placeholder="—" onChange={e=>setData(prev=>({...prev,payrollEntries:(prev.payrollEntries||[]).map(row=>row.id===entry.id?{...row,check_number:e.target.value}:row)}))}/></td><td><div className="row-actions"><button title="Edit" onClick={()=>startEdit(entry)}><Icon name="edit" size={14}/></button><button title="Expand" onClick={()=>toggleExpandedEntry(entry.id)}><Icon name={open?'chevronUp':'chevronDown'} size={14}/></button></div></td></tr>{open&&<tr className="payroll-detail-row"><td colSpan="9"><div className="payroll-detail-grid"><div className="payroll-detail-item"><span>Regular Pay</span><b>${money(entry.regular_pay)}</b></div><div className="payroll-detail-item"><span>Overtime Pay</span><b>${money(entry.overtime_pay)}</b></div><div className="payroll-detail-item"><span>Original Tips</span><b>${money(amounts.originalTips)}</b></div><div className="payroll-detail-item"><span>Tips Withheld</span><b className="negative">${money(amounts.withheld)}</b></div><div className="payroll-detail-item"><span>Net Tips</span><b className="positive">${money(amounts.netTips)}</b></div><div className="payroll-detail-item"><span>Extra Pay</span><b>${money(entry.extra_pay)}</b></div><div className="payroll-detail-item"><span>Pay Date</span><b>{entry.pay_date||'—'}</b></div><div className="payroll-detail-item"><span>Method</span><b>{entry.payroll_type||'—'}</b></div></div></td></tr>}</React.Fragment>
           }) : <tr><td colSpan="9" className="empty-cell">No payroll entries in the selected date range.</td></tr>}
         </tbody></table>
         <div className="payroll-pagination"><span>Showing {tabEntries.length ? (viewCurrentPage-1)*rowsPerPage+1 : 0} to {Math.min(viewCurrentPage*rowsPerPage,tabEntries.length)} of {tabEntries.length}</span><div className="pages"><button onClick={()=>setPage(Math.max(1,viewCurrentPage-1))}>‹</button>{Array.from({length:Math.min(viewTotalPages,5)},(_,i)=>i+1).map(n=><button key={n} className={viewCurrentPage===n?'active':''} onClick={()=>setPage(n)}>{n}</button>)}<button onClick={()=>setPage(Math.min(viewTotalPages,viewCurrentPage+1))}>›</button></div><label>Rows: <select value={rowsPerPage} onChange={e=>setRowsPerPage(Number(e.target.value))}><option>10</option><option>25</option><option>50</option></select></label></div>
@@ -1062,7 +1088,7 @@ export default function Payroll({ data, setData, setActive }) {
 
       {approvalOpen && <div className="payroll-edit-overlay" onClick={()=>setApprovalOpen(false)}><section className="payroll-approval-modal" onClick={e=>e.stopPropagation()}>
         <header><div><h2>Approve Payroll & Make Checks</h2><p>Review the selected payroll lines. Approval creates one check per employee while keeping every daily payroll line intact.</p></div><button className="modal-close" onClick={()=>setApprovalOpen(false)}>×</button></header>
-        <div className="approval-summary"><div><span>Payroll Lines</span><b>{approvalRows.length}</b></div><div><span>Employees</span><b>{approvalChecks.length}</b></div><div><span>Checks to Create</span><b>{approvalChecks.filter(r=>String(r.payroll_type).toLowerCase()==='check').length}</b></div><div><span>Total Approved</span><b>${money(approvalRows.reduce((s,r)=>s+num(r.total_pay),0))}</b></div></div>
+        <div className="approval-summary"><div><span>Payroll Lines</span><b>{approvalRows.length}</b></div><div><span>Employees</span><b>{approvalChecks.length}</b></div><div><span>Checks to Create</span><b>{approvalChecks.filter(r=>String(r.payroll_type).toLowerCase()==='check').length}</b></div><div><span>Total Approved</span><b>${money(approvalRows.reduce((s,r)=>s+payrollAmounts(r, tipRate).finalPay,0))}</b></div></div>
         <div className="approval-table-wrap"><table className="approval-table"><thead><tr><th>Employee</th><th>Lines</th><th>Method</th><th>Check #</th><th>Amount</th><th>Result</th></tr></thead><tbody>{approvalChecks.map(row=><tr key={row.employee_id||row.employee_name}><td><b>{row.employee_name}</b></td><td>{row.line_count}</td><td>{row.payroll_type}</td><td>{row.check_number||'Assign later'}</td><td className="money-final">${money(row.amount)}</td><td>{String(row.payroll_type).toLowerCase()==='check'?'Add to Make Checks':'Approve as Cash'}</td></tr>)}</tbody></table></div>
         <footer><button className="btn secondary" onClick={()=>setApprovalOpen(false)}>Cancel</button><button className="btn success" onClick={confirmPayrollApproval}><Icon name="check"/> Approve & Add Checks</button></footer>
       </section></div>}
