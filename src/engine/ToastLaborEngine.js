@@ -112,6 +112,79 @@ export function detectToastLaborPeriod(XLSX, workbook) {
   return { start, end, label: start === end ? start : `${start} to ${end}` }
 }
 
+
+function parsePeriodFromFileName(fileName = '') {
+  const dates = parseDateTokens(String(fileName).replace(/_/g, '-'))
+  if (dates.length < 2) return { start: '', end: '', label: '' }
+  const sorted = dates.sort()
+  const start = sorted[0]
+  const end = sorted[sorted.length - 1]
+  return { start, end, label: start === end ? start : `${start} to ${end}` }
+}
+
+function inclusiveDates(start, end) {
+  if (!start || !end) return []
+  const first = new Date(`${start}T12:00:00Z`)
+  const last = new Date(`${end}T12:00:00Z`)
+  if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime()) || first > last) return []
+  const dates = []
+  for (let cursor = new Date(first); cursor <= last; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    dates.push(cursor.toISOString().slice(0, 10))
+    if (dates.length > 366) break
+  }
+  return dates
+}
+
+function allocateAcrossDates(total, dates, precision = 2) {
+  if (!dates.length) return []
+  const factor = 10 ** precision
+  const totalUnits = Math.round((Number(total) || 0) * factor)
+  const baseUnits = Math.trunc(totalUnits / dates.length)
+  let remainder = totalUnits - baseUnits * dates.length
+  return dates.map(() => {
+    const adjustment = remainder > 0 ? 1 : remainder < 0 ? -1 : 0
+    remainder -= adjustment
+    return (baseUnits + adjustment) / factor
+  })
+}
+
+function expandSummaryRowsByPeriod(rows, reportPeriod, tipRate) {
+  const dates = inclusiveDates(reportPeriod.start, reportPeriod.end)
+  if (dates.length <= 1) return rows
+  return rows.flatMap(row => {
+    if (row.has_business_date) return [row]
+    const hours = allocateAcrossDates(row.hours, dates, 2)
+    const regularHours = allocateAcrossDates(row.regular_hours, dates, 2)
+    const overtimeHours = allocateAcrossDates(row.overtime_hours, dates, 2)
+    const regularPay = allocateAcrossDates(row.regular_pay, dates, 2)
+    const grossPay = allocateAcrossDates(row.gross_pay, dates, 2)
+    const totalTips = allocateAcrossDates(row.total_tips, dates, 2)
+    const explicitDeduction = row.has_explicit_withholding
+      ? allocateAcrossDates(row.tip_deduction, dates, 2)
+      : null
+    return dates.map((date, index) => {
+      const deduction = explicitDeduction
+        ? explicitDeduction[index]
+        : round2(totalTips[index] * tipRate / 100)
+      return {
+        ...row,
+        pay_date: date,
+        allocated_from_summary: true,
+        allocation_method: 'evenly-across-report-period',
+        allocation_days: dates.length,
+        hours: hours[index],
+        regular_hours: regularHours[index],
+        overtime_hours: overtimeHours[index],
+        regular_pay: regularPay[index],
+        gross_pay: grossPay[index],
+        total_tips: totalTips[index],
+        tip_deduction: deduction,
+        tips: round2(Math.max(totalTips[index] - deduction, 0))
+      }
+    })
+  })
+}
+
 function headerScore(values = []) {
   const keys = values.map(norm).filter(Boolean)
   const includesAny = aliases => aliases.some(alias => keys.includes(norm(alias)))
@@ -154,7 +227,9 @@ function isSummaryName(value) {
 }
 
 export function parseToastLaborRows(XLSX, workbook, options = {}) {
-  const reportPeriod = options.reportPeriod || detectToastLaborPeriod(XLSX, workbook)
+  const detectedPeriod = options.reportPeriod || detectToastLaborPeriod(XLSX, workbook)
+  const filePeriod = parsePeriodFromFileName(options.fileName || '')
+  const reportPeriod = detectedPeriod.start ? detectedPeriod : filePeriod
   const fallbackDate = reportPeriod.end || options.payDate || ''
   const tipRate = Number(options.tipRate ?? 3.5) || 0
   const sheets = candidateSheets(XLSX, workbook)
@@ -217,7 +292,9 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
   // Toast workbooks often contain both an employee summary and dated shift/day detail.
   // When dated detail exists, discard undated summary rows so totals are not duplicated.
   const datedRows = parsed.filter(row => row.has_business_date)
-  const rowsToGroup = datedRows.length ? datedRows : parsed
+  const rowsToGroup = datedRows.length
+    ? datedRows
+    : expandSummaryRowsByPeriod(parsed, reportPeriod, tipRate)
   const grouped = new Map()
 
   for (const row of rowsToGroup) {

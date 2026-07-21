@@ -662,7 +662,7 @@ export default function Payroll({ data, setData, setActive }) {
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
       const reportPeriod = detectToastLaborPeriod(XLSX, workbook)
-      const laborRows = parseToastLaborRows(XLSX, workbook, { payDate: toastPayDate, tipRate, reportPeriod })
+      const laborRows = parseToastLaborRows(XLSX, workbook, { payDate: toastPayDate, tipRate, reportPeriod, fileName: file.name })
       const parsed = laborRows.map(source => {
         const rawName = String(source.raw_name || source.employee_name || '').trim()
         const cleanName = displayToastName(rawName)

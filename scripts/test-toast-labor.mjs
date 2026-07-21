@@ -56,3 +56,29 @@ assert.equal(diag.hours, 22)
 assert.equal(diag.regularPay, 298)
 assert.equal(diag.totalTips, 420)
 console.log('Toast labor daily-date import tests passed')
+
+const summaryOnly = [
+  ['Employee', 'Job Title', 'Regular Hours', 'Overtime Hours', 'Total Pay', 'Total Tips', 'Tips Withheld'],
+  ['Capuano, Haleigh', 'Server', 21, 0, 0, 210, 7.35],
+  ['Cruz, Israel', 'General Manager', 14, 0, 0, 140, 4.90]
+]
+const summaryOnlyWb = XLSX.utils.book_new()
+XLSX.utils.book_append_sheet(summaryOnlyWb, XLSX.utils.aoa_to_sheet(summaryOnly), 'Payroll Export')
+const summaryDaily = parseToastLaborRows(XLSX, summaryOnlyWb, {
+  payDate: '2026-07-21',
+  tipRate: 3.5,
+  fileName: 'PayrollExport_2026_07_01-2026_07_21.csv'
+})
+assert.equal(summaryDaily.length, 42, 'summary-only payroll must expand to one row per employee per period date')
+assert.equal(summaryDaily[0].period_start, '2026-07-01')
+assert.equal(summaryDaily.at(-1).period_end, '2026-07-21')
+assert.ok(summaryDaily.every(row => row.allocated_from_summary))
+const summaryDiag = laborImportDiagnostics(summaryDaily)
+assert.equal(summaryDiag.hours, 35)
+assert.equal(summaryDiag.totalTips, 350)
+assert.equal(summaryDiag.withheld, 12.25)
+assert.equal(summaryDiag.netTips, 337.75)
+const managerRows = summaryDaily.filter(row => row.employee_name === 'Cruz, Israel')
+assert.equal(managerRows.length, 21)
+assert.equal(laborImportDiagnostics(managerRows).totalTips, 140, 'tip-paid managers must retain all allocated tips')
+console.log('Toast labor summary filename-period allocation tests passed')
