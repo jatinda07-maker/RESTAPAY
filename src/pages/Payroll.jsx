@@ -113,7 +113,7 @@ export default function Payroll({ data, setData, setActive }) {
   const [employeeFilter, setEmployeeFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [sortOrder, setSortOrder] = useState('newest')
-  const [activeTab, setActiveTab] = useState('tips-review')
+  const [activeTab, setActiveTab] = useState('all')
   const [selectedEntryIds, setSelectedEntryIds] = useState([])
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
@@ -256,7 +256,6 @@ export default function Payroll({ data, setData, setActive }) {
     }
   }
 
-  useEffect(() => { loadToastLaborReview() }, [dateStart, dateEnd, entries.length, employees.length])
 
   function updateToastReview(id, field, value) {
     setToastReviewRows(prev => prev.map(row => {
@@ -856,12 +855,8 @@ export default function Payroll({ data, setData, setActive }) {
       </div>
 
       <div className="payroll-tabs">
-        {[['tips-review',`Tips Payroll (${toastTipsReviewRows.length})`],['kitchen-review',`Kitchen Payroll (${toastKitchenReviewRows.length})`],['review',`All Pending (${toastReviewRows.length})`],['all','All Payroll'],['tips','Tips History'],['history','History']].map(([id,label])=><button key={id} className={activeTab===id?'active':''} onClick={()=>setActiveTab(id)}>{label}</button>)}
+        {[['all','All Payroll'],['tips','Tips Payroll'],['manual','Manual Payroll'],['groups','Payroll Groups'],['history','History']].map(([id,label])=><button key={id} className={activeTab===id?'active':''} onClick={()=>setActiveTab(id)}>{label}</button>)}
       </div>
-
-      {activeTab === 'tips-review' && renderToastReviewPanel(toastTipsReviewRows, 'Tips Payroll Review', 'Review servers, bartenders and other tipped employees separately. Original tips, exact withholding and tips after withholding remain visible before approval.')}
-      {activeTab === 'kitchen-review' && renderToastReviewPanel(toastKitchenReviewRows, 'Kitchen Payroll Review', 'Review kitchen and other non-tipped operating labor separately before adding it to payroll.')}
-      {activeTab === 'review' && renderToastReviewPanel(toastReviewRows, 'All Pending Toast Payroll', 'Review all pending Toast labor together. Nothing enters payroll until you approve the selected rows.')}
 
       {activeTab === 'all' && <div className="payroll-content-grid">
         <section className="payroll-main-panel">
@@ -870,7 +865,7 @@ export default function Payroll({ data, setData, setActive }) {
             <label>Employee<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="all">All Employees</option>{employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></label>
             <label>Payroll Type<select value={payClassFilter} onChange={e=>setPayClassFilter(e.target.value)}><option value="all">All Types</option><option value="operating">Operating Labor</option><option value="tips">Customer Tips</option></select></label>
             <label>Payment Method<select value={payMethodFilter} onChange={e=>setPayMethodFilter(e.target.value)}><option value="all">All Methods</option><option value="cash">Cash</option><option value="check">Check</option></select></label>
-            <label>Source<select value={sourceFilter} onChange={e=>setSourceFilter(e.target.value)}><option value="all">All Sources</option><option value="toast">Toast Labor</option><option value="manual">Manual</option></select></label>
+            <label>Source<select value={sourceFilter} onChange={e=>setSourceFilter(e.target.value)}><option value="all">All Sources</option><option value="toast">Imported Labor Summary</option><option value="manual">Manual</option></select></label>
             <button className="btn secondary" onClick={()=>{setEmployeeSearch('');setPayMethodFilter('all');setPayClassFilter('all');setEmployeeFilter('all');setSourceFilter('all')}}><Icon name="refresh" /> Clear Filters</button>
           </div>
           <div className="payroll-bulk-row">
