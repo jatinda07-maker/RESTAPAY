@@ -358,6 +358,50 @@ export default function Payroll({ data, setData, setActive }) {
     setSelectedEntryIds(prev => allVisibleSelected ? prev.filter(id => !ids.includes(id)) : Array.from(new Set([...prev, ...ids])))
   }
 
+  function exportSelectedEntries() {
+    const rows = (data.payrollEntries || []).filter(entry => selectedEntryIds.includes(entry.id))
+    if (!rows.length) {
+      setStatus('Select at least one payroll entry to export.')
+      return
+    }
+
+    const headers = [
+      'Pay Date', 'Employee', 'Group', 'Payroll Type', 'Payment Method', 'Hours',
+      'Regular Pay', 'Overtime Pay', 'Original Tips', 'Tips Withheld',
+      'Tips After Withholding', 'Extra Pay', 'Extra Reason', 'Final Check', 'Check Number'
+    ]
+    const csvEscape = value => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const csvRows = rows.map(entry => [
+      entry.pay_date || '',
+      entry.employee_name || '',
+      entry.group_name || '',
+      entry.payroll_classification || inferPayrollClassification(entry),
+      entry.payroll_type || '',
+      num(entry.hours).toFixed(2),
+      num(entry.regular_pay).toFixed(2),
+      num(entry.overtime_pay).toFixed(2),
+      (num(entry.tips) + num(entry.tip_deduction)).toFixed(2),
+      num(entry.tip_deduction).toFixed(2),
+      num(entry.tips).toFixed(2),
+      num(entry.extra_pay).toFixed(2),
+      entry.extra_reason || '',
+      num(entry.total_pay).toFixed(2),
+      entry.check_number || ''
+    ])
+
+    const csv = [headers, ...csvRows].map(row => row.map(csvEscape).join(',')).join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `payroll-selected-${startDate || 'start'}-to-${endDate || 'end'}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    setStatus(`Exported ${rows.length} selected payroll entries.`)
+  }
+
   function deleteSelectedEntries() {
     if (!selectedEntryIds.length) return
     if (!window.confirm(`Delete ${selectedEntryIds.length} selected payroll entries? This cannot be undone.`)) return
