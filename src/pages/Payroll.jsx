@@ -441,6 +441,56 @@ export default function Payroll({ data, setData, setActive }) {
     setStatus(`Exported ${rows.length} selected payroll entries.`)
   }
 
+  function approveCurrentPayroll() {
+    const candidates = (selectedEntryIds.length
+      ? (data.payrollEntries || []).filter(entry => selectedEntryIds.includes(entry.id))
+      : filteredEntries
+    ).filter(entry => !entry.approved_payroll_id && String(entry.approval_status || '').toLowerCase() !== 'approved')
+
+    if (!candidates.length) {
+      setStatus('No unapproved payroll rows are available. Select pending rows or change the filters.')
+      return
+    }
+    const duplicateKeys = new Set((data.approvedPayroll || []).map(row => row.source_payroll_entry_id).filter(Boolean))
+    const unique = candidates.filter(entry => !duplicateKeys.has(entry.id))
+    if (!unique.length) {
+      setStatus('These payroll rows were already approved. No duplicate approved payroll was created.')
+      return
+    }
+    const approvedAt = new Date().toISOString()
+    const snapshots = unique.map(entry => ({
+      id: createId('approved-pay'),
+      source_payroll_entry_id: entry.id,
+      employee_id: entry.employee_id || '',
+      employee_name: entry.employee_name || 'Employee',
+      group_name: entry.group_name || '',
+      payroll_classification: entry.payroll_classification || inferPayrollClassification(entry),
+      pay_date: entry.pay_date || today(),
+      pay_period_start: dateStart,
+      pay_period_end: dateEnd,
+      original_amount: round2(num(entry.total_pay)),
+      approved_amount: round2(num(entry.total_pay)),
+      payment_type: entry.payroll_type || entry.payment_method || 'Check',
+      check_number: entry.check_number || '',
+      payment_status: 'Pending',
+      paid_date: '',
+      notes: '',
+      approved_at: approvedAt,
+      updated_at: approvedAt
+    }))
+    const idBySource = Object.fromEntries(snapshots.map(row => [row.source_payroll_entry_id, row.id]))
+    setData(prev => ({
+      ...prev,
+      approvedPayroll: [...snapshots, ...(prev.approvedPayroll || [])],
+      payrollEntries: (prev.payrollEntries || []).map(entry => idBySource[entry.id]
+        ? { ...entry, approved_payroll_id: idBySource[entry.id], approval_status: 'Approved', approved_at: approvedAt }
+        : entry)
+    }))
+    setSelectedEntryIds([])
+    setStatus(`Approved ${snapshots.length} payroll row${snapshots.length === 1 ? '' : 's'} and saved them to Approved Payroll.`)
+    if (setActive) setActive('approved-payroll')
+  }
+
   function deleteSelectedEntries() {
     if (!selectedEntryIds.length) return
     if (!window.confirm(`Delete ${selectedEntryIds.length} selected payroll entries? This cannot be undone.`)) return
@@ -960,7 +1010,7 @@ export default function Payroll({ data, setData, setActive }) {
 
       {editingEntryId && <div className="payroll-edit-overlay" onClick={()=>setEditingEntryId(null)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Payroll Entry</h2><p>Update the employee's weekly payroll details.</p></div><button className="modal-close" onClick={()=>setEditingEntryId(null)}>×</button></header><div className="payroll-edit-grid"><label>Pay Date<input type="date" value={entryForm.pay_date||''} onChange={e=>setEntryForm(prev=>({...prev,pay_date:e.target.value}))}/></label><label>Hours<input type="number" step="0.01" value={entryForm.hours||''} onChange={e=>setEntryForm(prev=>({...prev,hours:e.target.value}))}/></label><label>Regular Pay<input type="number" step="0.01" value={entryForm.regular_pay||''} onChange={e=>setEntryForm(prev=>({...prev,regular_pay:e.target.value}))}/></label><label>Net Tips<input type="number" step="0.01" value={entryForm.tips||''} onChange={e=>setEntryForm(prev=>({...prev,tips:e.target.value}))}/></label><label>Tips Withheld<input type="number" step="0.01" value={entryForm.tip_deduction||''} onChange={e=>setEntryForm(prev=>({...prev,tip_deduction:e.target.value}))}/></label><label>Extra Pay<input type="number" step="0.01" value={entryForm.extra_pay||''} onChange={e=>setEntryForm(prev=>({...prev,extra_pay:e.target.value}))}/></label><label>Check Number<input value={entryForm.check_number||''} onChange={e=>setEntryForm(prev=>({...prev,check_number:e.target.value}))}/></label><label className="wide">Extra Pay Reason<input value={entryForm.extra_reason||''} onChange={e=>setEntryForm(prev=>({...prev,extra_reason:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setEditingEntryId(null)}>Cancel</button><button className="btn primary" onClick={saveEntryEdit}>Save Changes</button></footer></section></div>}
 
-      {['all','tips','kitchen','history'].includes(activeTab) && <div className="payroll-footer-total"><div><b>{viewTotals.employees.size}</b><span>Employees</span></div><div><b>{money(viewTotals.hours)}</b><span>Total Hours</span></div><div><b className="positive">${money(viewTotals.originalTips)}</b><span>Original Tips</span></div><div><b className="negative">${money(viewTotals.withheld)}</b><span>Tips Withheld</span></div><div><b>${money(viewTotals.extra)}</b><span>Extra Pay</span></div><div><b>${money(viewTotals.final)}</b><span>Final Checks</span></div><div className="approve-box"><button className="btn success"><Icon name="check"/> Approve Payroll</button></div></div>}
+      {['all','tips','kitchen','history'].includes(activeTab) && <div className="payroll-footer-total"><div><b>{viewTotals.employees.size}</b><span>Employees</span></div><div><b>{money(viewTotals.hours)}</b><span>Total Hours</span></div><div><b className="positive">${money(viewTotals.originalTips)}</b><span>Original Tips</span></div><div><b className="negative">${money(viewTotals.withheld)}</b><span>Tips Withheld</span></div><div><b>${money(viewTotals.extra)}</b><span>Extra Pay</span></div><div><b>${money(viewTotals.final)}</b><span>Final Checks</span></div><div className="approve-box"><button className="btn success" onClick={approveCurrentPayroll}><Icon name="check"/> Approve Payroll</button></div></div>}
     </div>
   </>
 }

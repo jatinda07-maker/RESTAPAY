@@ -6,6 +6,7 @@ import CostAnalysis from './pages/CostAnalysis'
 import EntityPage from './pages/EntityPage'
 import Employees from './pages/Employees'
 import Payroll from './pages/Payroll'
+import ApprovedPayroll from './pages/ApprovedPayroll'
 import Vendors from './pages/Vendors'
 import VendorComparison from './pages/VendorComparison'
 import Invoices from './pages/Invoices'
@@ -71,6 +72,7 @@ function App() {
       : active === 'vendor-comparison' ? <VendorComparison {...shared} />
       : active === 'invoices' ? <Invoices {...shared} />
       : active === 'payroll' ? <Payroll {...shared} setActive={setActive} />
+      : active === 'approved-payroll' ? <ApprovedPayroll {...shared} />
       : active === 'expenses' ? <Expenses {...shared} />
       : active === 'reports' ? <Reports {...shared} />
       : active === 'diagnostics' ? <Diagnostics {...shared} />
