@@ -1,0 +1,37 @@
+GITHUB RESET / NEW REPOSITORY STEPS
+
+Option A - Delete old GitHub repository and create a brand new one from GitHub website:
+1. Go to GitHub.com and open your old RESTAPAY repository.
+2. Go to Settings > General > Danger Zone.
+3. Click Delete this repository.
+4. Type the repository name exactly when GitHub asks.
+5. Create a new repository on GitHub, for example: RESTAPAY.
+6. Do not initialize with README if you are pushing this package.
+
+After creating the new repo, run these commands from the project folder:
+
+git init
+git add .
+git commit -m "Fresh RestaPay modern white redesign"
+git branch -M main
+git remote add origin https://github.com/YOUR-GITHUB-USERNAME/RESTAPAY.git
+git push -u origin main
+
+Option B - Keep same GitHub repository name but completely replace its contents:
+1. Open PowerShell in the updated project folder.
+2. Run:
+
+git init
+git remote remove origin 2>$null
+git remote add origin https://github.com/YOUR-GITHUB-USERNAME/RESTAPAY.git
+git add .
+git commit -m "Fresh RestaPay modern white redesign"
+git branch -M main
+git push -u origin main --force
+
+Important:
+- Replace YOUR-GITHUB-USERNAME with your GitHub username.
+- Do not upload node_modules to GitHub.
+- Run npm install after downloading/cloning on any new computer.
+- For Render, use build command: npm install && npm run build
+- For Render, use start command: npm run start

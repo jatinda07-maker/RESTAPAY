@@ -1,0 +1,75 @@
+services:
+  - type: web
+    name: restapay-v2
+    runtime: static
+    branch: clean-main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: 20.20.2
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_TOAST_SYNC_API_URL
+        sync: false
+
+  - type: web
+    name: restapay-toast-sync-api
+    runtime: node
+    branch: clean-main
+    rootDir: server
+    buildCommand: npm ci --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20.20.2
+      - key: ALLOWED_ORIGIN
+        sync: false
+      - key: TOAST_SFTP_HOST
+        value: s-9b0f88558b264dfda.server.transfer.us-east-1.amazonaws.com
+      - key: TOAST_SFTP_PORT
+        value: "22"
+      - key: TOAST_SFTP_USERNAME
+        value: IsabellaMexicanDataExports
+      - key: TOAST_EXPORT_ID
+        value: "144385"
+      - key: TOAST_PRIVATE_KEY_PATH
+        value: /etc/secrets/toast_restapay
+      - key: TOAST_LOOKBACK_DAYS
+        value: "8"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  - type: cron
+    name: restapay-toast-import
+    runtime: node
+    branch: clean-main
+    rootDir: server
+    schedule: "30 11 * * *"
+    buildCommand: npm ci --no-audit --no-fund
+    startCommand: npm run sync
+    envVars:
+      - key: NODE_VERSION
+        value: 20.20.2
+      - key: TOAST_SFTP_HOST
+        value: s-9b0f88558b264dfda.server.transfer.us-east-1.amazonaws.com
+      - key: TOAST_SFTP_PORT
+        value: "22"
+      - key: TOAST_SFTP_USERNAME
+        value: IsabellaMexicanDataExports
+      - key: TOAST_EXPORT_ID
+        value: "144385"
+      - key: TOAST_PRIVATE_KEY_PATH
+        value: /etc/secrets/toast_restapay
+      - key: TOAST_LOOKBACK_DAYS
+        value: "8"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
