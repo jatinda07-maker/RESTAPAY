@@ -8,6 +8,7 @@ export function connectionOptions() {
     port: config.toast.port,
     username: config.toast.username,
     privateKey: config.toast.privateKey(),
+    passphrase: config.toast.passphrase || undefined,
     readyTimeout: 30000,
     keepaliveInterval: 10000,
     keepaliveCountMax: 3

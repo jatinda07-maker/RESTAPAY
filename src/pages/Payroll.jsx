@@ -134,10 +134,10 @@ export default function Payroll({ data, setData, setActive }) {
   const [toastPayDate, setToastPayDate] = useState(today())
   const [groupPayDate, setGroupPayDate] = useState(today())
   const [editingEntryId, setEditingEntryId] = useState(null)
-  const [entryForm, setEntryForm] = useState({ regular_pay: '', hours: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '', payroll_classification: 'Operating Labor' })
+  const [entryForm, setEntryForm] = useState({ regular_pay: '', hours: '', original_tips: '', tip_deduction: '', extra_pay: '', extra_reason: '', payroll_type: 'Check', check_number: '', payroll_classification: 'Operating Labor' })
   const [manualForm, setManualForm] = useState({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', payroll_classification: 'Operating Labor', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
   const [previewRows, setPreviewRows] = useState([])
-  const [status, setStatus] = useState('Local auto-save is active. Payroll groups and entries will not disappear.')
+  const [status, setStatus] = useState('Supabase-only save is active. Unsaved changes will be blocked before leaving Payroll.')
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
   const [dateEnd, setDateEnd] = useState(() => readSavedDateRange().end)
   const [employeeSearch, setEmployeeSearch] = useState('')
@@ -155,6 +155,44 @@ export default function Payroll({ data, setData, setActive }) {
   const [toastReviewLoading, setToastReviewLoading] = useState(false)
   const [toastReviewError, setToastReviewError] = useState('')
   const [expandedEntryIds, setExpandedEntryIds] = useState([])
+
+
+  const employeeFilterOptions = useMemo(() => {
+    const byName = new Map()
+    const add = (name, id = '') => {
+      const label = String(name || '').trim()
+      const key = normalizeName(label)
+      if (!key) return
+      const existing = byName.get(key) || { key, label, ids: new Set() }
+      if (id) existing.ids.add(String(id))
+      if (!existing.label || label.localeCompare(existing.label) < 0) existing.label = label
+      byName.set(key, existing)
+    }
+    employees.forEach(emp => add(emp.name, emp.id))
+    entries.forEach(entry => add(entry.employee_name, entry.employee_id))
+    return Array.from(byName.values())
+      .map(option => ({ ...option, value: `name:${option.key}` }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [employees, entries])
+
+  useEffect(() => {
+    const handleCloudStatus = event => {
+      const status = event.detail?.status
+      window.__restapayCloudSavePending = status === 'saving' || status === 'offline'
+    }
+    const handleBeforeUnload = event => {
+      if (!window.__restapayCloudSavePending) return
+      event.preventDefault()
+      event.returnValue = 'Payroll changes have not been saved to Supabase.'
+      return event.returnValue
+    }
+    window.addEventListener('restapay-cloud-status', handleCloudStatus)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('restapay-cloud-status', handleCloudStatus)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   function updateDateStart(value) {
     setDateStart(value)
@@ -209,7 +247,10 @@ export default function Payroll({ data, setData, setActive }) {
       if (payMethodFilter !== 'all' && method !== payMethodFilter) return false
       if (payClassFilter === 'operating' && classification.includes('tip')) return false
       if (payClassFilter === 'tips' && !classification.includes('tip')) return false
-      if (employeeFilter !== 'all' && String(entry.employee_id || '') !== employeeFilter) return false
+      if (employeeFilter !== 'all') {
+        const optionKey = employeeFilter.replace(/^name:/, '')
+        if (normalizeName(entry.employee_name) !== optionKey) return false
+      }
       const isToast = String(entry.group_name || '').startsWith('Toast:') || String(entry.source || '').toLowerCase().includes('toast')
       if (sourceFilter === 'toast' && !isToast) return false
       if (sourceFilter === 'manual' && isToast) return false
@@ -645,10 +686,11 @@ export default function Payroll({ data, setData, setActive }) {
     const employee = employees.find(emp => emp.id === manualForm.employee_id)
     const employeeName = (employee?.name || manualForm.employee_name || '').trim()
     if (!employeeName) return setStatus('Select or enter an employee name first')
-    const regularPay = num(manualForm.regular_pay)
-    const tips = num(manualForm.tips)
-    const extraPay = num(manualForm.extra_pay)
-    const tipDeduction = num(manualForm.tip_deduction)
+    const regularPay = round2(num(manualForm.regular_pay))
+    const originalTips = round2(num(manualForm.tips))
+    const tipDeduction = round2(manualForm.tip_deduction === '' ? originalTips * tipRate / 100 : num(manualForm.tip_deduction))
+    const finalTips = round2(Math.max(originalTips - tipDeduction, 0))
+    const extraPay = round2(num(manualForm.extra_pay))
     const row = {
       id: createId('pay'),
       employee_id: employee?.id || '',
@@ -661,11 +703,13 @@ export default function Payroll({ data, setData, setActive }) {
       check_number: manualForm.check_number.trim(),
       hours: num(manualForm.hours),
       regular_pay: regularPay,
-      tips,
+      original_tips: originalTips,
+      total_tips: originalTips,
+      tips: finalTips,
       tip_deduction: tipDeduction,
       extra_pay: extraPay,
       extra_reason: manualForm.extra_reason.trim(),
-      total_pay: regularPay + tips - tipDeduction + extraPay
+      total_pay: round2(regularPay + finalTips + extraPay)
     }
     setData(prev => ({ ...prev, payrollEntries: [row, ...(prev.payrollEntries || [])] }))
     clearManualForm()
@@ -678,10 +722,11 @@ export default function Payroll({ data, setData, setActive }) {
       pay_date: entry.pay_date || today(),
       regular_pay: money(entry.regular_pay),
       hours: money(entry.hours || 0),
-      tips: money(entry.tips),
+      original_tips: money(entry.original_tips ?? entry.total_tips ?? (num(entry.tips) + num(entry.tip_deduction))),
       tip_deduction: money(entry.tip_deduction),
       extra_pay: money(entry.extra_pay),
       extra_reason: entry.extra_reason || '',
+      payroll_type: entry.payroll_type || entry.payment_type || 'Check',
       check_number: entry.check_number || '',
       payroll_classification: entry.payroll_classification || inferPayrollClassification(entry)
     })
@@ -690,11 +735,12 @@ export default function Payroll({ data, setData, setActive }) {
   function saveEntryEdit() {
     setData(prev => ({ ...prev, payrollEntries: prev.payrollEntries.map(entry => {
       if (entry.id !== editingEntryId) return entry
-      const regularPay = num(entryForm.regular_pay)
-      const tips = num(entryForm.tips)
-      const extraPay = num(entryForm.extra_pay)
-      const deduction = num(entryForm.tip_deduction)
-      return { ...entry, pay_date: entryForm.pay_date || entry.pay_date || today(), check_number: entryForm.check_number?.trim() || '', payroll_classification: entryForm.payroll_classification || inferPayrollClassification(entry), hours: num(entryForm.hours), regular_pay: regularPay, tips, tip_deduction: deduction, extra_pay: extraPay, extra_reason: entryForm.extra_reason.trim(), total_pay: regularPay + tips + extraPay }
+      const regularPay = round2(num(entryForm.regular_pay))
+      const originalTips = round2(num(entryForm.original_tips))
+      const deduction = round2(num(entryForm.tip_deduction))
+      const finalTips = round2(Math.max(originalTips - deduction, 0))
+      const extraPay = round2(num(entryForm.extra_pay))
+      return { ...entry, pay_date: entryForm.pay_date || entry.pay_date || today(), payroll_type: entryForm.payroll_type || entry.payroll_type || 'Check', payment_type: entryForm.payroll_type || entry.payment_type || 'Check', check_number: entryForm.check_number?.trim() || '', payroll_classification: entryForm.payroll_classification || inferPayrollClassification(entry), hours: num(entryForm.hours), regular_pay: regularPay, original_tips: originalTips, total_tips: originalTips, tips: finalTips, tip_deduction: deduction, extra_pay: extraPay, extra_reason: entryForm.extra_reason.trim(), total_pay: round2(regularPay + finalTips + extraPay) }
     }) }))
     setEditingEntryId(null)
     setStatus('Payroll row updated and saved locally')
@@ -748,7 +794,8 @@ export default function Payroll({ data, setData, setActive }) {
           period_end: source.period_end || reportPeriod.end || '',
           period_label: source.period_label || reportPeriod.label || '',
           source_sheet: source.source_sheet || '',
-          source_file: file.name
+          source_file: file.name,
+          summary_only: !source.has_business_date
         }
       }).filter(row => row.employee_name)
       const diag = laborImportDiagnostics(laborRows)
@@ -814,20 +861,33 @@ export default function Payroll({ data, setData, setActive }) {
         const sourceLabel = employeeAssignmentLabel(employee, prev.payrollGroups || [])
         return {
           id: createId('pay'), employee_id: employeeId, employee_name: employee.name || employeeName, group_name: row.source_sheet ? `Toast: ${row.source_sheet}` : sourceLabel, pay_date: importedRowDate(row, toastPayDate),
-          pay_type: employee.pay_type || row.pay_type, payroll_type: employee.payroll_type || row.payroll_type, payroll_classification: row.payroll_classification || employee.payroll_classification || inferPayrollClassification(employee), check_number: row.check_number || '', hours: num(row.hours), regular_pay: num(row.regular_pay), original_tips: num(row.total_tips || row.original_tips || (num(row.tips) + num(row.tip_deduction))), tips: num(row.tips),
+          pay_type: employee.pay_type || row.pay_type, payroll_type: row.payroll_type || employee.payroll_type || 'Check', payroll_classification: row.payroll_classification || employee.payroll_classification || inferPayrollClassification(employee), check_number: row.check_number || '', hours: num(row.hours), regular_pay: num(row.regular_pay), original_tips: num(row.total_tips || row.original_tips || (num(row.tips) + num(row.tip_deduction))), tips: num(row.tips),
           period_start: row.period_start || '', period_end: row.period_end || '',
           tip_deduction: num(row.tip_deduction), extra_pay: num(row.extra_pay), extra_reason: row.extra_reason || '', total_pay: num(row.total_pay)
         }
       })
+      const isSummaryImport = sourceRows.some(row => row.summary_only)
+      const periodStart = sourceRows[0]?.period_start || ''
+      const periodEnd = sourceRows[0]?.period_end || ''
+      const importedNames = new Set(rows.map(row => normalizeName(row.employee_name)))
+      const previousEntries = (prev.payrollEntries || []).filter(entry => {
+        if (!isSummaryImport || !periodStart || !periodEnd) return true
+        const entryDate = entry.pay_date || entry.payroll_date || ''
+        const isSamePeriod = entryDate >= periodStart && entryDate <= periodEnd
+        const isSameEmployee = importedNames.has(normalizeName(entry.employee_name))
+        const isToastRow = /^toast:/i.test(String(entry.group_name || '')) || String(entry.source_file || '') === String(sourceRows[0]?.source_file || '')
+        return !(isSamePeriod && isSameEmployee && isToastRow)
+      })
       return {
         ...prev,
         employees: sortByName([...existingEmployees, ...newEmployees]),
-        payrollEntries: [...rows, ...(prev.payrollEntries || [])],
-        payrollImports: [{ id: importId, date: sourceRows[0]?.period_end || toastPayDate, period_start: sourceRows[0]?.period_start || '', period_end: sourceRows[0]?.period_end || '', file_name: sourceRows[0]?.source_file || '', row_count: rows.length, new_employee_count: newEmployees.length, created_at: new Date().toISOString() }, ...(prev.payrollImports || [])]
+        payrollEntries: [...rows.map(row => ({ ...row, import_id: importId, source_file: sourceRows[0]?.source_file || '' })), ...previousEntries],
+        payrollImports: [{ id: importId, date: periodEnd || toastPayDate, period_start: periodStart, period_end: periodEnd, file_name: sourceRows[0]?.source_file || '', row_count: rows.length, new_employee_count: newEmployees.length, created_at: new Date().toISOString() }, ...(prev.payrollImports || []).filter(item => !(item.file_name === sourceRows[0]?.source_file && item.period_start === periodStart && item.period_end === periodEnd))]
       }
     })
     setPreviewRows([])
-    setStatus(`Saved ${sourceRows.length} imported payroll rows and added unmatched employees to the employee list`)
+    const summaryImport = sourceRows.some(row => row.summary_only)
+    setStatus(summaryImport ? `Saved ${sourceRows.length} pay-period payroll rows. Prior Toast rows for the same employees and period were replaced.` : `Saved ${sourceRows.length} imported payroll rows and added unmatched employees to the employee list`)
   }
 
 
@@ -856,7 +916,7 @@ export default function Payroll({ data, setData, setActive }) {
         {toastReviewError && <div className="status-pill">{toastReviewError}</div>}
         <div className="payroll-bulk-row"><label><input type="checkbox" checked={allSelected} onChange={toggleAll} /> Select All In This Tab</label><span className="review-note">{rows.length} pending rows. Original Toast values remain visible until approval.</span></div>
         <div className="payroll-table-wrap"><table className="payroll-enterprise-table toast-review-table"><thead><tr><th></th><th>Date</th><th>Toast Employee</th><th>Match Employee</th><th>Job</th><th>Hours</th><th>Wages</th><th>Original Tips</th><th>Withheld</th><th>Tips After WH</th><th>Extra Pay</th><th>Method</th><th>Check #</th><th>Total</th></tr></thead><tbody>
-          {rows.map(row => <tr key={row.id} className={row.is_new_employee ? 'review-warning' : ''}><td><input type="checkbox" checked={selectedToastIds.includes(row.id)} onChange={() => toggleToastSelection(row.id)} /></td><td>{row.business_date}</td><td><b>{displayToastName(row.raw_employee_name)}</b>{row.is_new_employee && <small className="new-employee-flag">New employee</small>}</td><td><select value={row.employee_id} onChange={e => updateToastReview(row.id, 'employee_id', e.target.value)}><option value="">Create new employee</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></td><td>{row.job_name || '—'}</td><td><input type="number" step="0.01" value={row.hours} onChange={e => updateToastReview(row.id, 'hours', e.target.value)} /></td><td><input type="number" step="0.01" value={row.regular_pay} onChange={e => updateToastReview(row.id, 'regular_pay', e.target.value)} /></td><td>${money(row.original_tips)}</td><td><input type="number" step="0.01" value={row.tip_deduction} onChange={e => updateToastReview(row.id, 'tip_deduction', e.target.value)} /></td><td><input type="number" step="0.01" value={row.tips} onChange={e => updateToastReview(row.id, 'tips', e.target.value)} /></td><td><input type="number" step="0.01" value={row.extra_pay} onChange={e => updateToastReview(row.id, 'extra_pay', e.target.value)} /></td><td><select value={row.payroll_type} onChange={e => updateToastReview(row.id, 'payroll_type', e.target.value)}><option>Cash</option><option>Check</option></select></td><td><input value={row.check_number} onChange={e => updateToastReview(row.id, 'check_number', e.target.value)} /></td><td className="money-strong">${money(row.total_pay)}</td></tr>)}
+          {rows.map(row => <tr key={row.id} className={row.is_new_employee ? 'review-warning' : ''}><td><input type="checkbox" checked={selectedToastIds.includes(row.id)} onChange={() => toggleToastSelection(row.id)} /></td><td>{row.business_date}</td><td><b>{displayToastName(row.raw_employee_name)}</b>{row.is_new_employee && <small className="new-employee-flag">New employee</small>}</td><td><select value={row.employee_id} onChange={e => updateToastReview(row.id, 'employee_id', e.target.value)}><option value="">Create new employee</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></td><td>{row.job_name || '—'}</td><td><input type="number" step="0.01" value={row.hours} onChange={e => updateToastReview(row.id, 'hours', e.target.value)} /></td><td><input type="number" step="0.01" value={row.regular_pay} onChange={e => updateToastReview(row.id, 'regular_pay', e.target.value)} /></td><td>${money(row.original_tips)}</td><td><input type="number" step="0.01" value={row.tip_deduction} onChange={e => updateToastReview(row.id, 'tip_deduction', e.target.value)} /></td><td><input type="number" step="0.01" value={row.tips} onChange={e => updateToastReview(row.id, 'tips', e.target.value)} /></td><td><input type="number" step="0.01" value={row.extra_pay} onChange={e => updateToastReview(row.id, 'extra_pay', e.target.value)} /></td><td><select value={row.payroll_type} onChange={e => updateToastReview(row.id, 'payroll_type', e.target.value)}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></td><td><input value={row.check_number} onChange={e => updateToastReview(row.id, 'check_number', e.target.value)} /></td><td className="money-strong">${money(row.total_pay)}</td></tr>)}
           {!rows.length && <tr><td colSpan="14" className="empty-cell">{toastReviewLoading ? 'Loading automatic Toast labor...' : 'No pending employees in this payroll tab for the selected date range.'}</td></tr>}
         </tbody></table></div>
       </section>
@@ -959,7 +1019,7 @@ export default function Payroll({ data, setData, setActive }) {
       {['dashboard','all','tips','kitchen','history'].includes(activeTab) && <>
         <section className="payroll-filter-card">
           <label>Payroll Week (Mon–Sun)<div><DateControls start={dateStart} end={dateEnd} onStartChange={updateDateStart} onEndChange={updateDateEnd} onApply={()=>{saveGlobalDateRange(dateStart,dateEnd);setStatus(`Applied payroll date range: ${rangeLabel}`)}} onPreset={applyPreset}/></div></label>
-          <label>Employee<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="all">All Employees</option>{employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></label>
+          <label>Employee<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="all">All Employees</option>{employeeFilterOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label>Payroll Type<select value={payClassFilter} onChange={e=>setPayClassFilter(e.target.value)}><option value="all">All Types</option><option value="tips">Tips Payroll</option><option value="operating">Kitchen / Operating</option></select></label>
           <label>Search<div className="search-box"><Icon name="search" size={16}/><input value={employeeSearch} onChange={e=>setEmployeeSearch(e.target.value)} placeholder="Search employee..."/></div></label>
           <button className="reset-btn" onClick={()=>{setEmployeeFilter('all');setPayClassFilter('all');setPayMethodFilter('all');setSourceFilter('all');setEmployeeSearch('')}}>Reset</button>
@@ -996,19 +1056,19 @@ export default function Payroll({ data, setData, setActive }) {
             const open=expandedEntryIds.includes(entry.id)
             const isTips=String(entry.payroll_classification||inferPayrollClassification(entry)).toLowerCase().includes('tip') || num(entry.tips)>0
             const initials=String(entry.employee_name||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()
-            return <React.Fragment key={entry.id}><tr><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)}/></td><td className="pay-date-cell">{entry.pay_date||'—'}</td><td><div className="employee-name-cell"><span className="employee-avatar">{initials}</span><div><b>{entry.employee_name}</b><small>{entry.group_name||entry.pay_type||'Employee'}</small></div></div></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td><span className={`payroll-type-pill ${isTips?'tips':'kitchen'}`}>{isTips?'Tips Payroll':'Kitchen Payroll'}</span></td><td className="money-final">${money(entry.total_pay)}</td><td><span className="status-pill-modern">Pending</span></td><td><input className="check-input" value={entry.check_number||''} placeholder="—" onChange={e=>setData(prev=>({...prev,payrollEntries:(prev.payrollEntries||[]).map(row=>row.id===entry.id?{...row,check_number:e.target.value}:row)}))}/></td><td><div className="row-actions"><button title="Edit" onClick={()=>startEdit(entry)}><Icon name="edit" size={14}/></button><button title="Expand" onClick={()=>toggleExpandedEntry(entry.id)}><Icon name={open?'chevronUp':'chevronDown'} size={14}/></button></div></td></tr>{open&&<tr className="payroll-detail-row"><td colSpan="9"><div className="payroll-detail-grid"><div className="payroll-detail-item"><span>Regular Pay</span><b>${money(entry.regular_pay)}</b></div><div className="payroll-detail-item"><span>Overtime Pay</span><b>${money(entry.overtime_pay)}</b></div><div className="payroll-detail-item"><span>Original Tips</span><b>${money(num(entry.tips)+num(entry.tip_deduction))}</b></div><div className="payroll-detail-item"><span>Tips Withheld</span><b className="negative">${money(entry.tip_deduction)}</b></div><div className="payroll-detail-item"><span>Net Tips</span><b className="positive">${money(entry.tips)}</b></div><div className="payroll-detail-item"><span>Extra Pay</span><b>${money(entry.extra_pay)}</b></div><div className="payroll-detail-item"><span>Pay Date</span><b>{entry.pay_date||'—'}</b></div><div className="payroll-detail-item"><span>Method</span><b>{entry.payroll_type||'—'}</b></div></div></td></tr>}</React.Fragment>
+            return <React.Fragment key={entry.id}><tr><td><input type="checkbox" checked={selectedEntryIds.includes(entry.id)} onChange={()=>toggleEntrySelection(entry.id)}/></td><td className="pay-date-cell">{entry.pay_date||'—'}</td><td><div className="employee-name-cell"><span className="employee-avatar">{initials}</span><div><b>{entry.employee_name}</b><small>{entry.group_name||entry.pay_type||'Employee'}</small></div></div></td><td>{num(entry.hours)?money(entry.hours):'—'}</td><td><span className={`payroll-type-pill ${isTips?'tips':'kitchen'}`}>{isTips?'Tips Payroll':'Kitchen Payroll'}</span></td><td className="money-final">${money(entry.total_pay)}</td><td><span className="status-pill-modern">Pending</span></td><td><input className="check-input" value={entry.check_number||''} placeholder="—" onChange={e=>setData(prev=>({...prev,payrollEntries:(prev.payrollEntries||[]).map(row=>row.id===entry.id?{...row,check_number:e.target.value}:row)}))}/></td><td><div className="row-actions"><button title="Edit" onClick={()=>startEdit(entry)}><Icon name="edit" size={14}/></button><button title="Expand" onClick={()=>toggleExpandedEntry(entry.id)}><Icon name={open?'chevronUp':'chevronDown'} size={14}/></button></div></td></tr>{open&&<tr className="payroll-detail-row"><td colSpan="9"><div className="payroll-detail-grid"><div className="payroll-detail-item"><span>Regular Pay</span><b>${money(entry.regular_pay)}</b></div><div className="payroll-detail-item"><span>Overtime Pay</span><b>${money(entry.overtime_pay)}</b></div><div className="payroll-detail-item"><span>Original Tips</span><b>${money(entry.original_tips ?? entry.total_tips ?? (num(entry.tips)+num(entry.tip_deduction)))}</b></div><div className="payroll-detail-item"><span>Tips Withheld</span><b className="negative">${money(entry.tip_deduction)}</b></div><div className="payroll-detail-item"><span>Net Tips</span><b className="positive">${money(entry.tips)}</b></div><div className="payroll-detail-item"><span>Extra Pay</span><b>${money(entry.extra_pay)}</b></div><div className="payroll-detail-item"><span>Pay Date</span><b>{entry.pay_date||'—'}</b></div><div className="payroll-detail-item"><span>Method</span><b>{entry.payroll_type||'—'}</b></div></div></td></tr>}</React.Fragment>
           }) : <tr><td colSpan="9" className="empty-cell">No payroll entries in the selected date range.</td></tr>}
         </tbody></table>
         <div className="payroll-pagination"><span>Showing {tabEntries.length ? (viewCurrentPage-1)*rowsPerPage+1 : 0} to {Math.min(viewCurrentPage*rowsPerPage,tabEntries.length)} of {tabEntries.length}</span><div className="pages"><button onClick={()=>setPage(Math.max(1,viewCurrentPage-1))}>‹</button>{Array.from({length:Math.min(viewTotalPages,5)},(_,i)=>i+1).map(n=><button key={n} className={viewCurrentPage===n?'active':''} onClick={()=>setPage(n)}>{n}</button>)}<button onClick={()=>setPage(Math.min(viewTotalPages,viewCurrentPage+1))}>›</button></div><label>Rows: <select value={rowsPerPage} onChange={e=>setRowsPerPage(Number(e.target.value))}><option>10</option><option>25</option><option>50</option></select></label></div>
       </section>}
 
-      {activeTab === 'manual' && <section className="payroll-table-card manual-panel"><div className="payroll-actionbar"><h2>Manual Payroll</h2><div className="right"><label className="file-button btn primary"><Icon name="upload"/> Upload CSV / Excel<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile}/></label></div></div><div className="employee-form-grid"><label>Employee<select value={manualForm.employee_id} onChange={e=>updateManualForm('employee_id',e.target.value)}><option value="">Select employee</option>{employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></label><label>Manual Name<input value={manualForm.employee_name} onChange={e=>updateManualForm('employee_name',e.target.value)}/></label><label>Payroll Date<input type="date" value={manualForm.pay_date} onChange={e=>updateManualForm('pay_date',e.target.value)}/></label><label>Payment Method<select value={manualForm.payroll_type} onChange={e=>updateManualForm('payroll_type',e.target.value)}><option>Cash</option><option>Check</option></select></label><label>Check #<input value={manualForm.check_number} onChange={e=>updateManualForm('check_number',e.target.value)}/></label><label>Hours<input type="number" value={manualForm.hours} onChange={e=>updateManualForm('hours',e.target.value)}/></label><label>Regular Pay<input type="number" value={manualForm.regular_pay} onChange={e=>updateManualForm('regular_pay',e.target.value)}/></label><label>Net Tips<input type="number" value={manualForm.tips} onChange={e=>updateManualForm('tips',e.target.value)}/></label><label>Tips Withheld<input type="number" value={manualForm.tip_deduction} onChange={e=>updateManualForm('tip_deduction',e.target.value)}/></label><label>Extra Pay<input type="number" value={manualForm.extra_pay} onChange={e=>updateManualForm('extra_pay',e.target.value)}/></label><label>Extra Reason<input value={manualForm.extra_reason} onChange={e=>updateManualForm('extra_reason',e.target.value)}/></label><label>&nbsp;<button className="btn primary" onClick={addManualPayroll}><Icon name="plus"/> Add Payroll</button></label></div></section>}
+      {activeTab === 'manual' && <section className="payroll-table-card manual-panel"><div className="payroll-actionbar"><h2>Manual Payroll</h2><div className="right"><label className="file-button btn primary"><Icon name="upload"/> Upload CSV / Excel<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile}/></label></div></div><div className="employee-form-grid"><label>Employee<select value={manualForm.employee_id} onChange={e=>updateManualForm('employee_id',e.target.value)}><option value="">Select employee</option>{employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></label><label>Manual Name<input value={manualForm.employee_name} onChange={e=>updateManualForm('employee_name',e.target.value)}/></label><label>Payroll Date<input type="date" value={manualForm.pay_date} onChange={e=>updateManualForm('pay_date',e.target.value)}/></label><label>Payment Method<select value={manualForm.payroll_type} onChange={e=>updateManualForm('payroll_type',e.target.value)}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>Check #<input value={manualForm.check_number} onChange={e=>updateManualForm('check_number',e.target.value)}/></label><label>Hours<input type="number" value={manualForm.hours} onChange={e=>updateManualForm('hours',e.target.value)}/></label><label>Regular Pay<input type="number" value={manualForm.regular_pay} onChange={e=>updateManualForm('regular_pay',e.target.value)}/></label><label>Original Tips<input type="number" value={manualForm.tips} onChange={e=>updateManualForm('tips',e.target.value)}/></label><label>Tips Withheld<input type="number" value={manualForm.tip_deduction} onChange={e=>updateManualForm('tip_deduction',e.target.value)}/></label><label>Extra Pay<input type="number" value={manualForm.extra_pay} onChange={e=>updateManualForm('extra_pay',e.target.value)}/></label><label>Extra Reason<input value={manualForm.extra_reason} onChange={e=>updateManualForm('extra_reason',e.target.value)}/></label><label>&nbsp;<button className="btn primary" onClick={addManualPayroll}><Icon name="plus"/> Add Payroll</button></label></div></section>}
 
       {activeTab === 'groups' && <section className="payroll-table-card groups-panel"><div className="payroll-actionbar"><h2>Payroll Groups</h2><div className="right"><input value={groupName} onChange={e=>setGroupName(e.target.value)} placeholder="New group name"/><button className="btn primary" onClick={createGroup}><Icon name="plus"/> Add Group</button></div></div><div className="group-cards">{groups.map(group=>{const members=employees.filter(emp=>(group.memberIds||[]).includes(emp.id));return <div className="group-card" key={group.id}><header><h3>{group.name}</h3><span>{members.length} members</span></header><p><b>Method:</b> {group.payroll_type||'Cash'}</p><ul>{members.slice(0,6).map(emp=><li key={emp.id}>{emp.name} — {emp.job_type||emp.pay_type}</li>)}</ul><div className="row-actions"><button onClick={()=>setSelectedGroupId(group.id)}><Icon name="edit" size={14}/></button><button className="delete" onClick={()=>{setSelectedGroupId(group.id);setTimeout(deleteGroup,0)}}><Icon name="trash" size={14}/></button></div></div>})}</div></section>}
 
-      {previewRows.length>0 && <section className="payroll-table-card import-preview"><div className="payroll-actionbar"><div><h2>Labor Summary Review</h2><small>{previewRows.length} rows ready to add{previewRows[0]?.period_label ? ` • Toast report: ${previewRows[0].period_label}` : ''}</small></div><div className="right"><button className="btn secondary" onClick={()=>setPreviewRows([])}>Cancel</button><button className="btn primary" onClick={savePreviewToPayroll}>Add To Payroll</button></div></div><div className="import-review-scroll"><table className="labor-review-table"><thead><tr><th>Pay Date</th><th>Toast Period</th><th>Employee</th><th>Hours</th><th>Regular Pay</th><th>Original Tips</th><th>3.5% Withheld</th><th>Final Tips</th><th>Extra Pay</th><th>Final Check</th><th>Pay Type</th><th>Payment</th><th>Check #</th><th>Status</th></tr></thead><tbody>{previewRows.map(row=><tr key={row.id}><td className="pay-date-cell">{row.pay_date||toastPayDate}</td><td>{row.period_label||row.pay_date||'—'}</td><td><b>{row.employee_name}</b><small>{row.job_type||row.source_sheet}</small></td><td>{row.hours}</td><td>${money(row.regular_pay)}</td><td>${money(row.total_tips)}</td><td className="negative">-${money(row.tip_deduction)}</td><td className="positive">${money(row.tips)}</td><td>${money(row.extra_pay)}</td><td className="money-final">${money(row.total_pay)}</td><td>{row.pay_type}</td><td>{row.payroll_type}</td><td>{row.check_number||'—'}</td><td><span className="status-pill-modern">Review</span></td></tr>)}</tbody></table></div></section>}
+      {previewRows.length>0 && <section className="payroll-table-card import-preview"><div className="payroll-actionbar"><div><h2>Labor Summary Review</h2><small>{previewRows.length} rows ready to add{previewRows[0]?.period_label ? ` • Toast report: ${previewRows[0].period_label}` : ''}</small></div><div className="right"><button className="btn secondary" onClick={()=>setPreviewRows([])}>Cancel</button><button className="btn primary" onClick={savePreviewToPayroll}>Add To Payroll</button></div></div><div className="import-review-scroll"><table className="labor-review-table"><thead><tr><th>Pay Date</th><th>Toast Period</th><th>Employee</th><th>Hours</th><th>Regular Pay</th><th>Original Tips</th><th>3.5% Withheld</th><th>Final Tips</th><th>Extra Pay</th><th>Final Check</th><th>Pay Type</th><th>Payment</th><th>Check #</th><th>Status</th></tr></thead><tbody>{previewRows.map(row=><tr key={row.id}><td className="pay-date-cell">{row.pay_date||toastPayDate}</td><td>{row.period_label||row.pay_date||'—'}</td><td><b>{row.employee_name}</b><small>{row.job_type||row.source_sheet}</small></td><td>{row.hours}</td><td>${money(row.regular_pay)}</td><td>${money(row.total_tips)}</td><td className="negative">-${money(row.tip_deduction)}</td><td className="positive">${money(row.tips)}</td><td><input className="check-input" type="number" step="0.01" value={row.extra_pay} onChange={e=>updatePreview(row.id,'extra_pay',e.target.value)}/></td><td className="money-final">${money(row.total_pay)}</td><td>{row.pay_type}</td><td><select value={row.payroll_type||'Check'} onChange={e=>updatePreview(row.id,'payroll_type',e.target.value)}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></td><td><input className="check-input" value={row.check_number||''} placeholder="—" onChange={e=>updatePreview(row.id,'check_number',e.target.value)}/></td><td><span className="status-pill-modern">Review</span></td></tr>)}</tbody></table></div></section>}
 
-      {editingEntryId && <div className="payroll-edit-overlay" onClick={()=>setEditingEntryId(null)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Payroll Entry</h2><p>Update the employee's weekly payroll details.</p></div><button className="modal-close" onClick={()=>setEditingEntryId(null)}>×</button></header><div className="payroll-edit-grid"><label>Pay Date<input type="date" value={entryForm.pay_date||''} onChange={e=>setEntryForm(prev=>({...prev,pay_date:e.target.value}))}/></label><label>Hours<input type="number" step="0.01" value={entryForm.hours||''} onChange={e=>setEntryForm(prev=>({...prev,hours:e.target.value}))}/></label><label>Regular Pay<input type="number" step="0.01" value={entryForm.regular_pay||''} onChange={e=>setEntryForm(prev=>({...prev,regular_pay:e.target.value}))}/></label><label>Net Tips<input type="number" step="0.01" value={entryForm.tips||''} onChange={e=>setEntryForm(prev=>({...prev,tips:e.target.value}))}/></label><label>Tips Withheld<input type="number" step="0.01" value={entryForm.tip_deduction||''} onChange={e=>setEntryForm(prev=>({...prev,tip_deduction:e.target.value}))}/></label><label>Extra Pay<input type="number" step="0.01" value={entryForm.extra_pay||''} onChange={e=>setEntryForm(prev=>({...prev,extra_pay:e.target.value}))}/></label><label>Check Number<input value={entryForm.check_number||''} onChange={e=>setEntryForm(prev=>({...prev,check_number:e.target.value}))}/></label><label className="wide">Extra Pay Reason<input value={entryForm.extra_reason||''} onChange={e=>setEntryForm(prev=>({...prev,extra_reason:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setEditingEntryId(null)}>Cancel</button><button className="btn primary" onClick={saveEntryEdit}>Save Changes</button></footer></section></div>}
+      {editingEntryId && <div className="payroll-edit-overlay" onClick={()=>setEditingEntryId(null)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Payroll Entry</h2><p>Update the employee's weekly payroll details.</p></div><button className="modal-close" onClick={()=>setEditingEntryId(null)}>×</button></header><div className="payroll-edit-grid"><label>Pay Date<input type="date" value={entryForm.pay_date||''} onChange={e=>setEntryForm(prev=>({...prev,pay_date:e.target.value}))}/></label><label>Hours<input type="number" step="0.01" value={entryForm.hours||''} onChange={e=>setEntryForm(prev=>({...prev,hours:e.target.value}))}/></label><label>Regular Pay<input type="number" step="0.01" value={entryForm.regular_pay||''} onChange={e=>setEntryForm(prev=>({...prev,regular_pay:e.target.value}))}/></label><label>Original Tips<input type="number" step="0.01" value={entryForm.original_tips||''} onChange={e=>setEntryForm(prev=>({...prev,original_tips:e.target.value}))}/></label><label>Tips Withheld<input type="number" step="0.01" value={entryForm.tip_deduction||''} onChange={e=>setEntryForm(prev=>({...prev,tip_deduction:e.target.value}))}/></label><label>Extra Pay<input type="number" step="0.01" value={entryForm.extra_pay||''} onChange={e=>setEntryForm(prev=>({...prev,extra_pay:e.target.value}))}/></label><label>Payment Type<select value={entryForm.payroll_type||'Check'} onChange={e=>setEntryForm(prev=>({...prev,payroll_type:e.target.value}))}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>Check Number<input value={entryForm.check_number||''} onChange={e=>setEntryForm(prev=>({...prev,check_number:e.target.value}))}/></label><label className="wide">Extra Pay Reason<input value={entryForm.extra_reason||''} onChange={e=>setEntryForm(prev=>({...prev,extra_reason:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setEditingEntryId(null)}>Cancel</button><button className="btn primary" onClick={saveEntryEdit}>Save Changes</button></footer></section></div>}
 
       {['all','tips','kitchen','history'].includes(activeTab) && <div className="payroll-footer-total"><div><b>{viewTotals.employees.size}</b><span>Employees</span></div><div><b>{money(viewTotals.hours)}</b><span>Total Hours</span></div><div><b className="positive">${money(viewTotals.originalTips)}</b><span>Original Tips</span></div><div><b className="negative">${money(viewTotals.withheld)}</b><span>Tips Withheld</span></div><div><b>${money(viewTotals.extra)}</b><span>Extra Pay</span></div><div><b>${money(viewTotals.final)}</b><span>Final Checks</span></div><div className="approve-box"><button className="btn success" onClick={approveCurrentPayroll}><Icon name="check"/> Approve Payroll</button></div></div>}
     </div>

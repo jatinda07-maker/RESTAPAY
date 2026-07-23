@@ -292,9 +292,10 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
   // Toast workbooks often contain both an employee summary and dated shift/day detail.
   // When dated detail exists, discard undated summary rows so totals are not duplicated.
   const datedRows = parsed.filter(row => row.has_business_date)
-  const rowsToGroup = datedRows.length
-    ? datedRows
-    : expandSummaryRowsByPeriod(parsed, reportPeriod, tipRate)
+  // A payroll export without a business-date column is a pay-period summary.
+  // Keep one row per employee for the full period. Splitting the summary evenly
+  // across calendar days creates artificial near-identical daily checks.
+  const rowsToGroup = datedRows.length ? datedRows : parsed
   const grouped = new Map()
 
   for (const row of rowsToGroup) {

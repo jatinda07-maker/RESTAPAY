@@ -64,21 +64,22 @@ const summaryOnly = [
 ]
 const summaryOnlyWb = XLSX.utils.book_new()
 XLSX.utils.book_append_sheet(summaryOnlyWb, XLSX.utils.aoa_to_sheet(summaryOnly), 'Payroll Export')
-const summaryDaily = parseToastLaborRows(XLSX, summaryOnlyWb, {
+const summaryRows = parseToastLaborRows(XLSX, summaryOnlyWb, {
   payDate: '2026-07-21',
   tipRate: 3.5,
   fileName: 'PayrollExport_2026_07_01-2026_07_21.csv'
 })
-assert.equal(summaryDaily.length, 42, 'summary-only payroll must expand to one row per employee per period date')
-assert.equal(summaryDaily[0].period_start, '2026-07-01')
-assert.equal(summaryDaily.at(-1).period_end, '2026-07-21')
-assert.ok(summaryDaily.every(row => row.allocated_from_summary))
-const summaryDiag = laborImportDiagnostics(summaryDaily)
+assert.equal(summaryRows.length, 2, 'summary-only payroll must remain one pay-period row per employee')
+assert.equal(summaryRows[0].period_start, '2026-07-01')
+assert.equal(summaryRows.at(-1).period_end, '2026-07-21')
+assert.ok(summaryRows.every(row => !row.allocated_from_summary))
+assert.ok(summaryRows.every(row => row.pay_date === '2026-07-21'))
+const summaryDiag = laborImportDiagnostics(summaryRows)
 assert.equal(summaryDiag.hours, 35)
 assert.equal(summaryDiag.totalTips, 350)
 assert.equal(summaryDiag.withheld, 12.25)
 assert.equal(summaryDiag.netTips, 337.75)
-const managerRows = summaryDaily.filter(row => row.employee_name === 'Cruz, Israel')
-assert.equal(managerRows.length, 21)
-assert.equal(laborImportDiagnostics(managerRows).totalTips, 140, 'tip-paid managers must retain all allocated tips')
-console.log('Toast labor summary filename-period allocation tests passed')
+const managerRows = summaryRows.filter(row => row.employee_name === 'Cruz, Israel')
+assert.equal(managerRows.length, 1)
+assert.equal(laborImportDiagnostics(managerRows).totalTips, 140, 'tip-paid managers must retain all period tips')
+console.log('Toast labor summary pay-period tests passed')
