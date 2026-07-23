@@ -1591,3 +1591,6 @@ input[placeholder*="Search" i]::placeholder {
 .dashboard-v3 .section-card-title-button:disabled{cursor:default;}
 .dashboard-v3 .section-card-title-button:not(:disabled):hover{background:rgba(255,255,255,.18);}
 .dashboard-v3 .section-card-action{display:flex;align-items:center;position:relative;z-index:2;}
+
+/* RC4 manual payroll employee picker */
+.manual-employee-picker{display:grid;grid-template-columns:minmax(240px,1.4fr) minmax(260px,1.4fr) auto auto;gap:10px;align-items:end;padding:12px 14px;margin:0 14px 12px;border:1px solid #dfe7f1;border-radius:11px;background:#f8fbff}.manual-employee-picker label{margin:0}.manual-load-btn,.manual-clear-btn{white-space:nowrap}.manual-panel>.employee-form-grid{padding:0 14px 14px}@media(max-width:1000px){.manual-employee-picker{grid-template-columns:1fr 1fr}.manual-load-btn,.manual-clear-btn{width:100%}}@media(max-width:680px){.manual-employee-picker{grid-template-columns:1fr}}

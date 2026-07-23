@@ -136,6 +136,7 @@ export default function Payroll({ data, setData, setActive }) {
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [entryForm, setEntryForm] = useState({ regular_pay: '', hours: '', original_tips: '', tip_deduction: '', extra_pay: '', extra_reason: '', payroll_type: 'Check', check_number: '', payroll_classification: 'Operating Labor' })
   const [manualForm, setManualForm] = useState({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', payroll_classification: 'Operating Labor', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
+  const [manualEmployeeSearch, setManualEmployeeSearch] = useState('')
   const [previewRows, setPreviewRows] = useState([])
   const [status, setStatus] = useState('Supabase-only save is active. Unsaved changes will be blocked before leaving Payroll.')
   const [dateStart, setDateStart] = useState(() => readSavedDateRange().start)
@@ -156,6 +157,12 @@ export default function Payroll({ data, setData, setActive }) {
   const [toastReviewError, setToastReviewError] = useState('')
   const [expandedEntryIds, setExpandedEntryIds] = useState([])
 
+
+  const manualEmployeeOptions = useMemo(() => {
+    const query = manualEmployeeSearch.trim().toLowerCase()
+    if (!query) return employees
+    return employees.filter(emp => [emp.name, emp.job_type, emp.employee_type, emp.pay_type].join(' ').toLowerCase().includes(query))
+  }, [employees, manualEmployeeSearch])
 
   const employeeFilterOptions = useMemo(() => {
     const byName = new Map()
@@ -678,8 +685,17 @@ export default function Payroll({ data, setData, setActive }) {
     })
   }
 
+  function loadManualEmployee() {
+    const employee = employees.find(emp => emp.id === manualForm.employee_id)
+    if (!employee) return setStatus('Search for and select an employee first')
+    updateManualForm('employee_id', employee.id)
+    setManualEmployeeSearch(employee.name)
+    setStatus(`${employee.name} loaded. Enter payroll amounts, then click Add Payroll.`)
+  }
+
   function clearManualForm() {
     setManualForm({ employee_id: '', employee_name: '', pay_date: today(), payroll_type: 'Cash', check_number: '', pay_type: 'Hourly', payroll_classification: 'Operating Labor', hours: '', regular_pay: '', tips: '', tip_deduction: '', extra_pay: '', extra_reason: '' })
+    setManualEmployeeSearch('')
   }
 
   function addManualPayroll() {
@@ -1062,7 +1078,7 @@ export default function Payroll({ data, setData, setActive }) {
         <div className="payroll-pagination"><span>Showing {tabEntries.length ? (viewCurrentPage-1)*rowsPerPage+1 : 0} to {Math.min(viewCurrentPage*rowsPerPage,tabEntries.length)} of {tabEntries.length}</span><div className="pages"><button onClick={()=>setPage(Math.max(1,viewCurrentPage-1))}>‹</button>{Array.from({length:Math.min(viewTotalPages,5)},(_,i)=>i+1).map(n=><button key={n} className={viewCurrentPage===n?'active':''} onClick={()=>setPage(n)}>{n}</button>)}<button onClick={()=>setPage(Math.min(viewTotalPages,viewCurrentPage+1))}>›</button></div><label>Rows: <select value={rowsPerPage} onChange={e=>setRowsPerPage(Number(e.target.value))}><option>10</option><option>25</option><option>50</option></select></label></div>
       </section>}
 
-      {activeTab === 'manual' && <section className="payroll-table-card manual-panel"><div className="payroll-actionbar"><h2>Manual Payroll</h2><div className="right"><label className="file-button btn primary"><Icon name="upload"/> Upload CSV / Excel<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile}/></label></div></div><div className="employee-form-grid"><label>Employee<select value={manualForm.employee_id} onChange={e=>updateManualForm('employee_id',e.target.value)}><option value="">Select employee</option>{employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></label><label>Manual Name<input value={manualForm.employee_name} onChange={e=>updateManualForm('employee_name',e.target.value)}/></label><label>Payroll Date<input type="date" value={manualForm.pay_date} onChange={e=>updateManualForm('pay_date',e.target.value)}/></label><label>Payment Method<select value={manualForm.payroll_type} onChange={e=>updateManualForm('payroll_type',e.target.value)}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>Check #<input value={manualForm.check_number} onChange={e=>updateManualForm('check_number',e.target.value)}/></label><label>Hours<input type="number" value={manualForm.hours} onChange={e=>updateManualForm('hours',e.target.value)}/></label><label>Regular Pay<input type="number" value={manualForm.regular_pay} onChange={e=>updateManualForm('regular_pay',e.target.value)}/></label><label>Original Tips<input type="number" value={manualForm.tips} onChange={e=>updateManualForm('tips',e.target.value)}/></label><label>Tips Withheld<input type="number" value={manualForm.tip_deduction} onChange={e=>updateManualForm('tip_deduction',e.target.value)}/></label><label>Extra Pay<input type="number" value={manualForm.extra_pay} onChange={e=>updateManualForm('extra_pay',e.target.value)}/></label><label>Extra Reason<input value={manualForm.extra_reason} onChange={e=>updateManualForm('extra_reason',e.target.value)}/></label><label>&nbsp;<button className="btn primary" onClick={addManualPayroll}><Icon name="plus"/> Add Payroll</button></label></div></section>}
+      {activeTab === 'manual' && <section className="payroll-table-card manual-panel"><div className="payroll-actionbar"><div><h2>Manual Payroll</h2><small>Search, select, and load an employee before entering payroll.</small></div><div className="right"><label className="file-button btn primary"><Icon name="upload"/> Upload CSV / Excel<input type="file" accept=".csv,.xlsx,.xls" onChange={handleLaborFile}/></label></div></div><div className="manual-employee-picker"><label>Search Employee<input value={manualEmployeeSearch} onChange={e=>setManualEmployeeSearch(e.target.value)} placeholder="Type employee name, job, or pay type" onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();loadManualEmployee()}}}/></label><label>Select Employee<select value={manualForm.employee_id} onChange={e=>updateManualForm('employee_id',e.target.value)}><option value="">Select employee</option>{manualEmployeeOptions.map(emp=><option key={emp.id} value={emp.id}>{emp.name} — {emp.job_type||emp.pay_type||'Employee'}</option>)}</select></label><button className="btn secondary manual-load-btn" onClick={loadManualEmployee}><Icon name="search"/> Load Employee</button><button className="btn ghost manual-clear-btn" onClick={clearManualForm}>Clear</button></div><div className="employee-form-grid"><label>Employee Name<input value={manualForm.employee_name} onChange={e=>updateManualForm('employee_name',e.target.value)} placeholder="Selected employee name"/></label><label>Payroll Date<input type="date" value={manualForm.pay_date} onChange={e=>updateManualForm('pay_date',e.target.value)}/></label><label>Payment Method<select value={manualForm.payroll_type} onChange={e=>updateManualForm('payroll_type',e.target.value)}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>Check #<input value={manualForm.check_number} onChange={e=>updateManualForm('check_number',e.target.value)}/></label><label>Hours<input type="number" value={manualForm.hours} onChange={e=>updateManualForm('hours',e.target.value)}/></label><label>Regular Pay<input type="number" value={manualForm.regular_pay} onChange={e=>updateManualForm('regular_pay',e.target.value)}/></label><label>Original Tips<input type="number" value={manualForm.tips} onChange={e=>updateManualForm('tips',e.target.value)}/></label><label>Tips Withheld<input type="number" value={manualForm.tip_deduction} onChange={e=>updateManualForm('tip_deduction',e.target.value)}/></label><label>Extra Pay<input type="number" value={manualForm.extra_pay} onChange={e=>updateManualForm('extra_pay',e.target.value)}/></label><label>Extra Reason<input value={manualForm.extra_reason} onChange={e=>updateManualForm('extra_reason',e.target.value)}/></label><label>&nbsp;<button className="btn primary" onClick={addManualPayroll}><Icon name="plus"/> Add Payroll Entry</button></label></div></section>}
 
       {activeTab === 'groups' && <section className="payroll-table-card groups-panel"><div className="payroll-actionbar"><h2>Payroll Groups</h2><div className="right"><input value={groupName} onChange={e=>setGroupName(e.target.value)} placeholder="New group name"/><button className="btn primary" onClick={createGroup}><Icon name="plus"/> Add Group</button></div></div><div className="group-cards">{groups.map(group=>{const members=employees.filter(emp=>(group.memberIds||[]).includes(emp.id));return <div className="group-card" key={group.id}><header><h3>{group.name}</h3><span>{members.length} members</span></header><p><b>Method:</b> {group.payroll_type||'Cash'}</p><ul>{members.slice(0,6).map(emp=><li key={emp.id}>{emp.name} — {emp.job_type||emp.pay_type}</li>)}</ul><div className="row-actions"><button onClick={()=>setSelectedGroupId(group.id)}><Icon name="edit" size={14}/></button><button className="delete" onClick={()=>{setSelectedGroupId(group.id);setTimeout(deleteGroup,0)}}><Icon name="trash" size={14}/></button></div></div>})}</div></section>}
 
