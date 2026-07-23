@@ -33,7 +33,8 @@ function rowOverlapsRange(row, start, end) {
   return true
 }
 function isApproved(row) { return String(row.approval_status || '').toLowerCase() === 'approved' || Boolean(row.approved_at) }
-function originalTips(row) { return round2(row.original_tips ?? row.total_tips ?? (num(row.tips) + num(row.tip_deduction))) }
+function originalTips(row) { return round2(row.credit_card_tips ?? row.original_tips ?? row.total_tips ?? (num(row.tips) + num(row.tip_deduction))) }
+function finalTips(row) { return round2(originalTips(row) - num(row.tip_deduction) + num(row.extra_pay)) }
 function finalPay(row) { return round2(num(row.regular_pay) + num(row.overtime_pay) + num(row.tips) + num(row.extra_pay)) }
 
 function presetRange(key) {
@@ -111,32 +112,36 @@ export default function Payroll({ data, setData }) {
       const employee = employees.find(item => sameEmployee(item.name, rawName))
       const name = employee?.name || displayToastName(rawName)
       if (!name) return
-      const key = employee?.id || normalizeName(name)
+      const workDate = String(source.pay_date || source.business_date || '').slice(0, 10)
+      if (!workDate) return
+      const employeeKey = employee?.id || normalizeName(name)
+      const key = `${employeeKey}::${workDate}`
       const current = groups.get(key) || {
         id: createId('build'), employee_id: employee?.id || '', employee_name: name,
-        job_type: employee?.job_type || source.job_type || '', hours: 0, regular_pay: 0, overtime_pay: 0,
-        original_tips: 0, total_tips: 0, tip_deduction: 0, tips: 0, extra_pay: 0, extra_reason: '',
+        job_type: employee?.job_type || source.job_type || '', pay_date: workDate, hours: 0, regular_pay: 0, overtime_pay: 0,
+        credit_card_tips: 0, original_tips: 0, total_tips: 0, tip_deduction: 0, tips: 0, extra_pay: 0, extra_reason: '',
         payroll_type: employee?.payroll_type || 'Check', check_number: employee?.default_check_number || '', notes: '',
-        period_start: dateStart || source.period_start || '', period_end: dateEnd || source.period_end || '',
+        period_start: workDate, period_end: workDate,
         source_file: sourceFile, source_rows: 0
       }
       current.hours = round2(current.hours + num(source.hours))
       current.regular_pay = round2(current.regular_pay + num(source.regular_pay || source.gross_pay))
       current.overtime_pay = round2(current.overtime_pay + num(source.overtime_pay))
-      current.original_tips = round2(current.original_tips + num(source.total_tips))
-      current.total_tips = current.original_tips
+      current.credit_card_tips = round2(current.credit_card_tips + num(source.credit_card_tips ?? source.total_tips))
+      current.original_tips = current.credit_card_tips
+      current.total_tips = current.credit_card_tips
       current.tip_deduction = round2(current.tip_deduction + num(source.tip_deduction))
       current.tips = round2(current.tips + num(source.tips))
       current.source_rows += 1
       current.total_pay = finalPay(current)
       groups.set(key, current)
     })
-    const rows = Array.from(groups.values()).sort((a, b) => a.employee_name.localeCompare(b.employee_name))
+    const rows = Array.from(groups.values()).sort((a, b) => String(a.pay_date).localeCompare(String(b.pay_date)) || a.employee_name.localeCompare(b.employee_name))
     setBuilderRows(rows)
     setSelectedBuilderIds(rows.map(row => row.id))
     const diag = laborImportDiagnostics(filteredImportedRows)
     setStatus(rows.length
-      ? `Showing ${filteredImportedRows.length} Toast line entries for ${rows.length} employee(s): ${money(diag.hours)} hours and $${money(diag.regularPay)} wages.`
+      ? `Showing ${rows.length} daily payroll rows from ${filteredImportedRows.length} Toast shifts: ${money(diag.hours)} hours and $${money(diag.totalTips)} credit card tips.`
       : 'No Toast labor line entries match this employee and date range.')
   }, [filteredImportedRows, importedRows.length, employees, dateStart, dateEnd, sourceFile])
 
@@ -249,13 +254,15 @@ export default function Payroll({ data, setData }) {
           next.job_type = employee.job_type || next.job_type
         }
       }
-      if (field === 'original_tips' || field === 'tip_deduction') {
-        const original = field === 'original_tips' ? num(value) : originalTips(next)
+      if (field === 'original_tips' || field === 'credit_card_tips' || field === 'tip_deduction') {
+        const original = field === 'original_tips' || field === 'credit_card_tips' ? num(value) : originalTips(next)
         const withheld = field === 'tip_deduction' ? num(value) : num(next.tip_deduction)
+        next.credit_card_tips = round2(original)
         next.original_tips = round2(original)
         next.total_tips = round2(original)
         next.tips = round2(Math.max(0, original - withheld))
       }
+      next.final_tips = finalTips(next)
       next.total_pay = finalPay(next)
       return next
     }))
@@ -275,11 +282,8 @@ export default function Payroll({ data, setData }) {
     const file = event.target.files?.[0]
     if (!file) return
     try {
-      const isCsv = /\.csv$/i.test(file.name)
-      const workbook = isCsv
-        ? XLSX.read(await file.text(), { type: 'string', cellDates: true, raw: true })
-        : XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true, raw: true })
-      const detected = detectToastLaborPeriod(XLSX, workbook, file.name)
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
+      const detected = detectToastLaborPeriod(XLSX, workbook)
       const parsed = parseToastLaborRows(XLSX, workbook, {
         payDate: detected.end || today(), tipRate, reportPeriod: detected, fileName: file.name
       })
@@ -287,18 +291,13 @@ export default function Payroll({ data, setData }) {
       setImportedRows(parsed)
       setEmployeeFilter('')
       setEmployeeSearch('')
-      const parsedStart = parsed.map(row => row.period_start || row.pay_date).filter(Boolean).sort()[0]
-      const parsedEndValues = parsed.map(row => row.period_end || row.pay_date).filter(Boolean).sort()
-      const parsedEnd = parsedEndValues[parsedEndValues.length - 1]
-      const rangeStart = detected.start || parsedStart
-      const rangeEnd = detected.end || parsedEnd
-      if (rangeStart && rangeEnd) {
-        setDateStart(rangeStart)
-        setDateEnd(rangeEnd)
+      if (detected.start && detected.end) {
+        setDateStart(detected.start)
+        setDateEnd(detected.end)
       }
       const diag = laborImportDiagnostics(parsed)
       setStatus(parsed.length
-        ? `Imported ${parsed.length} daily Toast payroll entries from ${file.name}. Report period: ${rangeStart || 'unknown'} to ${rangeEnd || 'unknown'}.`
+        ? `Imported ${parsed.length} Toast line entries from ${file.name}. Select an employee and date range to calculate payroll.`
         : `No Toast labor line entries were found in ${file.name}.`)
     } catch (error) {
       console.error(error)
@@ -345,10 +344,10 @@ export default function Payroll({ data, setData }) {
       const created = resolved.map(({ row, employee }) => ({
         id: createId('pay'), import_id: createId('import'), source: 'Toast Payroll Builder', source_file: row.source_file || sourceFile,
         employee_id: employee.id, employee_name: employee.name, group_name: `Toast Payroll ${row.period_start} to ${row.period_end}`,
-        pay_date: row.period_end || dateEnd || today(), period_start: row.period_start || dateStart, period_end: row.period_end || dateEnd,
+        pay_date: row.pay_date || row.period_end || dateEnd || today(), period_start: row.pay_date || row.period_start || dateStart, period_end: row.pay_date || row.period_end || dateEnd,
         job_type: row.job_type || employee.job_type || '', pay_type: employee.pay_type || 'Hourly', payroll_type: row.payroll_type || employee.payroll_type || 'Check',
         check_number: row.check_number || '', hours: round2(row.hours), regular_pay: round2(row.regular_pay), overtime_pay: round2(row.overtime_pay),
-        original_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: round2(row.tip_deduction), tips: round2(row.tips),
+        credit_card_tips: originalTips(row), original_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: round2(row.tip_deduction), tips: round2(Math.max(0, originalTips(row) - num(row.tip_deduction))), final_tips: finalTips(row),
         extra_pay: round2(row.extra_pay), extra_reason: String(row.extra_reason || '').trim(), notes: String(row.notes || '').trim(),
         total_pay: finalPay(row), approval_status: 'Pending', created_at: new Date().toISOString()
       }))
@@ -383,13 +382,15 @@ export default function Payroll({ data, setData }) {
       payrollEntries: (prev.payrollEntries || []).map(row => {
         if (row.id !== id) return row
         const next = { ...row, [field]: value }
-        if (field === 'original_tips' || field === 'tip_deduction') {
-          const original = field === 'original_tips' ? num(value) : originalTips(next)
+        if (field === 'original_tips' || field === 'credit_card_tips' || field === 'tip_deduction') {
+          const original = field === 'original_tips' || field === 'credit_card_tips' ? num(value) : originalTips(next)
           const withheld = field === 'tip_deduction' ? num(value) : num(next.tip_deduction)
+          next.credit_card_tips = round2(original)
           next.original_tips = round2(original)
           next.total_tips = round2(original)
           next.tips = round2(Math.max(0, original - withheld))
         }
+        next.final_tips = finalTips(next)
         next.total_pay = finalPay(next)
         return next
       })
@@ -476,27 +477,28 @@ export default function Payroll({ data, setData }) {
         <div><h2>Toast Labor Line Entries</h2><p>{filteredImportedRows.length} individual entries match the selected employee and date range.</p></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table history"><thead><tr><th>Date</th><th>Employee</th><th>Job</th><th>Hours</th><th>Regular Pay</th><th>OT Pay</th><th>Original Tips</th><th>Withheld</th><th>Net Tips</th></tr></thead><tbody>
-        {filteredImportedRows.map((row, index) => <tr key={`${row.employee_external_id || row.employee_name}-${row.pay_date}-${index}`}><td>{row.pay_date || '—'}</td><td><b>{displayToastName(row.raw_name || row.employee_name)}</b></td><td>{row.job_type || '—'}</td><td>{money(row.hours)}</td><td>${money(row.regular_pay)}</td><td>${money(row.overtime_pay)}</td><td>${money(row.total_tips)}</td><td>${money(row.tip_deduction)}</td><td>${money(row.tips)}</td></tr>)}
+        {filteredImportedRows.map((row, index) => <tr key={`${row.employee_external_id || row.employee_name}-${row.pay_date}-${index}`}><td>{row.pay_date || '—'}</td><td><b>{displayToastName(row.raw_name || row.employee_name)}</b></td><td>{row.job_type || '—'}</td><td>{money(row.hours)}</td><td>${money(row.regular_pay)}</td><td>${money(row.overtime_pay)}</td><td>${money(row.total_tips)}</td><td>${money(row.tip_deduction)}</td><td>${money(finalTips(row))}</td></tr>)}
         {!filteredImportedRows.length && <tr><td colSpan="9" className="empty-cell">No line entries match this employee and date range.</td></tr>}
       </tbody></table></div>
     </section>}
 
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
-        <div><h2>Toast Payroll Builder</h2><p>One combined row per employee for {dateStart || 'the first date'} through {dateEnd || 'the last date'}.</p></div>
+        <div><h2>Toast Daily Payroll Builder</h2><p>One editable row per employee per workday. Multiple shifts on the same day are combined.</p></div>
         <div className="payroll-rc5-actions"><button className="btn secondary" onClick={() => { setImportedRows([]); setBuilderRows([]); setSelectedBuilderIds([]); setEmployeeFilter('') }}>Clear Import</button><button className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>
-        <th><input type="checkbox" checked={builderAllSelected} onChange={toggleAllBuilder} /></th><th>Employee</th><th>Hours</th><th>Regular</th><th>OT</th><th>Original Tips</th><th>Withheld</th><th>Net Tips</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th>
+        <th><input type="checkbox" checked={builderAllSelected} onChange={toggleAllBuilder} /></th><th>Date</th><th>Employee</th><th>Hours</th><th>Regular</th><th>OT</th><th>Credit Card Tips</th><th>Withheld</th><th>Final Tips</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th>
       </tr></thead><tbody>{visibleBuilderRows.map(row => <tr key={row.id}>
         <td><input type="checkbox" checked={selectedBuilderIds.includes(row.id)} onChange={() => toggleBuilder(row.id)} /></td>
+        <td>{row.pay_date || row.period_start}</td>
         <td><select value={row.employee_id} onChange={e => updateBuilder(row.id, 'employee_id', e.target.value)}><option value="">{row.employee_name} (new)</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select><small>{row.job_type || `${row.source_rows} Toast rows`}</small></td>
         <td><input type="number" step="0.01" value={row.hours} onChange={e => updateBuilder(row.id, 'hours', e.target.value)} /></td>
         <td><input type="number" step="0.01" value={row.regular_pay} onChange={e => updateBuilder(row.id, 'regular_pay', e.target.value)} /></td>
         <td><input type="number" step="0.01" value={row.overtime_pay} onChange={e => updateBuilder(row.id, 'overtime_pay', e.target.value)} /></td>
-        <td><input type="number" step="0.01" value={originalTips(row)} onChange={e => updateBuilder(row.id, 'original_tips', e.target.value)} /></td>
+        <td><input type="number" step="0.01" value={originalTips(row)} onChange={e => updateBuilder(row.id, 'credit_card_tips', e.target.value)} /></td>
         <td><input type="number" step="0.01" value={row.tip_deduction} onChange={e => updateBuilder(row.id, 'tip_deduction', e.target.value)} /></td>
-        <td className="money-positive">${money(row.tips)}</td>
+        <td className="money-positive">${money(finalTips(row))}</td>
         <td><input type="number" step="0.01" value={row.extra_pay} onChange={e => updateBuilder(row.id, 'extra_pay', e.target.value)} /></td>
         <td><input value={row.extra_reason} onChange={e => updateBuilder(row.id, 'extra_reason', e.target.value)} placeholder={num(row.extra_pay) > 0 ? 'Required' : 'Optional'} /></td>
         <td><select value={row.payroll_type} onChange={e => updateBuilder(row.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select></td>
@@ -510,23 +512,24 @@ export default function Payroll({ data, setData }) {
         <div><h2>Payroll Register</h2><p>{filteredHistory.length} entries in the selected range.</p></div>
         <div className="payroll-rc5-actions"><input value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Employee, check, method" /><button className="btn secondary" onClick={exportCsv}><Icon name="download" /> Export CSV</button><button className="btn success" onClick={() => approveRows()}><Icon name="check" /> Approve Pending</button></div>
       </div>
-      <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table history"><thead><tr><th>Status</th><th>Employee</th><th>Period</th><th>Hours</th><th>Regular</th><th>Tips</th><th>Withheld</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th><th></th></tr></thead><tbody>
+      <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table history"><thead><tr><th>Status</th><th>Employee</th><th>Date</th><th>Hours</th><th>Regular</th><th>Credit Card Tips</th><th>Withheld</th><th>Extra Pay</th><th>Reason</th><th>Final Tips</th><th>Method</th><th>Check #</th><th>Final Payroll</th><th></th></tr></thead><tbody>
         {filteredHistory.map(row => { const editable = editingId === row.id && !isApproved(row); return <tr key={row.id}>
           <td><span className={`payroll-rc5-pill ${isApproved(row) ? 'approved' : 'pending'}`}>{isApproved(row) ? 'Approved' : 'Pending'}</span></td>
           <td><b>{row.employee_name}</b><small>{row.source || row.group_name || 'Payroll'}</small></td>
           <td>{row.period_start || entryDate(row)}<small>{row.period_end && row.period_end !== row.period_start ? `to ${row.period_end}` : ''}</small></td>
           <td>{editable ? <input type="number" value={row.hours} onChange={e => updateEntry(row.id, 'hours', e.target.value)} /> : money(row.hours)}</td>
           <td>{editable ? <input type="number" value={row.regular_pay} onChange={e => updateEntry(row.id, 'regular_pay', e.target.value)} /> : `$${money(row.regular_pay)}`}</td>
-          <td>{editable ? <input type="number" value={originalTips(row)} onChange={e => updateEntry(row.id, 'original_tips', e.target.value)} /> : `$${money(originalTips(row))}`}</td>
+          <td>{editable ? <input type="number" value={originalTips(row)} onChange={e => updateEntry(row.id, 'credit_card_tips', e.target.value)} /> : `$${money(originalTips(row))}`}</td>
           <td>{editable ? <input type="number" value={row.tip_deduction} onChange={e => updateEntry(row.id, 'tip_deduction', e.target.value)} /> : `$${money(row.tip_deduction)}`}</td>
           <td>{editable ? <input type="number" value={row.extra_pay} onChange={e => updateEntry(row.id, 'extra_pay', e.target.value)} /> : `$${money(row.extra_pay)}`}</td>
           <td>{editable ? <input value={row.extra_reason || ''} onChange={e => updateEntry(row.id, 'extra_reason', e.target.value)} /> : (row.extra_reason || '—')}</td>
+          <td className="money-positive">${money(finalTips(row))}</td>
           <td>{editable ? <select value={row.payroll_type || 'Check'} onChange={e => updateEntry(row.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select> : (row.payroll_type || '—')}</td>
           <td>{editable ? <input value={row.check_number || ''} onChange={e => updateEntry(row.id, 'check_number', e.target.value)} /> : (row.check_number || '—')}</td>
           <td className="payroll-rc5-money">${money(finalPay(row))}</td>
           <td><div className="payroll-rc5-row-actions">{!isApproved(row) && <button onClick={() => setEditingId(editable ? '' : row.id)} title={editable ? 'Done' : 'Edit'}><Icon name={editable ? 'check' : 'edit'} size={14} /></button>}<button className="delete" onClick={() => deleteEntry(row.id)} title="Delete"><Icon name="trash" size={14} /></button></div></td>
         </tr> })}
-        {!filteredHistory.length && <tr><td colSpan="13" className="empty-cell">No payroll entries in this date range.</td></tr>}
+        {!filteredHistory.length && <tr><td colSpan="14" className="empty-cell">No payroll entries in this date range.</td></tr>}
       </tbody></table></div>
     </section>
 

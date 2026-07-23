@@ -1,113 +1,362 @@
-const clean = value => String(value ?? '').trim()
-const key = value => clean(value).toLowerCase().replace(/[^a-z0-9]/g, '')
-const number = value => {
+function norm(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function text(value) { return String(value ?? '').trim() }
+function num(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
-  const raw = clean(value)
-  const negative = /^\(.*\)$/.test(raw) || raw.startsWith('-')
-  const parsed = Number(raw.replace(/[$,%(),]/g, ''))
-  return Number.isFinite(parsed) ? (negative ? -Math.abs(parsed) : parsed) : 0
+  const raw = String(value ?? '').trim()
+  const negative = /^\(.*\)$/.test(raw) || /^-/.test(raw)
+  const parsed = Number(raw.replace(/[$,%(),]/g, '').trim())
+  if (!Number.isFinite(parsed)) return 0
+  return negative ? -Math.abs(parsed) : parsed
 }
-const round2 = value => Math.round((Number(value) || 0) * 100) / 100
-const aliases = {
-  name: ['employee','employee name','team member','team member name','staff','staff name','name','employee full name','employee display name'],
-  firstName: ['first name','employee first name','team member first name'],
-  lastName: ['last name','employee last name','team member last name'],
-  employeeId: ['employee id','team member id','payroll id'],
-  job: ['job','job title','job type','role','department','position'],
-  date: ['business date','business day','shift date','date worked','work date','clock in date','payroll date','pay date','date'],
-  regularHours: ['regular hours','reg hours','regular hrs','reg hrs'],
-  overtimeHours: ['overtime hours','ot hours','overtime hrs','ot hrs'],
-  totalHours: ['total hours','worked hours','paid hours','hours'],
-  rate: ['hourly rate','pay rate','base rate','rate'],
-  regularPay: ['regular pay','regular wages','wages','labor cost','hourly pay'],
-  overtimePay: ['overtime pay','ot pay'],
-  grossPay: ['gross pay','gross wages','total pay','pay amount','earnings'],
-  totalTips: ['total tips','tips earned','tips paid','employee tips','tip amount','tips'],
-  creditTips: ['credit card tips','credit tips','non cash tips','card tips','cc tips'],
-  cashTips: ['cash tips','declared cash tips'],
-  netTips: ['tips after withholding','tips after withheld','net tips','final tips','tips net','net tip pay'],
-  withheld: ['tips withheld','tip withheld','tips withholding','withheld tips','tip deduction','tips deducted'],
-  checkNumber: ['check number','check #','check no','payment number','reference number']
+function round2(value) { return Math.round((Number(value) || 0) * 100) / 100 }
+function money(value) { return round2(value).toFixed(2) }
+
+const ALIASES = {
+  name: ['Employee', 'Employee Name', 'Team Member', 'Team Member Name', 'Staff', 'Staff Name', 'Name'],
+  employeeId: ['Employee ID', 'Employee Id', 'Team Member ID', 'Team Member Id', 'Payroll ID'],
+  job: ['Job', 'Job Title', 'Job Type', 'Role', 'Department', 'Position'],
+  date: ['Business Date', 'Shift Date', 'In Date', 'Clock In Date', 'Date Worked', 'Work Date', 'Shift Closed Date', 'Out Date', 'Payroll Date', 'Pay Date', 'Date', 'Week Ending', 'Period End'],
+  regularHours: ['Regular Hours', 'Reg Hours', 'Regular Hrs', 'Reg Hrs'],
+  overtimeHours: ['Overtime Hours', 'OT Hours', 'Overtime Hrs', 'OT Hrs'],
+  doubleHours: ['Double Time Hours', 'Doubletime Hours', 'DT Hours'],
+  totalHours: ['Total Hours', 'Hours', 'Worked Hours', 'Paid Hours'],
+  rate: ['Hourly Rate', 'Pay Rate', 'Rate', 'Base Rate'],
+  regularPay: ['Regular Pay', 'Regular Wages', 'Wages', 'Labor Cost', 'Hourly Pay'],
+  overtimePay: ['Overtime Pay', 'OT Pay'],
+  grossPay: ['Gross Pay', 'Gross Wages', 'Total Pay', 'Pay Amount', 'Earnings'],
+  totalTips: ['Total Tips', 'Tips', 'Declared Tips', 'Tips Earned', 'Tips Paid', 'Total Tips Paid', 'Employee Tips', 'Tip Amount'],
+  creditTips: ['Credit Card Tips', 'Credit Tips', 'Non-Cash Tips', 'Non Cash Tips', 'Card Tips', 'CC Tips', 'Credit Card Gratuity'],
+  cashTips: ['Cash Tips', 'Declared Cash Tips', 'Cash Gratuity'],
+  netTips: ['Tips After Withholding', 'Tips After Withheld', 'Net Tips', 'Final Tips', 'Tips Net', 'Net Tip Pay'],
+  withheld: ['Tips Withheld', 'Tip Withheld', 'Tips Withholding', 'Withheld Tips', 'Tip Deduction', 'Tips Deducted', 'Tip Withhold'],
+  checkNumber: ['Check Number', 'Check #', 'Check No', 'Check No.', 'Payment Number', 'Reference Number']
 }
-const mapRow = row => Object.fromEntries(Object.entries(row || {}).map(([k,v]) => [key(k), v]))
-const get = (row, names) => {
-  const map = mapRow(row)
-  for (const name of names) if (map[key(name)] !== undefined && map[key(name)] !== '') return map[key(name)]
-  for (const name of names) {
-    const wanted = key(name)
-    const found = Object.entries(map).find(([k,v]) => v !== '' && wanted.length > 3 && (k.includes(wanted) || wanted.includes(k)))
-    if (found) return found[1]
+
+function makeMap(row = {}) {
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [norm(key), value]))
+}
+function findExact(row, aliases) {
+  const map = makeMap(row)
+  for (const alias of aliases) {
+    const value = map[norm(alias)]
+    if (value !== undefined && value !== '') return value
   }
   return ''
 }
-const has = (row, names) => names.some(name => Object.prototype.hasOwnProperty.call(mapRow(row), key(name)))
-function parseDate(value, fallback='') {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0,10)
-  const raw = clean(value)
-  if (!raw) return fallback
-  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(raw)) { const [y,m,d] = raw.slice(0,10).split('-'); return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}` }
-  const match = raw.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/)
-  if (match) return `${match[3].length === 2 ? `20${match[3]}` : match[3]}-${match[1].padStart(2,'0')}-${match[2].padStart(2,'0')}`
-  const parsed = new Date(raw)
-  return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString().slice(0,10)
+function find(row, aliases) {
+  const map = makeMap(row)
+  for (const alias of aliases) {
+    const value = map[norm(alias)]
+    if (value !== undefined && value !== '') return value
+  }
+  const entries = Object.entries(map)
+  for (const alias of aliases) {
+    const wanted = norm(alias)
+    if (wanted.length < 4) continue
+    const match = entries.find(([key, value]) => value !== undefined && value !== '' && (key.includes(wanted) || wanted.includes(key)))
+    if (match) return match[1]
+  }
+  return ''
 }
-function dateTokens(value) {
-  const raw = clean(value).replace(/_/g,'-'); const out=[]; let m
-  const us=/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/g
-  while ((m=us.exec(raw))) out.push(`${m[3].length===2?`20${m[3]}`:m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`)
-  const iso=/(\d{4})-(\d{1,2})-(\d{1,2})/g
-  while ((m=iso.exec(raw))) out.push(`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`)
-  return [...new Set(out)]
+function has(row, aliases) {
+  const map = makeMap(row)
+  return aliases.some(alias => map[norm(alias)] !== undefined)
 }
-export function detectToastLaborPeriod(XLSX, workbook, fileName='') {
-  const labeled=[]; const all=[]
-  for (const name of workbook.SheetNames || []) {
-    const matrix=XLSX.utils.sheet_to_json(workbook.Sheets[name],{header:1,defval:'',raw:false}).slice(0,80)
-    for (const row of matrix) {
-      const line=row.map(clean).filter(Boolean).join(' | '); const dates=dateTokens(line); all.push(...dates)
-      if (/date range|report range|pay period|payroll period|week ending|period start|period end|from.+to/i.test(line)) labeled.push(...dates)
+function parseDate(value, fallback = '') {
+  if (!value) return fallback
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10)
+  const raw = text(value)
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
+  const m = raw.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/)
+  if (m) return `${m[3].length === 2 ? '20' + m[3] : m[3]}-${String(m[1]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`
+  const date = new Date(raw)
+  return Number.isNaN(date.getTime()) ? fallback : date.toISOString().slice(0, 10)
+}
+
+
+function parseDateTokens(value) {
+  const raw = text(value)
+  if (!raw) return []
+  const matches = []
+  const patterns = [
+    /\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/g,
+    /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g
+  ]
+  for (const pattern of patterns) {
+    let match
+    while ((match = pattern.exec(raw))) {
+      if (match[1].length === 4) matches.push(`${match[1]}-${String(match[2]).padStart(2, '0')}-${String(match[3]).padStart(2, '0')}`)
+      else {
+        const year = match[3].length === 2 ? `20${match[3]}` : match[3]
+        matches.push(`${year}-${String(match[1]).padStart(2, '0')}-${String(match[2]).padStart(2, '0')}`)
+      }
     }
   }
-  const workbookDates=(labeled.length?labeled:all).sort()
-  const fileDates=dateTokens(fileName).sort()
-  const dates=(workbookDates.length?workbookDates:fileDates)
-  if (!dates.length) return {start:'',end:'',label:''}
-  return {start:dates[0],end:dates[dates.length-1],label:dates[0]===dates[dates.length-1]?dates[0]:`${dates[0]} to ${dates[dates.length-1]}`}
+  return matches.filter((value, index, all) => all.indexOf(value) === index)
 }
-const inclusiveDates=(start,end)=>{ if(!start||!end)return[]; const out=[]; const a=new Date(`${start}T12:00:00Z`),b=new Date(`${end}T12:00:00Z`); for(let d=new Date(a);d<=b;d.setUTCDate(d.getUTCDate()+1))out.push(d.toISOString().slice(0,10)); return out }
-const allocate=(total,weights)=>{ const cents=Math.round(number(total)*100); const normalized=weights.map(w=>Math.max(0,number(w))); const sum=normalized.reduce((a,b)=>a+b,0); const use=sum?normalized:weights.map(()=>1); const denom=use.reduce((a,b)=>a+b,0); let used=0; return use.map((w,i)=>{ if(i===use.length-1)return(cents-used)/100; const part=Math.floor(cents*w/denom); used+=part; return part/100 }) }
-function candidateRows(XLSX, workbook) {
-  const result=[]
+
+export function detectToastLaborPeriod(XLSX, workbook) {
+  const labeled = []
+  const allDates = []
   for (const sheetName of workbook.SheetNames || []) {
-    const sheet=workbook.Sheets[sheetName]; if(!sheet)continue
-    const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false})
-    let best=-1,score=-1
-    matrix.slice(0,60).forEach((row,index)=>{ const keys=row.map(key); let s=0; if(aliases.name.some(a=>keys.includes(key(a))))s+=6; if([...aliases.totalHours,...aliases.regularHours].some(a=>keys.includes(key(a))))s+=3; if([...aliases.totalTips,...aliases.netTips].some(a=>keys.includes(key(a))))s+=3; if(aliases.date.some(a=>keys.includes(key(a))))s+=2; if(s>score){score=s;best=index} })
-    if(best<0||score<6)continue
-    const headers=matrix[best].map(clean)
-    matrix.slice(best+1).forEach(values=>{ const row={}; headers.forEach((h,i)=>{if(h)row[h]=values[i]}); if(Object.values(row).some(v=>clean(v)))result.push({row,sheetName}) })
+    const sheet = workbook.Sheets[sheetName]
+    if (!sheet) continue
+    const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }).slice(0, 60)
+    for (const row of matrix) {
+      const line = row.map(text).filter(Boolean).join(' | ')
+      const dates = parseDateTokens(line)
+      if (!dates.length) continue
+      allDates.push(...dates)
+      if (/date range|report range|pay period|payroll period|business date|week ending|period start|period end|from.+to/i.test(line)) labeled.push(...dates)
+    }
   }
-  return result
+  const candidates = (labeled.length ? labeled : allDates).filter(Boolean).sort()
+  if (!candidates.length) return { start: '', end: '', label: '' }
+  const start = candidates[0]
+  const end = candidates[candidates.length - 1]
+  return { start, end, label: start === end ? start : `${start} to ${end}` }
 }
-export function parseToastLaborRows(XLSX, workbook, options={}) {
-  const detected=detectToastLaborPeriod(XLSX,workbook,options.fileName||''); const fileDates=dateTokens(options.fileName||'').sort()
-  const period=detected.start?detected:{start:fileDates[0]||'',end:fileDates[fileDates.length-1]||'',label:''}; const tipRate=number(options.tipRate??3.5)
-  const parsed=candidateRows(XLSX,workbook).map(({row,sheetName})=>{
-    const combinedName=[clean(get(row,aliases.firstName)),clean(get(row,aliases.lastName))].filter(Boolean).join(' '); let rawName=clean(get(row,aliases.name))||combinedName; if (/^[^,]+,\s*[^,]+$/.test(rawName)) { const parts=rawName.split(',').map(clean); rawName=`${parts[1]} ${parts[0]}`.trim() } if(!rawName||/^(total|grand total|summary|subtotal|all employees|employee total|labor total)$/i.test(rawName))return null
-    const date=parseDate(get(row,aliases.date),dateTokens(sheetName)[0]||'')
-    const regularHours=number(get(row,aliases.regularHours)), overtimeHours=number(get(row,aliases.overtimeHours)); const hours=round2(number(get(row,aliases.totalHours))||regularHours+overtimeHours)
-    const regular=number(get(row,aliases.regularPay)), overtime=number(get(row,aliases.overtimePay)), gross=number(get(row,aliases.grossPay)); const pay=round2(gross||regular+overtime||hours*number(get(row,aliases.rate)))
-    const explicitTotal=has(row,aliases.totalTips)?get(row,aliases.totalTips):''; const totalTips=round2(explicitTotal!==''?number(explicitTotal):number(get(row,aliases.creditTips))+number(get(row,aliases.cashTips)))
-    const netRaw=get(row,aliases.netTips), withheldRaw=get(row,aliases.withheld); const withheld=round2(withheldRaw!==''?number(withheldRaw):netRaw!==''?Math.max(totalTips-number(netRaw),0):totalTips*tipRate/100); const net=round2(netRaw!==''?number(netRaw):totalTips-withheld)
-    if(!hours&&!pay&&!totalTips&&!net)return null
-    return {raw_name:rawName,employee_name:rawName,employee_external_id:clean(get(row,aliases.employeeId)),job_type:clean(get(row,aliases.job)),pay_date:date,has_business_date:Boolean(date),period_start:period.start,period_end:period.end,hours,regular_hours:round2(regularHours),overtime_hours:round2(overtimeHours),regular_pay:round2(pay-overtime),overtime_pay:round2(overtime),gross_pay:pay,total_tips:totalTips,original_tips:totalTips,tip_deduction:withheld,tips:net,has_explicit_withholding:withheldRaw!==''||netRaw!=='',check_number:clean(get(row,aliases.checkNumber)),source_sheet:sheetName}
+
+
+function parsePeriodFromFileName(fileName = '') {
+  const dates = parseDateTokens(String(fileName).replace(/_/g, '-'))
+  if (dates.length < 2) return { start: '', end: '', label: '' }
+  const sorted = dates.sort()
+  const start = sorted[0]
+  const end = sorted[sorted.length - 1]
+  return { start, end, label: start === end ? start : `${start} to ${end}` }
+}
+
+function inclusiveDates(start, end) {
+  if (!start || !end) return []
+  const first = new Date(`${start}T12:00:00Z`)
+  const last = new Date(`${end}T12:00:00Z`)
+  if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime()) || first > last) return []
+  const dates = []
+  for (let cursor = new Date(first); cursor <= last; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    dates.push(cursor.toISOString().slice(0, 10))
+    if (dates.length > 366) break
+  }
+  return dates
+}
+
+function allocateAcrossDates(total, dates, precision = 2) {
+  if (!dates.length) return []
+  const factor = 10 ** precision
+  const totalUnits = Math.round((Number(total) || 0) * factor)
+  const baseUnits = Math.trunc(totalUnits / dates.length)
+  let remainder = totalUnits - baseUnits * dates.length
+  return dates.map(() => {
+    const adjustment = remainder > 0 ? 1 : remainder < 0 ? -1 : 0
+    remainder -= adjustment
+    return (baseUnits + adjustment) / factor
+  })
+}
+
+function expandSummaryRowsByPeriod(rows, reportPeriod, tipRate) {
+  const dates = inclusiveDates(reportPeriod.start, reportPeriod.end)
+  if (dates.length <= 1) return rows
+  return rows.flatMap(row => {
+    if (row.has_business_date) return [row]
+    const hours = allocateAcrossDates(row.hours, dates, 2)
+    const regularHours = allocateAcrossDates(row.regular_hours, dates, 2)
+    const overtimeHours = allocateAcrossDates(row.overtime_hours, dates, 2)
+    const regularPay = allocateAcrossDates(row.regular_pay, dates, 2)
+    const grossPay = allocateAcrossDates(row.gross_pay, dates, 2)
+    const totalTips = allocateAcrossDates(row.total_tips, dates, 2)
+    const explicitDeduction = row.has_explicit_withholding
+      ? allocateAcrossDates(row.tip_deduction, dates, 2)
+      : null
+    return dates.map((date, index) => {
+      const deduction = explicitDeduction
+        ? explicitDeduction[index]
+        : round2(totalTips[index] * tipRate / 100)
+      return {
+        ...row,
+        pay_date: date,
+        allocated_from_summary: true,
+        allocation_method: 'evenly-across-report-period',
+        allocation_days: dates.length,
+        hours: hours[index],
+        regular_hours: regularHours[index],
+        overtime_hours: overtimeHours[index],
+        regular_pay: regularPay[index],
+        gross_pay: grossPay[index],
+        total_tips: totalTips[index],
+        tip_deduction: deduction,
+        tips: round2(Math.max(totalTips[index] - deduction, 0))
+      }
+    })
+  })
+}
+
+function headerScore(values = []) {
+  const keys = values.map(norm).filter(Boolean)
+  const includesAny = aliases => aliases.some(alias => keys.includes(norm(alias)))
+  let score = 0
+  if (includesAny(ALIASES.name)) score += 5
+  if (includesAny(ALIASES.totalHours) || includesAny(ALIASES.regularHours)) score += 3
+  if (includesAny(ALIASES.grossPay) || includesAny(ALIASES.regularPay)) score += 2
+  if (includesAny(ALIASES.totalTips) || includesAny(ALIASES.creditTips) || includesAny(ALIASES.netTips)) score += 2
+  if (includesAny(ALIASES.job)) score += 1
+  return score
+}
+
+function sheetRows(XLSX, workbook, sheetName) {
+  const sheet = workbook.Sheets[sheetName]
+  if (!sheet) return []
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false })
+  let bestIndex = -1
+  let bestScore = 0
+  matrix.slice(0, 40).forEach((row, index) => {
+    const score = headerScore(row)
+    if (score > bestScore) { bestScore = score; bestIndex = index }
+  })
+  if (bestIndex < 0 || bestScore < 5) return []
+  const headers = matrix[bestIndex].map((value, index) => text(value) || `Column ${index + 1}`)
+  return matrix.slice(bestIndex + 1).map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])))
+}
+
+function candidateSheets(XLSX, workbook) {
+  return workbook.SheetNames.map((name, index) => {
+    const rows = sheetRows(XLSX, workbook, name)
+    const nameScore = /labor|employee|payroll|time|tips|team/i.test(name) ? 5 : 0
+    const rowScore = rows.length ? headerScore(Object.keys(rows[0])) : 0
+    return { name, rows, score: nameScore + rowScore + Math.min(rows.length / 100, 2), index }
+  }).filter(item => item.rows.length).sort((a, b) => b.score - a.score || a.index - b.index)
+}
+
+function isSummaryName(value) {
+  const name = text(value).toLowerCase()
+  return !name || /^(total|grand total|subtotal|all employees|employee total|labor total|summary)$/i.test(name)
+}
+
+export function parseToastLaborRows(XLSX, workbook, options = {}) {
+  const detectedPeriod = options.reportPeriod || detectToastLaborPeriod(XLSX, workbook)
+  const filePeriod = parsePeriodFromFileName(options.fileName || '')
+  const reportPeriod = detectedPeriod.start ? detectedPeriod : filePeriod
+  const fallbackDate = reportPeriod.end || options.payDate || ''
+  const tipRate = Number(options.tipRate ?? 3.5) || 0
+  const sheets = candidateSheets(XLSX, workbook)
+  const selected = sheets.filter((sheet, index) => index === 0 || /labor|employee|payroll|time|tips|team|shift|daily/i.test(sheet.name))
+  const sourceRows = selected.flatMap(sheet => sheet.rows.map(row => ({ row, sheetName: sheet.name })))
+
+  const parsed = sourceRows.map(({ row, sheetName }) => {
+    const rawName = text(find(row, ALIASES.name))
+    if (isSummaryName(rawName)) return null
+
+    const rowDateValue = find(row, ALIASES.date)
+    const sheetDate = parseDateTokens(sheetName)[0] || ''
+    const explicitDate = parseDate(rowDateValue, sheetDate)
+    const regularHours = num(find(row, ALIASES.regularHours))
+    const overtimeHours = num(find(row, ALIASES.overtimeHours))
+    const doubleHours = num(find(row, ALIASES.doubleHours))
+    const explicitTotalHours = num(findExact(row, ALIASES.totalHours))
+    const hours = round2(explicitTotalHours || regularHours + overtimeHours + doubleHours)
+    const rate = round2(num(find(row, ALIASES.rate)))
+    const regularPay = num(find(row, ALIASES.regularPay))
+    const overtimePay = num(find(row, ALIASES.overtimePay))
+    const grossPay = num(find(row, ALIASES.grossPay))
+    const pay = round2(grossPay || regularPay + overtimePay || hours * rate)
+    const explicitTotalTips = has(row, ALIASES.totalTips) ? find(row, ALIASES.totalTips) : ''
+    const hasCreditTipsColumn = has(row, ALIASES.creditTips)
+    const creditTips = round2(num(find(row, ALIASES.creditTips)))
+    // RESTAPAY payroll intentionally excludes declared cash tips. When Toast's
+    // Non-Cash Tips column exists, it is the payroll tip source of truth.
+    const totalTips = round2(hasCreditTipsColumn ? creditTips : num(explicitTotalTips))
+    const explicitNetTips = find(row, ALIASES.netTips)
+    const explicitWithheld = find(row, ALIASES.withheld)
+    const withheld = round2(explicitWithheld !== '' ? num(explicitWithheld) : explicitNetTips !== '' ? Math.max(totalTips - num(explicitNetTips), 0) : totalTips * tipRate / 100)
+    const netTips = round2(explicitNetTips !== '' ? num(explicitNetTips) : Math.max(totalTips - withheld, 0))
+    if (!hours && !pay && !totalTips && !netTips) return null
+
+    return {
+      raw_name: rawName,
+      employee_name: rawName,
+      employee_external_id: text(findExact(row, ALIASES.employeeId)),
+      job_type: text(find(row, ALIASES.job)),
+      pay_date: explicitDate || fallbackDate,
+      has_business_date: Boolean(explicitDate),
+      period_start: reportPeriod.start || '',
+      period_end: reportPeriod.end || '',
+      period_label: reportPeriod.label || '',
+      hours,
+      regular_hours: round2(regularHours),
+      overtime_hours: round2(overtimeHours),
+      rate,
+      regular_pay: pay,
+      gross_pay: round2(grossPay),
+      credit_card_tips: totalTips,
+      original_tips: totalTips,
+      total_tips: totalTips,
+      tips: netTips,
+      tip_deduction: withheld,
+      has_explicit_withholding: explicitWithheld !== '' || explicitNetTips !== '',
+      check_number: text(find(row, ALIASES.checkNumber)),
+      source_sheet: sheetName,
+      source_columns: Object.keys(row)
+    }
   }).filter(Boolean)
-  const dated=parsed.filter(r=>r.has_business_date); const source=dated.length?dated:parsed
-  const grouped=new Map()
-  for(const row of source){ const id=key(row.employee_external_id||row.employee_name); const date=row.pay_date||period.end||options.payDate||''; const groupKey=`${id}::${date}`; const cur=grouped.get(groupKey); if(!cur){grouped.set(groupKey,{...row,pay_date:date});continue} const original=round2(cur.total_tips+row.total_tips), withheld=round2(cur.tip_deduction+row.tip_deduction); grouped.set(groupKey,{...cur,hours:round2(cur.hours+row.hours),regular_pay:round2(cur.regular_pay+row.regular_pay),overtime_pay:round2(cur.overtime_pay+row.overtime_pay),gross_pay:round2(cur.gross_pay+row.gross_pay),total_tips:original,original_tips:original,tip_deduction:withheld,tips:round2(cur.tips+row.tips)}) }
-  let rows=[...grouped.values()]
-  if(!dated.length&&period.start&&period.end){ const dates=inclusiveDates(period.start,period.end); rows=rows.flatMap(row=>{ const weights=options.dailySalesWeights&&dates.map(d=>options.dailySalesWeights[d]||0); const hours=allocate(row.hours,weights||dates), regular=allocate(row.regular_pay,weights||dates), overtime=allocate(row.overtime_pay,weights||dates), tips=allocate(row.total_tips,weights||dates), withheld=allocate(row.tip_deduction,weights||dates), net=allocate(row.tips,weights||dates); return dates.map((date,i)=>({...row,pay_date:date,has_business_date:false,allocated_from_summary:true,allocation_method:weights?'daily-sales':'even',allocation_days:dates.length,hours:hours[i],regular_pay:regular[i],overtime_pay:overtime[i],gross_pay:round2(regular[i]+overtime[i]),total_tips:tips[i],original_tips:tips[i],tip_deduction:withheld[i],tips:net[i]})) }) }
-  return rows.sort((a,b)=>String(a.pay_date).localeCompare(String(b.pay_date))||String(a.employee_name).localeCompare(String(b.employee_name)))
+
+  // Toast workbooks often contain both an employee summary and dated shift/day detail.
+  // When dated detail exists, discard undated summary rows so totals are not duplicated.
+  const datedRows = parsed.filter(row => row.has_business_date)
+  // A payroll export without a business-date column is a pay-period summary.
+  // Keep one row per employee for the full period. Splitting the summary evenly
+  // across calendar days creates artificial near-identical daily checks.
+  const rowsToGroup = datedRows.length ? datedRows : parsed
+  const grouped = new Map()
+
+  for (const row of rowsToGroup) {
+    const employeeKey = norm(row.employee_external_id || row.employee_name)
+    const dateKey = row.pay_date || fallbackDate
+    const key = `${employeeKey}::${dateKey}`
+    const current = grouped.get(key)
+    if (!current) {
+      grouped.set(key, { ...row, source_sheets: [row.source_sheet] })
+      continue
+    }
+    const combinedTips = round2(current.total_tips + row.total_tips)
+    const combinedDeduction = current.has_explicit_withholding || row.has_explicit_withholding
+      ? round2(current.tip_deduction + row.tip_deduction)
+      : round2(combinedTips * tipRate / 100)
+    grouped.set(key, {
+      ...current,
+      job_type: current.job_type || row.job_type,
+      hours: round2(current.hours + row.hours),
+      regular_hours: round2(current.regular_hours + row.regular_hours),
+      overtime_hours: round2(current.overtime_hours + row.overtime_hours),
+      regular_pay: round2(current.regular_pay + row.regular_pay),
+      gross_pay: round2(current.gross_pay + row.gross_pay),
+      credit_card_tips: combinedTips,
+      original_tips: combinedTips,
+      total_tips: combinedTips,
+      tip_deduction: combinedDeduction,
+      tips: round2(Math.max(combinedTips - combinedDeduction, 0)),
+      has_explicit_withholding: current.has_explicit_withholding || row.has_explicit_withholding,
+      check_number: current.check_number || row.check_number,
+      source_sheet: current.source_sheet === row.source_sheet ? current.source_sheet : 'Multiple Toast sheets',
+      source_sheets: [...new Set([...(current.source_sheets || []), row.source_sheet])]
+    })
+  }
+
+  return [...grouped.values()].sort((a, b) =>
+    String(a.pay_date).localeCompare(String(b.pay_date)) || String(a.employee_name).localeCompare(String(b.employee_name))
+  )
 }
-export function laborImportDiagnostics(rows=[]){return{rows:rows.length,employees:new Set(rows.map(r=>key(r.employee_external_id||r.employee_name))).size,hours:round2(rows.reduce((s,r)=>s+number(r.hours),0)),regularPay:round2(rows.reduce((s,r)=>s+number(r.regular_pay)+number(r.overtime_pay),0)),totalTips:round2(rows.reduce((s,r)=>s+number(r.total_tips),0)),netTips:round2(rows.reduce((s,r)=>s+number(r.tips),0)),withheld:round2(rows.reduce((s,r)=>s+number(r.tip_deduction),0))}}
-export const ToastLaborUtils={num:number,round2,money:value=>round2(value).toFixed(2)}
+
+export function laborImportDiagnostics(rows = []) {
+  return {
+    rows: rows.length,
+    hours: round2(rows.reduce((sum, row) => sum + num(row.hours), 0)),
+    regularPay: round2(rows.reduce((sum, row) => sum + num(row.regular_pay), 0)),
+    totalTips: round2(rows.reduce((sum, row) => sum + num(row.total_tips), 0)),
+    netTips: round2(rows.reduce((sum, row) => sum + num(row.tips), 0)),
+    withheld: round2(rows.reduce((sum, row) => sum + num(row.tip_deduction), 0))
+  }
+}
+
+export const ToastLaborUtils = { money, round2, num }
