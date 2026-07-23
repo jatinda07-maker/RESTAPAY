@@ -9,7 +9,9 @@ const number = value => {
 }
 const round2 = value => Math.round((Number(value) || 0) * 100) / 100
 const aliases = {
-  name: ['employee','employee name','team member','team member name','staff','staff name','name'],
+  name: ['employee','employee name','team member','team member name','staff','staff name','name','employee full name','employee display name'],
+  firstName: ['first name','employee first name','team member first name'],
+  lastName: ['last name','employee last name','team member last name'],
   employeeId: ['employee id','team member id','payroll id'],
   job: ['job','job title','job type','role','department','position'],
   date: ['business date','business day','shift date','date worked','work date','clock in date','payroll date','pay date','date'],
@@ -88,7 +90,7 @@ export function parseToastLaborRows(XLSX, workbook, options={}) {
   const detected=detectToastLaborPeriod(XLSX,workbook); const fileDates=dateTokens(options.fileName||'').sort()
   const period=detected.start?detected:{start:fileDates[0]||'',end:fileDates.at(-1)||'',label:''}; const tipRate=number(options.tipRate??3.5)
   const parsed=candidateRows(XLSX,workbook).map(({row,sheetName})=>{
-    const rawName=clean(get(row,aliases.name)); if(!rawName||/^(total|grand total|summary)$/i.test(rawName))return null
+    const combinedName=[clean(get(row,aliases.firstName)),clean(get(row,aliases.lastName))].filter(Boolean).join(' '); const rawName=clean(get(row,aliases.name))||combinedName; if(!rawName||/^(total|grand total|summary|subtotal|all employees|employee total|labor total)$/i.test(rawName))return null
     const date=parseDate(get(row,aliases.date),dateTokens(sheetName)[0]||'')
     const regularHours=number(get(row,aliases.regularHours)), overtimeHours=number(get(row,aliases.overtimeHours)); const hours=round2(number(get(row,aliases.totalHours))||regularHours+overtimeHours)
     const regular=number(get(row,aliases.regularPay)), overtime=number(get(row,aliases.overtimePay)), gross=number(get(row,aliases.grossPay)); const pay=round2(gross||regular+overtime||hours*number(get(row,aliases.rate)))
