@@ -59,7 +59,7 @@ function dateTokens(value) {
   while ((m=iso.exec(raw))) out.push(`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`)
   return [...new Set(out)]
 }
-export function detectToastLaborPeriod(XLSX, workbook) {
+export function detectToastLaborPeriod(XLSX, workbook, fileName='') {
   const labeled=[]; const all=[]
   for (const name of workbook.SheetNames || []) {
     const matrix=XLSX.utils.sheet_to_json(workbook.Sheets[name],{header:1,defval:'',raw:false}).slice(0,80)
@@ -68,8 +68,11 @@ export function detectToastLaborPeriod(XLSX, workbook) {
       if (/date range|report range|pay period|payroll period|week ending|period start|period end|from.+to/i.test(line)) labeled.push(...dates)
     }
   }
-  const dates=(labeled.length?labeled:all).sort(); if (!dates.length) return {start:'',end:'',label:''}
-  return {start:dates[0],end:dates.at(-1),label:dates[0]===dates.at(-1)?dates[0]:`${dates[0]} to ${dates.at(-1)}`}
+  const workbookDates=(labeled.length?labeled:all).sort()
+  const fileDates=dateTokens(fileName).sort()
+  const dates=(workbookDates.length?workbookDates:fileDates)
+  if (!dates.length) return {start:'',end:'',label:''}
+  return {start:dates[0],end:dates[dates.length-1],label:dates[0]===dates[dates.length-1]?dates[0]:`${dates[0]} to ${dates[dates.length-1]}`}
 }
 const inclusiveDates=(start,end)=>{ if(!start||!end)return[]; const out=[]; const a=new Date(`${start}T12:00:00Z`),b=new Date(`${end}T12:00:00Z`); for(let d=new Date(a);d<=b;d.setUTCDate(d.getUTCDate()+1))out.push(d.toISOString().slice(0,10)); return out }
 const allocate=(total,weights)=>{ const cents=Math.round(number(total)*100); const normalized=weights.map(w=>Math.max(0,number(w))); const sum=normalized.reduce((a,b)=>a+b,0); const use=sum?normalized:weights.map(()=>1); const denom=use.reduce((a,b)=>a+b,0); let used=0; return use.map((w,i)=>{ if(i===use.length-1)return(cents-used)/100; const part=Math.floor(cents*w/denom); used+=part; return part/100 }) }
@@ -87,10 +90,10 @@ function candidateRows(XLSX, workbook) {
   return result
 }
 export function parseToastLaborRows(XLSX, workbook, options={}) {
-  const detected=detectToastLaborPeriod(XLSX,workbook); const fileDates=dateTokens(options.fileName||'').sort()
-  const period=detected.start?detected:{start:fileDates[0]||'',end:fileDates.at(-1)||'',label:''}; const tipRate=number(options.tipRate??3.5)
+  const detected=detectToastLaborPeriod(XLSX,workbook,options.fileName||''); const fileDates=dateTokens(options.fileName||'').sort()
+  const period=detected.start?detected:{start:fileDates[0]||'',end:fileDates[fileDates.length-1]||'',label:''}; const tipRate=number(options.tipRate??3.5)
   const parsed=candidateRows(XLSX,workbook).map(({row,sheetName})=>{
-    const combinedName=[clean(get(row,aliases.firstName)),clean(get(row,aliases.lastName))].filter(Boolean).join(' '); const rawName=clean(get(row,aliases.name))||combinedName; if(!rawName||/^(total|grand total|summary|subtotal|all employees|employee total|labor total)$/i.test(rawName))return null
+    const combinedName=[clean(get(row,aliases.firstName)),clean(get(row,aliases.lastName))].filter(Boolean).join(' '); let rawName=clean(get(row,aliases.name))||combinedName; if (/^[^,]+,\s*[^,]+$/.test(rawName)) { const parts=rawName.split(',').map(clean); rawName=`${parts[1]} ${parts[0]}`.trim() } if(!rawName||/^(total|grand total|summary|subtotal|all employees|employee total|labor total)$/i.test(rawName))return null
     const date=parseDate(get(row,aliases.date),dateTokens(sheetName)[0]||'')
     const regularHours=number(get(row,aliases.regularHours)), overtimeHours=number(get(row,aliases.overtimeHours)); const hours=round2(number(get(row,aliases.totalHours))||regularHours+overtimeHours)
     const regular=number(get(row,aliases.regularPay)), overtime=number(get(row,aliases.overtimePay)), gross=number(get(row,aliases.grossPay)); const pay=round2(gross||regular+overtime||hours*number(get(row,aliases.rate)))

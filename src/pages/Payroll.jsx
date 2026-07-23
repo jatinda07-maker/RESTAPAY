@@ -275,8 +275,11 @@ export default function Payroll({ data, setData }) {
     const file = event.target.files?.[0]
     if (!file) return
     try {
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
-      const detected = detectToastLaborPeriod(XLSX, workbook)
+      const isCsv = /\.csv$/i.test(file.name)
+      const workbook = isCsv
+        ? XLSX.read(await file.text(), { type: 'string', cellDates: true, raw: true })
+        : XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true, raw: true })
+      const detected = detectToastLaborPeriod(XLSX, workbook, file.name)
       const parsed = parseToastLaborRows(XLSX, workbook, {
         payDate: detected.end || today(), tipRate, reportPeriod: detected, fileName: file.name
       })
@@ -284,13 +287,18 @@ export default function Payroll({ data, setData }) {
       setImportedRows(parsed)
       setEmployeeFilter('')
       setEmployeeSearch('')
-      if (detected.start && detected.end) {
-        setDateStart(detected.start)
-        setDateEnd(detected.end)
+      const parsedStart = parsed.map(row => row.period_start || row.pay_date).filter(Boolean).sort()[0]
+      const parsedEndValues = parsed.map(row => row.period_end || row.pay_date).filter(Boolean).sort()
+      const parsedEnd = parsedEndValues[parsedEndValues.length - 1]
+      const rangeStart = detected.start || parsedStart
+      const rangeEnd = detected.end || parsedEnd
+      if (rangeStart && rangeEnd) {
+        setDateStart(rangeStart)
+        setDateEnd(rangeEnd)
       }
       const diag = laborImportDiagnostics(parsed)
       setStatus(parsed.length
-        ? `Imported ${parsed.length} Toast line entries from ${file.name}. Select an employee and date range to calculate payroll.`
+        ? `Imported ${parsed.length} daily Toast payroll entries from ${file.name}. Report period: ${rangeStart || 'unknown'} to ${rangeEnd || 'unknown'}.`
         : `No Toast labor line entries were found in ${file.name}.`)
     } catch (error) {
       console.error(error)
