@@ -38,6 +38,14 @@ const ALIASES = {
 function makeMap(row = {}) {
   return Object.fromEntries(Object.entries(row).map(([key, value]) => [norm(key), value]))
 }
+function findExact(row, aliases) {
+  const map = makeMap(row)
+  for (const alias of aliases) {
+    const value = map[norm(alias)]
+    if (value !== undefined && value !== '') return value
+  }
+  return ''
+}
 function find(row, aliases) {
   const map = makeMap(row)
   for (const alias of aliases) {
@@ -233,11 +241,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
   const fallbackDate = reportPeriod.end || options.payDate || ''
   const tipRate = Number(options.tipRate ?? 3.5) || 0
   const sheets = candidateSheets(XLSX, workbook)
-  const selected = sheets.filter((sheet, index) => {
-    const columns = Object.keys(sheet.rows[0] || {})
-    const hasDatedDetail = columns.some(column => ALIASES.date.some(alias => norm(alias) === norm(column)))
-    return index === 0 || hasDatedDetail || /labor|employee|payroll|time|tips|team|shift|daily/i.test(sheet.name)
-  })
+  const selected = sheets.filter((sheet, index) => index === 0 || /labor|employee|payroll|time|tips|team|shift|daily/i.test(sheet.name))
   const sourceRows = selected.flatMap(sheet => sheet.rows.map(row => ({ row, sheetName: sheet.name })))
 
   const parsed = sourceRows.map(({ row, sheetName }) => {
@@ -250,7 +254,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const regularHours = num(find(row, ALIASES.regularHours))
     const overtimeHours = num(find(row, ALIASES.overtimeHours))
     const doubleHours = num(find(row, ALIASES.doubleHours))
-    const explicitTotalHours = num(find(row, ALIASES.totalHours))
+    const explicitTotalHours = num(findExact(row, ALIASES.totalHours))
     const hours = round2(explicitTotalHours || regularHours + overtimeHours + doubleHours)
     const rate = round2(num(find(row, ALIASES.rate)))
     const regularPay = num(find(row, ALIASES.regularPay))
@@ -270,7 +274,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     return {
       raw_name: rawName,
       employee_name: rawName,
-      employee_external_id: text(find(row, ALIASES.employeeId)),
+      employee_external_id: text(findExact(row, ALIASES.employeeId)),
       job_type: text(find(row, ALIASES.job)),
       pay_date: explicitDate || fallbackDate,
       has_business_date: Boolean(explicitDate),
