@@ -18,7 +18,7 @@ const ALIASES = {
   name: ['Employee', 'Employee Name', 'Team Member', 'Team Member Name', 'Staff', 'Staff Name', 'Name'],
   employeeId: ['Employee ID', 'Employee Id', 'Team Member ID', 'Team Member Id', 'Payroll ID'],
   job: ['Job', 'Job Title', 'Job Type', 'Role', 'Department', 'Position'],
-  date: ['Date', 'Business Date', 'Business Day', 'Shift Date', 'Date Worked', 'Work Date', 'Clock In Date', 'Payroll Date', 'Pay Date', 'Week Ending', 'Period End'],
+  date: ['Business Date', 'Shift Date', 'In Date', 'Clock In Date', 'Date Worked', 'Work Date', 'Shift Closed Date', 'Out Date', 'Payroll Date', 'Pay Date', 'Date', 'Week Ending', 'Period End'],
   regularHours: ['Regular Hours', 'Reg Hours', 'Regular Hrs', 'Reg Hrs'],
   overtimeHours: ['Overtime Hours', 'OT Hours', 'Overtime Hrs', 'OT Hrs'],
   doubleHours: ['Double Time Hours', 'Doubletime Hours', 'DT Hours'],
@@ -37,6 +37,14 @@ const ALIASES = {
 
 function makeMap(row = {}) {
   return Object.fromEntries(Object.entries(row).map(([key, value]) => [norm(key), value]))
+}
+function findExact(row, aliases) {
+  const map = makeMap(row)
+  for (const alias of aliases) {
+    const value = map[norm(alias)]
+    if (value !== undefined && value !== '') return value
+  }
+  return ''
 }
 function find(row, aliases) {
   const map = makeMap(row)
@@ -246,7 +254,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const regularHours = num(find(row, ALIASES.regularHours))
     const overtimeHours = num(find(row, ALIASES.overtimeHours))
     const doubleHours = num(find(row, ALIASES.doubleHours))
-    const explicitTotalHours = num(find(row, ALIASES.totalHours))
+    const explicitTotalHours = num(findExact(row, ALIASES.totalHours))
     const hours = round2(explicitTotalHours || regularHours + overtimeHours + doubleHours)
     const rate = round2(num(find(row, ALIASES.rate)))
     const regularPay = num(find(row, ALIASES.regularPay))
@@ -254,9 +262,11 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const grossPay = num(find(row, ALIASES.grossPay))
     const pay = round2(grossPay || regularPay + overtimePay || hours * rate)
     const explicitTotalTips = has(row, ALIASES.totalTips) ? find(row, ALIASES.totalTips) : ''
-    const creditTips = num(find(row, ALIASES.creditTips))
-    const cashTips = num(find(row, ALIASES.cashTips))
-    const totalTips = round2(explicitTotalTips !== '' ? num(explicitTotalTips) : creditTips + cashTips)
+    const hasCreditTipsColumn = has(row, ALIASES.creditTips)
+    const creditTips = round2(num(find(row, ALIASES.creditTips)))
+    // RESTAPAY payroll intentionally excludes declared cash tips. When Toast's
+    // Non-Cash Tips column exists, it is the payroll tip source of truth.
+    const totalTips = round2(hasCreditTipsColumn ? creditTips : num(explicitTotalTips))
     const explicitNetTips = find(row, ALIASES.netTips)
     const explicitWithheld = find(row, ALIASES.withheld)
     const withheld = round2(explicitWithheld !== '' ? num(explicitWithheld) : explicitNetTips !== '' ? Math.max(totalTips - num(explicitNetTips), 0) : totalTips * tipRate / 100)
@@ -266,7 +276,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     return {
       raw_name: rawName,
       employee_name: rawName,
-      employee_external_id: text(find(row, ALIASES.employeeId)),
+      employee_external_id: text(findExact(row, ALIASES.employeeId)),
       job_type: text(find(row, ALIASES.job)),
       pay_date: explicitDate || fallbackDate,
       has_business_date: Boolean(explicitDate),
@@ -279,6 +289,8 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
       rate,
       regular_pay: pay,
       gross_pay: round2(grossPay),
+      credit_card_tips: totalTips,
+      original_tips: totalTips,
       total_tips: totalTips,
       tips: netTips,
       tip_deduction: withheld,
@@ -292,9 +304,10 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
   // Toast workbooks often contain both an employee summary and dated shift/day detail.
   // When dated detail exists, discard undated summary rows so totals are not duplicated.
   const datedRows = parsed.filter(row => row.has_business_date)
-  const rowsToGroup = datedRows.length
-    ? datedRows
-    : expandSummaryRowsByPeriod(parsed, reportPeriod, tipRate)
+  // A payroll export without a business-date column is a pay-period summary.
+  // Keep one row per employee for the full period. Splitting the summary evenly
+  // across calendar days creates artificial near-identical daily checks.
+  const rowsToGroup = datedRows.length ? datedRows : parsed
   const grouped = new Map()
 
   for (const row of rowsToGroup) {
@@ -318,6 +331,8 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
       overtime_hours: round2(current.overtime_hours + row.overtime_hours),
       regular_pay: round2(current.regular_pay + row.regular_pay),
       gross_pay: round2(current.gross_pay + row.gross_pay),
+      credit_card_tips: combinedTips,
+      original_tips: combinedTips,
       total_tips: combinedTips,
       tip_deduction: combinedDeduction,
       tips: round2(Math.max(combinedTips - combinedDeduction, 0)),
