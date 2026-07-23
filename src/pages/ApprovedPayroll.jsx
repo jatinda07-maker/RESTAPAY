@@ -6,7 +6,34 @@ function money(v){ return num(v).toFixed(2) }
 function today(){ return new Date().toISOString().slice(0,10) }
 
 export default function ApprovedPayroll({ data, setData }) {
-  const rows = data.approvedPayroll || []
+  const rows = useMemo(() => {
+    const stored = Array.isArray(data.approvedPayroll) ? data.approvedPayroll : []
+    const storedSources = new Set(stored.map(row => row.source_payroll_entry_id).filter(Boolean))
+    const derived = (data.payrollEntries || [])
+      .filter(entry => String(entry.approval_status || '').toLowerCase() === 'approved' || entry.approved_payroll_id)
+      .filter(entry => !storedSources.has(entry.id))
+      .map(entry => ({
+        id: entry.approved_payroll_id || `approved-${entry.id}`,
+        source_payroll_entry_id: entry.id,
+        employee_id: entry.employee_id || '',
+        employee_name: entry.employee_name || 'Employee',
+        group_name: entry.group_name || '',
+        payroll_classification: entry.payroll_classification || '',
+        pay_date: entry.pay_date || entry.payroll_date || '',
+        pay_period_start: entry.pay_period_start || '',
+        pay_period_end: entry.pay_period_end || '',
+        original_amount: num(entry.total_pay || entry.total || entry.amount),
+        approved_amount: num(entry.total_pay || entry.total || entry.amount),
+        payment_type: entry.payroll_type || entry.payment_method || entry.method || 'Check',
+        check_number: entry.check_number || '',
+        payment_status: entry.payment_status || 'Pending',
+        paid_date: entry.paid_date || '',
+        notes: entry.notes || '',
+        approved_at: entry.approved_at || entry.updated_at || entry.created_at || '',
+        updated_at: entry.updated_at || entry.approved_at || ''
+      }))
+    return [...stored, ...derived]
+  }, [data.approvedPayroll, data.payrollEntries])
   const [search,setSearch]=useState('')
   const [statusFilter,setStatusFilter]=useState('all')
   const [editing,setEditing]=useState(null)
