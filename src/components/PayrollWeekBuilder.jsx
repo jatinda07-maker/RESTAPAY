@@ -1,0 +1,4 @@
+import React from 'react'
+import { groupPayrollByEmployee, payrollTotal, roundPayroll } from '../engine/PayrollEngine'
+const money=v=>roundPayroll(v).toFixed(2)
+export default function PayrollWeekBuilder({rows,selected,onToggle,onBuild}){const groups=groupPayrollByEmployee(rows);return <section className="payroll-rc5-card"><div className="payroll-rc5-card-head"><div><h2>Weekly Check Builder</h2><p>Select employees; every daily entry remains available underneath the weekly check.</p></div><button className="btn primary" onClick={onBuild}>Build Check</button></div><div className="payroll-week-list">{groups.map(group=><label key={group.key}><input type="checkbox" checked={selected.includes(group.key)} onChange={()=>onToggle(group.key)}/><span><b>{group.employee_name}</b><small>{group.rows.length} days</small></span><strong>${money(group.rows.reduce((s,r)=>s+payrollTotal(r),0))}</strong></label>)}</div></section>}
