@@ -233,7 +233,11 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
   const fallbackDate = reportPeriod.end || options.payDate || ''
   const tipRate = Number(options.tipRate ?? 3.5) || 0
   const sheets = candidateSheets(XLSX, workbook)
-  const selected = sheets.filter((sheet, index) => index === 0 || /labor|employee|payroll|time|tips|team|shift|daily/i.test(sheet.name))
+  const selected = sheets.filter((sheet, index) => {
+    const columns = Object.keys(sheet.rows[0] || {})
+    const hasDatedDetail = columns.some(column => ALIASES.date.some(alias => norm(alias) === norm(column)))
+    return index === 0 || hasDatedDetail || /labor|employee|payroll|time|tips|team|shift|daily/i.test(sheet.name)
+  })
   const sourceRows = selected.flatMap(sheet => sheet.rows.map(row => ({ row, sheetName: sheet.name })))
 
   const parsed = sourceRows.map(({ row, sheetName }) => {

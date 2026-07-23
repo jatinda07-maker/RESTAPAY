@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
@@ -25,6 +25,13 @@ function sameEmployee(a, b) {
   return Boolean(left && right && (left === right || left.includes(right) || right.includes(left)))
 }
 function entryDate(row) { return String(row.pay_date || row.payroll_date || row.date || '').slice(0, 10) }
+function rowOverlapsRange(row, start, end) {
+  const rowStart = String(row.period_start || entryDate(row) || '').slice(0, 10)
+  const rowEnd = String(row.period_end || entryDate(row) || '').slice(0, 10)
+  if (start && rowEnd && rowEnd < start) return false
+  if (end && rowStart && rowStart > end) return false
+  return true
+}
 function isApproved(row) { return String(row.approval_status || '').toLowerCase() === 'approved' || Boolean(row.approved_at) }
 function originalTips(row) { return round2(row.original_tips ?? row.total_tips ?? (num(row.tips) + num(row.tip_deduction))) }
 function finalPay(row) { return round2(num(row.regular_pay) + num(row.overtime_pay) + num(row.tips) + num(row.extra_pay)) }
@@ -58,38 +65,96 @@ export default function Payroll({ data, setData }) {
   const employees = sortByName((data.employees || []).filter(item => item.is_active !== false))
   const entries = data.payrollEntries || []
   const tipRate = num(data.settings?.tipWithholdingRate ?? 3.5)
+  const payrollGroups = sortByName(data.payrollGroups || [])
 
   const [dateStart, setDateStart] = useState(monthStart())
   const [dateEnd, setDateEnd] = useState(today())
   const [status, setStatus] = useState('Upload Toast labor, select a date range, then calculate payroll.')
   const [builderRows, setBuilderRows] = useState([])
+  const [importedRows, setImportedRows] = useState([])
+  const [employeeFilter, setEmployeeFilter] = useState('')
   const [selectedBuilderIds, setSelectedBuilderIds] = useState([])
   const [employeeSearch, setEmployeeSearch] = useState('')
   const [historySearch, setHistorySearch] = useState('')
   const [showManual, setShowManual] = useState(false)
+  const [showGroupPayroll, setShowGroupPayroll] = useState(false)
+  const [selectedGroupId, setSelectedGroupId] = useState('kitchen-auto')
+  const [groupPayDate, setGroupPayDate] = useState(today())
+  const [groupEmployeeSearch, setGroupEmployeeSearch] = useState('')
+  const [groupAdjustments, setGroupAdjustments] = useState({})
   const [manual, setManual] = useState(blankManual())
   const [editingId, setEditingId] = useState('')
   const [sourceFile, setSourceFile] = useState('')
 
+
+  const importedEmployeeOptions = useMemo(() => {
+    const names = importedRows.map(row => displayToastName(row.raw_name || row.employee_name)).filter(Boolean)
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
+  }, [importedRows])
+
+  const filteredImportedRows = useMemo(() => importedRows.filter(row => {
+    const date = String(row.pay_date || row.business_date || '').slice(0, 10)
+    if (dateStart && date && date < dateStart) return false
+    if (dateEnd && date && date > dateEnd) return false
+    if (employeeFilter && !sameEmployee(employeeFilter, row.raw_name || row.employee_name)) return false
+    if (employeeSearch && !normalizeName(displayToastName(row.raw_name || row.employee_name)).includes(normalizeName(employeeSearch))) return false
+    return true
+  }), [importedRows, dateStart, dateEnd, employeeFilter, employeeSearch])
+
+  useEffect(() => {
+    if (!importedRows.length) return
+    const groups = new Map()
+    filteredImportedRows.forEach(source => {
+      const rawName = source.raw_name || source.employee_name || ''
+      const employee = employees.find(item => sameEmployee(item.name, rawName))
+      const name = employee?.name || displayToastName(rawName)
+      if (!name) return
+      const key = employee?.id || normalizeName(name)
+      const current = groups.get(key) || {
+        id: createId('build'), employee_id: employee?.id || '', employee_name: name,
+        job_type: employee?.job_type || source.job_type || '', hours: 0, regular_pay: 0, overtime_pay: 0,
+        original_tips: 0, total_tips: 0, tip_deduction: 0, tips: 0, extra_pay: 0, extra_reason: '',
+        payroll_type: employee?.payroll_type || 'Check', check_number: employee?.default_check_number || '', notes: '',
+        period_start: dateStart || source.period_start || '', period_end: dateEnd || source.period_end || '',
+        source_file: sourceFile, source_rows: 0
+      }
+      current.hours = round2(current.hours + num(source.hours))
+      current.regular_pay = round2(current.regular_pay + num(source.regular_pay || source.gross_pay))
+      current.overtime_pay = round2(current.overtime_pay + num(source.overtime_pay))
+      current.original_tips = round2(current.original_tips + num(source.total_tips))
+      current.total_tips = current.original_tips
+      current.tip_deduction = round2(current.tip_deduction + num(source.tip_deduction))
+      current.tips = round2(current.tips + num(source.tips))
+      current.source_rows += 1
+      current.total_pay = finalPay(current)
+      groups.set(key, current)
+    })
+    const rows = Array.from(groups.values()).sort((a, b) => a.employee_name.localeCompare(b.employee_name))
+    setBuilderRows(rows)
+    setSelectedBuilderIds(rows.map(row => row.id))
+    const diag = laborImportDiagnostics(filteredImportedRows)
+    setStatus(rows.length
+      ? `Showing ${filteredImportedRows.length} Toast line entries for ${rows.length} employee(s): ${money(diag.hours)} hours and $${money(diag.regularPay)} wages.`
+      : 'No Toast labor line entries match this employee and date range.')
+  }, [filteredImportedRows, importedRows.length, employees, dateStart, dateEnd, sourceFile])
+
   const filteredHistory = useMemo(() => {
-    const query = normalizeName(historySearch)
+    const query = normalizeName([historySearch, employeeSearch].filter(Boolean).join(' '))
     return entries
       .filter(row => {
-        const date = entryDate(row)
-        if (dateStart && date < dateStart) return false
-        if (dateEnd && date > dateEnd) return false
+        if (!rowOverlapsRange(row, dateStart, dateEnd)) return false
         if (query && !normalizeName(`${row.employee_name} ${row.group_name} ${row.check_number} ${row.payroll_type}`).includes(query)) return false
         return true
       })
       .sort((a, b) => entryDate(b).localeCompare(entryDate(a)) || String(a.employee_name || '').localeCompare(String(b.employee_name || '')))
-  }, [entries, dateStart, dateEnd, historySearch])
+  }, [entries, dateStart, dateEnd, historySearch, employeeSearch])
 
   const visibleBuilderRows = useMemo(() => {
     const query = normalizeName(employeeSearch)
     return builderRows.filter(row => !query || normalizeName(`${row.employee_name} ${row.job_type} ${row.payroll_type}`).includes(query))
   }, [builderRows, employeeSearch])
 
-  const builderTotals = useMemo(() => builderRows.reduce((acc, row) => {
+  const builderTotals = useMemo(() => visibleBuilderRows.reduce((acc, row) => {
     acc.employees += 1
     acc.hours += num(row.hours)
     acc.regular += num(row.regular_pay)
@@ -100,7 +165,7 @@ export default function Payroll({ data, setData }) {
     acc.extra += num(row.extra_pay)
     acc.final += finalPay(row)
     return acc
-  }, { employees: 0, hours: 0, regular: 0, overtime: 0, originalTips: 0, withheld: 0, netTips: 0, extra: 0, final: 0 }), [builderRows])
+  }, { employees: 0, hours: 0, regular: 0, overtime: 0, originalTips: 0, withheld: 0, netTips: 0, extra: 0, final: 0 }), [visibleBuilderRows])
 
   const historyTotals = useMemo(() => filteredHistory.reduce((acc, row) => {
     acc.employees.add(normalizeName(row.employee_name))
@@ -111,6 +176,56 @@ export default function Payroll({ data, setData }) {
     acc.final += finalPay(row)
     return acc
   }, { employees: new Set(), hours: 0, originalTips: 0, withheld: 0, extra: 0, final: 0 }), [filteredHistory])
+
+  const selectedPayrollGroup = payrollGroups.find(group => group.id === selectedGroupId)
+  const groupMembers = useMemo(() => {
+    const base = selectedGroupId === 'kitchen-auto'
+      ? employees.filter(employee => /kitchen|cook|chef|prep|dish/i.test(`${employee.job_type || ''} ${employee.employee_type || ''}`))
+      : employees.filter(employee => (selectedPayrollGroup?.memberIds || []).includes(employee.id))
+    const query = normalizeName(groupEmployeeSearch)
+    return base.filter(employee => !query || normalizeName(`${employee.name} ${employee.job_type} ${employee.employee_type}`).includes(query))
+  }, [employees, selectedGroupId, selectedPayrollGroup, groupEmployeeSearch])
+
+  function groupValue(employee, field) {
+    const saved = groupAdjustments[employee.id] || {}
+    if (field === 'regular_pay') return saved.regular_pay ?? employee.base_pay ?? ''
+    if (field === 'extra_pay') return saved.extra_pay ?? employee.extra_pay ?? ''
+    if (field === 'extra_reason') return saved.extra_reason ?? employee.extra_reason ?? ''
+    if (field === 'payroll_type') return saved.payroll_type ?? selectedPayrollGroup?.payroll_type ?? employee.payroll_type ?? 'Cash'
+    if (field === 'check_number') return saved.check_number ?? employee.default_check_number ?? ''
+    return saved[field] ?? ''
+  }
+
+  function updateGroupAdjustment(employeeId, field, value) {
+    setGroupAdjustments(current => ({ ...current, [employeeId]: { ...(current[employeeId] || {}), [field]: value } }))
+  }
+
+  function createGroupPayroll() {
+    if (!groupMembers.length) return setStatus('No kitchen employees are available in this payroll group.')
+    for (const employee of groupMembers) {
+      if (num(groupValue(employee, 'extra_pay')) > 0 && !String(groupValue(employee, 'extra_reason')).trim()) {
+        return setStatus(`${employee.name}: enter an Extra Pay Reason.`)
+      }
+    }
+    const groupName = selectedGroupId === 'kitchen-auto' ? 'Kitchen Payroll' : (selectedPayrollGroup?.name || 'Payroll Group')
+    const rows = groupMembers.map(employee => {
+      const row = {
+        id: createId('pay'), source: 'Manual Payroll Group', employee_id: employee.id, employee_name: employee.name,
+        group_name: groupName, pay_date: groupPayDate, period_start: groupPayDate, period_end: groupPayDate,
+        job_type: employee.job_type || '', pay_type: employee.pay_type || 'Hourly',
+        payroll_type: groupValue(employee, 'payroll_type'), check_number: String(groupValue(employee, 'check_number') || '').trim(),
+        hours: 0, regular_pay: round2(groupValue(employee, 'regular_pay')), overtime_pay: 0, original_tips: 0, total_tips: 0,
+        tip_deduction: 0, tips: 0, extra_pay: round2(groupValue(employee, 'extra_pay')),
+        extra_reason: String(groupValue(employee, 'extra_reason') || '').trim(), notes: '', approval_status: 'Pending', created_at: new Date().toISOString()
+      }
+      row.total_pay = finalPay(row)
+      return row
+    })
+    setData(prev => ({ ...prev, payrollEntries: [...rows, ...(prev.payrollEntries || [])] }))
+    setShowGroupPayroll(false)
+    setGroupAdjustments({})
+    setStatus(`Added ${rows.length} employees from ${groupName} for ${groupPayDate}.`)
+  }
 
   function applyPreset(key) {
     const [start, end] = presetRange(key)
@@ -159,56 +274,21 @@ export default function Payroll({ data, setData }) {
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
       const detected = detectToastLaborPeriod(XLSX, workbook)
-      const selectedStart = dateStart || detected.start
-      const selectedEnd = dateEnd || detected.end
       const parsed = parseToastLaborRows(XLSX, workbook, {
-        payDate: selectedEnd || today(), tipRate, reportPeriod: detected, fileName: file.name
+        payDate: detected.end || today(), tipRate, reportPeriod: detected, fileName: file.name
       })
-      const filtered = parsed.filter(row => {
-        const date = String(row.pay_date || row.business_date || '').slice(0, 10)
-        if (!date) return true
-        if (selectedStart && date < selectedStart) return false
-        if (selectedEnd && date > selectedEnd) return false
-        return true
-      })
-      const groups = new Map()
-      filtered.forEach(source => {
-        const rawName = source.raw_name || source.employee_name || ''
-        const employee = employees.find(item => sameEmployee(item.name, rawName))
-        const name = employee?.name || displayToastName(rawName)
-        if (!name) return
-        const key = employee?.id || normalizeName(name)
-        const current = groups.get(key) || {
-          id: createId('build'), employee_id: employee?.id || '', employee_name: name,
-          job_type: employee?.job_type || source.job_type || '', hours: 0, regular_pay: 0, overtime_pay: 0,
-          original_tips: 0, total_tips: 0, tip_deduction: 0, tips: 0, extra_pay: 0, extra_reason: '',
-          payroll_type: employee?.payroll_type || 'Check', check_number: employee?.default_check_number || '', notes: '',
-          period_start: selectedStart || detected.start || '', period_end: selectedEnd || detected.end || '',
-          source_file: file.name, source_rows: 0
-        }
-        current.hours = round2(current.hours + num(source.hours))
-        current.regular_pay = round2(current.regular_pay + num(source.regular_pay || source.gross_pay))
-        current.overtime_pay = round2(current.overtime_pay + num(source.overtime_pay))
-        current.original_tips = round2(current.original_tips + num(source.total_tips))
-        current.total_tips = current.original_tips
-        current.tip_deduction = round2(current.tip_deduction + num(source.tip_deduction))
-        current.tips = round2(current.tips + num(source.tips))
-        current.source_rows += 1
-        current.total_pay = finalPay(current)
-        groups.set(key, current)
-      })
-      const rows = Array.from(groups.values()).sort((a, b) => a.employee_name.localeCompare(b.employee_name))
-      setBuilderRows(rows)
-      setSelectedBuilderIds(rows.map(row => row.id))
       setSourceFile(file.name)
-      if (detected.start && detected.end && (!dateStart || !dateEnd)) {
+      setImportedRows(parsed)
+      setEmployeeFilter('')
+      setEmployeeSearch('')
+      if (detected.start && detected.end) {
         setDateStart(detected.start)
         setDateEnd(detected.end)
       }
-      const diag = laborImportDiagnostics(filtered)
-      setStatus(rows.length
-        ? `Calculated ${rows.length} employees from ${file.name}: ${money(diag.hours)} hours and $${money(diag.regularPay)} wages.`
-        : `No Toast labor rows were found for ${selectedStart || 'the beginning'} through ${selectedEnd || 'the end'}.`)
+      const diag = laborImportDiagnostics(parsed)
+      setStatus(parsed.length
+        ? `Imported ${parsed.length} Toast line entries from ${file.name}. Select an employee and date range to calculate payroll.`
+        : `No Toast labor line entries were found in ${file.name}.`)
     } catch (error) {
       console.error(error)
       setStatus(error?.message || 'Toast payroll import failed.')
@@ -348,6 +428,7 @@ export default function Payroll({ data, setData }) {
     <div className="page-head payroll-rc5-head">
       <div><h1>Payroll</h1><p>Build employee payroll from Toast, make adjustments, approve, and export.</p></div>
       <div className="payroll-rc5-head-actions">
+        <button className="btn secondary" onClick={() => setShowGroupPayroll(true)}><Icon name="users" /> Kitchen Group Payroll</button>
         <button className="btn secondary" onClick={() => setShowManual(true)}><Icon name="plus" /> Manual Payroll</button>
         <label className="btn primary payroll-upload-button"><Icon name="upload" /> Upload Toast Labor<input type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
       </div>
@@ -355,10 +436,22 @@ export default function Payroll({ data, setData }) {
 
     <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={() => setStatus(`Payroll range set to ${dateStart || 'first record'} through ${dateEnd || 'latest record'}.`)} onPreset={applyPreset} applyLabel="Use Date Range" />
 
+    <section className="payroll-rc5-card payroll-rc5-filter-card">
+      <div className="payroll-rc5-actions">
+        <label className="payroll-rc5-filter-label"><span>Employee Search</span><input value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} placeholder="Type employee name" /></label>
+        <label className="payroll-rc5-filter-label"><span>Imported Employee</span><select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)} disabled={!importedRows.length}>
+          <option value="">All imported employees</option>
+          {importedEmployeeOptions.map(name => <option key={name} value={name}>{name}</option>)}
+        </select></label>
+        <button className="btn secondary" onClick={() => { setEmployeeFilter(''); setEmployeeSearch('') }}>Clear Employee</button>
+      </div>
+      <small>The employee search and date range filter both the Toast line entries, calculated payroll, summary totals, and payroll register.</small>
+    </section>
+
     <div className="payroll-rc5-status">{status}</div>
 
     <section className="payroll-rc5-summary">
-      <div><span>Employees</span><strong>{builderRows.length || historyTotals.employees.size}</strong></div>
+      <div><span>Employees</span><strong>{builderRows.length ? visibleBuilderRows.length : historyTotals.employees.size}</strong></div>
       <div><span>Total Hours</span><strong>{money(builderRows.length ? builderTotals.hours : historyTotals.hours)}</strong></div>
       <div><span>Original Tips</span><strong>${money(builderRows.length ? builderTotals.originalTips : historyTotals.originalTips)}</strong></div>
       <div><span>Withheld</span><strong>${money(builderRows.length ? builderTotals.withheld : historyTotals.withheld)}</strong></div>
@@ -366,10 +459,20 @@ export default function Payroll({ data, setData }) {
       <div className="payroll-rc5-final"><span>Final Payroll</span><strong>${money(builderRows.length ? builderTotals.final : historyTotals.final)}</strong></div>
     </section>
 
+    {importedRows.length > 0 && <section className="payroll-rc5-card">
+      <div className="payroll-rc5-card-head">
+        <div><h2>Toast Labor Line Entries</h2><p>{filteredImportedRows.length} individual entries match the selected employee and date range.</p></div>
+      </div>
+      <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table history"><thead><tr><th>Date</th><th>Employee</th><th>Job</th><th>Hours</th><th>Regular Pay</th><th>OT Pay</th><th>Original Tips</th><th>Withheld</th><th>Net Tips</th></tr></thead><tbody>
+        {filteredImportedRows.map((row, index) => <tr key={`${row.employee_external_id || row.employee_name}-${row.pay_date}-${index}`}><td>{row.pay_date || '—'}</td><td><b>{displayToastName(row.raw_name || row.employee_name)}</b></td><td>{row.job_type || '—'}</td><td>{money(row.hours)}</td><td>${money(row.regular_pay)}</td><td>${money(row.overtime_pay)}</td><td>${money(row.total_tips)}</td><td>${money(row.tip_deduction)}</td><td>${money(row.tips)}</td></tr>)}
+        {!filteredImportedRows.length && <tr><td colSpan="9" className="empty-cell">No line entries match this employee and date range.</td></tr>}
+      </tbody></table></div>
+    </section>}
+
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
         <div><h2>Toast Payroll Builder</h2><p>One combined row per employee for {dateStart || 'the first date'} through {dateEnd || 'the last date'}.</p></div>
-        <div className="payroll-rc5-actions"><input value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} placeholder="Search employee" /><button className="btn secondary" onClick={() => { setBuilderRows([]); setSelectedBuilderIds([]) }}>Clear</button><button className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
+        <div className="payroll-rc5-actions"><button className="btn secondary" onClick={() => { setImportedRows([]); setBuilderRows([]); setSelectedBuilderIds([]); setEmployeeFilter('') }}>Clear Import</button><button className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>
         <th><input type="checkbox" checked={builderAllSelected} onChange={toggleAllBuilder} /></th><th>Employee</th><th>Hours</th><th>Regular</th><th>OT</th><th>Original Tips</th><th>Withheld</th><th>Net Tips</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th>
@@ -414,6 +517,20 @@ export default function Payroll({ data, setData }) {
         {!filteredHistory.length && <tr><td colSpan="13" className="empty-cell">No payroll entries in this date range.</td></tr>}
       </tbody></table></div>
     </section>
+
+    {showGroupPayroll && <div className="payroll-rc5-overlay" onClick={() => setShowGroupPayroll(false)}><section className="payroll-rc5-modal payroll-rc5-group-modal" onClick={e => e.stopPropagation()}>
+      <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button onClick={() => setShowGroupPayroll(false)}>×</button></header>
+      <div className="payroll-rc5-group-toolbar">
+        <label>Payroll Group<select value={selectedGroupId} onChange={e => { setSelectedGroupId(e.target.value); setGroupAdjustments({}) }}><option value="kitchen-auto">Kitchen Employees (automatic)</option>{payrollGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+        <label>Pay Date<input type="date" value={groupPayDate} onChange={e => setGroupPayDate(e.target.value)} /></label>
+        <label>Search Employee<input value={groupEmployeeSearch} onChange={e => setGroupEmployeeSearch(e.target.value)} placeholder="Kitchen employee name" /></label>
+      </div>
+      <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr><th>Employee</th><th>Job</th><th>Regular Pay</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th></tr></thead><tbody>
+        {groupMembers.map(employee => <tr key={employee.id}><td><b>{employee.name}</b></td><td>{employee.job_type || employee.employee_type || 'Kitchen'}</td><td><input type="number" step="0.01" value={groupValue(employee, 'regular_pay')} onChange={e => updateGroupAdjustment(employee.id, 'regular_pay', e.target.value)} /></td><td><input type="number" step="0.01" value={groupValue(employee, 'extra_pay')} onChange={e => updateGroupAdjustment(employee.id, 'extra_pay', e.target.value)} /></td><td><input value={groupValue(employee, 'extra_reason')} onChange={e => updateGroupAdjustment(employee.id, 'extra_reason', e.target.value)} placeholder={num(groupValue(employee, 'extra_pay')) > 0 ? 'Required' : 'Optional'} /></td><td><select value={groupValue(employee, 'payroll_type')} onChange={e => updateGroupAdjustment(employee.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select></td><td><input value={groupValue(employee, 'check_number')} onChange={e => updateGroupAdjustment(employee.id, 'check_number', e.target.value)} /></td><td className="payroll-rc5-money">${money(num(groupValue(employee, 'regular_pay')) + num(groupValue(employee, 'extra_pay')))}</td></tr>)}
+        {!groupMembers.length && <tr><td colSpan="8" className="empty-cell">No kitchen employees match this group/search.</td></tr>}
+      </tbody></table></div>
+      <footer><button className="btn secondary" onClick={() => setShowGroupPayroll(false)}>Cancel</button><button className="btn primary" onClick={createGroupPayroll}>Create Kitchen Group Payroll</button></footer>
+    </section></div>}
 
     {showManual && <div className="payroll-rc5-overlay" onClick={() => setShowManual(false)}><section className="payroll-rc5-modal" onClick={e => e.stopPropagation()}>
       <header><div><h2>Add Manual Payroll</h2><p>Add one employee without a Toast import.</p></div><button onClick={() => setShowManual(false)}>×</button></header>
