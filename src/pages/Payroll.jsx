@@ -146,6 +146,8 @@ export default function Payroll({ data, setData, setActive }) {
     const query = normalizeName([historySearch, employeeSearch].filter(Boolean).join(' '))
     return entries
       .filter(row => {
+        // Approved payroll belongs only on the Approved Payroll page.
+        if (isApproved(row)) return false
         if (!rowOverlapsRange(row, dateStart, dateEnd)) return false
         if (query && !normalizeName(`${row.employee_name} ${row.group_name} ${row.check_number} ${row.payroll_type}`).includes(query)) return false
         return true
