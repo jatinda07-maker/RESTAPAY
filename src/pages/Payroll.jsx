@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
@@ -87,7 +87,6 @@ export default function Payroll({ data, setData, setActive }) {
   const [manual, setManual] = useState(blankManual())
   const [editingId, setEditingId] = useState('')
   const [sourceFile, setSourceFile] = useState('')
-  const fileInputRef = useRef(null)
 
 
   const importedEmployeeOptions = useMemo(() => {
@@ -272,17 +271,6 @@ export default function Payroll({ data, setData, setActive }) {
     setSelectedBuilderIds(current => allSelected ? current.filter(id => !ids.includes(id)) : Array.from(new Set([...current, ...ids])))
   }
 
-  function clearImport(resetStatus = true) {
-    setImportedRows([])
-    setBuilderRows([])
-    setSelectedBuilderIds([])
-    setEmployeeFilter('')
-    setEmployeeSearch('')
-    setSourceFile('')
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    if (resetStatus) setStatus('Upload Toast labor, select a date range, then calculate payroll.')
-  }
-
   async function handleToastFile(event) {
     const file = event.target.files?.[0]
     if (!file) return
@@ -360,7 +348,12 @@ export default function Payroll({ data, setData, setActive }) {
         payrollImports: [{ id: createId('import'), file_name: sourceFile, period_start: dateStart, period_end: dateEnd, row_count: approved.length, created_at: approvedAt }, ...(prev.payrollImports || [])]
       }
     })
-    clearImport(false)
+    setImportedRows([])
+    setBuilderRows([])
+    setSelectedBuilderIds([])
+    setEmployeeFilter('')
+    setEmployeeSearch('')
+    setSourceFile('')
     setStatus(`Created and moved ${selected.length} condensed employee payroll records to Approved Payroll.`)
     if (setActive) setActive('approved-payroll')
   }
@@ -369,16 +362,16 @@ export default function Payroll({ data, setData, setActive }) {
     const selectedIds = ids?.length ? ids : filteredHistory.filter(row => !isApproved(row)).map(row => row.id)
     if (!selectedIds.length) return setStatus('No pending payroll rows are available to approve.')
     const approvedAt = new Date().toISOString()
+
     setData(prev => {
-      const candidates = (prev.payrollEntries || []).filter(row => selectedIds.includes(row.id))
-      const existingSourceIds = new Set((prev.approvedPayroll || []).map(row => row.source_payroll_id || row.source_payroll_entry_id).filter(Boolean))
-      const snapshots = candidates
+      const selectedRows = (prev.payrollEntries || []).filter(row => selectedIds.includes(row.id))
+      const existingSourceIds = new Set((prev.approvedPayroll || []).map(row => row.source_payroll_entry_id).filter(Boolean))
+      const approvedRows = selectedRows
         .filter(row => !existingSourceIds.has(row.id))
         .map(row => ({
           id: createId('approved-pay'),
-          source_payroll_id: row.id,
           source_payroll_entry_id: row.id,
-          source: row.source || 'Payroll',
+          source: row.source || 'Payroll Register',
           employee_id: row.employee_id || '',
           employee_name: row.employee_name || 'Employee',
           group_name: row.group_name || '',
@@ -387,7 +380,7 @@ export default function Payroll({ data, setData, setActive }) {
           pay_period_end: row.period_end || entryDate(row),
           period_start: row.period_start || entryDate(row),
           period_end: row.period_end || entryDate(row),
-          pay_date: row.pay_date || row.period_end || entryDate(row) || today(),
+          pay_date: row.pay_date || row.period_end || today(),
           hours: round2(row.hours),
           regular_pay: round2(row.regular_pay),
           overtime_pay: round2(row.overtime_pay),
@@ -404,16 +397,16 @@ export default function Payroll({ data, setData, setActive }) {
           notes: String(row.notes || '').trim(),
           approved_at: approvedAt
         }))
-      const snapshotBySource = Object.fromEntries(snapshots.map(row => [row.source_payroll_id, row.id]))
+
       return {
         ...prev,
-        approvedPayroll: [...snapshots, ...(prev.approvedPayroll || [])],
-        payrollEntries: (prev.payrollEntries || []).map(row => selectedIds.includes(row.id)
-          ? { ...row, approval_status: 'Approved', approved_at: approvedAt, approved_payroll_id: snapshotBySource[row.id] || row.approved_payroll_id, total_pay: finalPay(row) }
-          : row)
+        approvedPayroll: [...approvedRows, ...(prev.approvedPayroll || [])],
+        payrollEntries: (prev.payrollEntries || []).filter(row => !selectedIds.includes(row.id))
       }
     })
-    setStatus(`Moved ${selectedIds.length} payroll entries to Approved Payroll.`)
+
+    setEditingId('')
+    setStatus(`Moved ${selectedIds.length} payroll entries to Approved Payroll and cleared them from this register.`)
     if (setActive) setActive('approved-payroll')
   }
 
@@ -482,7 +475,7 @@ export default function Payroll({ data, setData, setActive }) {
       <div className="payroll-rc5-head-actions">
         <button className="btn secondary" onClick={() => setShowGroupPayroll(true)}><Icon name="users" /> Kitchen Group Payroll</button>
         <button className="btn secondary" onClick={() => setShowManual(true)}><Icon name="plus" /> Manual Payroll</button>
-        <label className="btn primary payroll-upload-button"><Icon name="upload" /> Upload Toast Labor<input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
+        <label className="btn primary payroll-upload-button"><Icon name="upload" /> Upload Toast Labor<input type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
       </div>
     </div>
 
@@ -524,7 +517,7 @@ export default function Payroll({ data, setData, setActive }) {
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
         <div><h2>Toast Payroll Builder</h2><p>One combined row per employee for {dateStart || 'the first date'} through {dateEnd || 'the last date'}.</p></div>
-        <div className="payroll-rc5-actions"><button className="btn secondary" onClick={() => clearImport(true)}>Clear Import</button><button className="btn primary" onClick={createPayroll}>Create Payroll & Move to Approved</button></div>
+        <div className="payroll-rc5-actions"><button className="btn secondary" onClick={() => { setImportedRows([]); setBuilderRows([]); setSelectedBuilderIds([]); setEmployeeFilter('') }}>Clear Import</button><button className="btn primary" onClick={createPayroll}>Create Payroll & Move to Approved</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>
         <th><input type="checkbox" checked={builderAllSelected} onChange={toggleAllBuilder} /></th><th>Employee</th><th>Hours</th><th>Regular</th><th>OT</th><th>Original Tips</th><th>Withheld</th><th>Net Tips</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th>
@@ -571,7 +564,7 @@ export default function Payroll({ data, setData, setActive }) {
     </section>
 
     {showGroupPayroll && <div className="payroll-rc5-overlay" onClick={() => setShowGroupPayroll(false)}><section className="payroll-rc5-modal payroll-rc5-group-modal" onClick={e => e.stopPropagation()}>
-      <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button type="button" className="payroll-rc5-modal-close" aria-label="Close kitchen payroll" onClick={() => setShowGroupPayroll(false)}>×</button></header>
+      <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button onClick={() => setShowGroupPayroll(false)}>×</button></header>
       <div className="payroll-rc5-group-toolbar">
         <label>Payroll Group<select value={selectedGroupId} onChange={e => { setSelectedGroupId(e.target.value); setGroupAdjustments({}) }}><option value="kitchen-auto">Kitchen Employees (automatic)</option>{payrollGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
         <label>Period Start<input type="date" value={groupPeriodStart} onChange={e => setGroupPeriodStart(e.target.value)} /></label>
@@ -587,7 +580,7 @@ export default function Payroll({ data, setData, setActive }) {
     </section></div>}
 
     {showManual && <div className="payroll-rc5-overlay" onClick={() => setShowManual(false)}><section className="payroll-rc5-modal" onClick={e => e.stopPropagation()}>
-      <header><div><h2>Add Manual Payroll</h2><p>Add one employee or open group payroll without a Toast import.</p></div><button type="button" className="payroll-rc5-modal-close" aria-label="Close manual payroll" onClick={() => setShowManual(false)}>×</button></header>
+      <header><div><h2>Add Manual Payroll</h2><p>Add one employee or open group payroll without a Toast import.</p></div><button onClick={() => setShowManual(false)}>×</button></header>
       <div className="payroll-rc5-modal-switch"><button className="btn secondary" onClick={() => { setShowManual(false); setShowGroupPayroll(true) }}><Icon name="users" /> Add Group Payroll</button></div>
       <div className="payroll-rc5-form">
         <label>Employee<select value={manual.employee_id} onChange={e => setManual(value => ({ ...value, employee_id: e.target.value }))}><option value="">Enter manual name</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
