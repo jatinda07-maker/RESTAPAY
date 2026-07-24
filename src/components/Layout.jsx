@@ -7,7 +7,7 @@ import { isSupabaseReady } from '../lib/supabase'
 const navSections = [
   { label: 'Overview', keys: ['dashboard', 'sales', 'cost-analysis'] },
   { label: 'Purchasing', keys: ['invoices', 'vendors', 'vendor-comparison', 'price-increase'] },
-  { label: 'People', keys: ['employees', 'payroll'] },
+  { label: 'People', keys: ['employees', 'payroll', 'approved-payroll'] },
   { label: 'Operations', keys: ['expenses', 'reports'] },
   { label: 'Menu & Toast', keys: ['menu-intelligence', 'menu-costing', 'import-center', 'toast-integration'] },
   { label: 'System', keys: ['diagnostics', 'settings'] }
@@ -26,6 +26,7 @@ const subtitles = {
   invoices: 'Upload invoices, review totals, and organize vendor bills',
   employees: 'Manage employees, roles, pay types, and status',
   payroll: 'Process payroll groups, manual payroll, tips, and history',
+  'approved-payroll': 'Review, edit, bulk update, and finalize condensed payroll records',
   expenses: 'Track restaurant expenses, payment methods, and categories',
   reports: 'Generate weekly reports, exports, and custom business analysis',
   'price-increase': 'Review vendor item increases and pricing risk',
@@ -36,7 +37,9 @@ const subtitles = {
 export default function Layout({ active, setActive, children }) {
   const [isHoveringSidebar, setIsHoveringSidebar] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const activeItem = navItems.find(([key]) => key === active)
+  const extraNavItems = [['approved-payroll', 'Approved Payroll']]
+  const allNavItems = [...navItems, ...extraNavItems.filter(([key]) => !navItems.some(([itemKey]) => itemKey === key))]
+  const activeItem = allNavItems.find(([key]) => key === active)
   const title = activeItem?.[1] || 'RestaPay'
   const sidebarOpen = isHoveringSidebar || mobileNavOpen
   const [cloudStatus, setCloudStatus] = useState(() => {
@@ -99,7 +102,7 @@ export default function Layout({ active, setActive, children }) {
             <div className="nav-section" key={section.label}>
               <div className="nav-section-label">{section.label}</div>
               {section.keys.map(key => {
-                const item = navItems.find(([itemKey]) => itemKey === key)
+                const item = allNavItems.find(([itemKey]) => itemKey === key)
                 if (!item) return null
                 const label = item[1]
                 return (

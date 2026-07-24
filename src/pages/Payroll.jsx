@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
@@ -61,7 +61,7 @@ function blankManual() {
   }
 }
 
-export default function Payroll({ data, setData }) {
+export default function Payroll({ data, setData, setActive }) {
   const employees = sortByName((data.employees || []).filter(item => item.is_active !== false))
   const entries = data.payrollEntries || []
   const tipRate = num(data.settings?.tipWithholdingRate ?? 3.5)
@@ -87,6 +87,7 @@ export default function Payroll({ data, setData }) {
   const [manual, setManual] = useState(blankManual())
   const [editingId, setEditingId] = useState('')
   const [sourceFile, setSourceFile] = useState('')
+  const fileInputRef = useRef(null)
 
 
   const importedEmployeeOptions = useMemo(() => {
@@ -271,9 +272,27 @@ export default function Payroll({ data, setData }) {
     setSelectedBuilderIds(current => allSelected ? current.filter(id => !ids.includes(id)) : Array.from(new Set([...current, ...ids])))
   }
 
+
+  function clearImport(options = {}) {
+    const { keepStatus = false } = options
+    setImportedRows([])
+    setBuilderRows([])
+    setSelectedBuilderIds([])
+    setEmployeeFilter('')
+    setEmployeeSearch('')
+    setSourceFile('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (!keepStatus) setStatus('Upload Toast labor, select a date range, then calculate payroll.')
+  }
+
   async function handleToastFile(event) {
     const file = event.target.files?.[0]
     if (!file) return
+    setImportedRows([])
+    setBuilderRows([])
+    setSelectedBuilderIds([])
+    setEmployeeFilter('')
+    setEmployeeSearch('')
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
       const detected = detectToastLaborPeriod(XLSX, workbook)
@@ -348,13 +367,12 @@ export default function Payroll({ data, setData }) {
         payrollImports: [{ id: createId('import'), file_name: sourceFile, period_start: dateStart, period_end: dateEnd, row_count: approved.length, created_at: approvedAt }, ...(prev.payrollImports || [])]
       }
     })
-    setBuilderRows([])
-    setSelectedBuilderIds([])
+    clearImport({ keepStatus: true })
     setStatus(`Created and moved ${selected.length} condensed employee payroll records to Approved Payroll.`)
-    window.setTimeout(() => {
-      window.history.pushState({}, '', '/approved-payroll')
-      window.dispatchEvent(new PopStateEvent('popstate'))
-    }, 150)
+    window.__restapayCloudSavePending = false
+    if (typeof setActive === 'function') {
+      window.setTimeout(() => setActive('approved-payroll'), 0)
+    }
   }
 
   function approveRows(ids) {
@@ -435,7 +453,7 @@ export default function Payroll({ data, setData }) {
       <div className="payroll-rc5-head-actions">
         <button className="btn secondary" onClick={() => setShowGroupPayroll(true)}><Icon name="users" /> Kitchen Group Payroll</button>
         <button className="btn secondary" onClick={() => setShowManual(true)}><Icon name="plus" /> Manual Payroll</button>
-        <label className="btn primary payroll-upload-button"><Icon name="upload" /> Upload Toast Labor<input type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
+        <label className="btn primary payroll-upload-button"><Icon name="upload" /> Upload Toast Labor<input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
       </div>
     </div>
 
@@ -477,7 +495,7 @@ export default function Payroll({ data, setData }) {
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
         <div><h2>Toast Payroll Builder</h2><p>One combined row per employee for {dateStart || 'the first date'} through {dateEnd || 'the last date'}.</p></div>
-        <div className="payroll-rc5-actions"><button className="btn secondary" onClick={() => { setImportedRows([]); setBuilderRows([]); setSelectedBuilderIds([]); setEmployeeFilter('') }}>Clear Import</button><button className="btn primary" onClick={createPayroll}>Create Payroll & Move to Approved</button></div>
+        <div className="payroll-rc5-actions"><button type="button" className="btn secondary" onClick={() => clearImport()}>Clear Import</button><button type="button" className="btn primary" onClick={createPayroll}>Create Payroll & Move to Approved</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>
         <th><input type="checkbox" checked={builderAllSelected} onChange={toggleAllBuilder} /></th><th>Employee</th><th>Hours</th><th>Regular</th><th>OT</th><th>Original Tips</th><th>Withheld</th><th>Net Tips</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th>
