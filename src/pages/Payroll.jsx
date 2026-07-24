@@ -571,7 +571,7 @@ export default function Payroll({ data, setData, setActive }) {
     </section>
 
     {showGroupPayroll && <div className="payroll-rc5-overlay" onClick={() => setShowGroupPayroll(false)}><section className="payroll-rc5-modal payroll-rc5-group-modal" onClick={e => e.stopPropagation()}>
-      <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button onClick={() => setShowGroupPayroll(false)}>×</button></header>
+      <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button type="button" className="payroll-rc5-modal-close" aria-label="Close kitchen payroll" onClick={() => setShowGroupPayroll(false)}>×</button></header>
       <div className="payroll-rc5-group-toolbar">
         <label>Payroll Group<select value={selectedGroupId} onChange={e => { setSelectedGroupId(e.target.value); setGroupAdjustments({}) }}><option value="kitchen-auto">Kitchen Employees (automatic)</option>{payrollGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
         <label>Period Start<input type="date" value={groupPeriodStart} onChange={e => setGroupPeriodStart(e.target.value)} /></label>
@@ -587,7 +587,7 @@ export default function Payroll({ data, setData, setActive }) {
     </section></div>}
 
     {showManual && <div className="payroll-rc5-overlay" onClick={() => setShowManual(false)}><section className="payroll-rc5-modal" onClick={e => e.stopPropagation()}>
-      <header><div><h2>Add Manual Payroll</h2><p>Add one employee or open group payroll without a Toast import.</p></div><button onClick={() => setShowManual(false)}>×</button></header>
+      <header><div><h2>Add Manual Payroll</h2><p>Add one employee or open group payroll without a Toast import.</p></div><button type="button" className="payroll-rc5-modal-close" aria-label="Close manual payroll" onClick={() => setShowManual(false)}>×</button></header>
       <div className="payroll-rc5-modal-switch"><button className="btn secondary" onClick={() => { setShowManual(false); setShowGroupPayroll(true) }}><Icon name="users" /> Add Group Payroll</button></div>
       <div className="payroll-rc5-form">
         <label>Employee<select value={manual.employee_id} onChange={e => setManual(value => ({ ...value, employee_id: e.target.value }))}><option value="">Enter manual name</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
