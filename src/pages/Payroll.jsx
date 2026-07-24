@@ -272,9 +272,7 @@ export default function Payroll({ data, setData, setActive }) {
     setSelectedBuilderIds(current => allSelected ? current.filter(id => !ids.includes(id)) : Array.from(new Set([...current, ...ids])))
   }
 
-
-  function clearImport(options = {}) {
-    const { keepStatus = false } = options
+  function clearImport(resetStatus = true) {
     setImportedRows([])
     setBuilderRows([])
     setSelectedBuilderIds([])
@@ -282,17 +280,12 @@ export default function Payroll({ data, setData, setActive }) {
     setEmployeeSearch('')
     setSourceFile('')
     if (fileInputRef.current) fileInputRef.current.value = ''
-    if (!keepStatus) setStatus('Upload Toast labor, select a date range, then calculate payroll.')
+    if (resetStatus) setStatus('Upload Toast labor, select a date range, then calculate payroll.')
   }
 
   async function handleToastFile(event) {
     const file = event.target.files?.[0]
     if (!file) return
-    setImportedRows([])
-    setBuilderRows([])
-    setSelectedBuilderIds([])
-    setEmployeeFilter('')
-    setEmployeeSearch('')
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
       const detected = detectToastLaborPeriod(XLSX, workbook)
@@ -367,25 +360,61 @@ export default function Payroll({ data, setData, setActive }) {
         payrollImports: [{ id: createId('import'), file_name: sourceFile, period_start: dateStart, period_end: dateEnd, row_count: approved.length, created_at: approvedAt }, ...(prev.payrollImports || [])]
       }
     })
-    clearImport({ keepStatus: true })
+    clearImport(false)
     setStatus(`Created and moved ${selected.length} condensed employee payroll records to Approved Payroll.`)
-    window.__restapayCloudSavePending = false
-    if (typeof setActive === 'function') {
-      window.setTimeout(() => setActive('approved-payroll'), 0)
-    }
+    if (setActive) setActive('approved-payroll')
   }
 
   function approveRows(ids) {
     const selectedIds = ids?.length ? ids : filteredHistory.filter(row => !isApproved(row)).map(row => row.id)
     if (!selectedIds.length) return setStatus('No pending payroll rows are available to approve.')
     const approvedAt = new Date().toISOString()
-    setData(prev => ({
-      ...prev,
-      payrollEntries: (prev.payrollEntries || []).map(row => selectedIds.includes(row.id)
-        ? { ...row, approval_status: 'Approved', approved_at: approvedAt, total_pay: finalPay(row) }
-        : row)
-    }))
-    setStatus(`Approved ${selectedIds.length} payroll entries.`)
+    setData(prev => {
+      const candidates = (prev.payrollEntries || []).filter(row => selectedIds.includes(row.id))
+      const existingSourceIds = new Set((prev.approvedPayroll || []).map(row => row.source_payroll_id || row.source_payroll_entry_id).filter(Boolean))
+      const snapshots = candidates
+        .filter(row => !existingSourceIds.has(row.id))
+        .map(row => ({
+          id: createId('approved-pay'),
+          source_payroll_id: row.id,
+          source_payroll_entry_id: row.id,
+          source: row.source || 'Payroll',
+          employee_id: row.employee_id || '',
+          employee_name: row.employee_name || 'Employee',
+          group_name: row.group_name || '',
+          payroll_classification: row.payroll_classification || row.job_type || '',
+          pay_period_start: row.period_start || entryDate(row),
+          pay_period_end: row.period_end || entryDate(row),
+          period_start: row.period_start || entryDate(row),
+          period_end: row.period_end || entryDate(row),
+          pay_date: row.pay_date || row.period_end || entryDate(row) || today(),
+          hours: round2(row.hours),
+          regular_pay: round2(row.regular_pay),
+          overtime_pay: round2(row.overtime_pay),
+          original_tips: originalTips(row),
+          tip_deduction: round2(row.tip_deduction),
+          net_tips: round2(row.tips),
+          extra_pay: round2(row.extra_pay),
+          extra_reason: String(row.extra_reason || '').trim(),
+          original_amount: finalPay(row),
+          approved_amount: finalPay(row),
+          payment_type: row.payroll_type || row.payment_method || 'Check',
+          check_number: row.check_number || '',
+          payment_status: 'Pending',
+          notes: String(row.notes || '').trim(),
+          approved_at: approvedAt
+        }))
+      const snapshotBySource = Object.fromEntries(snapshots.map(row => [row.source_payroll_id, row.id]))
+      return {
+        ...prev,
+        approvedPayroll: [...snapshots, ...(prev.approvedPayroll || [])],
+        payrollEntries: (prev.payrollEntries || []).map(row => selectedIds.includes(row.id)
+          ? { ...row, approval_status: 'Approved', approved_at: approvedAt, approved_payroll_id: snapshotBySource[row.id] || row.approved_payroll_id, total_pay: finalPay(row) }
+          : row)
+      }
+    })
+    setStatus(`Moved ${selectedIds.length} payroll entries to Approved Payroll.`)
+    if (setActive) setActive('approved-payroll')
   }
 
   function updateEntry(id, field, value) {
@@ -495,7 +524,7 @@ export default function Payroll({ data, setData, setActive }) {
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
         <div><h2>Toast Payroll Builder</h2><p>One combined row per employee for {dateStart || 'the first date'} through {dateEnd || 'the last date'}.</p></div>
-        <div className="payroll-rc5-actions"><button type="button" className="btn secondary" onClick={() => clearImport()}>Clear Import</button><button type="button" className="btn primary" onClick={createPayroll}>Create Payroll & Move to Approved</button></div>
+        <div className="payroll-rc5-actions"><button className="btn secondary" onClick={() => clearImport(true)}>Clear Import</button><button className="btn primary" onClick={createPayroll}>Create Payroll & Move to Approved</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>
         <th><input type="checkbox" checked={builderAllSelected} onChange={toggleAllBuilder} /></th><th>Employee</th><th>Hours</th><th>Regular</th><th>OT</th><th>Original Tips</th><th>Withheld</th><th>Net Tips</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th>

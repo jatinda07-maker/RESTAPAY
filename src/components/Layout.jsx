@@ -26,7 +26,7 @@ const subtitles = {
   invoices: 'Upload invoices, review totals, and organize vendor bills',
   employees: 'Manage employees, roles, pay types, and status',
   payroll: 'Process payroll groups, manual payroll, tips, and history',
-  'approved-payroll': 'Review, edit, bulk update, and finalize condensed payroll records',
+  'approved-payroll': 'Review, edit, bulk update, and finalize approved payroll',
   expenses: 'Track restaurant expenses, payment methods, and categories',
   reports: 'Generate weekly reports, exports, and custom business analysis',
   'price-increase': 'Review vendor item increases and pricing risk',
@@ -37,9 +37,8 @@ const subtitles = {
 export default function Layout({ active, setActive, children }) {
   const [isHoveringSidebar, setIsHoveringSidebar] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const extraNavItems = [['approved-payroll', 'Approved Payroll']]
-  const allNavItems = [...navItems, ...extraNavItems.filter(([key]) => !navItems.some(([itemKey]) => itemKey === key))]
-  const activeItem = allNavItems.find(([key]) => key === active)
+  const extraNavItems = { 'approved-payroll': ['approved-payroll', 'Approved Payroll'] }
+  const activeItem = navItems.find(([key]) => key === active) || extraNavItems[active]
   const title = activeItem?.[1] || 'RestaPay'
   const sidebarOpen = isHoveringSidebar || mobileNavOpen
   const [cloudStatus, setCloudStatus] = useState(() => {
@@ -102,7 +101,7 @@ export default function Layout({ active, setActive, children }) {
             <div className="nav-section" key={section.label}>
               <div className="nav-section-label">{section.label}</div>
               {section.keys.map(key => {
-                const item = allNavItems.find(([itemKey]) => itemKey === key)
+                const item = navItems.find(([itemKey]) => itemKey === key) || (key === 'approved-payroll' ? ['approved-payroll', 'Approved Payroll'] : null)
                 if (!item) return null
                 const label = item[1]
                 return (
@@ -114,7 +113,7 @@ export default function Layout({ active, setActive, children }) {
                     onClick={() => handleNavPress(key)}
                     className={`nav-item ${active === key ? 'active' : ''}`}
                   >
-                    <span className="nav-icon"><Icon name={key} size={20} /></span>
+                    <span className="nav-icon"><Icon name={key === 'approved-payroll' ? 'payroll' : key} size={20} /></span>
                     <span className="nav-label">{label}</span>
                   </button>
                 )

@@ -28,7 +28,7 @@ installGlobalDiagnostics()
 function App() {
   const [active, setActiveState] = useState('dashboard')
   const setActive = next => {
-    if (active === 'payroll' && next !== 'payroll' && next !== 'approved-payroll' && window.__restapayCloudSavePending) {
+    if (active === 'payroll' && next !== 'payroll' && window.__restapayCloudSavePending) {
       const leave = window.confirm('Payroll changes have not been saved to Supabase. Leave this screen and lose the unsaved changes?')
       if (!leave) return
     }
