@@ -30,11 +30,35 @@ export default function ApprovedPayroll({ data, setData }) {
   function toggleAll(){ const ids=filtered.map(r=>r.id); setSelectedIds(current=>allVisibleSelected?current.filter(id=>!ids.includes(id)):Array.from(new Set([...current,...ids]))) }
   function edit(row){setEditing(row.id);setForm({...row})}
   function save(){
-    setData(prev=>({...prev,approvedPayroll:(prev.approvedPayroll||[]).map(r=>r.id===editing?{...r,...form,approved_amount:num(form.approved_amount),updated_at:new Date().toISOString()}:r)}))
+    setData(prev=>({...prev,approvedPayroll:(prev.approvedPayroll||[]).map(r=>r.id===editing?{...r,...form,approved_amount:num(form.approved_amount),total_pay:num(form.approved_amount),payment_type:form.payment_type||r.payment_type||'Check',updated_at:new Date().toISOString()}:r)}))
     setEditing(null)
   }
-  function remove(id){ if(!window.confirm('Delete this approved payroll record?')) return; setData(prev=>({...prev,approvedPayroll:(prev.approvedPayroll||[]).filter(r=>r.id!==id)})); setSelectedIds(ids=>ids.filter(x=>x!==id)) }
-  function bulkDelete(){ if(!selectedIds.length) return; if(!window.confirm(`Delete ${selectedIds.length} selected payroll records?`)) return; setData(prev=>({...prev,approvedPayroll:(prev.approvedPayroll||[]).filter(r=>!selectedIds.includes(r.id))})); setSelectedIds([]) }
+  function removeLinkedPayrollEntries(prev, removedRows){
+    const approvedIds = new Set(removedRows.map(row => String(row.id || '')).filter(Boolean))
+    const sourceIds = new Set(removedRows.flatMap(row => [row.source_payroll_entry_id, row.source_payroll_id]).map(value => String(value || '')).filter(Boolean))
+    return (prev.payrollEntries || []).filter(entry => {
+      const entryId = String(entry.id || '')
+      const approvedId = String(entry.approved_payroll_id || '')
+      return !sourceIds.has(entryId) && !approvedIds.has(approvedId)
+    })
+  }
+  function remove(id){
+    if(!window.confirm('Delete this approved payroll record?')) return
+    setData(prev=>{
+      const removed=(prev.approvedPayroll||[]).filter(r=>r.id===id)
+      return {...prev,approvedPayroll:(prev.approvedPayroll||[]).filter(r=>r.id!==id),payrollEntries:removeLinkedPayrollEntries(prev,removed)}
+    })
+    setSelectedIds(ids=>ids.filter(x=>x!==id))
+  }
+  function bulkDelete(){
+    if(!selectedIds.length) return
+    if(!window.confirm(`Delete ${selectedIds.length} selected payroll records?`)) return
+    setData(prev=>{
+      const removed=(prev.approvedPayroll||[]).filter(r=>selectedIds.includes(r.id))
+      return {...prev,approvedPayroll:(prev.approvedPayroll||[]).filter(r=>!selectedIds.includes(r.id)),payrollEntries:removeLinkedPayrollEntries(prev,removed)}
+    })
+    setSelectedIds([])
+  }
   function applyBulk(){
     if(!selectedIds.length) return
     const changes={}

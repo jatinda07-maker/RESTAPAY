@@ -260,7 +260,32 @@ export default function Dashboard({ data, setData, setActive }) {
   const [dateEnd, setDateEnd] = useState(savedRange.end)
 
   const salesDays = data?.salesDays || []
-  const payroll = data?.payrollEntries || []
+  const approvedPayrollRows = data?.approvedPayroll
+  const legacyPayrollRows = data?.payrollEntries || []
+  // Approved Payroll is the dashboard source of truth. Once an approved record
+  // is deleted, it must stop affecting payroll and cash cards immediately.
+  // Older data without an approvedPayroll collection keeps the legacy fallback.
+  const payroll = useMemo(() => {
+    if (!Array.isArray(approvedPayrollRows)) return legacyPayrollRows
+    return approvedPayrollRows
+      .filter(row => String(row.payment_status || row.status || 'Pending').toLowerCase() !== 'void')
+      .map(row => ({
+        ...row,
+        payroll_type: row.payment_type || row.payroll_type || row.payment_method || 'Check',
+        payment_method: row.payment_type || row.payment_method || row.payroll_type || 'Check',
+        total_pay: firstAmount(row, ['approved_amount', 'total_pay', 'original_amount', 'amount']),
+        regular_pay: firstAmount(row, ['regular_pay']),
+        overtime_pay: firstAmount(row, ['overtime_pay']),
+        tips: firstAmount(row, ['net_tips', 'tips', 'final_tips']),
+        original_tips: firstAmount(row, ['original_tips', 'gross_tips']),
+        tip_deduction: firstAmount(row, ['tip_deduction', 'tips_withheld']),
+        extra_pay: firstAmount(row, ['extra_pay']),
+        pay_date: row.pay_date || row.pay_period_end || row.period_end || row.approved_at,
+        period_start: row.pay_period_start || row.period_start,
+        period_end: row.pay_period_end || row.period_end,
+        approval_status: 'Approved'
+      }))
+  }, [approvedPayrollRows, legacyPayrollRows])
   const invoices = data?.invoices || []
   const invoiceItems = data?.invoiceItems || []
   const expenseRows = data?.expenses || []
@@ -444,7 +469,7 @@ export default function Dashboard({ data, setData, setActive }) {
     const cashSpendRows = [...vendorRaw, ...businessRaw].filter(row => String(row.payment_method || row.payment_type || row.pay_method || '').toLowerCase().includes('cash'))
     const cashVendorSpend = cashSpendRows.reduce((sum, row) => sum + num(row.amount), 0)
     // Customer tips are pass-through funds and never reduce operating cash or profit.
-    const cashRemaining = cashSales - cashOperatingPayroll - cashVendorSpend
+    const cashRemaining = cashSales - managementCashPayroll - cashVendorSpend
     const cashNeeded = Math.max(0, -cashRemaining)
     const foodCostPct = trueNetSales > 0 ? (directFoodCost / trueNetSales) * 100 : 0
     const laborPct = trueNetSales > 0 ? (operatingPayroll / trueNetSales) * 100 : 0
@@ -461,7 +486,7 @@ export default function Dashboard({ data, setData, setActive }) {
     const reconciliationChecks = [
       { label: 'Toast sales vs payment mix', difference: salesReconciliationDifference },
       { label: 'Dashboard spend vs vendor + business', difference: totalSpend - vendorSpend - businessSpend },
-      { label: 'Cash remaining formula', difference: cashRemaining - (cashSales - cashOperatingPayroll - cashVendorSpend) }
+      { label: 'Cash remaining formula', difference: cashRemaining - (cashSales - managementCashPayroll - cashVendorSpend) }
     ]
     const reconciliationOk = reconciliationChecks.every(check => Math.abs(check.difference) < 0.01)
     const healthScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, foodCostPct - 30) * 1.5 - Math.max(0, laborPct - 28) * 1.5 - Math.max(0, primeCostPct - 65) - (operatingProfit < 0 ? 20 : 0) + (cashRemaining > 0 ? 4 : -8) + (reconciliationOk ? 2 : -8))))
@@ -605,7 +630,7 @@ export default function Dashboard({ data, setData, setActive }) {
     ], expected: derived.operatingProfit, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}]},
     'cash-remaining': { title: 'Cash Remaining Reconciliation', open: 'reports', rows: [
       { label: 'Toast Cash Sales', amount: derived.cashSales },
-      { label: 'Less: Cash Operating Payroll', amount: -derived.cashOperatingPayroll },
+      { label: 'Less: Cash + Management Payroll', amount: -derived.managementCashPayroll },
       { label: 'Less: Cash Vendor / Business Spending', amount: -derived.cashVendorSpend }
     ], expected: derived.cashRemaining, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}]},
     'prime-cost': { title: 'Prime Cost Reconciliation', open: 'reports', rows: [
@@ -665,7 +690,7 @@ export default function Dashboard({ data, setData, setActive }) {
         <button type="button" className="command-tile is-primary" onClick={() => showDetail('cash-remaining')}>
           <span>Cash Flow</span>
           <strong>{money(derived.cashRemaining)}</strong>
-          <small>Toast cash {money(derived.cashSales)} minus operating cash payroll and cash expenses</small>
+          <small>Toast cash {money(derived.cashSales)} minus cash + management payroll and cash expenses</small>
         </button>
         <button type="button" className="command-tile" onClick={() => showDetail('prime-cost')}>
           <span>Prime Cost</span>
@@ -688,7 +713,7 @@ export default function Dashboard({ data, setData, setActive }) {
         {visible.netSales && <MetricCard title="Total Sales" value={money(derived.toastTotalSales)} subtitle={`Toast Sales Summary · ${derived.monthSales.length} rows`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />}
         {visible.cashCollected && <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast Cash sales/payments" icon="dollar" tone="green" onClick={() => showDetail('cash-sales')} />}
         {visible.operatingProfit && <MetricCard title="Operating Profit" value={money(derived.operatingProfit)} subtitle={`${pct(derived.profitMargin)} margin`} icon="trending" tone="purple" onClick={() => showDetail('operating-profit')} />}
-        {visible.cashRemaining && <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle={derived.cashNeeded > 0 ? `Cash needed ${money(derived.cashNeeded)}` : "Toast cash minus cash payroll and cash spending"} icon="card" tone="emerald" onClick={() => showDetail('cash-remaining')} />}
+        {visible.cashRemaining && <MetricCard title="Cash Remaining" value={money(derived.cashRemaining)} subtitle={derived.cashNeeded > 0 ? `Cash needed ${money(derived.cashNeeded)}` : "Toast cash minus cash + management payroll and cash spending"} icon="card" tone="emerald" onClick={() => showDetail('cash-remaining')} />}
         {visible.managementCashPayroll && <MetricCard title="Cash + Management Payroll" value={money(derived.managementCashPayroll)} subtitle={`Cash ${money(derived.cashPayroll)} · Managers ${money(derived.managerPayrollTotal)} · Assistants ${money(derived.assistantManagerPayroll)}`} icon="payroll" tone="teal" onClick={() => showDetail('management-payroll')} />}
         {visible.vendorSpend && <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />}
         {visible.businessExpenses && <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />}
