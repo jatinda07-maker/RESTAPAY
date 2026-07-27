@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
@@ -68,8 +68,9 @@ export default function Payroll({ data, setData }) {
   const tipRate = num(data.settings?.tipWithholdingRate ?? 3.5)
   const payrollGroups = sortByName(data.payrollGroups || [])
 
-  const [dateStart, setDateStart] = useState(monthStart())
-  const [dateEnd, setDateEnd] = useState(today())
+  const defaultPayrollRange = presetRange('lastWeek')
+  const [dateStart, setDateStart] = useState(defaultPayrollRange[0])
+  const [dateEnd, setDateEnd] = useState(defaultPayrollRange[1])
   const [status, setStatus] = useState('Upload Toast labor, select a date range, then calculate payroll.')
   const [builderRows, setBuilderRows] = useState([])
   const [importedRows, setImportedRows] = useState([])
@@ -88,7 +89,32 @@ export default function Payroll({ data, setData }) {
   const [manual, setManual] = useState(blankManual())
   const [editingId, setEditingId] = useState('')
   const [sourceFile, setSourceFile] = useState('')
+  const [mergeWeekly, setMergeWeekly] = useState(true)
+  const initializedRangeRef = useRef(false)
 
+
+  useEffect(() => {
+    if (initializedRangeRef.current) return
+    const imports = [...(data.payrollImports || [])]
+      .filter(item => item?.period_start && item?.period_end)
+      .sort((a, b) => String(b.period_end).localeCompare(String(a.period_end)))
+    const latestImport = imports[0]
+    if (latestImport) {
+      setDateStart(String(latestImport.period_start).slice(0, 10))
+      setDateEnd(String(latestImport.period_end).slice(0, 10))
+      initializedRangeRef.current = true
+      return
+    }
+    const datedEntries = [...entries]
+      .filter(row => entryDate(row))
+      .sort((a, b) => entryDate(b).localeCompare(entryDate(a)))
+    if (datedEntries[0]) {
+      const latest = datedEntries[0]
+      setDateStart(String(latest.period_start || entryDate(latest)).slice(0, 10))
+      setDateEnd(String(latest.period_end || entryDate(latest)).slice(0, 10))
+    }
+    initializedRangeRef.current = true
+  }, [data.payrollImports, entries])
 
   const importedEmployeeOptions = useMemo(() => {
     const names = importedRows.map(row => displayToastName(row.raw_name || row.employee_name)).filter(Boolean)
@@ -115,13 +141,15 @@ export default function Payroll({ data, setData }) {
       const workDate = String(source.pay_date || source.business_date || '').slice(0, 10)
       if (!workDate) return
       const employeeKey = employee?.id || normalizeName(name)
-      const key = `${employeeKey}::${workDate}`
+      const periodStart = mergeWeekly ? (dateStart || workDate) : workDate
+      const periodEnd = mergeWeekly ? (dateEnd || workDate) : workDate
+      const key = mergeWeekly ? employeeKey : `${employeeKey}::${workDate}`
       const current = groups.get(key) || {
         id: createId('build'), employee_id: employee?.id || '', employee_name: name,
-        job_type: employee?.job_type || source.job_type || '', pay_date: workDate, hours: 0, regular_pay: 0, overtime_pay: 0,
+        job_type: employee?.job_type || source.job_type || '', pay_date: periodEnd, hours: 0, regular_pay: 0, overtime_pay: 0,
         credit_card_tips: 0, original_tips: 0, total_tips: 0, tip_deduction: 0, tips: 0, extra_pay: 0, extra_reason: '',
         payroll_type: employee?.payroll_type || 'Check', check_number: employee?.default_check_number || '', notes: '',
-        period_start: workDate, period_end: workDate,
+        period_start: periodStart, period_end: periodEnd,
         source_file: sourceFile, source_rows: 0
       }
       current.hours = round2(current.hours + num(source.hours))
@@ -141,9 +169,9 @@ export default function Payroll({ data, setData }) {
     setSelectedBuilderIds(rows.map(row => row.id))
     const diag = laborImportDiagnostics(filteredImportedRows)
     setStatus(rows.length
-      ? `Showing ${rows.length} daily payroll rows from ${filteredImportedRows.length} Toast shifts: ${money(diag.hours)} hours and $${money(diag.totalTips)} credit card tips.`
+      ? `Showing ${rows.length} ${mergeWeekly ? 'weekly' : 'daily'} payroll rows from ${filteredImportedRows.length} Toast shifts: ${money(diag.hours)} hours and $${money(diag.totalTips)} credit card tips.`
       : 'No Toast labor line entries match this employee and date range.')
-  }, [filteredImportedRows, importedRows.length, employees, dateStart, dateEnd, sourceFile])
+  }, [filteredImportedRows, importedRows.length, employees, dateStart, dateEnd, sourceFile, mergeWeekly])
 
   const filteredHistory = useMemo(() => {
     const query = normalizeName([historySearch, employeeSearch].filter(Boolean).join(' '))
@@ -310,7 +338,6 @@ export default function Payroll({ data, setData }) {
   function validateBuilderRows(rows) {
     for (const row of rows) {
       if (num(row.extra_pay) > 0 && !String(row.extra_reason || '').trim()) return `${row.employee_name}: enter an Extra Pay Reason.`
-      if ((row.payroll_type || 'Check') === 'Check' && !String(row.check_number || '').trim()) return `${row.employee_name}: enter a check number or change the payment method.`
     }
     return ''
   }
@@ -344,7 +371,7 @@ export default function Payroll({ data, setData }) {
       const created = resolved.map(({ row, employee }) => ({
         id: createId('pay'), import_id: createId('import'), source: 'Toast Payroll Builder', source_file: row.source_file || sourceFile,
         employee_id: employee.id, employee_name: employee.name, group_name: `Toast Payroll ${row.period_start} to ${row.period_end}`,
-        pay_date: row.pay_date || row.period_end || dateEnd || today(), period_start: row.pay_date || row.period_start || dateStart, period_end: row.pay_date || row.period_end || dateEnd,
+        pay_date: row.pay_date || row.period_end || dateEnd || today(), period_start: row.period_start || dateStart || row.pay_date, period_end: row.period_end || dateEnd || row.pay_date,
         job_type: row.job_type || employee.job_type || '', pay_type: employee.pay_type || 'Hourly', payroll_type: row.payroll_type || employee.payroll_type || 'Check',
         check_number: row.check_number || '', hours: round2(row.hours), regular_pay: round2(row.regular_pay), overtime_pay: round2(row.overtime_pay),
         credit_card_tips: originalTips(row), original_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: round2(row.tip_deduction), tips: round2(Math.max(0, originalTips(row) - num(row.tip_deduction))), final_tips: finalTips(row),
@@ -358,13 +385,16 @@ export default function Payroll({ data, setData }) {
         payrollImports: [{ id: createId('import'), file_name: sourceFile, period_start: dateStart, period_end: dateEnd, row_count: created.length, created_at: new Date().toISOString() }, ...(prev.payrollImports || [])]
       }
     })
+    setDateStart(selected.reduce((min, row) => !min || row.period_start < min ? row.period_start : min, selected[0]?.period_start || dateStart))
+    setDateEnd(selected.reduce((max, row) => !max || row.period_end > max ? row.period_end : max, selected[0]?.period_end || dateEnd))
     setBuilderRows([])
     setSelectedBuilderIds([])
-    setStatus(`Created payroll for ${selected.length} employees. Review below, then approve.`)
+    setStatus(`Created payroll for ${selected.length} employees. The new pending rows are ready below for approval.`)
   }
 
   function approveRows(ids) {
-    const selectedIds = ids?.length ? ids : filteredHistory.filter(row => !isApproved(row)).map(row => row.id)
+    const visiblePending = filteredHistory.filter(row => !isApproved(row))
+    const selectedIds = ids?.length ? ids : visiblePending.map(row => row.id)
     if (!selectedIds.length) return setStatus('No pending payroll rows are available to approve.')
     const approvedAt = new Date().toISOString()
     setData(prev => ({
@@ -373,7 +403,7 @@ export default function Payroll({ data, setData }) {
         ? { ...row, approval_status: 'Approved', approved_at: approvedAt, total_pay: finalPay(row) }
         : row)
     }))
-    setStatus(`Approved ${selectedIds.length} payroll entries.`)
+    setStatus(`Approved ${selectedIds.length} payroll entries. They are now available on the Approved Payroll page.`)
   }
 
   function updateEntry(id, field, value) {
@@ -457,6 +487,7 @@ export default function Payroll({ data, setData }) {
 
     <section className="payroll-rc5-card payroll-rc5-filter-card">
       <div className="payroll-rc5-actions">
+        <label className="payroll-rc5-week-toggle"><input type="checkbox" checked={mergeWeekly} onChange={e => setMergeWeekly(e.target.checked)} /><span><b>Merge into weekly payroll</b><small>One row per employee ending on the selected end date</small></span></label>
         <label className="payroll-rc5-filter-label"><span>Employee Search</span><input value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} placeholder="Type employee name" /></label>
         <label className="payroll-rc5-filter-label"><span>Imported Employee</span><select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)} disabled={!importedRows.length}>
           <option value="">All imported employees</option>
@@ -490,7 +521,7 @@ export default function Payroll({ data, setData }) {
 
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
-        <div><h2>Toast Daily Payroll Builder</h2><p>One editable row per employee per workday. Multiple shifts on the same day are combined.</p></div>
+        <div><h2>{mergeWeekly ? 'Toast Weekly Payroll Builder' : 'Toast Daily Payroll Builder'}</h2><p>{mergeWeekly ? `One editable row per employee for ${dateStart} through ${dateEnd}. Pay date uses the selected week ending date.` : 'One editable row per employee per workday. Multiple shifts on the same day are combined.'}</p></div>
         <div className="payroll-rc5-actions"><button type="button" className="btn secondary" onClick={() => { setImportedRows([]); setBuilderRows([]); setSelectedBuilderIds([]); setEmployeeFilter('') }}>Clear Import</button><button type="button" className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>

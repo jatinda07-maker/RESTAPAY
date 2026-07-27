@@ -1868,3 +1868,23 @@ button.delete-link {
   outline: 2px solid rgba(37, 99, 235, .2);
   border-color: #2563eb;
 }
+
+/* RC4.6 payroll actions, weekly range, cards, and global action colors */
+.btn.primary,.save-link{background:#2563eb!important;border-color:#2563eb!important;color:#fff!important}
+.btn.primary:hover,.save-link:hover{background:#1d4ed8!important;border-color:#1d4ed8!important}
+.btn.success{background:#059669!important;border-color:#059669!important;color:#fff!important}
+.btn.success:hover{background:#047857!important;border-color:#047857!important}
+.approved-payroll-page .compact-summary{display:grid!important;grid-template-columns:repeat(4,minmax(180px,1fr))!important;gap:14px!important;margin:0 0 16px!important}
+.approved-payroll-page .compact-summary .summary-card{min-height:104px!important;padding:17px 18px!important;border:1px solid #dbe5f0!important;border-top:4px solid #2563eb!important;border-radius:14px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,23,42,.07)!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
+.approved-payroll-page .compact-summary .summary-card:nth-child(2){border-top-color:#059669!important}
+.approved-payroll-page .compact-summary .summary-card:nth-child(3){border-top-color:#f59e0b!important}
+.approved-payroll-page .compact-summary .summary-card:nth-child(4){border-top-color:#8b5cf6!important}
+.approved-payroll-page .compact-summary .summary-card span{font-size:12px!important;font-weight:750!important;color:#64748b!important;text-transform:uppercase!important;letter-spacing:.045em!important}
+.approved-payroll-page .compact-summary .summary-card strong{display:block!important;margin-top:8px!important;font-size:25px!important;color:#0f172a!important}
+.payroll-rc5-week-toggle{display:flex!important;align-items:center!important;gap:10px!important;min-height:48px!important;padding:7px 11px!important;border:1px solid #bfdbfe!important;border-radius:10px!important;background:#eff6ff!important;cursor:pointer!important}
+.payroll-rc5-week-toggle input{width:17px!important;height:17px!important;min-height:0!important}
+.payroll-rc5-week-toggle span{display:grid!important;gap:1px!important}
+.payroll-rc5-week-toggle b{font-size:12px!important;color:#1e3a8a!important}
+.payroll-rc5-week-toggle small{font-size:10.5px!important;color:#64748b!important}
+@media(max-width:900px){.approved-payroll-page .compact-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:520px){.approved-payroll-page .compact-summary{grid-template-columns:1fr!important}}

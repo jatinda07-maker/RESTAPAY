@@ -471,9 +471,9 @@ export default function MenuCosting({ data, setData }) {
       </section>}
 
       <nav className="menu-costing-tabs" aria-label="Costing sections">
-        <button type="button" className={activeTab === 'all' ? 'active' : ''} onClick={() => setActiveTab('all')} type="button">All Items</button>
-        <button type="button" className={activeTab === 'food' ? 'active' : ''} onClick={() => setActiveTab('food')} type="button">Food Items</button>
-        <button type="button" className={activeTab === 'alcohol' ? 'active' : ''} onClick={() => setActiveTab('alcohol')} type="button">Alcohol Items</button>
+        <button type="button" className={activeTab === 'all' ? 'active' : ''} onClick={() => setActiveTab('all')}>All Items</button>
+        <button type="button" className={activeTab === 'food' ? 'active' : ''} onClick={() => setActiveTab('food')}>Food Items</button>
+        <button type="button" className={activeTab === 'alcohol' ? 'active' : ''} onClick={() => setActiveTab('alcohol')}>Alcohol Items</button>
         <button className={activeTab === 'recipes' ? 'active' : ''} type="button" onClick={() => setActiveTab('recipes')}>Recipes</button>
         <button className={activeTab === 'vendors' ? 'active' : ''} type="button" onClick={() => setActiveTab('vendors')}>Vendors</button>
       </nav>
