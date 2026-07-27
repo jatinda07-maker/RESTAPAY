@@ -26,7 +26,9 @@ import './styles.css'
 installGlobalDiagnostics()
 
 function App() {
-  const [active, setActiveState] = useState('dashboard')
+  const [active, setActiveState] = useState(() => {
+    try { return localStorage.getItem('restapay_active_page') || 'dashboard' } catch { return 'dashboard' }
+  })
   const setActive = next => {
     if (active === 'payroll' && next !== 'payroll' && window.__restapayCloudSavePending) {
       const leave = window.confirm('Payroll changes have not been saved to Supabase. Leave this screen and lose the unsaved changes?')
@@ -34,6 +36,7 @@ function App() {
     }
     diagnosticLogger.info('Navigation', `Opened ${next}`, { from: active, to: next })
     setActiveState(next)
+    try { localStorage.setItem('restapay_active_page', next) } catch {}
   }
 
   useEffect(() => {
@@ -60,8 +63,23 @@ function App() {
         }
       })
     }
+    const handleDatePickerClick = event => {
+      const directInput = event.target instanceof HTMLInputElement && event.target.type === 'date' ? event.target : null
+      const container = event.target instanceof Element ? event.target.closest('label, .date-range-field, .date-field, .filter-field') : null
+      const input = directInput || container?.querySelector?.('input[type="date"]')
+      if (!input || input.disabled || input.readOnly) return
+      if (!directInput && event.target instanceof HTMLInputElement && event.target !== input) return
+      try {
+        input.focus({ preventScroll: true })
+        input.showPicker?.()
+      } catch {}
+    }
     document.addEventListener('focusin', handleFocus)
-    return () => document.removeEventListener('focusin', handleFocus)
+    document.addEventListener('click', handleDatePickerClick)
+    return () => {
+      document.removeEventListener('focusin', handleFocus)
+      document.removeEventListener('click', handleDatePickerClick)
+    }
   }, [])
   const [data, setData] = useLocalData()
   const shared = { data, setData }

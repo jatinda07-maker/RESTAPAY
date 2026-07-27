@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
+import { clearAllPayrollFromCloud, deletePayrollRecordsFromCloud, purgePayrollRecoveryCaches } from '../lib/localStore'
 
 function num(v){ return Number(String(v ?? '').replace(/[$,%]/g,'')) || 0 }
 function money(v){ return num(v).toFixed(2) }
@@ -37,18 +38,23 @@ export default function ApprovedPayroll({ data, setData }) {
 
   const [search,setSearch]=useState('')
   const [statusFilter,setStatusFilter]=useState('all')
+  const [paymentFilter,setPaymentFilter]=useState('all')
+  const [deleteStatus,setDeleteStatus]=useState('')
   const [editing,setEditing]=useState(null)
   const [form,setForm]=useState({})
   const [selected,setSelected]=useState([])
   const [bulkEditing,setBulkEditing]=useState(false)
   const [bulkForm,setBulkForm]=useState({payment_status:'',payment_type:'',check_number:'',paid_date:''})
 
-  const filtered=useMemo(()=>rows.filter(r=>{
+  const baseFiltered=useMemo(()=>rows.filter(r=>{
     const q=search.trim().toLowerCase()
     const matches=!q || [r.employee_name,r.check_number,r.payment_type,r.pay_date,r.pay_period_start,r.pay_period_end].some(v=>String(v||'').toLowerCase().includes(q))
     const status=statusFilter==='all' || String(r.payment_status||'Pending').toLowerCase()===statusFilter
     return matches && status
-  }).sort((a,b)=>String(b.approved_at||'').localeCompare(String(a.approved_at||''))),[rows,search,statusFilter])
+  }),[rows,search,statusFilter])
+
+  const filtered=useMemo(()=>baseFiltered.filter(r=>paymentFilter==='all' || String(r.payment_type||'Other').toLowerCase()===paymentFilter)
+    .sort((a,b)=>String(b.approved_at||'').localeCompare(String(a.approved_at||''))),[baseFiltered,paymentFilter])
 
   const visibleIds=useMemo(()=>filtered.map(r=>String(r.id)),[filtered])
   const selectedVisibleCount=visibleIds.filter(id=>selected.includes(id)).length
@@ -60,7 +66,7 @@ export default function ApprovedPayroll({ data, setData }) {
     setSelected(current=>current.filter(id=>validIds.has(id)))
   },[rows])
 
-  const totals=useMemo(()=>filtered.reduce((a,r)=>{const v=num(r.approved_amount);a.total+=v;a[String(r.payment_type||'Other').toLowerCase()]=(a[String(r.payment_type||'Other').toLowerCase()]||0)+v;return a},{total:0,cash:0,check:0,ach:0,card:0,other:0}),[filtered])
+  const totals=useMemo(()=>baseFiltered.reduce((a,r)=>{const v=num(r.approved_amount);a.total+=v;a[String(r.payment_type||'Other').toLowerCase()]=(a[String(r.payment_type||'Other').toLowerCase()]||0)+v;return a},{total:0,cash:0,check:0,ach:0,card:0,other:0}),[baseFiltered])
 
   function edit(row){setEditing(row.id);setForm({...row})}
 
@@ -141,45 +147,74 @@ export default function ApprovedPayroll({ data, setData }) {
     })
   }
 
-  function deleteApprovedRows(ids){
+  async function deleteApprovedRows(ids){
     const idSet=new Set(ids.map(String))
     const rowsToDelete=rows.filter(row=>idSet.has(String(row.id)))
-    const sourceIds=new Set(rowsToDelete.map(row=>row.source_payroll_entry_id).filter(Boolean).map(String))
+    const sourceIds=[...new Set(rowsToDelete.map(row=>row.source_payroll_entry_id).filter(Boolean).map(String))]
+    const sourceIdSet=new Set(sourceIds)
     const approvedIds=new Set(rowsToDelete.map(row=>row.id).filter(Boolean).map(String))
 
-    setData(prev=>({
-      ...prev,
-      approvedPayroll:(prev.approvedPayroll||[]).filter(row=>!approvedIds.has(String(row.id)) && !sourceIds.has(String(row.source_payroll_entry_id||''))),
-      payrollEntries:(prev.payrollEntries||[]).map(entry=>{
-        if(!sourceIds.has(String(entry.id)) && !approvedIds.has(String(entry.approved_payroll_id||''))) return entry
-        const next={...entry,approval_status:'Pending',payment_status:'Pending',updated_at:new Date().toISOString()}
-        delete next.approved_payroll_id
-        delete next.approved_at
-        delete next.paid_date
-        return next
-      })
-    }))
+    setDeleteStatus('Deleting payroll permanently...')
+    const cloudResult=await deletePayrollRecordsFromCloud(sourceIds)
+    if(!cloudResult.ok){
+      setDeleteStatus('Supabase delete failed. Nothing was removed.')
+      window.alert('Unable to permanently delete payroll from Supabase. Please check the connection and try again.')
+      return
+    }
+
+    let nextSnapshot=null
+    setData(prev=>{
+      nextSnapshot={
+        ...prev,
+        approvedPayroll:(prev.approvedPayroll||[]).filter(row=>!approvedIds.has(String(row.id)) && !sourceIdSet.has(String(row.source_payroll_entry_id||''))),
+        payrollEntries:(prev.payrollEntries||[]).filter(entry=>!sourceIdSet.has(String(entry.id)) && !approvedIds.has(String(entry.approved_payroll_id||'')))
+      }
+      return nextSnapshot
+    })
+    purgePayrollRecoveryCaches(nextSnapshot)
     setSelected(current=>current.filter(id=>!idSet.has(id)))
+    setDeleteStatus(`${rowsToDelete.length} payroll record${rowsToDelete.length===1?'':'s'} permanently deleted.`)
   }
 
-  function remove(id){
-    if(!window.confirm('Delete this approved payroll record? It will return to Pending Payroll.')) return
-    deleteApprovedRows([id])
+  async function remove(id){
+    if(!window.confirm('Permanently delete this approved payroll record? This cannot be undone and it will not return to Pending Payroll.')) return
+    await deleteApprovedRows([id])
   }
 
-  function removeSelected(){
+  async function removeSelected(){
     if(!selected.length) return
-    if(!window.confirm(`Delete ${selected.length} selected approved payroll record${selected.length===1?'':'s'}? They will return to Pending Payroll.`)) return
-    deleteApprovedRows(selected)
+    if(!window.confirm(`Permanently delete ${selected.length} selected approved payroll record${selected.length===1?'':'s'}? This cannot be undone.`)) return
+    await deleteApprovedRows(selected)
+  }
+
+  async function clearAllPayroll(){
+    const answer=window.prompt('This permanently deletes every payroll entry, approved payroll record, payroll import, and payroll group. Type CLEAR PAYROLL to continue.')
+    if(answer!=='CLEAR PAYROLL') return
+    setDeleteStatus('Clearing all payroll data...')
+    const cloudResult=await clearAllPayrollFromCloud()
+    if(!cloudResult.ok){
+      setDeleteStatus('Supabase clear failed. Nothing was removed.')
+      window.alert('Unable to clear payroll from Supabase. Please check the connection and try again.')
+      return
+    }
+    let nextSnapshot=null
+    setData(prev=>{
+      nextSnapshot={...prev,payrollGroups:[],payrollEntries:[],payrollImports:[],approvedPayroll:[]}
+      return nextSnapshot
+    })
+    purgePayrollRecoveryCaches(nextSnapshot)
+    setSelected([])
+    setPaymentFilter('all')
+    setDeleteStatus('All payroll data was permanently cleared.')
   }
 
   return <div className="page-stack approved-payroll-page">
-    <section className="summary-grid compact-summary">
-      {[['Approved Total',totals.total],['Cash',totals.cash],['Check',totals.check],['ACH',totals.ach]].map(([label,value])=><article className="summary-card" key={label}><span>{label}</span><strong>${money(value)}</strong></article>)}
+    <section className="approved-payroll-summary-cards" aria-label="Approved payroll totals">
+      {[['all','Approved Total',totals.total,'payroll'],['cash','Cash',totals.cash,'dollar'],['check','Check',totals.check,'receipt'],['ach','ACH',totals.ach,'landmark']].map(([key,label,value,icon])=><button type="button" className={`approved-summary-card ${paymentFilter===key?'active':''}`} key={key} onClick={()=>setPaymentFilter(current=>current===key?'all':key)}><span className="approved-summary-icon"><Icon name={icon} size={18}/></span><span className="approved-summary-copy"><small>{label}</small><strong>${money(value)}</strong></span></button>)}
     </section>
 
     <section className="card">
-      <header className="section-header"><div><h2>Approved Payroll</h2><p>Approved payroll is kept separately from working payroll and remains editable for payment processing.</p></div></header>
+      <header className="section-header"><div><h2>Approved Payroll</h2><p>Approved payroll is kept separately from working payroll and remains editable for payment processing.</p>{deleteStatus&&<small className="approved-delete-status">{deleteStatus}</small>}</div><button className="btn danger clear-payroll-btn" type="button" onClick={clearAllPayroll}><Icon name="trash" size={15}/> Clear All Payroll</button></header>
       <div className="toolbar-row approved-payroll-toolbar">
         <input type="search" placeholder="Search employee, date, or check number" value={search} onChange={e=>setSearch(e.target.value)}/>
         <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="void">Void</option></select>

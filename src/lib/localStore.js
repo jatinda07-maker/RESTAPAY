@@ -320,7 +320,7 @@ export async function loadCloudData() {
     // Normalized Supabase tables are authoritative even when a table is empty.
     // app_data is only a compatibility backup for tables that could not be read.
     const choose = (table, tableKey, appKey = tableKey) => successful.has(table)
-      ? mergeRows(tableData?.[tableKey] || [], appData?.[appKey] || [])
+      ? (tableData?.[tableKey] || [])
       : (appData?.[appKey] || [])
 
     const merged = appData || tableData ? mergeData({
@@ -345,7 +345,15 @@ export async function loadCloudData() {
     }) : null
 
     const localRecovery = loadData()
-    const recovered = merged ? mergeRecoveryData(merged, localRecovery) : (hasMeaningfulData(localRecovery) ? localRecovery : null)
+    const recovered = merged ? {
+      ...mergeRecoveryData(merged, localRecovery),
+      // Payroll tables are authoritative. Never resurrect deleted payroll from
+      // app_data, pending saves, legacy keys, or browser recovery snapshots.
+      payrollGroups: merged.payrollGroups || [],
+      payrollEntries: merged.payrollEntries || [],
+      payrollImports: merged.payrollImports || [],
+      approvedPayroll: merged.approvedPayroll || []
+    } : (hasMeaningfulData(localRecovery) ? localRecovery : null)
 
     if (recovered) {
       saveData(recovered)
@@ -718,6 +726,60 @@ export async function retryPendingCloudSave() {
   try { pending = parseStoredData(localStorage.getItem(RESTAPAY_PENDING_CLOUD_KEY)) } catch {}
   if (!pending || !hasMeaningfulData(pending)) return { ok: true, reason: 'No pending cloud save found' }
   return saveCloudData(pending, { source: 'retry-pending' })
+}
+
+
+function stripPayrollData(value) {
+  const parsed = value && typeof value === 'object' ? value : {}
+  const data = parsed.data && typeof parsed.data === 'object' ? parsed.data : parsed
+  const cleaned = {
+    ...data,
+    payrollGroups: [],
+    payrollEntries: [],
+    payrollImports: [],
+    approvedPayroll: []
+  }
+  return parsed.data && typeof parsed.data === 'object' ? { ...parsed, data: cleaned } : cleaned
+}
+
+export function purgePayrollRecoveryCaches(nextData = null) {
+  try {
+    localStorage.removeItem(RESTAPAY_PENDING_CLOUD_KEY)
+    RESTAPAY_LEGACY_KEYS.forEach(key => localStorage.removeItem(key))
+    if (nextData) localStorage.setItem(RESTAPAY_KEY, JSON.stringify(mergeData(nextData)))
+    else {
+      const current = parseStoredData(localStorage.getItem(RESTAPAY_KEY))
+      if (current) localStorage.setItem(RESTAPAY_KEY, JSON.stringify(stripPayrollData(current)))
+    }
+    window.__restapayCloudSavePending = false
+  } catch {}
+}
+
+export async function deletePayrollRecordsFromCloud(entryIds = []) {
+  const ids = [...new Set((entryIds || []).map(value => String(value || '').trim()).filter(Boolean))]
+  if (!ids.length || !isSupabaseReady) return { ok: true, skipped: !isSupabaseReady }
+  try {
+    const { error } = await supabase.from('payroll_entries').delete().in('id', ids)
+    if (error) throw error
+    return { ok: true }
+  } catch (error) {
+    diagnosticLogger.error('Payroll Delete', 'Unable to permanently delete payroll rows from Supabase', { error, ids })
+    return { ok: false, error }
+  }
+}
+
+export async function clearAllPayrollFromCloud() {
+  if (!isSupabaseReady) return { ok: true, skipped: true }
+  try {
+    for (const table of ['payroll_entries', 'payroll_imports', 'payroll_groups']) {
+      const { error } = await supabase.from(table).delete().not('id', 'is', null)
+      if (error) throw error
+    }
+    return { ok: true }
+  } catch (error) {
+    diagnosticLogger.error('Payroll Clear', 'Unable to clear payroll tables in Supabase', { error })
+    return { ok: false, error }
+  }
 }
 
 export function createId(prefix) {
