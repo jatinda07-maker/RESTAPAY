@@ -16,6 +16,7 @@ const blankInvoice = {
   category: 'Food',
   total: 0,
   status: 'Draft',
+  payment_type: 'Check',
   check_number: '',
   source: 'Manual',
   invoice_type: 'Regular Invoice',
@@ -284,6 +285,10 @@ export default function Invoices({ data, setData }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('Upload CSV/XLSX for local extraction. PDF/image/phone capture uses secure server-side Gemini OCR.')
   const [duplicateWarning, setDuplicateWarning] = useState(null)
+  const [selected, setSelected] = useState([])
+  const [bulkStatus, setBulkStatus] = useState('')
+  const [bulkPaymentType, setBulkPaymentType] = useState('')
+  const [bulkCategory, setBulkCategory] = useState('')
   const [dateStart, setDateStart] = useState(() => readPageDateRange('invoices').start)
   const [dateEnd, setDateEnd] = useState(() => readPageDateRange('invoices').end)
   const localUploadRef = useRef(null)
@@ -295,7 +300,7 @@ export default function Invoices({ data, setData }) {
     .filter(inv => {
       const q = search.toLowerCase().trim()
       if (!q) return true
-      return [inv.vendor_name, inv.invoice_number, inv.invoice_type, inv.category, inv.status, inv.file_name, inv.check_number].join(' ').toLowerCase().includes(q)
+      return [inv.vendor_name, inv.invoice_number, inv.invoice_type, inv.category, inv.status, inv.payment_type, inv.payment_method, inv.file_name, inv.check_number].join(' ').toLowerCase().includes(q)
     }), [invoices, search, dateStart, dateEnd])
 
   function applyDateRange() {
@@ -430,6 +435,7 @@ export default function Invoices({ data, setData }) {
       category,
       invoice_type,
       total,
+      payment_type: form.payment_type || form.payment_method || 'Check',
       check_number: clean(form.check_number),
       updated_at: new Date().toISOString()
     }
@@ -595,6 +601,57 @@ export default function Invoices({ data, setData }) {
 
     if (editingId === id) clearForm()
     setStatus('Invoice deleted')
+  }
+
+  function toggleInvoice(id) {
+    setSelected(prev => prev.includes(id) ? prev.filter(value => value !== id) : [...prev, id])
+  }
+
+  function toggleAllInvoices() {
+    const visibleIds = filtered.map(inv => inv.id)
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selected.includes(id))
+    setSelected(prev => allSelected ? prev.filter(id => !visibleIds.includes(id)) : [...new Set([...prev, ...visibleIds])])
+  }
+
+  function clearInvoiceSelection() {
+    setSelected([])
+    setBulkStatus('')
+    setBulkPaymentType('')
+    setBulkCategory('')
+  }
+
+  function applyBulkInvoiceEdit() {
+    if (!selected.length) return
+    if (!bulkStatus && !bulkPaymentType && !bulkCategory) {
+      setStatus('Choose Payment Status, Payment Type, or Category for bulk edit.')
+      return
+    }
+
+    setData(prev => ({
+      ...prev,
+      invoices: (prev.invoices || []).map(inv => selected.includes(inv.id) ? {
+        ...inv,
+        ...(bulkStatus ? { status: bulkStatus } : {}),
+        ...(bulkPaymentType ? { payment_type: bulkPaymentType, payment_method: bulkPaymentType } : {}),
+        ...(bulkCategory ? { category: bulkCategory } : {}),
+        // Invoice date, invoice number, vendor, amount and check number are intentionally unchanged in bulk edit.
+        updated_at: new Date().toISOString()
+      } : inv)
+    }))
+    setStatus(`Bulk updated ${selected.length} invoice${selected.length === 1 ? '' : 's'}. Dates and check numbers were not changed.`)
+    clearInvoiceSelection()
+  }
+
+  function deleteSelectedInvoices() {
+    if (!selected.length) return
+    if (!window.confirm(`Delete ${selected.length} selected invoice${selected.length === 1 ? '' : 's'}?`)) return
+    setData(prev => ({
+      ...prev,
+      invoices: (prev.invoices || []).filter(inv => !selected.includes(inv.id)),
+      invoiceItems: (prev.invoiceItems || []).filter(item => !selected.includes(item.invoice_id))
+    }))
+    setStatus(`${selected.length} selected invoice${selected.length === 1 ? '' : 's'} deleted.`)
+    clearInvoiceSelection()
   }
 
   async function handleFile(file, mode = 'smart-ai') {
@@ -802,6 +859,17 @@ export default function Invoices({ data, setData }) {
           </select>
         </label>
 
+        <label>Payment Type
+          <select value={form.payment_type || 'Check'} onChange={e => update('payment_type', e.target.value)}>
+            <option>Cash</option>
+            <option>Check</option>
+            <option>Credit Card</option>
+            <option>ACH</option>
+            <option>Debit Card</option>
+            <option>Other</option>
+          </select>
+        </label>
+
         <label>Check # / Ref
           <input value={form.check_number || ''} onChange={e => update('check_number', e.target.value)} placeholder="Optional check number" />
         </label>
@@ -967,13 +1035,35 @@ export default function Invoices({ data, setData }) {
       .invoice-toolbar { align-items: center; gap: 10px; }
       .compact-upload-actions { gap: 7px; }
       .compact-upload-actions .btn { min-height: 34px; padding: 0 11px; }
-      @media (max-width: 1200px) { .invoice-spend-grid { grid-template-columns: repeat(2, minmax(170px, 1fr)); } }
+      .invoice-bulk-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+      .invoice-bulk-toolbar select { min-width: 160px; min-height: 36px; }
+            @media (max-width: 1200px) { .invoice-spend-grid { grid-template-columns: repeat(2, minmax(170px, 1fr)); } }
       @media (max-width: 760px) {
         .invoice-spend-grid { grid-template-columns: 1fr; }
         .invoice-category-strip { flex-direction: column; align-items: flex-start; }
         .invoice-category-pills { justify-content: flex-start; }
       }
     `}</style>
+
+    {selected.length > 0 ? <section className="page-filter-shell invoice-bulk-toolbar">
+      <strong>{selected.length} selected</strong>
+      <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}>
+        <option value="">Keep Payment Status</option>
+        <option>Draft</option><option>Review</option><option>Approved</option><option>Paid</option><option>Applied Credit</option>
+      </select>
+      <select value={bulkPaymentType} onChange={e => setBulkPaymentType(e.target.value)}>
+        <option value="">Keep Payment Type</option>
+        <option>Cash</option><option>Check</option><option>Credit Card</option><option>ACH</option><option>Debit Card</option><option>Other</option>
+      </select>
+      <select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)}>
+        <option value="">Keep Category</option>
+        {categories.map(category => <option key={category}>{category}</option>)}
+      </select>
+      <button className="btn primary" type="button" onClick={applyBulkInvoiceEdit}>Apply Bulk Edit</button>
+      <button className="btn secondary" type="button" onClick={clearInvoiceSelection}>Clear Selection</button>
+      <button className="btn danger" type="button" onClick={deleteSelectedInvoices}>Delete Selected</button>
+      <span className="filter-note">Bulk edit never changes invoice date or check number.</span>
+    </section> : null}
 
     <section className="table-card compact-table-card employee-table-card">
       <header>
@@ -983,6 +1073,7 @@ export default function Invoices({ data, setData }) {
       <table>
         <thead>
           <tr>
+            <th><input type="checkbox" checked={filtered.length > 0 && filtered.every(inv => selected.includes(inv.id))} onChange={toggleAllInvoices} /></th>
             <th>Vendor</th>
             <th>Invoice #</th>
             <th>Date</th>
@@ -990,6 +1081,7 @@ export default function Invoices({ data, setData }) {
             <th>Category</th>
             <th>Total</th>
             <th>Status</th>
+            <th>Payment Type</th>
             <th>Check #</th>
             <th>Source</th>
             <th>Action</th>
@@ -997,6 +1089,7 @@ export default function Invoices({ data, setData }) {
         </thead>
         <tbody>
           {filtered.map(inv => <tr key={inv.id}>
+            <td><input type="checkbox" checked={selected.includes(inv.id)} onChange={() => toggleInvoice(inv.id)} /></td>
             <td><b>{inv.vendor_name}</b><small>{inv.notes || inv.file_name || 'No notes'}</small></td>
             <td>{inv.invoice_number || '-'}</td>
             <td>{inv.invoice_date || '-'}</td>
@@ -1004,6 +1097,7 @@ export default function Invoices({ data, setData }) {
             <td><span className="tag neutral">{inv.category}</span></td>
             <td className={signedInvoiceTotal(inv) < 0 ? 'negative-money' : ''}>{formatMoney(signedInvoiceTotal(inv))}</td>
             <td><span className="tag cash">{inv.status}</span></td>
+            <td><span className="tag neutral">{inv.payment_type || inv.payment_method || 'Check'}</span></td>
             <td>{inv.check_number || '-'}</td>
             <td>{inv.source || 'Manual'}</td>
             <td className="row-actions">
