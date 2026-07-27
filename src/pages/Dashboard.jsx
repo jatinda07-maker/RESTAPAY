@@ -97,7 +97,28 @@ function payrollClassification(row = {}) {
 }
 function isCustomerTips(row) { return payrollClassification(row) === 'Customer Tips' }
 function isOperatingLabor(row) { return !isCustomerTips(row) }
-function rowTipsPaid(row) { return Math.max(0, num(row.tips || row.tips_after_withheld || row.tips_after_withholding || row.final_tips) - num(row.tip_deduction || row.tips_withheld || row.tips_withholding)) }
+function rowTipsPaid(row) {
+  // Payroll stores `tips` as the net amount after withholding. Only subtract
+  // withholding when the row provides original/gross tips instead of net tips.
+  const netKeys = ['tips_after_withheld', 'tips_after_withholding', 'final_tips', 'net_tips']
+  for (const key of netKeys) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return Math.max(0, num(row[key]))
+  }
+  if (row.tips !== undefined && row.tips !== null && String(row.tips).trim() !== '') return Math.max(0, num(row.tips))
+  const original = firstAmount(row, ['original_tips', 'gross_tips', 'tips_original'])
+  const withheld = firstAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding'])
+  return Math.max(0, original - withheld)
+}
+function rowOperatingPay(row) {
+  // Operating labor includes wages, overtime and extra pay for every employee,
+  // including servers. Customer tips are pass-through and are excluded only
+  // from the labor/profit calculation, not by excluding the whole employee row.
+  const explicitWages = firstAmount(row, ['regular_pay', 'regularPay'])
+    + firstAmount(row, ['overtime_pay', 'overtimePay'])
+    + firstAmount(row, ['extra_pay', 'extraPay'])
+  if (explicitWages > 0) return explicitWages
+  return Math.max(0, rowTotalPay(row) - rowTipsPaid(row))
+}
 function payrollType(row) { return String(row.payment_method || row.payroll_type || row.method || row.type || row.pay_method || '').toLowerCase() }
 function isCashPayroll(row) { return payrollType(row).includes('cash') }
 function isCheckPayroll(row) { return payrollType(row).includes('check') }
@@ -309,8 +330,8 @@ export default function Dashboard({ data, setData, setActive }) {
     const monthPayroll = payroll.filter(row => inRange(rowDate(row, ['pay_date', 'payroll_date', 'date'])))
     const cashPayrollRows = monthPayroll.filter(isCashPayroll)
     const checkPayrollRows = monthPayroll.filter(isCheckPayroll)
-    const operatingLaborRows = monthPayroll.filter(isOperatingLabor)
-    const customerTipRows = monthPayroll.filter(isCustomerTips)
+    const operatingLaborRows = monthPayroll.filter(row => rowOperatingPay(row) > 0)
+    const customerTipRows = monthPayroll.filter(row => rowTipsPaid(row) > 0)
     const monthInvoices = invoices.filter(row => inRange(rowDate(row, ['invoice_date', 'date'])))
     const invoiceById = Object.fromEntries(invoices.map(inv => [inv.id, inv]))
     const monthInvoiceItems = invoiceItems.filter(row => {
@@ -343,9 +364,9 @@ export default function Dashboard({ data, setData, setActive }) {
 
     const checkPayroll = checkPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
     const payrollTotal = monthPayroll.reduce((sum, row) => sum + rowTotalPay(row), 0)
-    const operatingPayroll = operatingLaborRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const operatingPayroll = operatingLaborRows.reduce((sum, row) => sum + rowOperatingPay(row), 0)
     const cashOperatingPayrollRows = operatingLaborRows.filter(isCashPayroll)
-    const cashOperatingPayroll = cashOperatingPayrollRows.reduce((sum, row) => sum + rowTotalPay(row), 0)
+    const cashOperatingPayroll = cashOperatingPayrollRows.reduce((sum, row) => sum + rowOperatingPay(row), 0)
     const dcPayrollPreview = calculateDepartmentCosts({ payrollRows: monthPayroll, employees: data?.employees || [], settings: data?.settings || {} })
     const managerPayrollTotal = (dcPayrollPreview.payrollDetails.manager || []).reduce((sum, row) => sum + num(row.amount), 0)
     const assistantRows = (dcPayrollPreview.payrollDetails.other || []).filter(row => /assistant manager|assistant mgr|asst\.? manager|asistente manager/i.test([row.employee_type,row.job_type,row.position,row.role,row.employee_name,row.name].join(' ')))
@@ -681,7 +702,7 @@ export default function Dashboard({ data, setData, setActive }) {
         <button type="button" onClick={() => showDetail('true-food-cost')}><span>Food Cost</span><strong>{pct(derived.foodCostPct)}</strong><small>{money(derived.foodSpend)}</small></button>
         <button type="button" onClick={() => showDetail('department', 'alcohol-sales')}><span>Alcohol Sales</span><strong>{money(derived.departmentCosts.alcoholSales)}</strong><small>Margaritas included: {money(derived.margaritaSales)}</small></button>
         <button type="button" onClick={() => showDetail('operating-payroll')}><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></button>
-        <button type="button" onClick={() => showDetail('prime-cost')}><span>Prime Cost</span><strong>{pct(derived.primeCostPct)}</strong><small>Food + operating labor</small></button>
+        <button type="button" onClick={() => showDetail('prime-cost')}><span>Prime Cost</span><strong>{pct(derived.primeCostPct)}</strong><small>Food + alcohol COGS + labor</small></button>
         <button type="button" onClick={() => showDetail('operating-profit')}><span>Net Profit</span><strong>{money(derived.operatingProfit)}</strong><small>{pct(derived.profitMargin)} margin</small></button>
         <button type="button" onClick={() => showDetail('sales')}><span>Average Check</span><strong>{money(derived.averageCheck)}</strong><small>{derived.guestCount.toLocaleString()} guests/checks</small></button>
         <button type="button" className={`reconciliation-tile ${derived.reconciliationOk ? 'ok' : 'warning'}`} onClick={() => showDetail('reconciliation')}>
@@ -696,7 +717,7 @@ export default function Dashboard({ data, setData, setActive }) {
             <div className="health-meters">
               <ProgressMeter label="Food Cost" value={derived.foodCostPct} tone="orange" caption={`${money(derived.foodSpend)} food spend`} />
               <ProgressMeter label="Operating Labor" value={derived.laborPct} tone="teal" caption={`${money(derived.operatingPayroll)} excludes customer tips`} />
-              <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + operating labor target under 65%" />
+              <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + alcohol COGS + operating labor target under 65%" />
             </div>
           </div>
         </SectionCard>)}

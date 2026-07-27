@@ -141,8 +141,6 @@ create table public.payroll_entries (
   total numeric default 0,
   group_id text,
   group_name text default '',
-  approval_status text default 'Approved',
-  paid_date date,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

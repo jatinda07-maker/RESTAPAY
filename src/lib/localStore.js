@@ -20,6 +20,7 @@ export const defaultData = {
   payrollGroups: [],
   payrollEntries: [],
   payrollImports: [],
+  approvedPayroll: [],
   vendors: [],
   vendorCategories: ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other'],
   expenses: [],
@@ -69,6 +70,7 @@ export function mergeData(data) {
     payrollGroups: data?.payrollGroups || defaultData.payrollGroups,
     payrollEntries: data?.payrollEntries || defaultData.payrollEntries,
     payrollImports: data?.payrollImports || defaultData.payrollImports,
+    approvedPayroll: data?.approvedPayroll || defaultData.approvedPayroll,
     vendors: data?.vendors || defaultData.vendors,
     vendorCategories: data?.vendorCategories || defaultData.vendorCategories,
     expenses: data?.expenses || defaultData.expenses,
@@ -88,112 +90,101 @@ export function mergeData(data) {
   }
 }
 
-export function loadData() {
+function parseStoredData(raw) {
+  if (!raw) return null
   try {
-    const keys = [RESTAPAY_KEY, ...RESTAPAY_LEGACY_KEYS]
-    for (const key of keys) {
-      const raw = localStorage.getItem(key)
-      if (!raw) continue
-      const merged = mergeData(JSON.parse(raw))
-      if (key !== RESTAPAY_KEY) localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
-      return merged
-    }
-    return defaultData
-  } catch (error) {
-    diagnosticLogger.error('Local Storage', 'Failed to read local data', { error }); console.error('Failed to read local data', error)
-    return defaultData
+    const parsed = JSON.parse(raw)
+    if (parsed?.data && typeof parsed.data === 'object') return parsed.data
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
   }
+}
+
+function rowSignature(row = {}, fields = []) {
+  return fields.map(field => String(row?.[field] ?? '').trim().toLowerCase()).join('::')
+}
+
+function mergeRows(primary = [], recovery = [], signatureFields = []) {
+  const result = []
+  const seenIds = new Set()
+  const seenSignatures = new Set()
+
+  ;[...(primary || []), ...(recovery || [])].forEach(row => {
+    if (!row || typeof row !== 'object') return
+    const id = String(row.id || '').trim()
+    const signature = signatureFields.length ? rowSignature(row, signatureFields) : ''
+    if (id && seenIds.has(id)) return
+    if (!id && signature && seenSignatures.has(signature)) return
+    if (id) seenIds.add(id)
+    if (signature) seenSignatures.add(signature)
+    result.push(row)
+  })
+
+  return result
+}
+
+function mergeStrings(primary = [], recovery = []) {
+  const seen = new Set()
+  return [...(primary || []), ...(recovery || [])].filter(value => {
+    const key = String(value || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+export function mergeRecoveryData(primary, recovery) {
+  const cloud = mergeData(primary || {})
+  const local = mergeData(recovery || {})
+  return mergeData({
+    ...cloud,
+    employees: mergeRows(cloud.employees, local.employees, ['name', 'email', 'phone']),
+    payrollGroups: mergeRows(cloud.payrollGroups, local.payrollGroups, ['name']),
+    payrollEntries: mergeRows(cloud.payrollEntries, local.payrollEntries, ['employee_name', 'pay_date', 'total_pay', 'check_number']),
+    payrollImports: mergeRows(cloud.payrollImports, local.payrollImports, ['file_name', 'created_at']),
+    vendors: mergeRows(cloud.vendors, local.vendors, ['name']),
+    expenses: mergeRows(cloud.expenses, local.expenses, ['date', 'expense_date', 'name', 'vendor', 'amount', 'payment_method', 'payment_type']),
+    invoices: mergeRows(cloud.invoices, local.invoices, ['vendor_name', 'invoice_number', 'invoice_date', 'total']),
+    invoiceItems: mergeRows(cloud.invoiceItems, local.invoiceItems, ['invoice_id', 'description', 'quantity', 'unit_price', 'line_total']),
+    salesDays: mergeRows(cloud.salesDays, local.salesDays, ['business_date', 'date', 'source_file']),
+    toastSalesCategories: mergeRows(cloud.toastSalesCategories, local.toastSalesCategories, ['business_date', 'category_name', 'normalized_department', 'net_sales']),
+    salesImports: mergeRows(cloud.salesImports, local.salesImports, ['file_name', 'created_at']),
+    menuItems: mergeRows(cloud.menuItems, local.menuItems, ['name', 'source_file']),
+    menuRecipes: mergeRows(cloud.menuRecipes, local.menuRecipes, ['menu_item_id', 'menu_item_name']),
+    menuImports: mergeRows(cloud.menuImports, local.menuImports, ['file_name', 'imported_at']),
+    importHistory: mergeRows(cloud.importHistory, local.importHistory, ['file_name', 'created_at']),
+    customReports: mergeRows(cloud.customReports, local.customReports, ['name', 'report_type']),
+    employeeTypes: mergeStrings(cloud.employeeTypes, local.employeeTypes),
+    jobTypes: mergeStrings(cloud.jobTypes, local.jobTypes),
+    vendorCategories: mergeStrings(cloud.vendorCategories, local.vendorCategories),
+    expenseCategories: mergeStrings(cloud.expenseCategories, local.expenseCategories),
+    paymentMethods: mergeStrings(cloud.paymentMethods, local.paymentMethods),
+    settings: { ...local.settings, ...cloud.settings }
+  })
+}
+
+export function loadData() {
+  const candidates = []
+  try {
+    ;[RESTAPAY_KEY, RESTAPAY_PENDING_CLOUD_KEY, ...RESTAPAY_LEGACY_KEYS].forEach(key => {
+      const parsed = parseStoredData(localStorage.getItem(key))
+      if (parsed && hasMeaningfulData(parsed)) candidates.push(parsed)
+    })
+  } catch {}
+
+  return candidates.reduce((merged, item) => mergeRecoveryData(merged, item), mergeData(defaultData))
 }
 
 export function saveData(data) {
-  localStorage.setItem(RESTAPAY_KEY, JSON.stringify(mergeData(data)))
-}
-
-
-const RECORD_COLLECTIONS = [
-  'employees', 'payrollGroups', 'payrollEntries', 'payrollImports', 'vendors', 'expenses',
-  'invoices', 'invoiceItems', 'salesDays', 'toastSalesCategories', 'salesImports',
-  'menuItems', 'menuRecipes', 'menuImports', 'importHistory', 'customReports'
-]
-
-function recordTimestamp(row = {}) {
-  const value = row.updated_at || row.updatedAt || row.created_at || row.createdAt || ''
-  const time = Date.parse(value)
-  return Number.isFinite(time) ? time : 0
-}
-
-function mergeRecordList(cloudRows = [], localRows = []) {
-  const byId = new Map()
-  const add = (row, source) => {
-    if (!row || typeof row !== 'object') return
-    const id = String(row.id || '').trim()
-    const fallback = JSON.stringify(row)
-    const key = id || `no-id:${fallback}`
-    const existing = byId.get(key)
-    if (!existing) {
-      byId.set(key, { row, source })
-      return
-    }
-    const existingTime = recordTimestamp(existing.row)
-    const candidateTime = recordTimestamp(row)
-    if (candidateTime > existingTime || (candidateTime === existingTime && source === 'local')) {
-      byId.set(key, { row, source })
-    }
-  }
-  cloudRows.forEach(row => add(row, 'cloud'))
-  localRows.forEach(row => add(row, 'local'))
-  return Array.from(byId.values()).map(item => item.row)
-}
-
-export function mergeCloudAndLocalData(cloudData, localData) {
-  const cloud = mergeData(cloudData || {})
-  const local = mergeData(localData || {})
-  const merged = mergeData({ ...cloud, ...local, settings: { ...(cloud.settings || {}), ...(local.settings || {}) } })
-  RECORD_COLLECTIONS.forEach(key => {
-    merged[key] = mergeRecordList(cloud[key] || [], local[key] || [])
-  })
-  return merged
-}
-
-function expenseFingerprint(row = {}) {
-  return [
-    String(row.id || '').trim(),
-    String(row.expense_date || row.date || '').slice(0, 10),
-    String(row.vendor || row.name || '').trim().toLowerCase(),
-    String(row.category || '').trim().toLowerCase(),
-    Number(row.amount || 0).toFixed(2),
-    String(row.check_number || '').trim().toLowerCase()
-  ].join('|')
-}
-
-export function findRecoverableLocalExpenses(currentExpenses = []) {
-  const candidates = []
-  const sources = []
-  const keys = [RESTAPAY_KEY, ...RESTAPAY_LEGACY_KEYS, RESTAPAY_PENDING_CLOUD_KEY]
-  keys.forEach(key => {
-    try {
-      const raw = localStorage.getItem(key)
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      const data = parsed?.data && typeof parsed.data === 'object' ? parsed.data : parsed
-      const rows = Array.isArray(data?.expenses) ? data.expenses : []
-      if (rows.length) {
-        sources.push({ key, count: rows.length })
-        candidates.push(...rows)
-      }
-    } catch {}
-  })
-  const existingIds = new Set((currentExpenses || []).map(row => String(row.id || '')).filter(Boolean))
-  const existingFingerprints = new Set((currentExpenses || []).map(expenseFingerprint))
-  const seen = new Set()
-  const recoverable = candidates.filter(row => {
-    const id = String(row?.id || '')
-    const fingerprint = expenseFingerprint(row)
-    if ((id && existingIds.has(id)) || existingFingerprints.has(fingerprint) || seen.has(id || fingerprint)) return false
-    seen.add(id || fingerprint)
+  const merged = mergeData(data)
+  try {
+    localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
     return true
-  })
-  return { recoverable, sources, storedCount: currentExpenses.length, candidateCount: candidates.length }
+  } catch (error) {
+    console.error('Unable to save RESTAPAY local recovery copy.', error)
+    return false
+  }
 }
 
 export function hasMeaningfulData(data) {
@@ -203,6 +194,7 @@ export function hasMeaningfulData(data) {
     merged.payrollGroups,
     merged.payrollEntries,
     merged.payrollImports,
+    merged.approvedPayroll,
     merged.vendors,
     merged.expenses,
     merged.invoices,
@@ -328,20 +320,16 @@ export async function loadCloudData() {
     // Normalized Supabase tables are authoritative even when a table is empty.
     // app_data is only a compatibility backup for tables that could not be read.
     const choose = (table, tableKey, appKey = tableKey) => successful.has(table)
-      ? (tableData?.[tableKey] || [])
+      ? mergeRows(tableData?.[tableKey] || [], appData?.[appKey] || [])
       : (appData?.[appKey] || [])
 
     const merged = appData || tableData ? mergeData({
       ...(appData || {}),
       employees: choose('employees', 'employees'),
       payrollGroups: choose('payroll_groups', 'payrollGroups'),
-      payrollEntries: successful.has('payroll_entries')
-        ? (tableData?.payrollEntries || []).map(row => {
-            const backup = (appData?.payrollEntries || []).find(item => String(item.id) === String(row.id)) || {}
-            return { ...backup, ...row, approval_status: backup.approval_status || row.approval_status || 'Approved', paid_date: backup.paid_date || row.paid_date || '' }
-          })
-        : (appData?.payrollEntries || []),
+      payrollEntries: choose('payroll_entries', 'payrollEntries'),
       payrollImports: choose('payroll_imports', 'payrollImports'),
+      approvedPayroll: appData?.approvedPayroll || [],
       vendors: choose('vendors', 'vendors'),
       expenses: choose('expenses', 'expenses'),
       invoices: choose('invoices', 'invoices'),
@@ -356,16 +344,20 @@ export async function loadCloudData() {
       settings: successful.has('settings') ? (tableData?.settings || defaultData.settings) : (appData?.settings || defaultData.settings)
     }) : null
 
-    if (merged) {
-      localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
-      diagnosticLogger.success('Supabase', 'Loaded application data from database', { tables: Array.from(successful) }); announceCloudStatus('saved', { message: 'Loaded from database', source: 'cloud-load' })
+    const localRecovery = loadData()
+    const recovered = merged ? mergeRecoveryData(merged, localRecovery) : (hasMeaningfulData(localRecovery) ? localRecovery : null)
+
+    if (recovered) {
+      saveData(recovered)
+      diagnosticLogger.success('Supabase', 'Loaded and merged application data with local recovery copy', { tables: Array.from(successful) })
+      announceCloudStatus('saved', { message: 'Loaded from database and checked recovery data', source: 'cloud-load' })
     } else {
       announceCloudStatus('saved', { message: 'Cloud connected', source: 'cloud-load' })
     }
 
-    return merged
+    return recovered
   } catch (error) {
-    diagnosticLogger.error('Supabase', 'Cloud load failed; using local backup', { error }); console.error('Failed to read Supabase data. Falling back to localStorage.', error)
+    diagnosticLogger.error('Supabase', 'Cloud load failed', { error }); console.error('Failed to read Supabase data.', error)
     return null
   }
 }
@@ -405,13 +397,24 @@ function dateOrNull(value) { return value || null }
 function slug(value) { return text(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `item-${Date.now()}` }
 function rowId(prefix, row, index) { return row.id || `${prefix}-${Date.now()}-${index}` }
 
-async function replaceTable(table, rows, deleteFirst = false) {
-  // Data-safety rule: never wipe a whole table before a replacement save.
-  // Upsert preserves existing cloud rows if a connection drops midway through a save.
-  if (!rows.length) return
-
-  const { error } = await supabase.from(table).upsert(rows, { onConflict: 'id' })
+async function upsertTable(table, rows, onConflict = 'id') {
+  if (!rows.length) return { ok: true, count: 0 }
+  const { error } = await supabase.from(table).upsert(rows, { onConflict })
   if (error) throw error
+  return { ok: true, count: rows.length }
+}
+
+async function upsertLookupTable(table, rows) {
+  const deduped = []
+  const seen = new Set()
+  ;(rows || []).forEach(row => {
+    const name = String(row?.name || '').trim()
+    const key = name.toLowerCase()
+    if (!key || seen.has(key)) return
+    seen.add(key)
+    deduped.push({ ...row, name })
+  })
+  return upsertTable(table, deduped, 'name')
 }
 
 async function mirrorAppDataToTables(data) {
@@ -466,16 +469,11 @@ async function mirrorAppDataToTables(data) {
     employee_name: text(row.employee_name) || 'Unknown employee',
     source: row.source || row.group_name || 'Manual',
     pay_type: row.pay_type || 'Hourly',
-    payroll_type: row.payroll_type || row.payment_method || row.method || row.type || 'Cash',
-    payroll_classification: row.payroll_classification || 'Operating Labor',
     method: row.payment_method || row.payroll_type || row.method || row.type || 'Cash',
     check_number: text(row.check_number),
     payroll_date: row.pay_date || row.payroll_date || new Date().toISOString().slice(0, 10),
-    pay_date: row.pay_date || row.payroll_date || new Date().toISOString().slice(0, 10),
     hours: money(row.hours),
     regular_pay: money(row.regular_pay),
-    tips: money(row.tips),
-    tip_deduction: money(row.tip_deduction),
     tips_after_withheld: money(row.tips_after_withholding || row.tips_after_withheld || row.final_tips || row.tips),
     tips_withheld: money(row.tips_withheld || row.tips_withholding || row.tip_deduction),
     extra_pay: money(row.extra_pay),
@@ -641,26 +639,25 @@ async function mirrorAppDataToTables(data) {
   const expenseCategories = (data.expenseCategories || []).map(name => ({ id: slug(name), name }))
   const paymentMethods = (data.paymentMethods || []).map(name => ({ id: slug(name), name }))
 
-  await replaceTable('invoice_items', [])
-  await replaceTable('invoices', invoices)
-  await replaceTable('invoice_items', invoiceItems, false)
-  await replaceTable('employees', employees)
-  await replaceTable('vendors', vendors)
-  await replaceTable('payroll_groups', payrollGroups)
-  await replaceTable('payroll_entries', payrollEntries)
-  await replaceTable('payroll_imports', payrollImports)
-  await replaceTable('sales_days', salesDays)
+  await upsertTable('invoices', invoices)
+  await upsertTable('invoice_items', invoiceItems)
+  await upsertTable('employees', employees)
+  await upsertTable('vendors', vendors)
+  await upsertTable('payroll_groups', payrollGroups)
+  await upsertTable('payroll_entries', payrollEntries)
+  await upsertTable('payroll_imports', payrollImports)
+  await upsertTable('sales_days', salesDays)
   // This table is present in RC12/RC13 schemas. If an older database lacks a
   // compatible column, app_data and sales_days still retain the category arrays.
-  try { await replaceTable('toast_sales_categories', toastSalesCategories) } catch (error) { console.warn('Toast category mirror skipped.', error) }
-  await replaceTable('sales_imports', salesImports)
-  await replaceTable('expenses', expenses)
-  await replaceTable('custom_reports', customReports)
-  await replaceTable('employee_types', employeeTypes)
-  await replaceTable('job_types', jobTypes)
-  await replaceTable('vendor_categories', vendorCategories)
-  await replaceTable('expense_categories', expenseCategories)
-  await replaceTable('payment_methods', paymentMethods)
+  try { await upsertTable('toast_sales_categories', toastSalesCategories) } catch (error) { console.warn('Toast category mirror skipped.', error) }
+  await upsertTable('sales_imports', salesImports)
+  await upsertTable('expenses', expenses)
+  await upsertTable('custom_reports', customReports)
+  await upsertLookupTable('employee_types', employeeTypes)
+  await upsertLookupTable('job_types', jobTypes)
+  await upsertLookupTable('vendor_categories', vendorCategories)
+  await upsertLookupTable('expense_categories', expenseCategories)
+  await upsertLookupTable('payment_methods', paymentMethods)
 
   const { error: settingsError } = await supabase.from('settings').upsert({
     id: 'main',
@@ -673,54 +670,54 @@ async function mirrorAppDataToTables(data) {
 }
 
 export async function saveCloudData(data, options = {}) {
+  const merged = mergeData(data)
+  const source = options.source || 'direct-save'
+  window.__restapayCloudSavePending = true
+  saveData(merged)
+  try {
+    localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify({ data: merged, saved_at: new Date().toISOString(), source }))
+  } catch {}
+
   if (!isSupabaseReady) {
-    try { localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify(mergeData(data))) } catch {}
-    announceCloudStatus('offline', { message: 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before building.', source: options.source || 'direct-save' })
+    announceCloudStatus('offline', { message: 'Supabase is not configured. A local recovery copy was kept.', source })
     return { ok: false, reason: 'Supabase env vars missing' }
   }
 
   try {
-    const merged = mergeData(data)
-    announceCloudStatus('saving', { message: 'Saving directly to database...', source: options.source || 'direct-save' })
+    announceCloudStatus('saving', { message: 'Saving safely to Supabase...', source })
 
-    // Write normalized tables first. The app_data row is only a backup and must
-    // never claim a successful save when the actual invoices/expenses tables failed.
-    await mirrorAppDataToTables(merged)
-
+    // Save the complete JSON backup first. Even if a normalized table later fails,
+    // app_data preserves the full state for recovery.
     const payload = {
       id: RESTAPAY_SUPABASE_STATE_ID,
       data: merged,
       updated_at: new Date().toISOString()
     }
+    const { error: backupError } = await supabase.from('app_data').upsert(payload, { onConflict: 'id' })
+    if (backupError) throw backupError
 
-    const { error } = await supabase
-      .from('app_data')
-      .upsert(payload, { onConflict: 'id' })
+    await mirrorAppDataToTables(merged)
 
-    if (error) throw error
-
-    localStorage.setItem(RESTAPAY_KEY, JSON.stringify(merged))
+    window.__restapayCloudSavePending = false
     try { localStorage.removeItem(RESTAPAY_PENDING_CLOUD_KEY) } catch {}
-    diagnosticLogger.success('Supabase', 'Saved normalized tables and backup state', { source: options.source || 'direct-save' }); announceCloudStatus('saved', { message: 'Saved to database', source: options.source || 'direct-save' })
-
+    saveData(merged)
+    diagnosticLogger.success('Supabase', 'Saved normalized tables and backup state', { source })
+    announceCloudStatus('saved', { message: 'Saved to Supabase', source })
     return { ok: true }
   } catch (error) {
-    try { localStorage.setItem(RESTAPAY_PENDING_CLOUD_KEY, JSON.stringify(mergeData(data))) } catch {}
-    announceCloudStatus('offline', { message: 'Database save failed. Local backup saved and ready to retry.', source: options.source || 'direct-save', error: error?.message || String(error) })
-    diagnosticLogger.error('Supabase', 'Database save failed; local pending backup created', { error, source: options.source || 'direct-save' }); console.error('Failed to save Supabase data. LocalStorage backup was still saved.', error)
-    return { ok: false, error }
+    window.__restapayCloudSavePending = true
+    announceCloudStatus('offline', { message: 'Supabase save failed. Local recovery copy was preserved.', source, error: error?.message || String(error) })
+    diagnosticLogger.error('Supabase', 'Database save failed; local pending backup preserved', { error, source })
+    console.error('Failed to save Supabase data.', error)
+    return { ok: false, error, localBackupPreserved: true }
   }
 }
 
 export async function retryPendingCloudSave() {
-  try {
-    const raw = localStorage.getItem(RESTAPAY_PENDING_CLOUD_KEY)
-    if (!raw) return { ok: true, reason: 'No pending cloud save' }
-    return await saveCloudData(JSON.parse(raw), { source: 'retry-pending' })
-  } catch (error) {
-    announceCloudStatus('offline', { message: 'Pending cloud retry failed.', error: error?.message || String(error) })
-    return { ok: false, error }
-  }
+  let pending = null
+  try { pending = parseStoredData(localStorage.getItem(RESTAPAY_PENDING_CLOUD_KEY)) } catch {}
+  if (!pending || !hasMeaningfulData(pending)) return { ok: true, reason: 'No pending cloud save found' }
+  return saveCloudData(pending, { source: 'retry-pending' })
 }
 
 export function createId(prefix) {

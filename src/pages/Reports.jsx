@@ -75,13 +75,30 @@ const standardReports = [
   { id: 'profit', label: 'Profit Estimate', source: 'profit', fields: ['metric','amount'] }
 ]
 
+
+function uniqueRows(rows, kind) {
+  const seen = new Set()
+  return rows.filter(row => {
+    const key = kind === 'sales'
+      ? [row.business_date || row.date, num(row.net_sales), num(row.gross_sales), num(row.cash_sales), String(row.source_file || '').toLowerCase()].join('|')
+      : kind === 'payroll'
+        ? [row.source_toast_labor_id || '', row.employee_id || row.employee_name, row.pay_date || row.date, num(row.hours), num(row.total_pay)].join('|')
+        : kind === 'invoice'
+          ? [String(row.vendor_id || row.vendor_name || row.vendor || '').toLowerCase(), String(row.invoice_number || '').toLowerCase(), row.invoice_date || row.date, num(row.total)].join('|')
+          : row.id || JSON.stringify(row)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function getRawRows(data, source, start, end) {
-  if (source === 'sales') return (data.salesDays || []).filter(row => inRange(row, start, end))
-  if (source === 'payroll') return (data.payrollEntries || []).filter(row => inRange(row, start, end))
-  if (source === 'payrollCash') return (data.payrollEntries || []).filter(row => row.payroll_type === 'Cash').filter(row => inRange(row, start, end))
-  if (source === 'payrollCheck') return (data.payrollEntries || []).filter(row => row.payroll_type === 'Check').filter(row => inRange(row, start, end))
+  if (source === 'sales') return uniqueRows((data.salesDays || []).filter(row => inRange(row, start, end)), 'sales')
+  if (source === 'payroll') return uniqueRows((data.payrollEntries || []).filter(row => inRange(row, start, end)), 'payroll')
+  if (source === 'payrollCash') return uniqueRows((data.payrollEntries || []).filter(row => row.payroll_type === 'Cash').filter(row => inRange(row, start, end)), 'payroll')
+  if (source === 'payrollCheck') return uniqueRows((data.payrollEntries || []).filter(row => row.payroll_type === 'Check').filter(row => inRange(row, start, end)), 'payroll')
   if (source === 'vendors') return (data.vendors || [])
-  if (source === 'invoices') return (data.invoices || []).filter(row => inRange(row, start, end))
+  if (source === 'invoices') return uniqueRows((data.invoices || []).filter(row => inRange(row, start, end)), 'invoice')
   if (source === 'expenses') return (data.expenses || []).filter(row => inRange(row, start, end))
   if (source === 'priceInflation') return buildPriceInflationRows(data, start, end)
   return []

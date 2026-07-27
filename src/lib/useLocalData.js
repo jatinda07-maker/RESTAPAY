@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { announceCloudStatus, hasMeaningfulData, loadCloudData, loadData, mergeCloudAndLocalData, retryPendingCloudSave, saveCloudData, saveData } from './localStore'
+import { announceCloudStatus, loadCloudData, loadData, retryPendingCloudSave, saveCloudData, saveData } from './localStore'
 
 export function useLocalData() {
   const [data, setData] = useState(() => loadData())
-  const initialLocalData = useRef(loadData())
   const hasLoadedCloud = useRef(false)
 
   useEffect(() => {
@@ -13,40 +12,17 @@ export function useLocalData() {
       const cloudData = await loadCloudData()
       if (cancelled) return
       if (cloudData) {
-        const safeMerged = mergeCloudAndLocalData(cloudData, initialLocalData.current)
-        setData(safeMerged)
-        saveData(safeMerged)
-        if (hasMeaningfulData(initialLocalData.current)) {
-          await saveCloudData(safeMerged, { source: 'startup-safe-merge' })
-        }
-      } else if (hasMeaningfulData(initialLocalData.current)) {
-        await saveCloudData(initialLocalData.current, { source: 'startup-local-backup' })
+        setData(cloudData)
+        saveData(cloudData)
+      } else {
+        announceCloudStatus('offline', { message: 'Unable to load Supabase data. Local recovery data remains available.' })
       }
-      await retryPendingCloudSave()
       hasLoadedCloud.current = true
+      retryPendingCloudSave().catch(error => console.error('Unable to retry pending cloud save.', error))
     }
 
     hydrate()
     return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    saveData(data)
-  }, [data])
-
-  useEffect(() => {
-    function retry() { retryPendingCloudSave() }
-    function handleVisibility() { if (document.visibilityState === 'visible') retry() }
-    window.addEventListener('online', retry)
-    window.addEventListener('focus', retry)
-    document.addEventListener('visibilitychange', handleVisibility)
-    const timer = window.setInterval(retry, 60000)
-    return () => {
-      window.removeEventListener('online', retry)
-      window.removeEventListener('focus', retry)
-      document.removeEventListener('visibilitychange', handleVisibility)
-      window.clearInterval(timer)
-    }
   }, [])
 
   function updateData(updater) {
@@ -58,7 +34,8 @@ export function useLocalData() {
           if (!result?.ok) console.error('RESTAPAY direct database save failed', result?.error || result?.reason)
         })
       } else {
-        announceCloudStatus('local', { message: 'Local backup saved. Cloud save starts after database load finishes.' })
+        window.__restapayCloudSavePending = true
+        announceCloudStatus('saving', { message: 'Waiting for Supabase initialization before saving.' })
       }
       return next
     })

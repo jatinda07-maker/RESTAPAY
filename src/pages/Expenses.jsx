@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
-import { createId, findRecoverableLocalExpenses } from '../lib/localStore'
+import { createId, loadCloudData, retryPendingCloudSave, saveCloudData } from '../lib/localStore'
 import { filterVendors, findVendorById, findVendorByName, getActiveSortedVendors } from '../engine/VendorEngine'
 import { applyPresetToSetters, isDateInRange, makeRangeLabel, readPageDateRange, savePageDateRange, todayISO } from '../engine/DateEngine'
 
@@ -22,7 +22,7 @@ export default function Expenses({ data, setData }) {
   const [dateEnd, setDateEnd] = useState(() => readPageDateRange('expenses').end)
   const [selected, setSelected] = useState([])
   const [vendorSearch, setVendorSearch] = useState('')
-  const [recoveryMessage, setRecoveryMessage] = useState('')
+  const [recoveryStatus, setRecoveryStatus] = useState('')
 
   const filteredVendorOptions = useMemo(() => {
     const q = vendorSearch.toLowerCase().trim()
@@ -117,11 +117,11 @@ export default function Expenses({ data, setData }) {
     setEditingId(row.id)
     const matchedVendor = findVendorById(vendors, row.vendor_id) || findVendorByName(vendors, row.vendor)
     setForm({
-      date: row.date || today(),
+      date: row.date || row.expense_date || today(),
       name: row.name || '',
       category: categories.includes(row.category) ? row.category : (categories[0] || 'Food'),
       amount: row.amount || '',
-      payment_method: row.payment_method || 'Cash',
+      payment_method: row.payment_method || row.payment_type || 'Cash',
       check_number: row.check_number || '',
       vendor: row.vendor || matchedVendor?.name || '',
       vendor_id: matchedVendor?.id || '',
@@ -137,33 +137,32 @@ export default function Expenses({ data, setData }) {
   function toggleOne(id) { setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]) }
   function bulkDelete() { setData(prev => ({ ...prev, expenses: (prev.expenses || []).filter(row => !selected.includes(row.id)) })); setSelected([]) }
 
-  function recoverExpenses() {
-    const report = findRecoverableLocalExpenses(expenses)
-    if (!report.recoverable.length) {
-      setRecoveryMessage(`Recovery check completed. Database/app currently has ${report.storedCount} expense records. No missing browser-backup records were found across ${report.sources.length || 0} backup source(s).`)
-      return
+  async function recoverMissingExpenses() {
+    setRecoveryStatus('Checking local and Supabase recovery copies...')
+    try {
+      await retryPendingCloudSave()
+      const recovered = await loadCloudData()
+      if (!recovered) {
+        setRecoveryStatus('No recovery data could be loaded. Existing records were not changed.')
+        return
+      }
+      const before = (data.expenses || []).length
+      const after = (recovered.expenses || []).length
+      setData(recovered)
+      const result = await saveCloudData(recovered, { source: 'expense-recovery' })
+      if (result?.ok) {
+        setRecoveryStatus(after > before ? `Recovered ${after - before} missing expense entr${after - before === 1 ? 'y' : 'ies'} and saved to Supabase.` : `Recovery check completed. ${after} expense records are stored.`)
+      } else {
+        setRecoveryStatus(`Recovered data locally, but Supabase still needs attention: ${result?.error?.message || result?.reason || 'save failed'}`)
+      }
+    } catch (error) {
+      console.error(error)
+      setRecoveryStatus(`Recovery failed: ${error?.message || String(error)}`)
     }
-    const ok = window.confirm(`Found ${report.recoverable.length} missing expense record(s) in browser backups. Restore them now? Existing records will not be changed or duplicated.`)
-    if (!ok) {
-      setRecoveryMessage(`Recovery review completed. ${report.recoverable.length} recoverable record(s) found; nothing was restored.`)
-      return
-    }
-    const now = new Date().toISOString()
-    const recovered = report.recoverable.map((row, index) => ({
-      ...row,
-      id: row.id || createId(`expense-recovered-${index}`),
-      date: row.date || row.expense_date || today(),
-      payment_method: row.payment_method || row.payment_type || 'Cash',
-      recovered_at: now,
-      updated_at: row.updated_at || now
-    }))
-    setData(prev => ({ ...prev, expenses: [...recovered, ...(prev.expenses || [])] }))
-    setRecoveryMessage(`Recovery completed. Restored ${recovered.length} missing expense record(s). New total: ${expenses.length + recovered.length}. Existing records were preserved.`)
   }
 
   return <>
     <style>{`
-      .expense-recovery-message { margin:10px 0; white-space:normal; line-height:1.45; }
       .expense-form-grid {
         display: grid;
         grid-template-columns: 180px 180px 180px 170px 170px 170px 210px 180px minmax(220px, 1fr) 160px;
@@ -200,8 +199,7 @@ export default function Expenses({ data, setData }) {
         white-space: nowrap;
       }
       @media (max-width: 1500px) {
-        .expense-recovery-message { margin:10px 0; white-space:normal; line-height:1.45; }
-      .expense-form-grid {
+        .expense-form-grid {
           grid-template-columns: repeat(5, minmax(160px, 1fr));
         }
         .expense-form-grid .wide-2 {
@@ -212,8 +210,7 @@ export default function Expenses({ data, setData }) {
         }
       }
       @media (max-width: 900px) {
-        .expense-recovery-message { margin:10px 0; white-space:normal; line-height:1.45; }
-      .expense-form-grid {
+        .expense-form-grid {
           grid-template-columns: repeat(2, minmax(150px, 1fr));
         }
         .expense-form-grid .wide-2 {
@@ -254,10 +251,11 @@ export default function Expenses({ data, setData }) {
       <div className="search-box sales-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses, payee, category..." /></div>
       <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={applyDateRange} onPreset={applyPreset} />
       <span className="filter-note">Filtering expenses by {rangeLabel}</span>
-      <button className="btn secondary" onClick={recoverExpenses} type="button"><Icon name="refresh" /> Recover Expenses</button>
+      <button className="btn secondary" onClick={recoverMissingExpenses} type="button">Recover Missing Expenses</button>
       {selected.length > 0 && <button className="btn ghost delete-link" onClick={bulkDelete} type="button">Delete Selected ({selected.length})</button>}
     </div>
-    {recoveryMessage && <div className="status-pill expense-recovery-message">{recoveryMessage}</div>}
+
+    {recoveryStatus ? <div className="status-pill">{recoveryStatus}</div> : null}
 
     <div className="payroll-summary-row sales-summary-row stat-row-clean">
       <div><span>Total Expenses</span><b>${money(summary.total)}</b></div>

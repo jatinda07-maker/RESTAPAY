@@ -24,7 +24,7 @@ export default function ToastIntegration() {
   const [workerApiStatus, setWorkerApiStatus] = useState(null)
   const apiUrl = String(
     import.meta.env.VITE_TOAST_SYNC_API_URL ||
-    'https://restapay-toast-sync.onrender.com'
+    'https://render-toast-web-service.onrender.com'
   ).replace(/\/$/, '')
 
   const requestJson = useCallback(async (url, options = {}, attempts = 2) => {
