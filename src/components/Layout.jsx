@@ -7,7 +7,7 @@ import { isSupabaseReady } from '../lib/supabase'
 const navSections = [
   { label: 'Overview', keys: ['dashboard', 'sales', 'cost-analysis'] },
   { label: 'Purchasing', keys: ['invoices', 'vendors', 'vendor-comparison', 'price-increase'] },
-  { label: 'People', keys: ['employees', 'payroll', 'approved-payroll'] },
+  { label: 'People', keys: ['employees', 'payroll'] },
   { label: 'Operations', keys: ['expenses', 'reports'] },
   { label: 'Menu & Toast', keys: ['menu-intelligence', 'menu-costing', 'import-center', 'toast-integration'] },
   { label: 'System', keys: ['diagnostics', 'settings'] }
@@ -26,7 +26,6 @@ const subtitles = {
   invoices: 'Upload invoices, review totals, and organize vendor bills',
   employees: 'Manage employees, roles, pay types, and status',
   payroll: 'Process payroll groups, manual payroll, tips, and history',
-  'approved-payroll': 'Review approved payroll, payment amounts, methods, check numbers, and status',
   expenses: 'Track restaurant expenses, payment methods, and categories',
   reports: 'Generate weekly reports, exports, and custom business analysis',
   'price-increase': 'Review vendor item increases and pricing risk',
@@ -74,9 +73,9 @@ export default function Layout({ active, setActive, children }) {
     : cloudStatus.status === 'offline' && String(cloudStatus.message || '').toLowerCase().includes('not configured')
       ? 'Cloud Setup Needed'
       : cloudStatus.status === 'offline'
-        ? 'Not Saved'
+        ? 'Offline Backup'
         : cloudStatus.status === 'local'
-          ? 'Waiting for Cloud'
+          ? 'Local Backup'
           : 'Cloud Saved'
 
   return (

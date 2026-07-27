@@ -6,7 +6,6 @@ import CostAnalysis from './pages/CostAnalysis'
 import EntityPage from './pages/EntityPage'
 import Employees from './pages/Employees'
 import Payroll from './pages/Payroll'
-import ApprovedPayroll from './pages/ApprovedPayroll'
 import Vendors from './pages/Vendors'
 import VendorComparison from './pages/VendorComparison'
 import Invoices from './pages/Invoices'
@@ -26,15 +25,24 @@ import './styles.css'
 installGlobalDiagnostics()
 
 function App() {
-  const [active, setActiveState] = useState('dashboard')
+  const [active, setActiveState] = useState(() => {
+    try { return sessionStorage.getItem('restapay_active_page') || localStorage.getItem('restapay_active_page') || 'dashboard' } catch { return 'dashboard' }
+  })
   const setActive = next => {
-    if (active === 'payroll' && next !== 'payroll' && window.__restapayCloudSavePending) {
-      const leave = window.confirm('Payroll changes have not been saved to Supabase. Leave this screen and lose the unsaved changes?')
-      if (!leave) return
-    }
     diagnosticLogger.info('Navigation', `Opened ${next}`, { from: active, to: next })
+    try {
+      sessionStorage.setItem('restapay_active_page', next)
+      localStorage.setItem('restapay_active_page', next)
+    } catch {}
     setActiveState(next)
   }
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('restapay_active_page', active)
+      localStorage.setItem('restapay_active_page', active)
+    } catch {}
+  }, [active])
 
   useEffect(() => {
     const handleFocus = event => {
@@ -79,7 +87,6 @@ function App() {
       : active === 'vendor-comparison' ? <VendorComparison {...shared} />
       : active === 'invoices' ? <Invoices {...shared} />
       : active === 'payroll' ? <Payroll {...shared} setActive={setActive} />
-      : active === 'approved-payroll' ? <ApprovedPayroll {...shared} />
       : active === 'expenses' ? <Expenses {...shared} />
       : active === 'reports' ? <Reports {...shared} />
       : active === 'diagnostics' ? <Diagnostics {...shared} />
