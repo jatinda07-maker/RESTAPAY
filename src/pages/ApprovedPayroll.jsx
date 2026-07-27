@@ -38,6 +38,7 @@ export default function ApprovedPayroll({ data, setData }) {
 
   const [search,setSearch]=useState('')
   const [statusFilter,setStatusFilter]=useState('all')
+  const [paymentFilter,setPaymentFilter]=useState('all')
   const [editing,setEditing]=useState(null)
   const [form,setForm]=useState({})
   const [selected,setSelected]=useState([])
@@ -48,8 +49,9 @@ export default function ApprovedPayroll({ data, setData }) {
     const q=search.trim().toLowerCase()
     const matches=!q || [r.employee_name,r.check_number,r.payment_type,r.pay_date,r.pay_period_start,r.pay_period_end].some(v=>String(v||'').toLowerCase().includes(q))
     const status=statusFilter==='all' || String(r.payment_status||'Approved').toLowerCase()===statusFilter
-    return matches && status
-  }).sort((a,b)=>String(b.approved_at||'').localeCompare(String(a.approved_at||''))),[rows,search,statusFilter])
+    const payment=paymentFilter==='all' || String(r.payment_type||'Other').toLowerCase()===paymentFilter
+    return matches && status && payment
+  }).sort((a,b)=>String(b.approved_at||'').localeCompare(String(a.approved_at||''))),[rows,search,statusFilter,paymentFilter])
 
   const visibleIds=useMemo(()=>filtered.map(r=>String(r.id)),[filtered])
   const selectedVisibleCount=visibleIds.filter(id=>selected.includes(id)).length
@@ -61,7 +63,12 @@ export default function ApprovedPayroll({ data, setData }) {
     setSelected(current=>current.filter(id=>validIds.has(id)))
   },[rows])
 
-  const totals=useMemo(()=>filtered.reduce((a,r)=>{const v=num(r.approved_amount);a.total+=v;a[String(r.payment_type||'Other').toLowerCase()]=(a[String(r.payment_type||'Other').toLowerCase()]||0)+v;return a},{total:0,cash:0,check:0,ach:0,card:0,other:0}),[filtered])
+  const totals=useMemo(()=>rows.filter(r=>{
+    const q=search.trim().toLowerCase()
+    const matches=!q || [r.employee_name,r.check_number,r.payment_type,r.pay_date,r.pay_period_start,r.pay_period_end].some(v=>String(v||'').toLowerCase().includes(q))
+    const status=statusFilter==='all' || String(r.payment_status||'Approved').toLowerCase()===statusFilter
+    return matches && status
+  }).reduce((a,r)=>{const v=num(r.approved_amount);a.total+=v;a[String(r.payment_type||'Other').toLowerCase()]=(a[String(r.payment_type||'Other').toLowerCase()]||0)+v;return a},{total:0,cash:0,check:0,ach:0,card:0,other:0}),[rows,search,statusFilter])
 
   function edit(row){setEditing(row.id);setForm({...row})}
 
@@ -181,8 +188,19 @@ export default function ApprovedPayroll({ data, setData }) {
   }
 
   return <div className="page-stack approved-payroll-page">
-    <section className="summary-grid compact-summary">
-      {[['Approved Total',totals.total],['Cash',totals.cash],['Check',totals.check],['ACH',totals.ach]].map(([label,value])=><article className="summary-card" key={label}><span>{label}</span><strong>${money(value)}</strong></article>)}
+    <section className="approved-kpi-grid" aria-label="Approved payroll totals">
+      {[
+        {label:'Approved Total',value:totals.total,icon:'payroll',tone:'approved',helper:'Total Approved',filter:'all',action:'View all approved payroll'},
+        {label:'Cash',value:totals.cash,icon:'dollar',tone:'cash',helper:'Cash Payments',filter:'cash',action:'View cash payments'},
+        {label:'Check',value:totals.check,icon:'edit',tone:'check',helper:'Check Payments',filter:'check',action:'View check payments'},
+        {label:'ACH',value:totals.ach,icon:'landmark',tone:'ach',helper:'ACH Payments',filter:'ach',action:'View ACH payments'}
+      ].map(card=><button type="button" className={`approved-kpi-card ${card.tone} ${paymentFilter===card.filter?'active':''}`} key={card.label} onClick={()=>setPaymentFilter(card.filter)} aria-pressed={paymentFilter===card.filter}>
+        <span className="approved-kpi-main">
+          <span className="approved-kpi-icon"><Icon name={card.icon} size={21}/></span>
+          <span className="approved-kpi-copy"><span className="approved-kpi-label">{card.label}</span><strong>${money(card.value)}</strong><small>{card.helper}</small></span>
+        </span>
+        <span className="approved-kpi-action"><span><Icon name={card.tone==='approved'?'trending':card.icon} size={13}/>{card.action}</span><b>›</b></span>
+      </button>)}
     </section>
 
     <section className="card">
@@ -190,6 +208,7 @@ export default function ApprovedPayroll({ data, setData }) {
       <div className="toolbar-row approved-payroll-toolbar">
         <input type="search" placeholder="Search employee, date, or check number" value={search} onChange={e=>setSearch(e.target.value)}/>
         <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="approved">Approved</option><option value="paid">Paid</option><option value="void">Void</option></select>
+        {paymentFilter!=='all'&&<button type="button" className="btn ghost" onClick={()=>setPaymentFilter('all')}>Clear {paymentFilter.toUpperCase()} Filter</button>}
         <button type="button" className="btn secondary" disabled={!selected.length} onClick={()=>setBulkEditing(true)}><Icon name="edit" size={15}/> Edit Selected{selected.length?` (${selected.length})`:''}</button>
         <button type="button" className="btn danger" disabled={!selected.length} onClick={removeSelected}><Icon name="trash" size={15}/> Delete Selected{selected.length?` (${selected.length})`:''}</button>
         <button type="button" className="btn danger" onClick={clearAllPayroll}><Icon name="trash" size={15}/> Clear All Payroll</button>

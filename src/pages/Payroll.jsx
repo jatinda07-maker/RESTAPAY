@@ -12,6 +12,15 @@ function monthStart() { const d = new Date(); return new Date(d.getFullYear(), d
 function num(value) { return Number(String(value ?? '').replace(/[$,%]/g, '').trim()) || 0 }
 function round2(value) { return Math.round((num(value) + Number.EPSILON) * 100) / 100 }
 function money(value) { return round2(value).toFixed(2) }
+function openDatePicker(event) {
+  const input = event.currentTarget
+  try {
+    if (typeof input.showPicker === 'function') input.showPicker()
+    else input.focus()
+  } catch {
+    input.focus()
+  }
+}
 function normalizeName(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '') }
 function displayToastName(value) {
   const raw = String(value || '').trim()
@@ -574,9 +583,9 @@ export default function Payroll({ data, setData }) {
       <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button type="button" onClick={() => setShowGroupPayroll(false)}>×</button></header>
       <div className="payroll-rc5-group-toolbar">
         <label>Payroll Group<select value={selectedGroupId} onChange={e => { setSelectedGroupId(e.target.value); setGroupAdjustments({}) }}><option value="kitchen-auto">Kitchen Employees (automatic)</option>{payrollGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
-        <label>Period Start<input type="date" value={groupPeriodStart} onChange={e => setGroupPeriodStart(e.target.value)} /></label>
-        <label>Period End<input type="date" value={groupPeriodEnd} onChange={e => setGroupPeriodEnd(e.target.value)} /></label>
-        <label>Pay Date<input type="date" value={groupPayDate} onChange={e => setGroupPayDate(e.target.value)} /></label>
+        <label>Period Start<input type="date" value={groupPeriodStart} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPeriodStart(e.target.value)} /></label>
+        <label>Period End<input type="date" value={groupPeriodEnd} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPeriodEnd(e.target.value)} /></label>
+        <label>Pay Date<input type="date" value={groupPayDate} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPayDate(e.target.value)} /></label>
         <label>Search Employee<input value={groupEmployeeSearch} onChange={e => setGroupEmployeeSearch(e.target.value)} placeholder="Kitchen employee name" /></label>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr><th>Employee</th><th>Job</th><th>Regular Pay</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th></tr></thead><tbody>
@@ -592,9 +601,9 @@ export default function Payroll({ data, setData }) {
       <div className="payroll-rc5-form">
         <label>Employee<select value={manual.employee_id} onChange={e => setManual(value => ({ ...value, employee_id: e.target.value }))}><option value="">Enter manual name</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
         <label>Manual Name<input value={manual.employee_name} onChange={e => setManual(value => ({ ...value, employee_name: e.target.value }))} /></label>
-        <label>Period Start<input type="date" value={manual.period_start} onChange={e => setManual(value => ({ ...value, period_start: e.target.value }))} /></label>
-        <label>Period End<input type="date" value={manual.period_end} onChange={e => setManual(value => ({ ...value, period_end: e.target.value }))} /></label>
-        <label>Pay Date<input type="date" value={manual.pay_date} onChange={e => setManual(value => ({ ...value, pay_date: e.target.value }))} /></label>
+        <label>Period Start<input type="date" value={manual.period_start} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setManual(value => ({ ...value, period_start: e.target.value }))} /></label>
+        <label>Period End<input type="date" value={manual.period_end} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setManual(value => ({ ...value, period_end: e.target.value }))} /></label>
+        <label>Pay Date<input type="date" value={manual.pay_date} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setManual(value => ({ ...value, pay_date: e.target.value }))} /></label>
         <label>Hours<input type="number" step="0.01" value={manual.hours} onChange={e => setManual(value => ({ ...value, hours: e.target.value }))} /></label>
         <label>Regular Pay<input type="number" step="0.01" value={manual.regular_pay} onChange={e => setManual(value => ({ ...value, regular_pay: e.target.value }))} /></label>
         <label>Overtime Pay<input type="number" step="0.01" value={manual.overtime_pay} onChange={e => setManual(value => ({ ...value, overtime_pay: e.target.value }))} /></label>

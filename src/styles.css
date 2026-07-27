@@ -1888,3 +1888,109 @@ button.delete-link {
 .payroll-rc5-week-toggle small{font-size:10.5px!important;color:#64748b!important}
 @media(max-width:900px){.approved-payroll-page .compact-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:520px){.approved-payroll-page .compact-summary{grid-template-columns:1fr!important}}
+
+/* RC4.6.2 approved payroll KPI cards - matched to approved reference */
+.approved-payroll-page .approved-kpi-grid{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:14px!important;
+  margin:0 0 18px!important;
+}
+.approved-payroll-page .approved-kpi-card{
+  --kpi:#16a34a;
+  --kpi-soft:#ecfdf3;
+  --kpi-line:#86efac;
+  appearance:none;
+  width:100%;
+  min-width:0;
+  padding:0;
+  overflow:hidden;
+  border:1px solid var(--kpi-line)!important;
+  border-radius:10px!important;
+  background:linear-gradient(135deg,#fff 48%,var(--kpi-soft) 100%)!important;
+  color:#0f172a!important;
+  text-align:left;
+  cursor:pointer;
+  box-shadow:0 5px 13px rgba(15,23,42,.07)!important;
+  transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease;
+}
+.approved-payroll-page .approved-kpi-card.cash{--kpi:#2563eb;--kpi-soft:#eff6ff;--kpi-line:#93c5fd}
+.approved-payroll-page .approved-kpi-card.check{--kpi:#7c3aed;--kpi-soft:#f5f3ff;--kpi-line:#c4b5fd}
+.approved-payroll-page .approved-kpi-card.ach{--kpi:#f97316;--kpi-soft:#fff7ed;--kpi-line:#fdba74}
+.approved-payroll-page .approved-kpi-card:hover,
+.approved-payroll-page .approved-kpi-card.active{
+  transform:translateY(-2px);
+  box-shadow:0 9px 20px color-mix(in srgb,var(--kpi) 17%,transparent)!important;
+  border-color:var(--kpi)!important;
+}
+.approved-payroll-page .approved-kpi-main{
+  display:flex;
+  align-items:center;
+  gap:13px;
+  min-height:92px;
+  padding:14px 14px 12px;
+}
+.approved-payroll-page .approved-kpi-icon{
+  width:48px;
+  height:48px;
+  flex:0 0 48px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  color:#fff;
+  background:var(--kpi);
+  box-shadow:0 0 0 8px color-mix(in srgb,var(--kpi) 10%,transparent),0 7px 14px color-mix(in srgb,var(--kpi) 25%,transparent);
+}
+.approved-payroll-page .approved-kpi-copy{display:grid;min-width:0;line-height:1.08}
+.approved-payroll-page .approved-kpi-label{font-size:11px;font-weight:800;color:color-mix(in srgb,var(--kpi) 84%,#0f172a);text-transform:none;letter-spacing:0}
+.approved-payroll-page .approved-kpi-copy strong{margin:5px 0 6px;font-size:21px;font-weight:800;letter-spacing:-.035em;color:var(--kpi)}
+.approved-payroll-page .approved-kpi-copy small{font-size:10px;font-weight:600;color:#64748b}
+.approved-payroll-page .approved-kpi-action{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:32px;
+  padding:7px 11px;
+  border-top:1px solid color-mix(in srgb,var(--kpi) 20%,#e2e8f0);
+  background:color-mix(in srgb,var(--kpi) 8%,#fff);
+  color:var(--kpi);
+  font-size:9.5px;
+  font-weight:750;
+}
+.approved-payroll-page .approved-kpi-action>span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.approved-payroll-page .approved-kpi-action b{font-size:20px;line-height:1;font-weight:500}
+
+/* Make Payroll date presets visibly modern and selected */
+.payroll-rc5-page .preset-btn,
+.payroll-rc5-page .date-preset-btn,
+.payroll-rc5-page .quick-range-btn{
+  border-radius:10px!important;
+  background:#fff!important;
+  border:1px solid #cbd5e1!important;
+  color:#334155!important;
+  box-shadow:0 2px 5px rgba(15,23,42,.04)!important;
+}
+.payroll-rc5-page .preset-btn:hover,
+.payroll-rc5-page .date-preset-btn:hover,
+.payroll-rc5-page .quick-range-btn:hover{
+  color:#1d4ed8!important;
+  border-color:#93c5fd!important;
+  background:#eff6ff!important;
+}
+.payroll-rc5-page .preset-btn.active,
+.payroll-rc5-page .date-preset-btn.active,
+.payroll-rc5-page .quick-range-btn.active,
+.payroll-rc5-page [aria-pressed="true"].preset-btn{
+  color:#fff!important;
+  border-color:#2563eb!important;
+  background:#2563eb!important;
+  box-shadow:0 6px 14px rgba(37,99,235,.22)!important;
+}
+@media(max-width:1000px){.approved-payroll-page .approved-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:560px){.approved-payroll-page .approved-kpi-grid{grid-template-columns:1fr!important}}
+
+/* RC4.6.3: make the complete payroll date field clickable */
+.payroll-rc5-modal input[type="date"],
+.payroll-rc5-group-modal input[type="date"] {
+  cursor: pointer;
+}
