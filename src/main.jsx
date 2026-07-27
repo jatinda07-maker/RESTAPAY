@@ -26,20 +26,21 @@ import './styles.css'
 installGlobalDiagnostics()
 
 function App() {
-  const [active, setActiveState] = useState(() => {
-    try { return localStorage.getItem('restapay_active_page') || 'dashboard' } catch { return 'dashboard' }
-  })
+  const [active, setActiveState] = useState(() => localStorage.getItem('restapay_active_page') || 'dashboard')
   const setActive = next => {
-    if (active === 'payroll' && next !== 'payroll' && window.__restapayCloudSavePending) {
-      const leave = window.confirm('Payroll changes have not been saved to Supabase. Leave this screen and lose the unsaved changes?')
-      if (!leave) return
-    }
     diagnosticLogger.info('Navigation', `Opened ${next}`, { from: active, to: next })
+    localStorage.setItem('restapay_active_page', next)
     setActiveState(next)
-    try { localStorage.setItem('restapay_active_page', next) } catch {}
   }
 
   useEffect(() => {
+    const handleDateClick = event => {
+      const input = event.target instanceof HTMLInputElement ? event.target : event.target.closest?.('input[type="date"]')
+      if (!(input instanceof HTMLInputElement) || input.type !== 'date' || input.disabled || input.readOnly) return
+      try { input.showPicker?.() } catch {}
+    }
+    document.addEventListener('click', handleDateClick)
+
     const handleFocus = event => {
       const input = event.target
       if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) return
@@ -63,22 +64,10 @@ function App() {
         }
       })
     }
-    const handleDatePickerClick = event => {
-      const directInput = event.target instanceof HTMLInputElement && event.target.type === 'date' ? event.target : null
-      const container = event.target instanceof Element ? event.target.closest('label, .date-range-field, .date-field, .filter-field') : null
-      const input = directInput || container?.querySelector?.('input[type="date"]')
-      if (!input || input.disabled || input.readOnly) return
-      if (!directInput && event.target instanceof HTMLInputElement && event.target !== input) return
-      try {
-        input.focus({ preventScroll: true })
-        input.showPicker?.()
-      } catch {}
-    }
     document.addEventListener('focusin', handleFocus)
-    document.addEventListener('click', handleDatePickerClick)
     return () => {
+      document.removeEventListener('click', handleDateClick)
       document.removeEventListener('focusin', handleFocus)
-      document.removeEventListener('click', handleDatePickerClick)
     }
   }, [])
   const [data, setData] = useLocalData()

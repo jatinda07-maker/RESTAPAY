@@ -6,6 +6,7 @@ export const RESTAPAY_LEGACY_KEYS = ['restapay_app_data', 'restapay_data', 'rest
 export const RESTAPAY_SUPABASE_STATE_ID = 'main'
 export const RESTAPAY_CLOUD_STATUS_EVENT = 'restapay-cloud-status'
 export const RESTAPAY_PENDING_CLOUD_KEY = 'restapay_pending_cloud_save'
+export const RESTAPAY_PAYROLL_TOMBSTONES_KEY = 'restapay_deleted_payroll_ids'
 
 export function announceCloudStatus(status, detail = {}) {
   const payload = { status, at: new Date().toISOString(), ...detail }
@@ -21,6 +22,7 @@ export const defaultData = {
   payrollEntries: [],
   payrollImports: [],
   approvedPayroll: [],
+  deletedPayrollIds: [],
   vendors: [],
   vendorCategories: ['Food', 'Beverage', 'Beer', 'Liquor', 'Utilities', 'Insurance', 'Supplies', 'Maintenance', 'Other'],
   expenses: [],
@@ -71,6 +73,7 @@ export function mergeData(data) {
     payrollEntries: data?.payrollEntries || defaultData.payrollEntries,
     payrollImports: data?.payrollImports || defaultData.payrollImports,
     approvedPayroll: data?.approvedPayroll || defaultData.approvedPayroll,
+    deletedPayrollIds: data?.deletedPayrollIds || defaultData.deletedPayrollIds,
     vendors: data?.vendors || defaultData.vendors,
     vendorCategories: data?.vendorCategories || defaultData.vendorCategories,
     expenses: data?.expenses || defaultData.expenses,
@@ -137,12 +140,15 @@ function mergeStrings(primary = [], recovery = []) {
 export function mergeRecoveryData(primary, recovery) {
   const cloud = mergeData(primary || {})
   const local = mergeData(recovery || {})
+  const deletedPayrollIds = new Set([...(cloud.deletedPayrollIds || []), ...(local.deletedPayrollIds || [])].map(String))
   return mergeData({
     ...cloud,
     employees: mergeRows(cloud.employees, local.employees, ['name', 'email', 'phone']),
     payrollGroups: mergeRows(cloud.payrollGroups, local.payrollGroups, ['name']),
-    payrollEntries: mergeRows(cloud.payrollEntries, local.payrollEntries, ['employee_name', 'pay_date', 'total_pay', 'check_number']),
+    payrollEntries: mergeRows(cloud.payrollEntries, local.payrollEntries, ['employee_name', 'pay_date', 'total_pay', 'check_number']).filter(row => !deletedPayrollIds.has(String(row.id))),
     payrollImports: mergeRows(cloud.payrollImports, local.payrollImports, ['file_name', 'created_at']),
+    approvedPayroll: mergeRows(cloud.approvedPayroll, local.approvedPayroll, ['source_payroll_entry_id', 'employee_name', 'pay_date']).filter(row => !deletedPayrollIds.has(String(row.id)) && !deletedPayrollIds.has(String(row.source_payroll_entry_id || ''))),
+    deletedPayrollIds: Array.from(deletedPayrollIds),
     vendors: mergeRows(cloud.vendors, local.vendors, ['name']),
     expenses: mergeRows(cloud.expenses, local.expenses, ['date', 'expense_date', 'name', 'vendor', 'amount', 'payment_method', 'payment_type']),
     invoices: mergeRows(cloud.invoices, local.invoices, ['vendor_name', 'invoice_number', 'invoice_date', 'total']),
@@ -166,14 +172,23 @@ export function mergeRecoveryData(primary, recovery) {
 
 export function loadData() {
   const candidates = []
+  let tombstones = []
   try {
+    tombstones = JSON.parse(localStorage.getItem(RESTAPAY_PAYROLL_TOMBSTONES_KEY) || '[]')
     ;[RESTAPAY_KEY, RESTAPAY_PENDING_CLOUD_KEY, ...RESTAPAY_LEGACY_KEYS].forEach(key => {
       const parsed = parseStoredData(localStorage.getItem(key))
       if (parsed && hasMeaningfulData(parsed)) candidates.push(parsed)
     })
   } catch {}
 
-  return candidates.reduce((merged, item) => mergeRecoveryData(merged, item), mergeData(defaultData))
+  const merged = candidates.reduce((current, item) => mergeRecoveryData(current, item), mergeData(defaultData))
+  const deleted = new Set([...(Array.isArray(tombstones) ? tombstones : []), ...(merged.deletedPayrollIds || [])].map(String))
+  return mergeData({
+    ...merged,
+    deletedPayrollIds: Array.from(deleted),
+    payrollEntries: (merged.payrollEntries || []).filter(row => !deleted.has(String(row.id))),
+    approvedPayroll: (merged.approvedPayroll || []).filter(row => !deleted.has(String(row.id)) && !deleted.has(String(row.source_payroll_entry_id || '')))
+  })
 }
 
 export function saveData(data) {
@@ -329,7 +344,11 @@ export async function loadCloudData() {
       payrollGroups: choose('payroll_groups', 'payrollGroups'),
       payrollEntries: choose('payroll_entries', 'payrollEntries'),
       payrollImports: choose('payroll_imports', 'payrollImports'),
-      approvedPayroll: appData?.approvedPayroll || [],
+      approvedPayroll: (appData?.approvedPayroll || []).filter(row => {
+        const deleted = new Set((appData?.deletedPayrollIds || []).map(String))
+        return !deleted.has(String(row.id)) && !deleted.has(String(row.source_payroll_entry_id || ''))
+      }),
+      deletedPayrollIds: appData?.deletedPayrollIds || [],
       vendors: choose('vendors', 'vendors'),
       expenses: choose('expenses', 'expenses'),
       invoices: choose('invoices', 'invoices'),
@@ -345,20 +364,14 @@ export async function loadCloudData() {
     }) : null
 
     const localRecovery = loadData()
-    const recovered = merged ? {
-      ...mergeRecoveryData(merged, localRecovery),
-      // Payroll tables are authoritative. Never resurrect deleted payroll from
-      // app_data, pending saves, legacy keys, or browser recovery snapshots.
-      payrollGroups: merged.payrollGroups || [],
-      payrollEntries: merged.payrollEntries || [],
-      payrollImports: merged.payrollImports || [],
-      approvedPayroll: merged.approvedPayroll || []
-    } : (hasMeaningfulData(localRecovery) ? localRecovery : null)
+    // When Supabase responds, cloud tables are authoritative. Local recovery is used only
+    // when cloud cannot be loaded at all, so deleted records cannot be resurrected.
+    const recovered = merged || (hasMeaningfulData(localRecovery) ? localRecovery : null)
 
     if (recovered) {
       saveData(recovered)
-      diagnosticLogger.success('Supabase', 'Loaded and merged application data with local recovery copy', { tables: Array.from(successful) })
-      announceCloudStatus('saved', { message: 'Loaded from database and checked recovery data', source: 'cloud-load' })
+      diagnosticLogger.success('Supabase', 'Loaded authoritative application data', { tables: Array.from(successful) })
+      announceCloudStatus('saved', { message: 'Connected and loaded from Supabase', source: 'cloud-load' })
     } else {
       announceCloudStatus('saved', { message: 'Cloud connected', source: 'cloud-load' })
     }
@@ -410,6 +423,19 @@ async function upsertTable(table, rows, onConflict = 'id') {
   const { error } = await supabase.from(table).upsert(rows, { onConflict })
   if (error) throw error
   return { ok: true, count: rows.length }
+}
+
+async function syncTableExact(table, rows) {
+  const nextIds = new Set((rows || []).map(row => String(row.id || '')).filter(Boolean))
+  const { data: existing, error: readError } = await supabase.from(table).select('id')
+  if (readError) throw readError
+  const staleIds = (existing || []).map(row => String(row.id || '')).filter(id => id && !nextIds.has(id))
+  for (let index = 0; index < staleIds.length; index += 100) {
+    const chunk = staleIds.slice(index, index + 100)
+    const { error } = await supabase.from(table).delete().in('id', chunk)
+    if (error) throw error
+  }
+  return upsertTable(table, rows)
 }
 
 async function upsertLookupTable(table, rows) {
@@ -652,8 +678,8 @@ async function mirrorAppDataToTables(data) {
   await upsertTable('employees', employees)
   await upsertTable('vendors', vendors)
   await upsertTable('payroll_groups', payrollGroups)
-  await upsertTable('payroll_entries', payrollEntries)
-  await upsertTable('payroll_imports', payrollImports)
+  await syncTableExact('payroll_entries', payrollEntries)
+  await syncTableExact('payroll_imports', payrollImports)
   await upsertTable('sales_days', salesDays)
   // This table is present in RC12/RC13 schemas. If an older database lacks a
   // compatible column, app_data and sales_days still retain the category arrays.
@@ -694,8 +720,10 @@ export async function saveCloudData(data, options = {}) {
   try {
     announceCloudStatus('saving', { message: 'Saving safely to Supabase...', source })
 
-    // Save the complete JSON backup first. Even if a normalized table later fails,
-    // app_data preserves the full state for recovery.
+    // Write normalized tables first so a failed table save cannot leave app_data
+    // newer than the tables that are authoritative on the next refresh.
+    await mirrorAppDataToTables(merged)
+
     const payload = {
       id: RESTAPAY_SUPABASE_STATE_ID,
       data: merged,
@@ -703,8 +731,6 @@ export async function saveCloudData(data, options = {}) {
     }
     const { error: backupError } = await supabase.from('app_data').upsert(payload, { onConflict: 'id' })
     if (backupError) throw backupError
-
-    await mirrorAppDataToTables(merged)
 
     window.__restapayCloudSavePending = false
     try { localStorage.removeItem(RESTAPAY_PENDING_CLOUD_KEY) } catch {}
@@ -721,65 +747,31 @@ export async function saveCloudData(data, options = {}) {
   }
 }
 
+export function markPayrollDeleted(ids = []) {
+  const normalized = Array.from(new Set(ids.map(String).filter(Boolean)))
+  if (!normalized.length) return
+  try {
+    const current = JSON.parse(localStorage.getItem(RESTAPAY_PAYROLL_TOMBSTONES_KEY) || '[]')
+    localStorage.setItem(RESTAPAY_PAYROLL_TOMBSTONES_KEY, JSON.stringify(Array.from(new Set([...(Array.isArray(current) ? current : []), ...normalized]))))
+  } catch {}
+}
+
+export function clearLegacyPayrollRecovery() {
+  try {
+    for (const key of [RESTAPAY_PENDING_CLOUD_KEY, ...RESTAPAY_LEGACY_KEYS]) {
+      const parsed = parseStoredData(localStorage.getItem(key))
+      if (!parsed) continue
+      const cleaned = { ...parsed, payrollEntries: [], approvedPayroll: [], payrollImports: [] }
+      localStorage.setItem(key, JSON.stringify(cleaned))
+    }
+  } catch {}
+}
+
 export async function retryPendingCloudSave() {
   let pending = null
   try { pending = parseStoredData(localStorage.getItem(RESTAPAY_PENDING_CLOUD_KEY)) } catch {}
   if (!pending || !hasMeaningfulData(pending)) return { ok: true, reason: 'No pending cloud save found' }
   return saveCloudData(pending, { source: 'retry-pending' })
-}
-
-
-function stripPayrollData(value) {
-  const parsed = value && typeof value === 'object' ? value : {}
-  const data = parsed.data && typeof parsed.data === 'object' ? parsed.data : parsed
-  const cleaned = {
-    ...data,
-    payrollGroups: [],
-    payrollEntries: [],
-    payrollImports: [],
-    approvedPayroll: []
-  }
-  return parsed.data && typeof parsed.data === 'object' ? { ...parsed, data: cleaned } : cleaned
-}
-
-export function purgePayrollRecoveryCaches(nextData = null) {
-  try {
-    localStorage.removeItem(RESTAPAY_PENDING_CLOUD_KEY)
-    RESTAPAY_LEGACY_KEYS.forEach(key => localStorage.removeItem(key))
-    if (nextData) localStorage.setItem(RESTAPAY_KEY, JSON.stringify(mergeData(nextData)))
-    else {
-      const current = parseStoredData(localStorage.getItem(RESTAPAY_KEY))
-      if (current) localStorage.setItem(RESTAPAY_KEY, JSON.stringify(stripPayrollData(current)))
-    }
-    window.__restapayCloudSavePending = false
-  } catch {}
-}
-
-export async function deletePayrollRecordsFromCloud(entryIds = []) {
-  const ids = [...new Set((entryIds || []).map(value => String(value || '').trim()).filter(Boolean))]
-  if (!ids.length || !isSupabaseReady) return { ok: true, skipped: !isSupabaseReady }
-  try {
-    const { error } = await supabase.from('payroll_entries').delete().in('id', ids)
-    if (error) throw error
-    return { ok: true }
-  } catch (error) {
-    diagnosticLogger.error('Payroll Delete', 'Unable to permanently delete payroll rows from Supabase', { error, ids })
-    return { ok: false, error }
-  }
-}
-
-export async function clearAllPayrollFromCloud() {
-  if (!isSupabaseReady) return { ok: true, skipped: true }
-  try {
-    for (const table of ['payroll_entries', 'payroll_imports', 'payroll_groups']) {
-      const { error } = await supabase.from(table).delete().not('id', 'is', null)
-      if (error) throw error
-    }
-    return { ok: true }
-  } catch (error) {
-    diagnosticLogger.error('Payroll Clear', 'Unable to clear payroll tables in Supabase', { error })
-    return { ok: false, error }
-  }
 }
 
 export function createId(prefix) {

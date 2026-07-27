@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
-import { createId, sortByName } from '../lib/localStore'
+import { markPayrollDeleted, createId, sortByName } from '../lib/localStore'
 import { detectToastLaborPeriod, laborImportDiagnostics, parseToastLaborRows } from '../engine/ToastLaborEngine'
 
 const PAY_METHODS = ['Cash', 'Check', 'ACH', 'Card', 'Other']
@@ -398,8 +398,14 @@ export default function Payroll({ data, setData }) {
   }
 
   function deleteEntry(id) {
-    setData(prev => ({ ...prev, payrollEntries: (prev.payrollEntries || []).filter(row => row.id !== id) }))
-    setStatus('Payroll entry deleted.')
+    markPayrollDeleted([id])
+    setData(prev => ({
+      ...prev,
+      deletedPayrollIds: Array.from(new Set([...(prev.deletedPayrollIds || []), String(id)])),
+      payrollEntries: (prev.payrollEntries || []).filter(row => String(row.id) !== String(id)),
+      approvedPayroll: (prev.approvedPayroll || []).filter(row => String(row.id) !== String(id) && String(row.source_payroll_entry_id || '') !== String(id))
+    }))
+    setStatus('Payroll entry permanently deleted.')
   }
 
   function saveManual() {
@@ -441,8 +447,8 @@ export default function Payroll({ data, setData }) {
     <div className="page-head payroll-rc5-head">
       <div><h1>Payroll</h1><p>Build employee payroll from Toast, make adjustments, approve, and export.</p></div>
       <div className="payroll-rc5-head-actions">
-        <button className="btn secondary" onClick={() => setShowGroupPayroll(true)}><Icon name="users" /> Kitchen Group Payroll</button>
-        <button className="btn secondary" onClick={() => setShowManual(true)}><Icon name="plus" /> Manual Payroll</button>
+        <button type="button" className="btn secondary" onClick={() => setShowGroupPayroll(true)}><Icon name="users" /> Kitchen Group Payroll</button>
+        <button type="button" className="btn secondary" onClick={() => setShowManual(true)}><Icon name="plus" /> Manual Payroll</button>
         <label className="btn primary payroll-upload-button"><Icon name="upload" /> Upload Toast Labor<input type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
       </div>
     </div>
@@ -456,7 +462,7 @@ export default function Payroll({ data, setData }) {
           <option value="">All imported employees</option>
           {importedEmployeeOptions.map(name => <option key={name} value={name}>{name}</option>)}
         </select></label>
-        <button className="btn secondary" onClick={() => { setEmployeeFilter(''); setEmployeeSearch('') }}>Clear Employee</button>
+        <button type="button" className="btn secondary" onClick={() => { setEmployeeFilter(''); setEmployeeSearch('') }}>Clear Employee</button>
       </div>
       <small>The employee search and date range filter both the Toast line entries, calculated payroll, summary totals, and payroll register.</small>
     </section>
@@ -485,7 +491,7 @@ export default function Payroll({ data, setData }) {
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
         <div><h2>Toast Daily Payroll Builder</h2><p>One editable row per employee per workday. Multiple shifts on the same day are combined.</p></div>
-        <div className="payroll-rc5-actions"><button className="btn secondary" onClick={() => { setImportedRows([]); setBuilderRows([]); setSelectedBuilderIds([]); setEmployeeFilter('') }}>Clear Import</button><button className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
+        <div className="payroll-rc5-actions"><button type="button" className="btn secondary" onClick={() => { setImportedRows([]); setBuilderRows([]); setSelectedBuilderIds([]); setEmployeeFilter('') }}>Clear Import</button><button type="button" className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>
         <th><input type="checkbox" checked={builderAllSelected} onChange={toggleAllBuilder} /></th><th>Date</th><th>Employee</th><th>Hours</th><th>Regular</th><th>OT</th><th>Credit Card Tips</th><th>Withheld</th><th>Final Tips</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th>
@@ -510,7 +516,7 @@ export default function Payroll({ data, setData }) {
     <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
         <div><h2>Payroll Register</h2><p>{filteredHistory.length} entries in the selected range.</p></div>
-        <div className="payroll-rc5-actions"><input value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Employee, check, method" /><button className="btn secondary" onClick={exportCsv}><Icon name="download" /> Export CSV</button><button className="btn success" onClick={() => approveRows()}><Icon name="check" /> Approve Pending</button></div>
+        <div className="payroll-rc5-actions"><input value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Employee, check, method" /><button type="button" className="btn secondary" onClick={exportCsv}><Icon name="download" /> Export CSV</button><button type="button" className="btn success" onClick={() => approveRows()}><Icon name="check" /> Approve Pending</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table history"><thead><tr><th>Status</th><th>Employee</th><th>Date</th><th>Hours</th><th>Regular</th><th>Credit Card Tips</th><th>Withheld</th><th>Extra Pay</th><th>Reason</th><th>Final Tips</th><th>Method</th><th>Check #</th><th>Final Payroll</th><th></th></tr></thead><tbody>
         {filteredHistory.map(row => { const editable = editingId === row.id && !isApproved(row); return <tr key={row.id}>
@@ -527,14 +533,14 @@ export default function Payroll({ data, setData }) {
           <td>{editable ? <select value={row.payroll_type || 'Check'} onChange={e => updateEntry(row.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select> : (row.payroll_type || '—')}</td>
           <td>{editable ? <input value={row.check_number || ''} onChange={e => updateEntry(row.id, 'check_number', e.target.value)} /> : (row.check_number || '—')}</td>
           <td className="payroll-rc5-money">${money(finalPay(row))}</td>
-          <td><div className="payroll-rc5-row-actions">{!isApproved(row) && <button onClick={() => setEditingId(editable ? '' : row.id)} title={editable ? 'Done' : 'Edit'}><Icon name={editable ? 'check' : 'edit'} size={14} /></button>}<button className="delete" onClick={() => deleteEntry(row.id)} title="Delete"><Icon name="trash" size={14} /></button></div></td>
+          <td><div className="payroll-rc5-row-actions">{!isApproved(row) && <button type="button" onClick={() => setEditingId(editable ? '' : row.id)} title={editable ? 'Done' : 'Edit'}><Icon name={editable ? 'check' : 'edit'} size={14} /></button>}<button type="button" className="delete" onClick={() => deleteEntry(row.id)} title="Delete"><Icon name="trash" size={14} /></button></div></td>
         </tr> })}
         {!filteredHistory.length && <tr><td colSpan="14" className="empty-cell">No payroll entries in this date range.</td></tr>}
       </tbody></table></div>
     </section>
 
     {showGroupPayroll && <div className="payroll-rc5-overlay" onClick={() => setShowGroupPayroll(false)}><section className="payroll-rc5-modal payroll-rc5-group-modal" onClick={e => e.stopPropagation()}>
-      <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button onClick={() => setShowGroupPayroll(false)}>×</button></header>
+      <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button type="button" onClick={() => setShowGroupPayroll(false)}>×</button></header>
       <div className="payroll-rc5-group-toolbar">
         <label>Payroll Group<select value={selectedGroupId} onChange={e => { setSelectedGroupId(e.target.value); setGroupAdjustments({}) }}><option value="kitchen-auto">Kitchen Employees (automatic)</option>{payrollGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
         <label>Period Start<input type="date" value={groupPeriodStart} onChange={e => setGroupPeriodStart(e.target.value)} /></label>
@@ -546,12 +552,12 @@ export default function Payroll({ data, setData }) {
         {groupMembers.map(employee => <tr key={employee.id}><td><b>{employee.name}</b></td><td>{employee.job_type || employee.employee_type || 'Kitchen'}</td><td><input type="number" step="0.01" value={groupValue(employee, 'regular_pay')} onChange={e => updateGroupAdjustment(employee.id, 'regular_pay', e.target.value)} /></td><td><input type="number" step="0.01" value={groupValue(employee, 'extra_pay')} onChange={e => updateGroupAdjustment(employee.id, 'extra_pay', e.target.value)} /></td><td><input value={groupValue(employee, 'extra_reason')} onChange={e => updateGroupAdjustment(employee.id, 'extra_reason', e.target.value)} placeholder={num(groupValue(employee, 'extra_pay')) > 0 ? 'Required' : 'Optional'} /></td><td><select value={groupValue(employee, 'payroll_type')} onChange={e => updateGroupAdjustment(employee.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select></td><td><input value={groupValue(employee, 'check_number')} onChange={e => updateGroupAdjustment(employee.id, 'check_number', e.target.value)} /></td><td className="payroll-rc5-money">${money(num(groupValue(employee, 'regular_pay')) + num(groupValue(employee, 'extra_pay')))}</td></tr>)}
         {!groupMembers.length && <tr><td colSpan="8" className="empty-cell">No kitchen employees match this group/search.</td></tr>}
       </tbody></table></div>
-      <footer><button className="btn secondary" onClick={() => setShowGroupPayroll(false)}>Cancel</button><button className="btn primary" onClick={createGroupPayroll}>Create Kitchen Group Payroll</button></footer>
+      <footer><button type="button" className="btn secondary" onClick={() => setShowGroupPayroll(false)}>Cancel</button><button type="button" className="btn primary" onClick={createGroupPayroll}>Create Kitchen Group Payroll</button></footer>
     </section></div>}
 
     {showManual && <div className="payroll-rc5-overlay" onClick={() => setShowManual(false)}><section className="payroll-rc5-modal" onClick={e => e.stopPropagation()}>
-      <header><div><h2>Add Manual Payroll</h2><p>Add one employee or open group payroll without a Toast import.</p></div><button onClick={() => setShowManual(false)}>×</button></header>
-      <div className="payroll-rc5-modal-switch"><button className="btn secondary" onClick={() => { setShowManual(false); setShowGroupPayroll(true) }}><Icon name="users" /> Add Group Payroll</button></div>
+      <header><div><h2>Add Manual Payroll</h2><p>Add one employee or open group payroll without a Toast import.</p></div><button type="button" onClick={() => setShowManual(false)}>×</button></header>
+      <div className="payroll-rc5-modal-switch"><button type="button" className="btn secondary" onClick={() => { setShowManual(false); setShowGroupPayroll(true) }}><Icon name="users" /> Add Group Payroll</button></div>
       <div className="payroll-rc5-form">
         <label>Employee<select value={manual.employee_id} onChange={e => setManual(value => ({ ...value, employee_id: e.target.value }))}><option value="">Enter manual name</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
         <label>Manual Name<input value={manual.employee_name} onChange={e => setManual(value => ({ ...value, employee_name: e.target.value }))} /></label>
@@ -569,7 +575,7 @@ export default function Payroll({ data, setData }) {
         <label>Check Number<input value={manual.check_number} onChange={e => setManual(value => ({ ...value, check_number: e.target.value }))} /></label>
         <label className="wide">Notes<input value={manual.notes} onChange={e => setManual(value => ({ ...value, notes: e.target.value }))} /></label>
       </div>
-      <footer><button className="btn secondary" onClick={() => setShowManual(false)}>Cancel</button><button className="btn primary" onClick={saveManual}>Add Payroll</button></footer>
+      <footer><button type="button" className="btn secondary" onClick={() => setShowManual(false)}>Cancel</button><button type="button" className="btn primary" onClick={saveManual}>Add Payroll</button></footer>
     </section></div>}
   </div>
 }
