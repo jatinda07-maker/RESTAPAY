@@ -451,7 +451,7 @@ async function upsertLookupTable(table, rows) {
   return upsertTable(table, deduped, 'name')
 }
 
-async function mirrorAppDataToTables(data) {
+async function mirrorAppDataToTables(data, options = {}) {
   const now = new Date().toISOString()
 
   const employees = (data.employees || []).map(row => ({
@@ -673,34 +673,55 @@ async function mirrorAppDataToTables(data) {
   const expenseCategories = (data.expenseCategories || []).map(name => ({ id: slug(name), name }))
   const paymentMethods = (data.paymentMethods || []).map(name => ({ id: slug(name), name }))
 
-  await upsertTable('invoices', invoices)
-  await upsertTable('invoice_items', invoiceItems)
-  await upsertTable('employees', employees)
-  await upsertTable('vendors', vendors)
-  await upsertTable('payroll_groups', payrollGroups)
-  await syncTableExact('payroll_entries', payrollEntries)
-  await syncTableExact('payroll_imports', payrollImports)
-  await upsertTable('sales_days', salesDays)
-  // This table is present in RC12/RC13 schemas. If an older database lacks a
-  // compatible column, app_data and sales_days still retain the category arrays.
-  try { await upsertTable('toast_sales_categories', toastSalesCategories) } catch (error) { console.warn('Toast category mirror skipped.', error) }
-  await upsertTable('sales_imports', salesImports)
-  await upsertTable('expenses', expenses)
-  await upsertTable('custom_reports', customReports)
-  await upsertLookupTable('employee_types', employeeTypes)
-  await upsertLookupTable('job_types', jobTypes)
-  await upsertLookupTable('vendor_categories', vendorCategories)
-  await upsertLookupTable('expense_categories', expenseCategories)
-  await upsertLookupTable('payment_methods', paymentMethods)
+  const changedKeys = new Set(Array.isArray(options.changedKeys) ? options.changedKeys : [])
+  const fullSync = changedKeys.size === 0
+  const changed = (...keys) => fullSync || keys.some(key => changedKeys.has(key))
+  const tasks = []
 
-  const { error: settingsError } = await supabase.from('settings').upsert({
-    id: 'main',
-    tip_withholding_rate: money(data.settings?.tipWithholdingRate ?? 3.5),
-    gemini_model: data.settings?.geminiModel || 'gemini-2.5-flash',
-    app_settings: data.settings || {},
-    updated_at: now
-  }, { onConflict: 'id' })
-  if (settingsError) throw settingsError
+  if (changed('invoices', 'invoiceItems')) {
+    tasks.push((async () => {
+      await syncTableExact('invoices', invoices)
+      await syncTableExact('invoice_items', invoiceItems)
+    })())
+  }
+  if (changed('employees')) tasks.push(syncTableExact('employees', employees))
+  if (changed('vendors')) tasks.push(syncTableExact('vendors', vendors))
+  if (changed('payrollGroups')) tasks.push(syncTableExact('payroll_groups', payrollGroups))
+  if (changed('payrollEntries')) tasks.push(syncTableExact('payroll_entries', payrollEntries))
+  if (changed('payrollImports')) tasks.push(syncTableExact('payroll_imports', payrollImports))
+  if (changed('salesDays', 'toastSalesCategories')) {
+    tasks.push((async () => {
+      await syncTableExact('sales_days', salesDays)
+      try {
+        await syncTableExact('toast_sales_categories', toastSalesCategories)
+      } catch (error) {
+        console.warn('Toast category mirror skipped.', error)
+      }
+    })())
+  }
+  if (changed('salesImports')) tasks.push(syncTableExact('sales_imports', salesImports))
+  if (changed('expenses')) tasks.push(syncTableExact('expenses', expenses))
+  if (changed('customReports')) tasks.push(syncTableExact('custom_reports', customReports))
+  if (changed('employeeTypes')) tasks.push(upsertLookupTable('employee_types', employeeTypes))
+  if (changed('jobTypes')) tasks.push(upsertLookupTable('job_types', jobTypes))
+  if (changed('vendorCategories')) tasks.push(upsertLookupTable('vendor_categories', vendorCategories))
+  if (changed('expenseCategories')) tasks.push(upsertLookupTable('expense_categories', expenseCategories))
+  if (changed('paymentMethods')) tasks.push(upsertLookupTable('payment_methods', paymentMethods))
+
+  if (changed('settings')) {
+    tasks.push((async () => {
+      const { error: settingsError } = await supabase.from('settings').upsert({
+        id: 'main',
+        tip_withholding_rate: money(data.settings?.tipWithholdingRate ?? 3.5),
+        gemini_model: data.settings?.geminiModel || 'gemini-2.5-flash',
+        app_settings: data.settings || {},
+        updated_at: now
+      }, { onConflict: 'id' })
+      if (settingsError) throw settingsError
+    })())
+  }
+
+  await Promise.all(tasks)
 }
 
 export async function saveCloudData(data, options = {}) {
@@ -722,7 +743,7 @@ export async function saveCloudData(data, options = {}) {
 
     // Write normalized tables first so a failed table save cannot leave app_data
     // newer than the tables that are authoritative on the next refresh.
-    await mirrorAppDataToTables(merged)
+    await mirrorAppDataToTables(merged, { changedKeys: options.changedKeys })
 
     const payload = {
       id: RESTAPAY_SUPABASE_STATE_ID,

@@ -5,6 +5,8 @@ export function useLocalData() {
   const [data, setData] = useState(() => loadData())
   const hasLoadedCloud = useRef(false)
   const saveQueue = useRef(Promise.resolve())
+  const saveTimer = useRef(null)
+  const pendingChangedKeys = useRef(new Set())
   const latestData = useRef(data)
 
   useEffect(() => {
@@ -46,15 +48,20 @@ export function useLocalData() {
     }
   }, [])
 
-  function updateData(updater) {
-    setData(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      latestData.current = next
-      saveData(next)
-      window.__restapayCloudSavePending = true
-      if (!hasLoadedCloud.current) {
-        announceCloudStatus('saving', { message: 'Connecting to Supabase and queuing this save.' })
-      }
+  function scheduleCloudSave(changedKeys = []) {
+    changedKeys.forEach(key => pendingChangedKeys.current.add(key))
+    window.__restapayCloudSavePending = true
+
+    if (!hasLoadedCloud.current) {
+      announceCloudStatus('saving', { message: 'Connecting to Supabase and queuing this save.' })
+    }
+
+    if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    saveTimer.current = window.setTimeout(() => {
+      saveTimer.current = null
+      const keysForSave = Array.from(pendingChangedKeys.current)
+      pendingChangedKeys.current.clear()
+
       saveQueue.current = saveQueue.current
         .catch(() => {})
         .then(async () => {
@@ -64,10 +71,25 @@ export function useLocalData() {
             }
           }
           const snapshot = latestData.current
-          const result = await saveCloudData(snapshot, { source: 'serialized-direct-save' })
+          const result = await saveCloudData(snapshot, {
+            source: 'debounced-incremental-save',
+            changedKeys: keysForSave
+          })
           if (!result?.ok) console.error('RESTAPAY direct database save failed', result?.error || result?.reason)
           return result
         })
+    }, 300)
+  }
+
+  function updateData(updater) {
+    setData(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      const changedKeys = Object.keys(next || {}).filter(key => next?.[key] !== prev?.[key])
+      latestData.current = next
+
+      // Keep the local recovery copy immediately, but coalesce rapid cloud writes.
+      saveData(next)
+      scheduleCloudSave(changedKeys)
       return next
     })
   }
