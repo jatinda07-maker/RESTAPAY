@@ -34,11 +34,16 @@ function sameEmployee(a, b) {
   return Boolean(left && right && (left === right || left.includes(right) || right.includes(left)))
 }
 function entryDate(row) { return String(row.pay_date || row.payroll_date || row.date || '').slice(0, 10) }
-function rowOverlapsRange(row, start, end) {
-  const rowStart = String(row.period_start || entryDate(row) || '').slice(0, 10)
-  const rowEnd = String(row.period_end || entryDate(row) || '').slice(0, 10)
-  if (start && rowEnd && rowEnd < start) return false
-  if (end && rowStart && rowStart > end) return false
+function payrollFilterDate(row) {
+  // Filter the register by one actual payroll date. Toast rows use pay_date or
+  // payroll_date; manual/group entries fall back to the period start/end date.
+  return String(entryDate(row) || row.period_start || row.period_end || '').slice(0, 10)
+}
+function rowInSelectedRange(row, start, end) {
+  const date = payrollFilterDate(row)
+  if (!date) return !start && !end
+  if (start && date < start) return false
+  if (end && date > end) return false
   return true
 }
 function isApproved(row) { return String(row.approval_status || '').toLowerCase() === 'approved' || Boolean(row.approved_at) }
@@ -186,7 +191,7 @@ export default function Payroll({ data, setData }) {
     const query = normalizeName([historySearch, employeeSearch].filter(Boolean).join(' '))
     return entries
       .filter(row => {
-        if (!rowOverlapsRange(row, dateStart, dateEnd)) return false
+        if (!rowInSelectedRange(row, dateStart, dateEnd)) return false
         if (query && !normalizeName(`${row.employee_name} ${row.group_name} ${row.check_number} ${row.payroll_type}`).includes(query)) return false
         return true
       })
