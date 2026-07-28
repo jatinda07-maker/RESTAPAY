@@ -21,7 +21,35 @@ function openDatePicker(event) {
     input.focus()
   }
 }
-function normalizeName(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '') }
+function normalizeName(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g, '').replace(/[^a-z0-9]/g, '') }
+function nameTokens(value) {
+  const raw = displayToastName(value)
+  return String(raw || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean)
+}
+function employeeMatchScore(employee = {}, row = {}) {
+  const rowName = row.employee_name || row.raw_name || row.name || ''
+  const employeeName = employee.name || employee.employee_name || ''
+  const employeeExternal = String(employee.toast_employee_id || employee.external_id || employee.employee_external_id || '')
+  const rowExternal = String(row.employee_external_id || row.toast_employee_id || row.external_id || '')
+  if (employeeExternal && rowExternal && employeeExternal === rowExternal) return 100
+  const left = normalizeName(employeeName)
+  const right = normalizeName(rowName)
+  if (!left || !right) return 0
+  if (left === right) return 95
+  const leftTokens = nameTokens(employeeName)
+  const rightTokens = nameTokens(rowName)
+  const common = leftTokens.filter(token => rightTokens.includes(token))
+  if (common.length >= 2 && common.length === Math.min(leftTokens.length, rightTokens.length)) return 88
+  if (common.length >= 2) return 80
+  if (left.includes(right) || right.includes(left)) return 72
+  return 0
+}
+function findEmployeeMatch(row, employeeList = []) {
+  return employeeList
+    .map(employee => ({ employee, score: employeeMatchScore(employee, row), hasRate: employeeHourlyRate(employee) > 0, generated: employee.created_from === 'toast_payroll_builder' }))
+    .filter(match => match.score >= 72)
+    .sort((a, b) => b.score - a.score || Number(b.hasRate) - Number(a.hasRate) || Number(a.generated) - Number(b.generated))[0]?.employee || null
+}
 function displayToastName(value) {
   const raw = String(value || '').trim()
   if (!raw.includes(',')) return raw
@@ -49,12 +77,24 @@ function rowInSelectedRange(row, start, end) {
 function isApproved(row) { return String(row.approval_status || '').toLowerCase() === 'approved' || Boolean(row.approved_at) }
 function originalTips(row) { return round2(row.credit_card_tips ?? row.original_tips ?? row.total_tips ?? (num(row.tips) + num(row.tip_deduction))) }
 function finalTips(row) { return round2(Math.max(0, originalTips(row) - num(row.tip_deduction))) }
-function finalPay(row) { return round2(num(row.regular_pay) + num(row.overtime_pay) + num(row.tips) + num(row.extra_pay)) }
 function employeeHourlyRate(employee = {}) {
   const payType = String(employee.pay_type || employee.employee_type || '').toLowerCase()
   const explicit = num(employee.hourly_rate ?? employee.pay_rate ?? employee.rate)
   if (explicit > 0) return explicit
-  return payType.includes('hour') ? num(employee.base_pay) : 0
+  // Older employee records often stored the hourly rate only in base_pay.
+  // Treat it as an hourly rate unless the employee is explicitly salary/fixed.
+  if (!/salary|fixed|weekly|annual/.test(payType)) return num(employee.base_pay)
+  return 0
+}
+function resolvedRegularPay(row, employee = {}) {
+  const stored = num(row.regular_pay ?? row.regularPay ?? row.base_pay)
+  if (stored > 0) return round2(stored)
+  const hours = num(row.hours)
+  const rate = num(row.rate) || employeeHourlyRate(employee)
+  return round2(hours > 0 && rate > 0 ? hours * rate : 0)
+}
+function finalPay(row, employee = {}) {
+  return round2(resolvedRegularPay(row, employee) + num(row.overtime_pay) + finalTips(row) + num(row.extra_pay))
 }
 
 function presetRange(key) {
@@ -83,10 +123,12 @@ function blankManual() {
 }
 
 export default function Payroll({ data, setData }) {
-  const employees = sortByName((data.employees || []).filter(item => item.is_active !== false))
+  const allEmployees = sortByName(data.employees || [])
+  const employees = allEmployees.filter(item => item.is_active !== false)
   const entries = data.payrollEntries || []
   const tipRate = num(data.settings?.tipWithholdingRate ?? 3.5)
   const payrollGroups = sortByName(data.payrollGroups || [])
+  const employeeForRow = row => allEmployees.find(employee => employee.id === row.employee_id) || findEmployeeMatch(row, allEmployees) || {}
 
   const defaultPayrollRange = presetRange('lastWeek')
   const [dateStart, setDateStart] = useState(defaultPayrollRange[0])
@@ -155,7 +197,7 @@ export default function Payroll({ data, setData }) {
     const groups = new Map()
     filteredImportedRows.forEach(source => {
       const rawName = source.raw_name || source.employee_name || ''
-      const employee = employees.find(item => sameEmployee(item.name, rawName))
+      const employee = findEmployeeMatch({ ...source, employee_name: rawName }, allEmployees)
       const name = employee?.name || displayToastName(rawName)
       if (!name) return
       const workDate = String(source.pay_date || source.business_date || '').slice(0, 10)
@@ -198,7 +240,7 @@ export default function Payroll({ data, setData }) {
     setStatus(rows.length
       ? `Showing ${rows.length} ${mergeWeekly ? 'weekly' : 'daily'} payroll rows from ${filteredImportedRows.length} Toast rows: ${money(diag.hours)} hours and $${money(diag.totalTips)} credit card tips.${missingPay ? ` ${missingPay} employee${missingPay === 1 ? '' : 's'} still have no wage amount; add an hourly rate or import a Toast report containing pay.` : ''}${missingTips === rows.length ? ' This Toast report contains no credit-card tip values; use a Labor Summary export that includes Non-Cash/Credit Card Tips.' : ''}`
       : 'No Toast labor line entries match this employee and date range.')
-  }, [filteredImportedRows, importedRows.length, employees, dateStart, dateEnd, sourceFile, mergeWeekly])
+  }, [filteredImportedRows, importedRows.length, allEmployees, dateStart, dateEnd, sourceFile, mergeWeekly])
 
   const filteredHistory = useMemo(() => {
     const query = normalizeName([historySearch, employeeSearch].filter(Boolean).join(' '))
@@ -225,7 +267,7 @@ export default function Payroll({ data, setData }) {
     acc.withheld += num(row.tip_deduction)
     acc.netTips += finalTips(row)
     acc.extra += num(row.extra_pay)
-    acc.final += finalPay(row)
+    acc.final += finalPay(row, employeeForRow(row))
     return acc
   }, { employees: 0, hours: 0, regular: 0, overtime: 0, originalTips: 0, withheld: 0, netTips: 0, extra: 0, final: 0 }), [visibleBuilderRows])
 
@@ -235,9 +277,25 @@ export default function Payroll({ data, setData }) {
     acc.originalTips += originalTips(row)
     acc.withheld += num(row.tip_deduction)
     acc.extra += num(row.extra_pay)
-    acc.final += finalPay(row)
+    acc.final += finalPay(row, employeeForRow(row))
     return acc
   }, { employees: new Set(), hours: 0, originalTips: 0, withheld: 0, extra: 0, final: 0 }), [filteredHistory])
+
+  const payrollDiagnostics = useMemo(() => {
+    const rowsWithHours = filteredHistory.filter(row => num(row.hours) > 0)
+    const missingRegular = rowsWithHours.filter(row => resolvedRegularPay(row, employeeForRow(row)) === 0)
+    const missingTips = filteredHistory.filter(row => originalTips(row) === 0)
+    const unmatched = rowsWithHours.filter(row => !employeeForRow(row)?.id)
+    const missingRate = rowsWithHours.filter(row => { const employee = employeeForRow(row); return employee?.id && employeeHourlyRate(employee) === 0 && num(row.regular_pay) === 0 })
+    return {
+      rows: filteredHistory.length,
+      missingRegular: missingRegular.length,
+      missingTips: missingTips.length,
+      unmatched: unmatched.length,
+      missingRate: missingRate.length,
+      canRepairRegular: rowsWithHours.filter(row => num(row.regular_pay) === 0 && resolvedRegularPay(row, employeeForRow(row)) > 0).length
+    }
+  }, [filteredHistory, employees])
 
   const selectedPayrollGroup = payrollGroups.find(group => group.id === selectedGroupId)
   const groupMembers = useMemo(() => {
@@ -290,6 +348,24 @@ export default function Payroll({ data, setData }) {
     setStatus(`Added ${rows.length} employees from ${groupName} for ${groupPayDate}.`)
   }
 
+  function recalculateSelectedRange() {
+    let repaired = 0
+    setData(prev => ({
+      ...prev,
+      payrollEntries: (prev.payrollEntries || []).map(row => {
+        if (!rowInSelectedRange(row, dateStart, dateEnd)) return row
+        const employee = (prev.employees || []).find(item => item.id === row.employee_id) || findEmployeeMatch(row, prev.employees || []) || {}
+        const regularPay = resolvedRegularPay(row, employee)
+        const tips = finalTips(row)
+        if (num(row.regular_pay) === 0 && regularPay > 0) repaired += 1
+        return { ...row, employee_id: row.employee_id || employee.id || '', employee_name: employee.name || row.employee_name, regular_pay: regularPay, rate: num(row.rate) || employeeHourlyRate(employee), tips, final_tips: tips, total_pay: finalPay({ ...row, regular_pay: regularPay, tips }, employee) }
+      })
+    }))
+    setStatus(repaired
+      ? `Recalculated ${repaired} payroll row${repaired === 1 ? '' : 's'} from employee hourly rates. Tip amounts remain zero when the imported Toast file has no credit-card tip column.`
+      : 'No additional wage amounts could be calculated. Add hourly rates on Employees or import a Toast Labor Summary containing wages and Non-Cash/Credit Card Tips.')
+  }
+
   function applyPreset(key) {
     const [start, end] = presetRange(key)
     setDateStart(start)
@@ -301,12 +377,14 @@ export default function Payroll({ data, setData }) {
       if (row.id !== id) return row
       const next = { ...row, [field]: value }
       if (field === 'employee_id') {
-        const employee = employees.find(item => item.id === value)
+        const employee = allEmployees.find(item => item.id === value)
         if (employee) {
           next.employee_name = employee.name
           next.payroll_type = employee.payroll_type || next.payroll_type
           next.check_number = employee.default_check_number || next.check_number
           next.job_type = employee.job_type || next.job_type
+          next.rate = employeeHourlyRate(employee)
+          if (num(next.regular_pay) === 0 && num(next.hours) > 0) next.regular_pay = round2(num(next.hours) * employeeHourlyRate(employee))
         }
       }
       if (field === 'original_tips' || field === 'credit_card_tips' || field === 'tip_deduction') {
@@ -379,7 +457,7 @@ export default function Payroll({ data, setData }) {
       const oldEntries = prev.payrollEntries || []
       const newEmployees = []
       const resolved = selected.map(row => {
-        let employee = (prev.employees || []).find(item => item.id === row.employee_id)
+        let employee = (prev.employees || []).find(item => item.id === row.employee_id) || findEmployeeMatch(row, prev.employees || [])
         if (!employee) {
           employee = {
             id: createId('emp'), name: row.employee_name, employee_type: row.job_type || 'Regular', job_type: row.job_type || 'Other',
@@ -400,10 +478,10 @@ export default function Payroll({ data, setData }) {
         employee_id: employee.id, employee_name: employee.name, group_name: `Toast Payroll ${row.period_start} to ${row.period_end}`,
         pay_date: row.pay_date || row.period_end || dateEnd || today(), period_start: row.period_start || dateStart || row.pay_date, period_end: row.period_end || dateEnd || row.pay_date,
         job_type: row.job_type || employee.job_type || '', pay_type: employee.pay_type || 'Hourly', payroll_type: row.payroll_type || employee.payroll_type || 'Check',
-        check_number: row.check_number || '', hours: round2(row.hours), regular_pay: round2(row.regular_pay), overtime_pay: round2(row.overtime_pay),
+        check_number: row.check_number || '', hours: round2(row.hours), rate: num(row.rate) || employeeHourlyRate(employee), regular_pay: round2(resolvedRegularPay(row, employee)), overtime_pay: round2(row.overtime_pay),
         credit_card_tips: originalTips(row), original_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: round2(row.tip_deduction), tips: round2(Math.max(0, originalTips(row) - num(row.tip_deduction))), final_tips: finalTips(row),
         extra_pay: round2(row.extra_pay), extra_reason: String(row.extra_reason || '').trim(), notes: String(row.notes || '').trim(),
-        total_pay: finalPay(row), approval_status: 'Pending', created_at: new Date().toISOString()
+        total_pay: finalPay({ ...row, regular_pay: resolvedRegularPay(row, employee) }, employee), approval_status: 'Pending', created_at: new Date().toISOString()
       }))
       return {
         ...prev,
@@ -492,7 +570,7 @@ export default function Payroll({ data, setData }) {
     const rows = filteredHistory
     if (!rows.length) return setStatus('No payroll rows to export.')
     const headers = ['Status','Period Start','Period End','Pay Date','Employee','Hours','Regular Pay','Overtime Pay','Original Tips','Tips Withheld','Net Tips','Extra Pay','Extra Reason','Payment Method','Check Number','Final Payroll']
-    const values = rows.map(row => [isApproved(row) ? 'Approved' : 'Pending', row.period_start || '', row.period_end || '', entryDate(row), row.employee_name || '', money(row.hours), money(row.regular_pay), money(row.overtime_pay), money(originalTips(row)), money(row.tip_deduction), money(row.tips), money(row.extra_pay), row.extra_reason || '', row.payroll_type || '', row.check_number || '', money(finalPay(row))])
+    const values = rows.map(row => [isApproved(row) ? 'Approved' : 'Pending', row.period_start || '', row.period_end || '', entryDate(row), row.employee_name || '', money(row.hours), money(resolvedRegularPay(row, employeeForRow(row))), money(row.overtime_pay), money(originalTips(row)), money(row.tip_deduction), money(row.tips), money(row.extra_pay), row.extra_reason || '', row.payroll_type || '', row.check_number || '', money(finalPay(row, employeeForRow(row)))])
     const csv = [headers, ...values].map(cols => cols.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\r\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a'); link.href = url; link.download = `payroll-${dateStart || 'all'}-to-${dateEnd || 'all'}.csv`; link.click(); URL.revokeObjectURL(url)
@@ -567,9 +645,14 @@ export default function Payroll({ data, setData }) {
         <td><input value={row.extra_reason} onChange={e => updateBuilder(row.id, 'extra_reason', e.target.value)} placeholder={num(row.extra_pay) > 0 ? 'Required' : 'Optional'} /></td>
         <td><select value={row.payroll_type} onChange={e => updateBuilder(row.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select></td>
         <td><input value={row.check_number} onChange={e => updateBuilder(row.id, 'check_number', e.target.value)} placeholder="Check #" /></td>
-        <td className="payroll-rc5-money">${money(finalPay(row))}</td>
+        <td className="payroll-rc5-money">${money(finalPay(row, employeeForRow(row)))}</td>
       </tr>)}</tbody></table></div>
     </section>}
+
+    {payrollDiagnostics.rows > 0 && (payrollDiagnostics.missingRegular > 0 || payrollDiagnostics.missingTips === payrollDiagnostics.rows) && <div className="payroll-rc5-diagnostic">
+      <div><b>Payroll source check</b><span>{payrollDiagnostics.unmatched > 0 ? `${payrollDiagnostics.unmatched} row(s) are not matched to an Employee record. ` : ''}{payrollDiagnostics.missingRate > 0 ? `${payrollDiagnostics.missingRate} matched employee(s) have no hourly rate. ` : ''}{payrollDiagnostics.missingRegular > 0 ? `${payrollDiagnostics.missingRegular} row(s) have hours but no wage amount. ` : ''}{payrollDiagnostics.missingTips === payrollDiagnostics.rows ? 'The selected Toast data has no credit-card tips. Shifts Closed reports usually contain hours only; import Labor Summary for tips.' : ''}</span></div>
+      <button type="button" className="btn secondary" onClick={recalculateSelectedRange}><Icon name="refresh" size={15} /> Recalculate from Employee Rates</button>
+    </div>}
 
     <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
@@ -579,10 +662,10 @@ export default function Payroll({ data, setData }) {
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table history"><thead><tr><th>Status</th><th>Employee</th><th>Date</th><th>Hours</th><th>Regular</th><th>Credit Card Tips</th><th>Withheld</th><th>Extra Pay</th><th>Reason</th><th>Final Tips</th><th>Method</th><th>Check #</th><th>Final Payroll</th><th></th></tr></thead><tbody>
         {filteredHistory.map(row => { const editable = editingId === row.id && !isApproved(row); return <tr key={row.id}>
           <td><span className={`payroll-rc5-pill ${isApproved(row) ? 'approved' : 'pending'}`}>{isApproved(row) ? 'Approved' : 'Pending'}</span></td>
-          <td><b>{row.employee_name}</b><small>{row.source || row.group_name || 'Payroll'}</small></td>
+          <td><b>{row.employee_name}</b><small>{employeeForRow(row)?.id ? `${row.source || row.group_name || 'Payroll'} · $${money(employeeHourlyRate(employeeForRow(row)))} rate` : `${row.source || row.group_name || 'Payroll'} · Unmatched employee`}</small></td>
           <td>{row.period_start || entryDate(row)}<small>{row.period_end && row.period_end !== row.period_start ? `to ${row.period_end}` : ''}</small></td>
           <td>{editable ? <input type="number" value={row.hours} onChange={e => updateEntry(row.id, 'hours', e.target.value)} /> : money(row.hours)}</td>
-          <td>{editable ? <input type="number" value={row.regular_pay} onChange={e => updateEntry(row.id, 'regular_pay', e.target.value)} /> : `$${money(row.regular_pay)}`}</td>
+          <td>{editable ? <input type="number" value={row.regular_pay} onChange={e => updateEntry(row.id, 'regular_pay', e.target.value)} /> : `$${money(resolvedRegularPay(row, employeeForRow(row)))}`}</td>
           <td>{editable ? <input type="number" value={originalTips(row)} onChange={e => updateEntry(row.id, 'credit_card_tips', e.target.value)} /> : `$${money(originalTips(row))}`}</td>
           <td>{editable ? <input type="number" value={row.tip_deduction} onChange={e => updateEntry(row.id, 'tip_deduction', e.target.value)} /> : `$${money(row.tip_deduction)}`}</td>
           <td>{editable ? <input type="number" value={row.extra_pay} onChange={e => updateEntry(row.id, 'extra_pay', e.target.value)} /> : `$${money(row.extra_pay)}`}</td>
@@ -590,7 +673,7 @@ export default function Payroll({ data, setData }) {
           <td className="money-positive">${money(finalTips(row))}</td>
           <td>{editable ? <select value={row.payroll_type || 'Check'} onChange={e => updateEntry(row.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select> : (row.payroll_type || '—')}</td>
           <td>{editable ? <input value={row.check_number || ''} onChange={e => updateEntry(row.id, 'check_number', e.target.value)} /> : (row.check_number || '—')}</td>
-          <td className="payroll-rc5-money">${money(finalPay(row))}</td>
+          <td className="payroll-rc5-money">${money(finalPay(row, employeeForRow(row)))}</td>
           <td><div className="payroll-rc5-row-actions">{!isApproved(row) && <button type="button" onClick={() => setEditingId(editable ? '' : row.id)} title={editable ? 'Done' : 'Edit'}><Icon name={editable ? 'check' : 'edit'} size={14} /></button>}<button type="button" className="delete" onClick={() => deleteEntry(row.id)} title="Delete"><Icon name="trash" size={14} /></button></div></td>
         </tr> })}
         {!filteredHistory.length && <tr><td colSpan="14" className="empty-cell">No payroll entries in this date range.</td></tr>}
