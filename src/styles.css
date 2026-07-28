@@ -1869,194 +1869,210 @@ button.delete-link {
   border-color: #2563eb;
 }
 
+/* RC4.6 payroll actions, weekly range, cards, and global action colors */
+.btn.primary,.save-link{background:#2563eb!important;border-color:#2563eb!important;color:#fff!important}
+.btn.primary:hover,.save-link:hover{background:#1d4ed8!important;border-color:#1d4ed8!important}
+.btn.success{background:#059669!important;border-color:#059669!important;color:#fff!important}
+.btn.success:hover{background:#047857!important;border-color:#047857!important}
+.approved-payroll-page .compact-summary{display:grid!important;grid-template-columns:repeat(4,minmax(180px,1fr))!important;gap:14px!important;margin:0 0 16px!important}
+.approved-payroll-page .compact-summary .summary-card{min-height:104px!important;padding:17px 18px!important;border:1px solid #dbe5f0!important;border-top:4px solid #2563eb!important;border-radius:14px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,23,42,.07)!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
+.approved-payroll-page .compact-summary .summary-card:nth-child(2){border-top-color:#059669!important}
+.approved-payroll-page .compact-summary .summary-card:nth-child(3){border-top-color:#f59e0b!important}
+.approved-payroll-page .compact-summary .summary-card:nth-child(4){border-top-color:#8b5cf6!important}
+.approved-payroll-page .compact-summary .summary-card span{font-size:12px!important;font-weight:750!important;color:#64748b!important;text-transform:uppercase!important;letter-spacing:.045em!important}
+.approved-payroll-page .compact-summary .summary-card strong{display:block!important;margin-top:8px!important;font-size:25px!important;color:#0f172a!important}
+.payroll-rc5-week-toggle{display:flex!important;align-items:center!important;gap:10px!important;min-height:48px!important;padding:7px 11px!important;border:1px solid #bfdbfe!important;border-radius:10px!important;background:#eff6ff!important;cursor:pointer!important}
+.payroll-rc5-week-toggle input{width:17px!important;height:17px!important;min-height:0!important}
+.payroll-rc5-week-toggle span{display:grid!important;gap:1px!important}
+.payroll-rc5-week-toggle b{font-size:12px!important;color:#1e3a8a!important}
+.payroll-rc5-week-toggle small{font-size:10.5px!important;color:#64748b!important}
+@media(max-width:900px){.approved-payroll-page .compact-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:520px){.approved-payroll-page .compact-summary{grid-template-columns:1fr!important}}
 
-/* RC4.4.3 modern payroll summary cards */
-.payroll-modern-summary{gap:12px}
-.payroll-modern-card{position:relative;overflow:hidden;min-height:112px;border:1px solid var(--payroll-card-border,#dbe5ef)!important;border-radius:14px!important;background:linear-gradient(180deg,var(--payroll-card-head,#334155) 0 42px,var(--payroll-card-body,#f8fafc) 42px 100%)!important;padding:0 14px 13px!important;box-shadow:0 8px 22px rgba(15,23,42,.07)!important;transition:transform .18s ease,box-shadow .18s ease}
-.payroll-modern-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(15,23,42,.11)!important}
-.payroll-modern-card-head{height:42px;display:flex;align-items:center;justify-content:space-between;gap:10px;color:#fff}
-.payroll-modern-card-head>span:first-child{color:#fff!important;font-size:12px!important;font-weight:760!important;letter-spacing:.01em}
-.payroll-modern-card-icon{width:29px;height:29px;border-radius:9px;display:grid!important;place-items:center;background:rgba(255,255,255,.18);color:#fff!important;flex:0 0 auto}
-.payroll-modern-card>strong{display:block;margin-top:12px;color:var(--payroll-card-value,#172033)!important;font-size:21px!important;font-weight:760!important;line-height:1.05;letter-spacing:-.025em}
-.payroll-modern-card>small{display:block;margin-top:5px;color:#6b7a90!important;font-size:10px!important;font-weight:650!important}
-.payroll-modern-card.tone-blue{--payroll-card-head:#2563eb;--payroll-card-body:#eff6ff;--payroll-card-border:#bfdbfe;--payroll-card-value:#1d4ed8}
-.payroll-modern-card.tone-green{--payroll-card-head:#168a4a;--payroll-card-body:#eefbf3;--payroll-card-border:#b7e4c7;--payroll-card-value:#0f6b3a}
-.payroll-modern-card.tone-orange{--payroll-card-head:#d97706;--payroll-card-body:#fff7ed;--payroll-card-border:#fed7aa;--payroll-card-value:#b45309}
-.payroll-modern-card.tone-purple{--payroll-card-head:#7c3aed;--payroll-card-body:#f5f3ff;--payroll-card-border:#ddd6fe;--payroll-card-value:#6d28d9}
-.payroll-modern-card.tone-red{--payroll-card-head:#c2414b;--payroll-card-body:#fff1f2;--payroll-card-border:#fecdd3;--payroll-card-value:#be123c}
-.payroll-modern-card.tone-slate{--payroll-card-head:#475569;--payroll-card-body:#f8fafc;--payroll-card-border:#cbd5e1;--payroll-card-value:#334155}
-.approved-modern-summary{grid-template-columns:repeat(4,minmax(155px,1fr))}
-@media(max-width:1100px){.approved-modern-summary{grid-template-columns:repeat(2,minmax(150px,1fr))}}
-@media(max-width:680px){.payroll-modern-summary,.approved-modern-summary{grid-template-columns:1fr 1fr!important}.payroll-modern-card{min-height:106px}.payroll-modern-card>strong{font-size:18px!important}}
+/* RC4.6.2 approved payroll KPI cards - matched to approved reference */
+.approved-payroll-page .approved-kpi-grid{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:14px!important;
+  margin:0 0 18px!important;
+}
+.approved-payroll-page .approved-kpi-card{
+  --kpi:#16a34a;
+  --kpi-soft:#ecfdf3;
+  --kpi-line:#86efac;
+  appearance:none;
+  width:100%;
+  min-width:0;
+  padding:0;
+  overflow:hidden;
+  border:1px solid var(--kpi-line)!important;
+  border-radius:10px!important;
+  background:linear-gradient(135deg,#fff 48%,var(--kpi-soft) 100%)!important;
+  color:#0f172a!important;
+  text-align:left;
+  cursor:pointer;
+  box-shadow:0 5px 13px rgba(15,23,42,.07)!important;
+  transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease;
+}
+.approved-payroll-page .approved-kpi-card.cash{--kpi:#2563eb;--kpi-soft:#eff6ff;--kpi-line:#93c5fd}
+.approved-payroll-page .approved-kpi-card.check{--kpi:#7c3aed;--kpi-soft:#f5f3ff;--kpi-line:#c4b5fd}
+.approved-payroll-page .approved-kpi-card.ach{--kpi:#f97316;--kpi-soft:#fff7ed;--kpi-line:#fdba74}
+.approved-payroll-page .approved-kpi-card:hover,
+.approved-payroll-page .approved-kpi-card.active{
+  transform:translateY(-2px);
+  box-shadow:0 9px 20px color-mix(in srgb,var(--kpi) 17%,transparent)!important;
+  border-color:var(--kpi)!important;
+}
+.approved-payroll-page .approved-kpi-main{
+  display:flex;
+  align-items:center;
+  gap:13px;
+  min-height:92px;
+  padding:14px 14px 12px;
+}
+.approved-payroll-page .approved-kpi-icon{
+  width:48px;
+  height:48px;
+  flex:0 0 48px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  color:#fff;
+  background:var(--kpi);
+  box-shadow:0 0 0 8px color-mix(in srgb,var(--kpi) 10%,transparent),0 7px 14px color-mix(in srgb,var(--kpi) 25%,transparent);
+}
+.approved-payroll-page .approved-kpi-copy{display:grid;min-width:0;line-height:1.08}
+.approved-payroll-page .approved-kpi-label{font-size:11px;font-weight:800;color:color-mix(in srgb,var(--kpi) 84%,#0f172a);text-transform:none;letter-spacing:0}
+.approved-payroll-page .approved-kpi-copy strong{margin:5px 0 6px;font-size:21px;font-weight:800;letter-spacing:-.035em;color:var(--kpi)}
+.approved-payroll-page .approved-kpi-copy small{font-size:10px;font-weight:600;color:#64748b}
+.approved-payroll-page .approved-kpi-action{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:32px;
+  padding:7px 11px;
+  border-top:1px solid color-mix(in srgb,var(--kpi) 20%,#e2e8f0);
+  background:color-mix(in srgb,var(--kpi) 8%,#fff);
+  color:var(--kpi);
+  font-size:9.5px;
+  font-weight:750;
+}
+.approved-payroll-page .approved-kpi-action>span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.approved-payroll-page .approved-kpi-action b{font-size:20px;line-height:1;font-weight:500}
+
+/* Make Payroll date presets visibly modern and selected */
+.payroll-rc5-page .preset-btn,
+.payroll-rc5-page .date-preset-btn,
+.payroll-rc5-page .quick-range-btn{
+  border-radius:10px!important;
+  background:#fff!important;
+  border:1px solid #cbd5e1!important;
+  color:#334155!important;
+  box-shadow:0 2px 5px rgba(15,23,42,.04)!important;
+}
+.payroll-rc5-page .preset-btn:hover,
+.payroll-rc5-page .date-preset-btn:hover,
+.payroll-rc5-page .quick-range-btn:hover{
+  color:#1d4ed8!important;
+  border-color:#93c5fd!important;
+  background:#eff6ff!important;
+}
+.payroll-rc5-page .preset-btn.active,
+.payroll-rc5-page .date-preset-btn.active,
+.payroll-rc5-page .quick-range-btn.active,
+.payroll-rc5-page [aria-pressed="true"].preset-btn{
+  color:#fff!important;
+  border-color:#2563eb!important;
+  background:#2563eb!important;
+  box-shadow:0 6px 14px rgba(37,99,235,.22)!important;
+}
+@media(max-width:1000px){.approved-payroll-page .approved-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:560px){.approved-payroll-page .approved-kpi-grid{grid-template-columns:1fr!important}}
+
+/* RC4.6.3: make the complete payroll date field clickable */
+.payroll-rc5-modal input[type="date"],
+.payroll-rc5-group-modal input[type="date"] {
+  cursor: pointer;
+}
 
 /* =========================================================
-   RC4.5 compact rounded-square payroll cards
+   RC4.7 APPROVED GLOBAL DATE BUTTON COLORS
+   Applies to DateControls and older preset groups on all pages.
+   Keeps page/card backgrounds light; only button backgrounds change.
    ========================================================= */
-.payroll-rc5-page .payroll-modern-summary,
-.payroll-approved-page .payroll-modern-summary,
-.payroll-modern-summary {
-  display:grid !important;
-  grid-template-columns:repeat(6,minmax(132px,1fr)) !important;
-  gap:8px !important;
-  margin:10px 0 12px !important;
+.quick-preset-group > .preset-pill,
+.quick-preset-group > button,
+.preset-group > .preset-btn,
+.preset-group > button,
+.date-presets > button,
+.date-preset-group > button {
+  color:#fff !important;
+  border-color:transparent !important;
+  min-height:38px !important;
+  border-radius:10px !important;
+  font-weight:750 !important;
+  box-shadow:0 5px 12px rgba(15,23,42,.13) !important;
+  transition:transform .15s ease,filter .15s ease,box-shadow .15s ease !important;
 }
-
-.payroll-modern-card,
-.summary-card.payroll-modern-card {
-  position:relative !important;
-  display:grid !important;
-  grid-template-columns:36px minmax(0,1fr) !important;
-  grid-template-rows:18px 28px !important;
-  column-gap:10px !important;
-  row-gap:1px !important;
-  align-items:center !important;
-  min-height:76px !important;
-  height:76px !important;
-  padding:10px 11px !important;
-  overflow:hidden !important;
-  border:1px solid var(--payroll-card-border,#dbe3ec) !important;
-  border-radius:18px !important;
-  background:var(--payroll-card-body,#f8fafc) !important;
-  box-shadow:0 2px 8px rgba(15,23,42,.055) !important;
-  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease !important;
-}
-
-.payroll-modern-card:hover {
+.quick-preset-group > button:nth-child(1),
+.preset-group > button:nth-child(1),
+.date-presets > button:nth-child(1),
+.date-preset-group > button:nth-child(1) { background:#16803f !important; }
+.quick-preset-group > button:nth-child(2),
+.preset-group > button:nth-child(2),
+.date-presets > button:nth-child(2),
+.date-preset-group > button:nth-child(2) { background:#0f7c83 !important; }
+.quick-preset-group > button:nth-child(3),
+.preset-group > button:nth-child(3),
+.date-presets > button:nth-child(3),
+.date-preset-group > button:nth-child(3) { background:#2447a8 !important; }
+.quick-preset-group > button:nth-child(4),
+.preset-group > button:nth-child(4),
+.date-presets > button:nth-child(4),
+.date-preset-group > button:nth-child(4) { background:#7527c7 !important; }
+.quick-preset-group > button:nth-child(5),
+.preset-group > button:nth-child(5),
+.date-presets > button:nth-child(5),
+.date-preset-group > button:nth-child(5) { background:#1762cf !important; }
+.quick-preset-group > button:hover,
+.preset-group > button:hover,
+.date-presets > button:hover,
+.date-preset-group > button:hover {
+  color:#fff !important;
+  filter:brightness(1.10) !important;
   transform:translateY(-1px) !important;
-  border-color:var(--payroll-card-accent,#94a3b8) !important;
-  box-shadow:0 5px 14px rgba(15,23,42,.085) !important;
+  box-shadow:0 7px 16px rgba(15,23,42,.18) !important;
 }
+.quick-preset-group > button:active,
+.preset-group > button:active,
+.date-presets > button:active,
+.date-preset-group > button:active { transform:translateY(0) !important; }
 
-.payroll-modern-card-head {
-  display:contents !important;
-  height:auto !important;
-  color:inherit !important;
-}
-
-.payroll-modern-card-head > span:first-child {
-  grid-column:2 !important;
-  grid-row:1 !important;
-  align-self:end !important;
-  min-width:0 !important;
-  overflow:hidden !important;
-  text-overflow:ellipsis !important;
-  white-space:nowrap !important;
-  color:#607087 !important;
-  font-size:10.5px !important;
-  line-height:1.1 !important;
-  font-weight:700 !important;
-  letter-spacing:.015em !important;
-  text-transform:none !important;
-}
-
-.payroll-modern-card-icon {
-  grid-column:1 !important;
-  grid-row:1 / 3 !important;
-  width:36px !important;
-  height:36px !important;
-  border-radius:12px !important;
-  display:grid !important;
-  place-items:center !important;
-  align-self:center !important;
-  background:var(--payroll-card-accent,#475569) !important;
+/* Override older payroll-only white preset rules loaded earlier. */
+.payroll-rc5-page .quick-preset-group > .preset-pill,
+.payroll-rc5-page .preset-group > .preset-btn,
+.approved-payroll-page .quick-preset-group > .preset-pill {
   color:#fff !important;
-  box-shadow:none !important;
+  border-color:transparent !important;
 }
+.payroll-rc5-page .quick-preset-group > button:nth-child(1),
+.payroll-rc5-page .preset-group > button:nth-child(1),
+.approved-payroll-page .quick-preset-group > button:nth-child(1) { background:#16803f !important; }
+.payroll-rc5-page .quick-preset-group > button:nth-child(2),
+.payroll-rc5-page .preset-group > button:nth-child(2),
+.approved-payroll-page .quick-preset-group > button:nth-child(2) { background:#0f7c83 !important; }
+.payroll-rc5-page .quick-preset-group > button:nth-child(3),
+.payroll-rc5-page .preset-group > button:nth-child(3),
+.approved-payroll-page .quick-preset-group > button:nth-child(3) { background:#2447a8 !important; }
+.payroll-rc5-page .quick-preset-group > button:nth-child(4),
+.payroll-rc5-page .preset-group > button:nth-child(4),
+.approved-payroll-page .quick-preset-group > button:nth-child(4) { background:#7527c7 !important; }
+.payroll-rc5-page .quick-preset-group > button:nth-child(5),
+.payroll-rc5-page .preset-group > button:nth-child(5),
+.approved-payroll-page .quick-preset-group > button:nth-child(5) { background:#1762cf !important; }
 
-.payroll-modern-card-icon svg {
-  width:17px !important;
-  height:17px !important;
-  color:#fff !important;
-  stroke-width:2.15 !important;
-}
-
-.payroll-modern-card > strong {
-  grid-column:2 !important;
-  grid-row:2 !important;
-  align-self:start !important;
-  display:block !important;
-  min-width:0 !important;
-  margin:0 !important;
-  overflow:hidden !important;
-  text-overflow:ellipsis !important;
-  white-space:nowrap !important;
-  color:#172033 !important;
-  font-size:19px !important;
-  line-height:1.08 !important;
-  font-weight:760 !important;
-  letter-spacing:-.025em !important;
-}
-
-.payroll-modern-card > small {
-  display:none !important;
-}
-
-.payroll-modern-card.tone-blue   {--payroll-card-accent:#2563eb;--payroll-card-body:#f5f8ff;--payroll-card-border:#d7e3ff}
-.payroll-modern-card.tone-green  {--payroll-card-accent:#159947;--payroll-card-body:#f3fbf6;--payroll-card-border:#d2eedc}
-.payroll-modern-card.tone-orange {--payroll-card-accent:#d97706;--payroll-card-body:#fff9f1;--payroll-card-border:#f8dfba}
-.payroll-modern-card.tone-purple {--payroll-card-accent:#7c3aed;--payroll-card-body:#f8f5ff;--payroll-card-border:#e4dafc}
-.payroll-modern-card.tone-red    {--payroll-card-accent:#c2414b;--payroll-card-body:#fff6f7;--payroll-card-border:#f4d7db}
-.payroll-modern-card.tone-slate  {--payroll-card-accent:#475569;--payroll-card-body:#f6f8fa;--payroll-card-border:#dce2e8}
-
-.approved-modern-summary {
-  grid-template-columns:repeat(4,minmax(150px,1fr)) !important;
-}
-
-/* Compact filter/card shells on payroll screens */
-.payroll-rc5-filter-card,
-.payroll-approved-filters,
-.payroll-rc5-card {
-  border-radius:14px !important;
-}
-
-.payroll-rc5-filter-card {
-  padding:10px 12px !important;
-}
-
-.payroll-rc5-filter-card .toolbar-row,
-.payroll-approved-filters {
-  gap:7px !important;
-}
-
-.payroll-rc5-filter-card input,
-.payroll-rc5-filter-card select,
-.payroll-approved-filters input,
-.payroll-approved-filters select,
-.payroll-rc5-filter-card .btn,
-.payroll-approved-filters .btn {
-  min-height:34px !important;
-  height:34px !important;
-  border-radius:9px !important;
-  font-size:12px !important;
-}
-
-@media (max-width:1280px) {
-  .payroll-rc5-page .payroll-modern-summary,
-  .payroll-modern-summary {
-    grid-template-columns:repeat(3,minmax(150px,1fr)) !important;
-  }
-  .approved-modern-summary {
-    grid-template-columns:repeat(4,minmax(140px,1fr)) !important;
-  }
-}
-
-@media (max-width:860px) {
-  .payroll-rc5-page .payroll-modern-summary,
-  .payroll-modern-summary,
-  .approved-modern-summary {
-    grid-template-columns:repeat(2,minmax(138px,1fr)) !important;
-  }
-}
-
-@media (max-width:520px) {
-  .payroll-rc5-page .payroll-modern-summary,
-  .payroll-modern-summary,
-  .approved-modern-summary {
-    grid-template-columns:1fr !important;
-  }
-  .payroll-modern-card,
-  .summary-card.payroll-modern-card {
-    height:72px !important;
-    min-height:72px !important;
-  }
-}
+/* Approved action colors across all pages. */
+.btn.primary,.btn.success,button[type="submit"].btn { background:#1762cf !important;border-color:#1762cf !important;color:#fff !important; }
+.btn.primary:hover,.btn.success:hover,button[type="submit"].btn:hover { background:#134fa8 !important;border-color:#134fa8 !important;color:#fff !important; }
+.btn.danger,.danger-btn,.bulk-delete-btn { background:#dc2626 !important;border-color:#dc2626 !important;color:#fff !important; }
+.btn.danger:hover,.danger-btn:hover,.bulk-delete-btn:hover { background:#b91c1c !important;border-color:#b91c1c !important;color:#fff !important; }
