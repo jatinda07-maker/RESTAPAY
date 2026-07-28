@@ -21,13 +21,12 @@ export default function Expenses({ data, setData }) {
   const [dateStart, setDateStart] = useState(() => readPageDateRange('expenses').start)
   const [dateEnd, setDateEnd] = useState(() => readPageDateRange('expenses').end)
   const [selected, setSelected] = useState([])
-  const [vendorSearch, setVendorSearch] = useState('')
+  const [payeeMode, setPayeeMode] = useState('vendor')
   const [recoveryStatus, setRecoveryStatus] = useState('')
 
-  const filteredVendorOptions = useMemo(() => {
-    const q = vendorSearch.toLowerCase().trim()
-    return filterVendors(vendors, q)
-  }, [vendors, vendorSearch])
+
+  const filteredVendorOptions = vendors
+
 
   const expenses = data.expenses || []
   const filtered = useMemo(() => expenses
@@ -86,7 +85,7 @@ export default function Expenses({ data, setData }) {
 
   const rangeLabel = makeRangeLabel(dateStart, dateEnd)
 
-  function clearForm() { setForm({ ...blankExpense, category: categories[0] || 'Food' }); setEditingId(''); setVendorSearch('') }
+  function clearForm() { setForm({ ...blankExpense, category: categories[0] || 'Food' }); setEditingId(''); setPayeeMode('vendor') }
 
 
   function saveExpense() {
@@ -128,7 +127,7 @@ export default function Expenses({ data, setData }) {
       manual_payee: matchedVendor ? '' : (row.vendor || ''),
       notes: row.notes || ''
     })
-    setVendorSearch('')
+    setPayeeMode(matchedVendor ? 'vendor' : 'payee')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -161,115 +160,98 @@ export default function Expenses({ data, setData }) {
     }
   }
 
-  return <>
-    <style>{`
-      .expense-form-grid {
-        display: grid;
-        grid-template-columns: 180px 180px 180px 170px 170px 170px 210px 180px minmax(220px, 1fr) 160px;
-        gap: 10px;
-        align-items: end;
-      }
-      .expense-form-grid label {
-        min-width: 0;
-        display: grid;
-        gap: 5px;
-      }
-      .expense-form-grid label small {
-        min-height: 16px;
-        line-height: 16px;
-        white-space: nowrap;
-      }
-      .expense-form-grid input,
-      .expense-form-grid select {
-        width: 100%;
-        min-width: 0;
-      }
-      .expense-form-grid .wide-2 {
-        grid-column: auto;
-      }
-      .expense-form-grid .form-actions-inline {
-        display: flex;
-        gap: 8px;
-        align-items: end;
-        justify-content: flex-end;
-        align-self: end;
-      }
-      .expense-form-grid .form-actions-inline .btn {
-        height: 42px;
-        white-space: nowrap;
-      }
-      @media (max-width: 1500px) {
-        .expense-form-grid {
-          grid-template-columns: repeat(5, minmax(160px, 1fr));
-        }
-        .expense-form-grid .wide-2 {
-          grid-column: span 2;
-        }
-        .expense-form-grid .form-actions-inline {
-          justify-content: flex-start;
-        }
-      }
-      @media (max-width: 900px) {
-        .expense-form-grid {
-          grid-template-columns: repeat(2, minmax(150px, 1fr));
-        }
-        .expense-form-grid .wide-2 {
-          grid-column: span 2;
-        }
-      }
-    `}</style>
+  return <main className="expenses-rc5-page">
+    <section className="expense-entry-card">
+      <div className="expense-entry-header">
+        <div>
+          <span className="expense-eyebrow">Expense workspace</span>
+          <h2>{editingId ? 'Edit Expense' : 'Add Expense'}</h2>
+          <p>Record purchases, bills and one-time payments without leaving the page.</p>
+        </div>
+        <span className="expense-saved-badge"><Icon name="receipt" size={15} /> {expenses.length} saved</span>
+      </div>
 
-
-
-    <section className="card employee-form-card tight-card">
-      <header><h2>{editingId ? 'Edit Expense' : 'Add Expense'} <span className="inline-count">{expenses.length} saved</span></h2></header>
-      <div className="expense-form-grid">
-        <label><small>Date</small><input type="date" value={form.date} onChange={e => updateForm('date', e.target.value)} /></label>
-        <label><small>Expense Name</small><input value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="Electric bill, accounting fee..." /></label>
-        <label><small>Vendor Category</small><select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select></label>
-        <label><small>Amount</small><input type="number" step="0.01" value={form.amount} onChange={e => updateForm('amount', e.target.value)} placeholder="0.00" /></label>
-        <label><small>Paid By</small><select value={form.payment_method} onChange={e => updateForm('payment_method', e.target.value)}>{paymentMethods.map(method => <option key={method}>{method}</option>)}</select></label>
-        <label><small>Check # / Ref</small><input value={form.check_number} onChange={e => updateForm('check_number', e.target.value)} placeholder="Check number" /></label>
-
-        <label><small>Find Vendor / Payee</small><input value={vendorSearch} onChange={e => setVendorSearch(e.target.value)} placeholder="Type to search active vendors..." /></label>
-        <label><small>Vendor / Payee</small>
-          <select value={form.vendor_id || (form.manual_payee ? '__manual__' : '')} onChange={e => selectVendor(e.target.value)}>
-            <option value="">Select active vendor</option>
-            {filteredVendorOptions.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.category ? ` — ${vendor.category}` : ''}</option>)}
-            <option value="__manual__">Manual Payee / One-time</option>
-          </select>
+      <div className="expense-entry-grid">
+        <label className="expense-field">
+          <span><Icon name="calendar" size={15} /> Date</span>
+          <input type="date" value={form.date} onChange={e => updateForm('date', e.target.value)} />
+        </label>
+        <label className="expense-field expense-field-wide">
+          <span><Icon name="receipt" size={15} /> Expense name</span>
+          <input value={form.name} onChange={e => updateForm('name', e.target.value)} placeholder="Electric bill, accounting fee..." />
+        </label>
+        <label className="expense-field">
+          <span><Icon name="package" size={15} /> Category</span>
+          <select value={form.category} onChange={e => updateForm('category', e.target.value)}>{categories.map(cat => <option key={cat}>{cat}</option>)}</select>
+        </label>
+        <label className="expense-field">
+          <span><Icon name="dollar" size={15} /> Amount</span>
+          <input type="number" step="0.01" value={form.amount} onChange={e => updateForm('amount', e.target.value)} placeholder="0.00" />
+        </label>
+        <label className="expense-field">
+          <span><Icon name="card" size={15} /> Paid by</span>
+          <select value={form.payment_method} onChange={e => updateForm('payment_method', e.target.value)}>{paymentMethods.map(method => <option key={method}>{method}</option>)}</select>
+        </label>
+        <label className="expense-field">
+          <span><Icon name="landmark" size={15} /> Check # / Ref</span>
+          <input value={form.check_number} onChange={e => updateForm('check_number', e.target.value)} placeholder="Optional reference" />
         </label>
 
-        {!form.vendor_id && <label><small>Manual Payee</small><input value={form.manual_payee || ''} onChange={e => updateManualPayee(e.target.value)} placeholder="Type payee name" /></label>}
+        <div className="expense-field expense-payee-field">
+          <span><Icon name="store" size={15} /> Vendor / Payee</span>
+          <div className="expense-payee-control">
+            <div className="expense-payee-toggle" role="tablist" aria-label="Vendor or payee">
+              <button type="button" className={payeeMode === 'vendor' ? 'active' : ''} onClick={() => { setPayeeMode('vendor'); updateManualPayee('') }}>Vendor</button>
+              <button type="button" className={payeeMode === 'payee' ? 'active' : ''} onClick={() => { setPayeeMode('payee'); selectVendor('__manual__') }}>Payee</button>
+            </div>
+            {payeeMode === 'vendor' ? (
+              <select value={form.vendor_id || ''} onChange={e => selectVendor(e.target.value)}>
+                <option value="">Select saved vendor</option>
+                {filteredVendorOptions.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.category ? ` — ${vendor.category}` : ''}</option>)}
+              </select>
+            ) : (
+              <input value={form.manual_payee || ''} onChange={e => updateManualPayee(e.target.value)} placeholder="Enter one-time payee" />
+            )}
+          </div>
+        </div>
 
-        <label className="wide-2"><small>Notes</small><input value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Optional notes" /></label>
-        <div className="form-actions-inline"><button className="btn primary" onClick={saveExpense} type="button"><Icon name="plus" /> {editingId ? 'Update' : 'Add Expense'}</button><button className="btn ghost" onClick={clearForm} type="button">Clear</button></div>
+        <label className="expense-field expense-notes-field">
+          <span><Icon name="edit" size={15} /> Notes</span>
+          <input value={form.notes} onChange={e => updateForm('notes', e.target.value)} placeholder="Optional notes" />
+        </label>
+
+        <div className="expense-entry-actions">
+          <button className="btn primary" onClick={saveExpense} type="button"><Icon name={editingId ? 'save' : 'plus'} size={17} /> {editingId ? 'Update Expense' : 'Add Expense'}</button>
+          <button className="btn neutral" onClick={clearForm} type="button">Clear</button>
+        </div>
       </div>
     </section>
 
-    <div className="page-filter-shell">
-      <div className="search-box sales-search"><Icon name="search" size={18} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses, payee, category..." /></div>
-      <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={applyDateRange} onPreset={applyPreset} />
-      <span className="filter-note">Filtering expenses by {rangeLabel}</span>
-      <button className="btn secondary" onClick={recoverMissingExpenses} type="button">Recover Missing Expenses</button>
-      {selected.length > 0 && <button className="btn ghost delete-link" onClick={bulkDelete} type="button">Delete Selected ({selected.length})</button>}
-    </div>
+    <section className="expense-filter-card">
+      <div className="expense-filter-topline">
+        <div className="search-box expense-main-search"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses, vendor, category or reference..." /></div>
+        <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={applyDateRange} onPreset={applyPreset} />
+        <button className="btn secondary" onClick={recoverMissingExpenses} type="button"><Icon name="refresh" size={16} /> Recover</button>
+        {selected.length > 0 && <button className="btn danger" onClick={bulkDelete} type="button"><Icon name="trash" size={16} /> Delete ({selected.length})</button>}
+      </div>
+      <span className="filter-note">Showing expenses for {rangeLabel}</span>
+    </section>
 
     {recoveryStatus ? <div className="status-pill">{recoveryStatus}</div> : null}
 
-    <div className="payroll-summary-row sales-summary-row stat-row-clean">
-      <div><span>Total Expenses</span><b>${money(summary.total)}</b></div>
-      <div><span>Cash</span><b>${money(summary.cash)}</b></div>
-      <div><span>Check / Credit</span><b>${money(summary.check + summary.credit)}</b></div>
-      <div><span>ACH</span><b>${money(summary.ach)}</b></div>
-    </div>
+    <section className="expense-kpi-grid">
+      <article className="expense-kpi total"><span className="expense-kpi-icon"><Icon name="expenses" /></span><div><small>Total Expenses</small><strong>${money(summary.total)}</strong><span>{filtered.length} transactions</span></div></article>
+      <article className="expense-kpi cash"><span className="expense-kpi-icon"><Icon name="dollar" /></span><div><small>Cash</small><strong>${money(summary.cash)}</strong><span>Cash payments</span></div></article>
+      <article className="expense-kpi card"><span className="expense-kpi-icon"><Icon name="card" /></span><div><small>Check / Credit</small><strong>${money(summary.check + summary.credit)}</strong><span>Bank and card payments</span></div></article>
+      <article className="expense-kpi ach"><span className="expense-kpi-icon"><Icon name="landmark" /></span><div><small>ACH</small><strong>${money(summary.ach)}</strong><span>Electronic transfers</span></div></article>
+    </section>
 
-    <section className="table-card compact-table-card sales-history-card">
-      <header className="table-header-actions"><h2>Expenses <span className="inline-count">{filtered.length} rows</span></h2><div className="search-box compact-search"><Icon name="search" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses..." /></div></header>
-      <div className="table-scroll"><table className="sales-table"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={toggleAll} /></th><th>Date</th><th>Name</th><th>Category</th><th>Paid By</th><th>Check #</th><th>Vendor</th><th>Amount</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
-        {filtered.map(row => <tr key={row.id}><td><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} /></td><td>{rowDate(row)}</td><td><b>{row.name || row.category}</b></td><td><span className="tag neutral">{row.category}</span></td><td><span className={`tag ${String(row.payment_method || '').toLowerCase()}`}>{row.payment_method}</span></td><td>{row.check_number || '-'}</td><td>{row.vendor || '-'}</td><td>${money(row.amount)}</td><td><small>{row.notes || '-'}</small></td><td className="row-actions"><button className="btn ghost small-btn" type="button" onClick={() => editExpense(row)}>Edit</button><button className="btn ghost small-btn delete-link" type="button" onClick={() => deleteExpense(row.id)}>Delete</button></td></tr>)}
-        {filtered.length === 0 && <tr><td colSpan="10"><small>No expenses found. Add an expense above.</small></td></tr>}
+    <section className="table-card compact-table-card expense-table-card">
+      <header className="table-header-actions"><div><span className="expense-eyebrow">Expense register</span><h2>Expenses <span className="inline-count">{filtered.length} rows</span></h2></div></header>
+      <div className="table-scroll"><table className="sales-table"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && selected.length === filtered.length} onChange={toggleAll} /></th><th>Date</th><th>Name</th><th>Category</th><th>Paid By</th><th>Check #</th><th>Vendor / Payee</th><th>Amount</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
+        {filtered.map(row => <tr key={row.id}><td><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} /></td><td>{rowDate(row)}</td><td><b>{row.name || row.category}</b></td><td><span className="tag neutral">{row.category}</span></td><td><span className={`tag ${String(row.payment_method || '').toLowerCase()}`}>{row.payment_method}</span></td><td>{row.check_number || '-'}</td><td>{row.vendor || '-'}</td><td className="expense-amount-cell">${money(row.amount)}</td><td><small>{row.notes || '-'}</small></td><td className="row-actions"><button className="btn ghost small-btn" type="button" onClick={() => editExpense(row)}><Icon name="edit" size={14} /> Edit</button><button className="btn ghost small-btn delete-link" type="button" onClick={() => deleteExpense(row.id)}><Icon name="trash" size={14} /> Delete</button></td></tr>)}
+        {filtered.length === 0 && <tr><td colSpan="10"><div className="expense-empty"><Icon name="receipt" size={30} /><b>No expenses found</b><small>Add an expense above or change the selected date range.</small></div></td></tr>}
       </tbody></table></div>
     </section>
-  </>
+  </main>
 }

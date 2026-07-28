@@ -2076,3 +2076,48 @@ button.delete-link {
 .btn.primary:hover,.btn.success:hover,button[type="submit"].btn:hover { background:#134fa8 !important;border-color:#134fa8 !important;color:#fff !important; }
 .btn.danger,.danger-btn,.bulk-delete-btn { background:#dc2626 !important;border-color:#dc2626 !important;color:#fff !important; }
 .btn.danger:hover,.danger-btn:hover,.bulk-delete-btn:hover { background:#b91c1c !important;border-color:#b91c1c !important;color:#fff !important; }
+
+/* =========================================================
+   RC5 PROFESSIONAL EXPENSE WORKSPACE
+   ========================================================= */
+.expenses-rc5-page{display:grid;gap:14px;min-width:0}
+.expense-entry-card,.expense-filter-card{background:#fff;border:1px solid #dbe5f0;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+.expense-entry-card{padding:17px}
+.expense-entry-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid #edf2f7}
+.expense-entry-header h2,.expense-table-card h2{margin:2px 0 0;color:#0f172a;font-size:19px;letter-spacing:-.025em}
+.expense-entry-header p{margin:5px 0 0;color:#64748b;font-size:12px}
+.expense-eyebrow{color:#2563eb;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.expense-saved-badge{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #c7d2fe;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:11px;font-weight:750;white-space:nowrap}
+.expense-entry-grid{display:grid;grid-template-columns:140px minmax(190px,1.15fr) minmax(150px,.8fr) 130px 140px 150px;gap:11px;align-items:end}
+.expense-field{display:grid;gap:6px;min-width:0}
+.expense-field>span{display:flex;align-items:center;gap:6px;color:#475569;font-size:10.5px;font-weight:750}
+.expense-field>span svg{color:#2563eb}
+.expense-field input,.expense-field select,.expense-payee-control input,.expense-payee-control select{width:100%;height:39px;min-width:0;padding:0 11px;border:1px solid #cbd5e1;border-radius:9px;background:#f8fafc;color:#0f172a;font-size:12px;outline:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.75)}
+.expense-field input:focus,.expense-field select:focus,.expense-payee-control input:focus,.expense-payee-control select:focus{border-color:#60a5fa;background:#fff;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.expense-field-wide{grid-column:span 2}
+.expense-payee-field{grid-column:span 2}
+.expense-payee-control{display:grid;grid-template-columns:auto minmax(170px,1fr);gap:7px;padding:4px;border:1px solid #cbd5e1;border-radius:11px;background:#f8fafc}
+.expense-payee-control input,.expense-payee-control select{height:31px;border:0;background:#fff;box-shadow:none}
+.expense-payee-toggle{display:flex;gap:3px}
+.expense-payee-toggle button{height:31px;padding:0 11px;border:0;border-radius:7px;background:transparent;color:#64748b;font-size:11px;font-weight:750;cursor:pointer}
+.expense-payee-toggle button.active{background:#2563eb;color:#fff;box-shadow:0 4px 9px rgba(37,99,235,.22)}
+.expense-notes-field{grid-column:span 2}
+.expense-entry-actions{display:flex;gap:8px;justify-content:flex-end;grid-column:span 2}
+.expense-entry-actions .btn{height:39px}
+.expense-filter-card{padding:11px 13px}
+.expense-filter-topline{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.expense-main-search{flex:1 1 290px;min-width:240px;background:#eff6ff;border-color:#bfdbfe}
+.expense-filter-card .filter-note{display:block;margin-top:7px;color:#64748b;font-size:10.5px}
+.expense-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.expense-kpi{--kpi:#2563eb;--soft:#eff6ff;display:flex;align-items:center;gap:11px;min-height:91px;padding:14px;border:1px solid color-mix(in srgb,var(--kpi) 24%,#e2e8f0);border-left:4px solid var(--kpi);border-radius:14px;background:linear-gradient(135deg,#fff 52%,var(--soft));box-shadow:0 6px 17px rgba(15,23,42,.055)}
+.expense-kpi.cash{--kpi:#16a34a;--soft:#ecfdf3}.expense-kpi.card{--kpi:#7c3aed;--soft:#f5f3ff}.expense-kpi.ach{--kpi:#f97316;--soft:#fff7ed}
+.expense-kpi-icon{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:12px;background:var(--kpi);color:#fff;box-shadow:0 7px 14px color-mix(in srgb,var(--kpi) 24%,transparent)}
+.expense-kpi div{display:grid;min-width:0}.expense-kpi small{color:#64748b;font-size:10px;font-weight:750}.expense-kpi strong{margin:3px 0;font-size:20px;color:var(--kpi);letter-spacing:-.035em}.expense-kpi div span{color:#94a3b8;font-size:9.5px}
+.expense-table-card{overflow:hidden}.expense-table-card .table-header-actions{padding:13px 15px;border-bottom:1px solid #e8eef5;background:linear-gradient(180deg,#fff,#fbfdff)}
+.expense-table-card .sales-table th{padding:9px 10px;background:#f1f5f9;color:#475569;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.expense-table-card .sales-table td{padding:9px 10px;font-size:11px}.expense-table-card .sales-table tbody tr:hover{background:#f8fbff}
+.expense-amount-cell{font-weight:800;color:#0f172a}.expense-empty{display:grid;justify-items:center;gap:5px;padding:28px;color:#64748b}.expense-empty svg{color:#94a3b8}.expense-empty b{color:#334155}.expense-empty small{font-size:10.5px}
+.btn.neutral{background:#1e293b!important;border-color:#1e293b!important;color:#fff!important}.btn.neutral:hover{background:#0f172a!important;border-color:#0f172a!important}
+@media(max-width:1350px){.expense-entry-grid{grid-template-columns:repeat(4,minmax(140px,1fr))}.expense-field-wide,.expense-payee-field,.expense-notes-field,.expense-entry-actions{grid-column:span 2}}
+@media(max-width:900px){.expense-entry-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}.expense-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.expense-entry-header{align-items:stretch;flex-direction:column}.expense-entry-grid{grid-template-columns:1fr}.expense-field-wide,.expense-payee-field,.expense-notes-field,.expense-entry-actions{grid-column:auto}.expense-entry-actions{justify-content:stretch}.expense-entry-actions .btn{flex:1}.expense-payee-control{grid-template-columns:1fr}.expense-kpi-grid{grid-template-columns:1fr}.expense-main-search{min-width:100%}}
