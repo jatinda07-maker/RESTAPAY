@@ -48,6 +48,7 @@ function rowInSelectedRange(row, start, end) {
 }
 function isApproved(row) { return String(row.approval_status || '').toLowerCase() === 'approved' || Boolean(row.approved_at) }
 function originalTips(row) { return round2(row.credit_card_tips ?? row.original_tips ?? row.total_tips ?? (num(row.tips) + num(row.tip_deduction))) }
+<<<<<<< HEAD
 function regularPay(row) {
   const direct = num(row.regular_pay)
   if (direct) return round2(direct)
@@ -60,6 +61,10 @@ function finalPay(row) {
   const computed = round2(regularPay(row) + num(row.overtime_pay) + num(row.tips) + num(row.extra_pay))
   return computed || round2(row.total_pay ?? row.final_payroll ?? row.approved_amount ?? row.amount)
 }
+=======
+function finalTips(row) { return round2(Math.max(0, originalTips(row) - num(row.tip_deduction))) }
+function finalPay(row) { return round2(num(row.regular_pay) + num(row.overtime_pay) + num(row.tips) + num(row.extra_pay)) }
+>>>>>>> d386310 (RC5: Fix Toast Shifts Closed tipped payroll import)
 function employeeHourlyRate(employee = {}) {
   const payType = String(employee.pay_type || employee.employee_type || '').toLowerCase()
   const explicit = num(employee.hourly_rate ?? employee.pay_rate ?? employee.rate)
@@ -194,7 +199,7 @@ export default function Payroll({ data, setData }) {
       current.original_tips = current.credit_card_tips
       current.total_tips = current.credit_card_tips
       current.tip_deduction = round2(current.tip_deduction + num(source.tip_deduction))
-      current.tips = round2(current.tips + num(source.tips))
+      current.tips = round2(Math.max(0, current.credit_card_tips - current.tip_deduction))
       current.source_rows += 1
       current.total_pay = finalPay(current)
       groups.set(key, current)
@@ -233,7 +238,7 @@ export default function Payroll({ data, setData }) {
     acc.overtime += num(row.overtime_pay)
     acc.originalTips += originalTips(row)
     acc.withheld += num(row.tip_deduction)
-    acc.netTips += num(row.tips)
+    acc.netTips += finalTips(row)
     acc.extra += num(row.extra_pay)
     acc.final += finalPay(row)
     return acc
