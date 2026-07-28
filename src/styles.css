@@ -2402,3 +2402,105 @@ button.delete-link {
   .dashboard-phase-one .date-arrow{display:none}
   .dashboard-phase-one .sync-group{align-self:flex-start}
 }
+
+/* RC5.8 professional dashboard detail modal + unified date controls */
+.dashboard-date-panel{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:14px!important;
+  padding:12px 14px!important;
+}
+.dashboard-date-panel .dashboard-date-controls{
+  margin:0!important;
+  border:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  padding:0!important;
+}
+.dashboard-date-panel .date-control-card{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  gap:12px;
+}
+.dashboard-date-panel .quick-preset-group{order:-1;flex-wrap:wrap}
+.dashboard-date-panel .date-control-range{flex-wrap:wrap}
+.dashboard-date-panel .preset-pill.active{
+  outline:3px solid rgba(15,23,42,.10)!important;
+  box-shadow:0 8px 18px rgba(15,23,42,.14)!important;
+  transform:translateY(-1px);
+}
+.dashboard-save-state{display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:190px}
+.dashboard-save-state .sync-status{margin:0!important;justify-self:auto!important;font-size:11px;color:#64748b}
+input[type="date"]{cursor:pointer}
+input[type="date"]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.82}
+
+.dashboard-detail-backdrop{
+  background:rgba(7,18,35,.60)!important;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  animation:detailBackdropIn .16s ease-out;
+}
+.dashboard-detail-modal{
+  width:min(1040px,95vw)!important;
+  max-height:90vh!important;
+  overflow:hidden!important;
+  border:1px solid rgba(203,213,225,.9)!important;
+  border-radius:20px!important;
+  box-shadow:0 32px 90px rgba(2,12,27,.34)!important;
+  animation:detailModalIn .18s ease-out;
+}
+.dashboard-detail-modal .detail-modal-header{
+  position:relative!important;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+  padding:20px 22px!important;
+  background:linear-gradient(135deg,#f8fbff 0%,#ffffff 58%,#f2f7ff 100%)!important;
+  border-bottom:1px solid #dce6f2!important;
+}
+.detail-modal-heading{display:flex;align-items:flex-start;gap:13px;min-width:0}
+.detail-modal-icon{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:12px;background:linear-gradient(135deg,#1d73e8,#0f58c5);color:#fff;box-shadow:0 10px 22px rgba(29,115,232,.22)}
+.detail-modal-kicker{display:block;margin-bottom:3px;color:#1d73e8;font-size:11px;font-weight:850;letter-spacing:.10em;text-transform:uppercase}
+.dashboard-detail-modal h2{margin:0;color:#071a36;font-size:23px;line-height:1.2;letter-spacing:-.025em}
+.dashboard-detail-modal .notice-line{margin:7px 0 0!important;color:#60728b;font-size:13px;line-height:1.45;font-weight:560}
+.detail-modal-actions{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.detail-modal-actions .btn{min-height:38px;border-radius:10px;font-size:12px;font-weight:800}
+.modal-close-button{width:38px;height:38px;border:1px solid #d7e1ec;border-radius:10px;background:#fff;color:#334155;font-size:25px;line-height:1;cursor:pointer;display:grid;place-items:center;box-shadow:0 5px 14px rgba(15,23,42,.06)}
+.modal-close-button:hover{background:#fff1f2;border-color:#fecdd3;color:#be123c}
+.detail-total-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;background:#f8fafc;border-bottom:1px solid #dfe7f1}
+.detail-total-strip>div{padding:13px 18px;border-right:1px solid #e2e8f0;min-width:0}
+.detail-total-strip>div:last-child{border-right:0}
+.detail-total-strip span{display:block;margin-bottom:4px;color:#64748b;font-size:10px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
+.detail-total-strip strong{display:block;color:#0f172a;font-size:16px;font-weight:820;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.detail-total-strip .is-balanced{background:#eefbf4}
+.detail-total-strip .is-balanced strong{color:#087443}
+.detail-total-strip .needs-review{background:#fff7ed}
+.detail-total-strip .needs-review strong{color:#c2410c}
+.detail-table-scroll{max-height:calc(90vh - 190px);overflow:auto!important;background:#fff}
+.detail-reconciliation-table{width:100%;border-collapse:separate;border-spacing:0}
+.detail-reconciliation-table thead th{position:sticky;top:0;z-index:1;padding:12px 18px;background:#f3f6fa;color:#526176;border-bottom:1px solid #d9e2ec;font-size:11px;font-weight:850;letter-spacing:.055em;text-transform:uppercase}
+.detail-reconciliation-table tbody td{padding:15px 18px;color:#172033;border-bottom:1px solid #e8edf3;font-size:13px;vertical-align:middle}
+.detail-reconciliation-table tbody tr:hover td{background:#f8fbff}
+.detail-reconciliation-table tbody td:last-child,.detail-reconciliation-table tfoot td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.dashboard-detail-modal tfoot td{position:static!important;padding:12px 18px!important;background:#f8fafc!important;border-top:1px solid #d6e0ea!important;font-size:13px}
+.dashboard-detail-modal tfoot .detail-subtotal-row td{background:#f8fafc!important}
+.dashboard-detail-modal tfoot .detail-dashboard-total-row td{background:#edf5ff!important;color:#0f4eaa}
+.dashboard-detail-modal tfoot .detail-difference-row td{background:#fff4ed!important;color:#b45309}
+@keyframes detailBackdropIn{from{opacity:0}to{opacity:1}}
+@keyframes detailModalIn{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:1100px){
+  .dashboard-date-panel{grid-template-columns:1fr!important}
+  .dashboard-save-state{align-items:flex-start}
+  .dashboard-date-panel .date-control-card{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:760px){
+  .detail-total-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .detail-total-strip>div:nth-child(2){border-right:0}
+  .dashboard-detail-modal .detail-modal-header{padding:16px!important;flex-direction:column}
+  .detail-modal-actions{width:100%;justify-content:flex-end}
+  .dashboard-detail-modal h2{font-size:20px}
+}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
+import DateControls from '../components/DateControls'
 import { RESTAPAY_CLOUD_STATUS_EVENT, loadCloudData, retryPendingCloudSave } from '../lib/localStore'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
 import { calculateDepartmentCosts, classifySpend, menuSaleCategoryLabel } from '../engine/DepartmentCostEngine'
@@ -245,14 +246,26 @@ function DetailTable({ config, setActive, onClose }) {
   const difference = clickedTotal - subtotal
   return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
     <section className="table-card detail-section dashboard-detail-modal" id="dashboard-details" role="dialog" aria-modal="true" aria-label={config.title}>
-      <header><div><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : null}</div><div className="detail-modal-actions">{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}>Open Full Screen</button> : null}<button type="button" className="btn primary small-btn" onClick={onClose}>Close</button></div></header>
-      <div className="table-scroll"><table><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
+      <header className="detail-modal-header">
+        <div className="detail-modal-heading">
+          <span className="detail-modal-icon"><Icon name="sales" size={19} /></span>
+          <div><span className="detail-modal-kicker">Dashboard detail</span><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : null}</div>
+        </div>
+        <div className="detail-modal-actions">{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}><Icon name="trending" size={15} /> Open Page</button> : null}<button type="button" className="modal-close-button" onClick={onClose} aria-label="Close details">×</button></div>
+      </header>
+      <div className="detail-total-strip">
+        <div><span>Detail rows</span><strong>{rows.length}</strong></div>
+        <div><span>Calculated subtotal</span><strong>{config.totalFormatter ? config.totalFormatter(subtotal) : money(subtotal)}</strong></div>
+        <div><span>Dashboard total</span><strong>{config.totalFormatter ? config.totalFormatter(clickedTotal) : money(clickedTotal)}</strong></div>
+        <div className={Math.abs(difference) < 0.01 ? 'is-balanced' : 'needs-review'}><span>Status</span><strong>{Math.abs(difference) < 0.01 ? 'Balanced' : `Review ${money(difference)}`}</strong></div>
+      </div>
+      <div className="table-scroll detail-table-scroll"><table className="detail-reconciliation-table"><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
         {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
       </tbody>{config.hideTotals ? null : <tfoot>
         {config.groupSubtotals ? config.groupSubtotals.map(group => <tr key={group.label}><td colSpan={Math.max(1, config.columns.length - 1)}><b>{group.label}</b></td><td><b>{money(group.amount)}</b></td></tr>) : null}
-        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Subtotal</b></td><td><b>{config.totalFormatter ? config.totalFormatter(subtotal) : money(subtotal)}</b></td></tr>
-        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Clicked total</b></td><td><b>{config.totalFormatter ? config.totalFormatter(clickedTotal) : money(clickedTotal)}</b></td></tr>
-        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>{Math.abs(difference) < 0.01 ? 'Reconciled' : 'Difference'}</b></td><td><b>{money(difference)}</b></td></tr>
+        <tr className="detail-subtotal-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Calculated subtotal</b></td><td><b>{config.totalFormatter ? config.totalFormatter(subtotal) : money(subtotal)}</b></td></tr>
+        <tr className="detail-dashboard-total-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Dashboard total</b></td><td><b>{config.totalFormatter ? config.totalFormatter(clickedTotal) : money(clickedTotal)}</b></td></tr>
+        {Math.abs(difference) >= 0.01 ? <tr className="detail-difference-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Difference requiring review</b></td><td><b>{money(difference)}</b></td></tr> : null}
       </tfoot>}</table></div>
     </section>
   </div>
@@ -663,23 +676,22 @@ export default function Dashboard({ data, setData, setActive }) {
         </div>
       </header>
 
-      <section className="dashboard-control-panel" aria-label="Dashboard date and sync controls">
-        <div className="preset-group" aria-label="Quick date presets">
-          <button type="button" className={`preset-btn ${preset === 'lastMonth' ? 'active' : ''}`} onClick={() => applyPreset('lastMonth')}>Last Month</button>
-          <button type="button" className={`preset-btn ${preset === 'thisMonth' ? 'active' : ''}`} onClick={() => applyPreset('thisMonth')}>This Month</button>
-          <button type="button" className={`preset-btn ${preset === 'lastWeek' ? 'active' : ''}`} onClick={() => applyPreset('lastWeek')}>Last Week</button>
-          <button type="button" className={`preset-btn ${preset === 'all' ? 'active' : ''}`} onClick={() => applyPreset('all')}>All Dates</button>
-        </div>
-        <div className="date-range-inline">
-          <label><small>Start</small><input type="date" value={dateStart} onChange={e => { setDateStart(e.target.value); setPreset('custom') }} /></label>
-          <span className="date-arrow">→</span>
-          <label><small>End</small><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); setPreset('custom') }} /></label>
-          <button type="button" className="btn primary" onClick={applyRange}>Apply</button>
-        </div>
-        <div className="sync-group" aria-label="Database save status">
+      <section className="dashboard-control-panel dashboard-date-panel" aria-label="Dashboard date and sync controls">
+        <DateControls
+          start={dateStart}
+          end={dateEnd}
+          onStartChange={value => { setDateStart(value); setPreset('custom') }}
+          onEndChange={value => { setDateEnd(value); setPreset('custom') }}
+          onApply={applyRange}
+          onPreset={applyPreset}
+          activePreset={preset}
+          applyLabel="Apply"
+          className="dashboard-date-controls"
+        />
+        <div className="dashboard-save-state">
           <span className="cloud-save-pill"><span className="cloud-dot" /> Direct Database Save</span>
+          <span className="sync-status">{syncStatus}</span>
         </div>
-        <span className="sync-status">{syncStatus}</span>
       </section>
 
       <section className="dashboard-command-row" aria-label="Dashboard quick operating summary">

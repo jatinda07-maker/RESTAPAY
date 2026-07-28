@@ -19,7 +19,8 @@ export default function DateControls({
   onPreset,
   className = '',
   showLabels = true,
-  applyLabel = 'Apply Date Range'
+  applyLabel = 'Apply Date Range',
+  activePreset = ''
 }) {
   const presets = [
     ['today', 'Today'],
@@ -47,7 +48,7 @@ export default function DateControls({
       </div>
       <div className="quick-preset-group">
         {presets.map(([key, label]) => (
-          <button key={key} type="button" className="btn ghost preset-pill" onClick={() => onPreset?.(key)}>
+          <button key={key} type="button" className={`btn ghost preset-pill ${activePreset === key ? 'active' : ''}`.trim()} onClick={() => onPreset?.(key)}>
             {label}
           </button>
         ))}
