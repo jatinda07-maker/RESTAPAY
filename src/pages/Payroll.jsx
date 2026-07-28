@@ -117,7 +117,14 @@ function resolvedOvertimePay(row, employee = {}) {
   return round2(overtimeHours > 0 && rate > 0 ? overtimeHours * rate * 1.5 : 0)
 }
 function finalPay(row, employee = {}) {
-  return round2(resolvedRegularPay(row, employee) + resolvedOvertimePay(row, employee) + finalTips(row) + num(row.extra_pay))
+  // RESTAPAY payroll rule: tipped/front-of-house employees are paid their net
+  // credit-card tips plus any extra pay. Hourly/back-of-house employees are
+  // paid wages plus any extra pay. This keeps the Toast import totals intact
+  // and prevents server wages from being added a second time.
+  if (isTipEmployee(employee) || /tip|server|bartender|waiter|waitress|front.?of.?house|foh/i.test(String(row.pay_type || row.job_type || ''))) {
+    return round2(finalTips(row) + num(row.extra_pay))
+  }
+  return round2(resolvedRegularPay(row, employee) + resolvedOvertimePay(row, employee) + num(row.extra_pay))
 }
 
 function presetRange(key) {
@@ -231,7 +238,7 @@ export default function Payroll({ data, setData }) {
       const key = mergeWeekly ? employeeKey : `${employeeKey}::${workDate}`
       const current = groups.get(key) || {
         id: createId('build'), employee_id: employee?.id || '', employee_name: name,
-        job_type: employee?.job_type || source.job_type || '', pay_date: periodEnd, hours: 0, regular_hours: 0, overtime_hours: 0, regular_pay: 0, overtime_pay: 0,
+        job_type: employee?.job_type || source.job_type || '', pay_type: employee?.pay_type || employee?.employee_type || source.pay_type || source.job_type || '', pay_date: periodEnd, hours: 0, regular_hours: 0, overtime_hours: 0, regular_pay: 0, overtime_pay: 0,
         credit_card_tips: 0, original_tips: 0, total_tips: 0, tip_deduction: 0, tips: 0, extra_pay: 0, extra_reason: '',
         payroll_type: employee?.payroll_type || 'Check', check_number: employee?.default_check_number || '', notes: '',
         period_start: periodStart, period_end: periodEnd,
@@ -465,7 +472,7 @@ export default function Payroll({ data, setData }) {
       }
       const diag = laborImportDiagnostics(parsed)
       setStatus(parsed.length
-        ? `Imported ${parsed.length} Toast line entries from ${file.name}. Select an employee and date range to calculate payroll.`
+        ? `Imported ${parsed.length} Toast labor entries from ${file.name}. Payroll totals are calculated automatically and ready for review.`
         : `No Toast labor line entries were found in ${file.name}.`)
     } catch (error) {
       console.error(error)
@@ -512,7 +519,7 @@ export default function Payroll({ data, setData }) {
         id: createId('pay'), import_id: createId('import'), source: 'Toast Payroll Builder', source_file: row.source_file || sourceFile,
         employee_id: employee.id, employee_name: employee.name, group_name: `Toast Payroll ${row.period_start} to ${row.period_end}`,
         pay_date: row.pay_date || row.period_end || dateEnd || today(), period_start: row.period_start || dateStart || row.pay_date, period_end: row.period_end || dateEnd || row.pay_date,
-        job_type: row.job_type || employee.job_type || '', pay_type: employee.pay_type || 'Hourly', payroll_type: row.payroll_type || employee.payroll_type || 'Check',
+        job_type: row.job_type || employee.job_type || '', pay_type: row.pay_type || employee.pay_type || employee.employee_type || 'Hourly', payroll_type: row.payroll_type || employee.payroll_type || 'Check',
         check_number: row.check_number || '', hours: round2(row.hours), rate: num(row.rate) || employeeHourlyRate(employee), regular_hours: round2(row.regular_hours), overtime_hours: round2(row.overtime_hours), regular_pay: round2(resolvedRegularPay(row, employee)), overtime_pay: round2(resolvedOvertimePay(row, employee)),
         credit_card_tips: originalTips(row), original_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: round2(row.tip_deduction), tips: round2(Math.max(0, originalTips(row) - num(row.tip_deduction))), final_tips: finalTips(row),
         extra_pay: round2(row.extra_pay), extra_reason: String(row.extra_reason || '').trim(), notes: String(row.notes || '').trim(),

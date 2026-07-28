@@ -6,10 +6,12 @@ export const netTips = row => {
   if (stored !== undefined && stored !== null && stored !== '') return roundPayroll(Math.max(0, num(stored)))
   return roundPayroll(Math.max(0, originalTips(row) - num(row.tip_deduction)))
 }
+const isTippedRow = row => /tip|server|bartender|waiter|waitress|front.?of.?house|foh/i.test(String(row.pay_type || row.employee_type || row.job_type || ''))
 export const payrollTotal = row => {
   const explicit = row.total_pay ?? row.final_pay ?? row.payroll_total
   if (explicit !== undefined && explicit !== null && explicit !== '') return roundPayroll(explicit)
-  return roundPayroll(num(row.regular_pay) + num(row.overtime_pay) + netTips(row) + num(row.extra_pay))
+  if (isTippedRow(row)) return roundPayroll(netTips(row) + num(row.extra_pay))
+  return roundPayroll(num(row.regular_pay) + num(row.overtime_pay) + num(row.extra_pay))
 }
 export const payrollEntryKey = row => [String(row.employee_id || row.employee_name || '').toLowerCase().replace(/[^a-z0-9]/g, ''), String(row.pay_date || row.payroll_date || row.date || '').slice(0, 10), String(row.source_file || row.source || '')].join('::')
 export function groupPayrollByEmployee(rows = []) {
