@@ -24,11 +24,11 @@ const ALIASES = {
   doubleHours: ['Double Time Hours', 'Doubletime Hours', 'DT Hours'],
   totalHours: ['Total Hours', 'Hours', 'Worked Hours', 'Paid Hours'],
   rate: ['Hourly Rate', 'Pay Rate', 'Rate', 'Base Rate'],
-  regularPay: ['Regular Pay', 'Regular Wages', 'Wages', 'Labor Cost', 'Hourly Pay'],
-  overtimePay: ['Overtime Pay', 'OT Pay'],
-  grossPay: ['Gross Pay', 'Gross Wages', 'Total Pay', 'Pay Amount', 'Earnings'],
+  regularPay: ['Regular Pay', 'Regular Pay Amount', 'Total Regular Pay', 'Regular Earnings', 'Regular Wages', 'Wages', 'Wage Earnings', 'Labor Cost', 'Hourly Pay', 'Base Pay'],
+  overtimePay: ['Overtime Pay', 'Overtime Pay Amount', 'Total Overtime Pay', 'OT Pay', 'OT Earnings'],
+  grossPay: ['Gross Pay', 'Gross Wages', 'Total Pay', 'Pay Amount', 'Total Earnings', 'Earnings', 'Employee Labor Cost'],
   totalTips: ['Total Tips', 'Tips', 'Declared Tips', 'Tips Earned', 'Tips Paid', 'Total Tips Paid', 'Employee Tips', 'Tip Amount'],
-  creditTips: ['Credit Card Tips', 'Credit Tips', 'Non-Cash Tips', 'Non Cash Tips', 'Card Tips', 'CC Tips', 'Credit Card Gratuity'],
+  creditTips: ['Credit Card Tips', 'Credit Card Tips Paid', 'Credit Tips', 'Non-Cash Tips', 'Non Cash Tips', 'Non-Cash Gratuity', 'Card Tips', 'CC Tips', 'Credit Card Gratuity', 'Tips Paid by Credit Card'],
   cashTips: ['Cash Tips', 'Declared Cash Tips', 'Cash Gratuity'],
   netTips: ['Tips After Withholding', 'Tips After Withheld', 'Net Tips', 'Final Tips', 'Tips Net', 'Net Tip Pay'],
   withheld: ['Tips Withheld', 'Tip Withheld', 'Tips Withholding', 'Withheld Tips', 'Tip Deduction', 'Tips Deducted', 'Tip Withhold'],
@@ -241,10 +241,15 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
   const fallbackDate = reportPeriod.end || options.payDate || ''
   const tipRate = Number(options.tipRate ?? 3.5) || 0
   const sheets = candidateSheets(XLSX, workbook)
+  // Toast workbooks often repeat the same employees in a summary sheet and in
+  // one or more detail sheets. Importing every matching sheet adds the same
+  // hours several times. Parse each sheet independently, then use the most
+  // complete sheet as the hours source and only supplement missing pay/tips
+  // from secondary sheets.
   const selected = sheets.filter((sheet, index) => index === 0 || /labor|employee|payroll|time|tips|team|shift|daily/i.test(sheet.name))
-  const sourceRows = selected.flatMap(sheet => sheet.rows.map(row => ({ row, sheetName: sheet.name })))
+  const sourceRows = selected.flatMap((sheet, sheetRank) => sheet.rows.map(row => ({ row, sheetName: sheet.name, sheetRank })))
 
-  const parsed = sourceRows.map(({ row, sheetName }) => {
+  const parsed = sourceRows.map(({ row, sheetName, sheetRank }) => {
     const rawName = text(find(row, ALIASES.name))
     if (isSummaryName(rawName)) return null
 
@@ -260,7 +265,9 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const regularPay = num(find(row, ALIASES.regularPay))
     const overtimePay = num(find(row, ALIASES.overtimePay))
     const grossPay = num(find(row, ALIASES.grossPay))
-    const pay = round2(grossPay || regularPay + overtimePay || hours * rate)
+    // Keep overtime separate. Gross Pay can include overtime and sometimes tips,
+    // so only use it as a last-resort wage fallback.
+    const pay = round2(regularPay || (hours && rate ? hours * rate : 0) || Math.max(grossPay - overtimePay, 0))
     const explicitTotalTips = has(row, ALIASES.totalTips) ? find(row, ALIASES.totalTips) : ''
     const hasCreditTipsColumn = has(row, ALIASES.creditTips)
     const creditTips = round2(num(find(row, ALIASES.creditTips)))
@@ -297,55 +304,108 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
       has_explicit_withholding: explicitWithheld !== '' || explicitNetTips !== '',
       check_number: text(find(row, ALIASES.checkNumber)),
       source_sheet: sheetName,
+      source_sheet_rank: sheetRank,
       source_columns: Object.keys(row)
     }
   }).filter(Boolean)
 
-  // Toast workbooks often contain both an employee summary and dated shift/day detail.
-  // When dated detail exists, discard undated summary rows so totals are not duplicated.
-  const datedRows = parsed.filter(row => row.has_business_date)
-  // A payroll export without a business-date column is a pay-period summary.
-  // Keep one row per employee for the full period. Splitting the summary evenly
-  // across calendar days creates artificial near-identical daily checks.
-  const rowsToGroup = datedRows.length ? datedRows : parsed
-  const grouped = new Map()
-
-  for (const row of rowsToGroup) {
-    const employeeKey = norm(row.employee_external_id || row.employee_name)
-    const dateKey = row.pay_date || fallbackDate
-    const key = `${employeeKey}::${dateKey}`
-    const current = grouped.get(key)
-    if (!current) {
-      grouped.set(key, { ...row, source_sheets: [row.source_sheet] })
-      continue
-    }
-    const combinedTips = round2(current.total_tips + row.total_tips)
-    const combinedDeduction = current.has_explicit_withholding || row.has_explicit_withholding
-      ? round2(current.tip_deduction + row.tip_deduction)
-      : round2(combinedTips * tipRate / 100)
-    grouped.set(key, {
-      ...current,
-      job_type: current.job_type || row.job_type,
-      hours: round2(current.hours + row.hours),
-      regular_hours: round2(current.regular_hours + row.regular_hours),
-      overtime_hours: round2(current.overtime_hours + row.overtime_hours),
-      regular_pay: round2(current.regular_pay + row.regular_pay),
-      gross_pay: round2(current.gross_pay + row.gross_pay),
-      credit_card_tips: combinedTips,
-      original_tips: combinedTips,
-      total_tips: combinedTips,
-      tip_deduction: combinedDeduction,
-      tips: round2(Math.max(combinedTips - combinedDeduction, 0)),
-      has_explicit_withholding: current.has_explicit_withholding || row.has_explicit_withholding,
-      check_number: current.check_number || row.check_number,
-      source_sheet: current.source_sheet === row.source_sheet ? current.source_sheet : 'Multiple Toast sheets',
-      source_sheets: [...new Set([...(current.source_sheets || []), row.source_sheet])]
-    })
+  // Group rows inside each sheet first. This keeps a valid daily/detail sheet
+  // from being added to a duplicate employee-summary sheet.
+  const bySheet = new Map()
+  for (const row of parsed) {
+    const sheetKey = row.source_sheet || 'Sheet'
+    if (!bySheet.has(sheetKey)) bySheet.set(sheetKey, [])
+    bySheet.get(sheetKey).push(row)
   }
 
-  return [...grouped.values()].sort((a, b) =>
+  function groupSheetRows(sheetRows = []) {
+    const datedRows = sheetRows.filter(row => row.has_business_date)
+    const rowsToGroup = datedRows.length ? datedRows : sheetRows
+    const grouped = new Map()
+    for (const row of rowsToGroup) {
+      const employeeKey = norm(row.employee_external_id || row.employee_name)
+      const dateKey = row.pay_date || fallbackDate
+      const key = `${employeeKey}::${dateKey}`
+      const current = grouped.get(key)
+      if (!current) {
+        grouped.set(key, { ...row, source_sheets: [row.source_sheet] })
+        continue
+      }
+      const combinedTips = round2(current.total_tips + row.total_tips)
+      const combinedDeduction = current.has_explicit_withholding || row.has_explicit_withholding
+        ? round2(current.tip_deduction + row.tip_deduction)
+        : round2(combinedTips * tipRate / 100)
+      grouped.set(key, {
+        ...current,
+        job_type: current.job_type || row.job_type,
+        hours: round2(current.hours + row.hours),
+        regular_hours: round2(current.regular_hours + row.regular_hours),
+        overtime_hours: round2(current.overtime_hours + row.overtime_hours),
+        regular_pay: round2(current.regular_pay + row.regular_pay),
+        overtime_pay: round2(num(current.overtime_pay) + num(row.overtime_pay)),
+        gross_pay: round2(current.gross_pay + row.gross_pay),
+        credit_card_tips: combinedTips,
+        original_tips: combinedTips,
+        total_tips: combinedTips,
+        tip_deduction: combinedDeduction,
+        tips: round2(Math.max(combinedTips - combinedDeduction, 0)),
+        has_explicit_withholding: current.has_explicit_withholding || row.has_explicit_withholding,
+        check_number: current.check_number || row.check_number,
+        source_sheets: [...new Set([...(current.source_sheets || []), row.source_sheet])]
+      })
+    }
+    return [...grouped.values()]
+  }
+
+  const sheetGroups = [...bySheet.entries()].map(([name, sheetRows]) => {
+    const rows = groupSheetRows(sheetRows)
+    const completeness = rows.reduce((score, row) => score
+      + (row.hours ? 2 : 0)
+      + (row.regular_pay || row.gross_pay ? 2 : 0)
+      + (row.total_tips ? 2 : 0)
+      + (row.has_business_date ? 1 : 0), 0)
+    return { name, rows, completeness, rank: Math.min(...sheetRows.map(row => num(row.source_sheet_rank))) }
+  }).sort((a, b) => b.completeness - a.completeness || a.rank - b.rank)
+
+  const primary = sheetGroups[0]?.rows || []
+  const secondaryIndex = new Map()
+  for (const group of sheetGroups.slice(1)) {
+    for (const row of group.rows) {
+      const key = `${norm(row.employee_external_id || row.employee_name)}::${row.pay_date || fallbackDate}`
+      if (!secondaryIndex.has(key)) secondaryIndex.set(key, [])
+      secondaryIndex.get(key).push(row)
+    }
+  }
+
+  const merged = primary.map(row => {
+    const key = `${norm(row.employee_external_id || row.employee_name)}::${row.pay_date || fallbackDate}`
+    const supplements = secondaryIndex.get(key) || []
+    const paySource = supplements.find(item => item.regular_pay || item.gross_pay)
+    const tipSource = supplements.find(item => item.total_tips || item.has_explicit_withholding)
+    const regularPay = row.regular_pay || paySource?.regular_pay || paySource?.gross_pay || 0
+    const totalTips = row.total_tips || tipSource?.total_tips || 0
+    const deduction = row.total_tips
+      ? row.tip_deduction
+      : tipSource
+        ? tipSource.tip_deduction
+        : round2(totalTips * tipRate / 100)
+    return {
+      ...row,
+      regular_pay: round2(regularPay),
+      gross_pay: round2(row.gross_pay || paySource?.gross_pay || regularPay),
+      credit_card_tips: round2(totalTips),
+      original_tips: round2(totalTips),
+      total_tips: round2(totalTips),
+      tip_deduction: round2(deduction),
+      tips: round2(Math.max(totalTips - deduction, 0)),
+      source_sheets: [...new Set([row.source_sheet, ...(paySource ? [paySource.source_sheet] : []), ...(tipSource ? [tipSource.source_sheet] : [])])]
+    }
+  })
+
+  return merged.sort((a, b) =>
     String(a.pay_date).localeCompare(String(b.pay_date)) || String(a.employee_name).localeCompare(String(b.employee_name))
   )
+
 }
 
 export function laborImportDiagnostics(rows = []) {

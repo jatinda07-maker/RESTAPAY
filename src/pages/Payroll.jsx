@@ -50,6 +50,12 @@ function isApproved(row) { return String(row.approval_status || '').toLowerCase(
 function originalTips(row) { return round2(row.credit_card_tips ?? row.original_tips ?? row.total_tips ?? (num(row.tips) + num(row.tip_deduction))) }
 function finalTips(row) { return round2(originalTips(row) - num(row.tip_deduction) + num(row.extra_pay)) }
 function finalPay(row) { return round2(num(row.regular_pay) + num(row.overtime_pay) + num(row.tips) + num(row.extra_pay)) }
+function employeeHourlyRate(employee = {}) {
+  const payType = String(employee.pay_type || employee.employee_type || '').toLowerCase()
+  const explicit = num(employee.hourly_rate ?? employee.pay_rate ?? employee.rate)
+  if (explicit > 0) return explicit
+  return payType.includes('hour') ? num(employee.base_pay) : 0
+}
 
 function presetRange(key) {
   const now = new Date()
@@ -166,9 +172,14 @@ export default function Payroll({ data, setData }) {
         period_start: periodStart, period_end: periodEnd,
         source_file: sourceFile, source_rows: 0
       }
-      current.hours = round2(current.hours + num(source.hours))
-      current.regular_pay = round2(current.regular_pay + num(source.regular_pay || source.gross_pay))
+      const sourceHours = num(source.hours)
+      const sourceRate = num(source.rate) || employeeHourlyRate(employee)
+      const importedRegularPay = num(source.regular_pay || source.gross_pay)
+      const resolvedRegularPay = importedRegularPay || (sourceHours > 0 && sourceRate > 0 ? sourceHours * sourceRate : 0)
+      current.hours = round2(current.hours + sourceHours)
+      current.regular_pay = round2(current.regular_pay + resolvedRegularPay)
       current.overtime_pay = round2(current.overtime_pay + num(source.overtime_pay))
+      current.rate = sourceRate || current.rate || 0
       current.credit_card_tips = round2(current.credit_card_tips + num(source.credit_card_tips ?? source.total_tips))
       current.original_tips = current.credit_card_tips
       current.total_tips = current.credit_card_tips
@@ -182,8 +193,10 @@ export default function Payroll({ data, setData }) {
     setBuilderRows(rows)
     setSelectedBuilderIds(rows.map(row => row.id))
     const diag = laborImportDiagnostics(filteredImportedRows)
+    const missingPay = rows.filter(row => num(row.hours) > 0 && num(row.regular_pay) === 0).length
+    const missingTips = rows.filter(row => num(row.credit_card_tips) === 0).length
     setStatus(rows.length
-      ? `Showing ${rows.length} ${mergeWeekly ? 'weekly' : 'daily'} payroll rows from ${filteredImportedRows.length} Toast shifts: ${money(diag.hours)} hours and $${money(diag.totalTips)} credit card tips.`
+      ? `Showing ${rows.length} ${mergeWeekly ? 'weekly' : 'daily'} payroll rows from ${filteredImportedRows.length} Toast rows: ${money(diag.hours)} hours and $${money(diag.totalTips)} credit card tips.${missingPay ? ` ${missingPay} employee${missingPay === 1 ? '' : 's'} still have no wage amount; add an hourly rate or import a Toast report containing pay.` : ''}${missingTips === rows.length ? ' This Toast report contains no credit-card tip values; use a Labor Summary export that includes Non-Cash/Credit Card Tips.' : ''}`
       : 'No Toast labor line entries match this employee and date range.')
   }, [filteredImportedRows, importedRows.length, employees, dateStart, dateEnd, sourceFile, mergeWeekly])
 
