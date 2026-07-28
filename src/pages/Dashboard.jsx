@@ -130,7 +130,14 @@ function invoiceTotal(row) {
 }
 function itemUnit(row) { return num(row.unit_price || row.price || row.cost || row.item_price || row.rate) }
 function itemAmount(row) { return num(row.line_total || row.total || row.amount || row.extended_price || (num(row.qty || row.quantity) * itemUnit(row))) }
-function rowTotalPay(row) { return num(row.total_pay || row.total || row.amount || row.regular_pay) }
+function rowTotalPay(row = {}) {
+  const explicit = firstAmount(row, ['total_pay', 'final_pay', 'payroll_total'])
+  if (explicit || ['total_pay', 'final_pay', 'payroll_total'].some(key => row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '')) return explicit
+  return firstAmount(row, ['regular_pay', 'regularPay', 'base_pay'])
+    + firstAmount(row, ['overtime_pay', 'overtimePay'])
+    + rowTipsPaid(row)
+    + firstAmount(row, ['extra_pay', 'extraPay'])
+}
 function rowCategory(row) { return String(row.category || row.expense_category || row.invoice_category || row.type || '').trim() }
 function normalizeCategory(value) {
   const text = String(value || '').toLowerCase()

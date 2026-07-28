@@ -1,0 +1,22 @@
+RESTAPAY RC5 - Tipped Shifts Closed Payroll Fix
+
+Changes:
+1. Toast Shifts Closed exact mappings:
+   - Non-Cash Tips -> Original/Credit Card Tips
+   - Tips Withheld -> Tip Deduction
+   - Shift Closed Date -> payroll work date
+2. Front-of-house tip employees:
+   - Regular Pay remains $0.00
+   - Hours are informational only
+   - Final Payroll = Non-Cash Tips - Tips Withheld + Extra Pay
+3. Hourly-rate warnings now apply only to hourly employees.
+4. Kitchen/hourly calculations remain Hours x Rate + OT + Extra Pay.
+
+Expected sample totals for Shifts_Closed_2026_07_20-2026_07_26:
+Hours: 271.54
+Original Tips: $4,038.25
+Tips Withheld: $140.95
+Final Tips/Payroll before Extra Pay: $3,897.30
+
+Install:
+Replace the project with this full package, run npm install if needed, then npm run build.

@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start": "vite preview --host 0.0.0.0 --port $PORT",
-    "test": "node scripts/test-toast-labor.mjs"
+    "test": "node scripts/test-toast-labor.mjs",
+    "test:payroll-engine": "node scripts/test-payroll-engine.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -20,5 +21,8 @@
     "lucide-react": "^0.468.0",
     "xlsx": "^0.18.5"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "allowScripts": {
+    "esbuild@0.21.5": true
+  }
 }

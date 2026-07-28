@@ -18,7 +18,7 @@ const ALIASES = {
   name: ['Employee', 'Employee Name', 'Team Member', 'Team Member Name', 'Staff', 'Staff Name', 'Name'],
   employeeId: ['Employee ID', 'Employee Id', 'Team Member ID', 'Team Member Id', 'Payroll ID'],
   job: ['Job', 'Job Title', 'Job Type', 'Role', 'Department', 'Position'],
-  date: ['Business Date', 'Shift Date', 'In Date', 'Clock In Date', 'Date Worked', 'Work Date', 'Shift Closed Date', 'Out Date', 'Payroll Date', 'Pay Date', 'Date', 'Week Ending', 'Period End'],
+  date: ['Business Date', 'Shift Date', 'Shift Closed Date', 'Out Date', 'In Date', 'Clock In Date', 'Date Worked', 'Work Date', 'Payroll Date', 'Pay Date', 'Date', 'Week Ending', 'Period End'],
   regularHours: ['Regular Hours', 'Reg Hours', 'Regular Hrs', 'Reg Hrs'],
   overtimeHours: ['Overtime Hours', 'OT Hours', 'Overtime Hrs', 'OT Hrs'],
   doubleHours: ['Double Time Hours', 'Doubletime Hours', 'DT Hours'],
@@ -64,6 +64,13 @@ function find(row, aliases) {
 function has(row, aliases) {
   const map = makeMap(row)
   return aliases.some(alias => map[norm(alias)] !== undefined)
+}
+
+function toastShiftValue(row, header, aliases = []) {
+  const map = makeMap(row)
+  const exact = map[norm(header)]
+  if (exact !== undefined && exact !== '') return exact
+  return find(row, aliases)
 }
 function parseDate(value, fallback = '') {
   if (!value) return fallback
@@ -270,12 +277,14 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const pay = round2(regularPay || (hours && rate ? hours * rate : 0) || Math.max(grossPay - overtimePay, 0))
     const explicitTotalTips = has(row, ALIASES.totalTips) ? find(row, ALIASES.totalTips) : ''
     const hasCreditTipsColumn = has(row, ALIASES.creditTips)
-    const creditTips = round2(num(find(row, ALIASES.creditTips)))
-    // RESTAPAY payroll intentionally excludes declared cash tips. When Toast's
-    // Non-Cash Tips column exists, it is the payroll tip source of truth.
+    // Toast Shifts Closed uses these exact headers. Read them first so declared
+    // cash tips, Cash on Hand, or Cash in Drawer can never be mistaken for pay.
+    const creditTipsRaw = toastShiftValue(row, 'Non-Cash Tips', ALIASES.creditTips)
+    const creditTips = round2(num(creditTipsRaw))
+    // Front-of-house payroll uses non-cash tips only. Hours remain informational.
     const totalTips = round2(hasCreditTipsColumn ? creditTips : num(explicitTotalTips))
     const explicitNetTips = find(row, ALIASES.netTips)
-    const explicitWithheld = find(row, ALIASES.withheld)
+    const explicitWithheld = toastShiftValue(row, 'Tips Withheld', ALIASES.withheld)
     const withheld = round2(explicitWithheld !== '' ? num(explicitWithheld) : explicitNetTips !== '' ? Math.max(totalTips - num(explicitNetTips), 0) : totalTips * tipRate / 100)
     const netTips = round2(explicitNetTips !== '' ? num(explicitNetTips) : Math.max(totalTips - withheld, 0))
     if (!hours && !pay && !totalTips && !netTips) return null
