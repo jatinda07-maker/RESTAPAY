@@ -193,8 +193,13 @@ export default function ApprovedPayroll({ data, setData }) {
   }
 
   return <div className="page-stack approved-payroll-page">
-    <section className="summary-grid compact-summary">
-      {[['Approved Total',totals.total],['Cash',totals.cash],['Check',totals.check],['ACH',totals.ach]].map(([label,value])=><article className="summary-card" key={label}><span>{label}</span><strong>${money(value)}</strong></article>)}
+    <section className="summary-grid compact-summary payroll-modern-summary approved-modern-summary">
+      {[
+        {label:'Approved Total',value:totals.total,icon:'dollar',tone:'blue'},
+        {label:'Cash',value:totals.cash,icon:'wallet',tone:'green'},
+        {label:'Check',value:totals.check,icon:'receipt',tone:'orange'},
+        {label:'ACH',value:totals.ach,icon:'landmark',tone:'purple'}
+      ].map(card=><article className={`summary-card payroll-modern-card tone-${card.tone}`} key={card.label}><div className="payroll-modern-card-head"><span>{card.label}</span><span className="payroll-modern-card-icon"><Icon name={card.icon === 'wallet' ? 'dollar' : card.icon} size={18}/></span></div><strong>${money(card.value)}</strong><small>Filtered approved payroll</small></article>)}
     </section>
 
     <section className="card">

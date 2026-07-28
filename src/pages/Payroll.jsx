@@ -514,13 +514,13 @@ export default function Payroll({ data, setData }) {
 
     <div className="payroll-rc5-status">{status}</div>
 
-    <section className="payroll-rc5-summary">
-      <div><span>Employees</span><strong>{builderRows.length ? visibleBuilderRows.length : historyTotals.employees.size}</strong></div>
-      <div><span>Total Hours</span><strong>{money(builderRows.length ? builderTotals.hours : historyTotals.hours)}</strong></div>
-      <div><span>Original Tips</span><strong>${money(builderRows.length ? builderTotals.originalTips : historyTotals.originalTips)}</strong></div>
-      <div><span>Withheld</span><strong>${money(builderRows.length ? builderTotals.withheld : historyTotals.withheld)}</strong></div>
-      <div><span>Extra Pay</span><strong>${money(builderRows.length ? builderTotals.extra : historyTotals.extra)}</strong></div>
-      <div className="payroll-rc5-final"><span>Final Payroll</span><strong>${money(builderRows.length ? builderTotals.final : historyTotals.final)}</strong></div>
+    <section className="payroll-rc5-summary payroll-modern-summary">
+      <div className="payroll-modern-card tone-blue"><div className="payroll-modern-card-head"><span>Employees</span><span className="payroll-modern-card-icon"><Icon name="users" size={18}/></span></div><strong>{builderRows.length ? visibleBuilderRows.length : historyTotals.employees.size}</strong><small>In selected range</small></div>
+      <div className="payroll-modern-card tone-slate"><div className="payroll-modern-card-head"><span>Total Hours</span><span className="payroll-modern-card-icon"><Icon name="history" size={18}/></span></div><strong>{money(builderRows.length ? builderTotals.hours : historyTotals.hours)}</strong><small>Visible payroll rows</small></div>
+      <div className="payroll-modern-card tone-purple"><div className="payroll-modern-card-head"><span>Original Tips</span><span className="payroll-modern-card-icon"><Icon name="card" size={18}/></span></div><strong>${money(builderRows.length ? builderTotals.originalTips : historyTotals.originalTips)}</strong><small>Before withholding</small></div>
+      <div className="payroll-modern-card tone-red"><div className="payroll-modern-card-head"><span>Withheld</span><span className="payroll-modern-card-icon"><Icon name="shield" size={18}/></span></div><strong>${money(builderRows.length ? builderTotals.withheld : historyTotals.withheld)}</strong><small>Tip deductions</small></div>
+      <div className="payroll-modern-card tone-orange"><div className="payroll-modern-card-head"><span>Extra Pay</span><span className="payroll-modern-card-icon"><Icon name="plus" size={18}/></span></div><strong>${money(builderRows.length ? builderTotals.extra : historyTotals.extra)}</strong><small>Additional payroll</small></div>
+      <div className="payroll-modern-card tone-green payroll-rc5-final"><div className="payroll-modern-card-head"><span>Final Payroll</span><span className="payroll-modern-card-icon"><Icon name="dollar" size={18}/></span></div><strong>${money(builderRows.length ? builderTotals.final : historyTotals.final)}</strong><small>Selected range total</small></div>
     </section>
 
     {importedRows.length > 0 && <section className="payroll-rc5-card">
