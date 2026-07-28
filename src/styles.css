@@ -2604,3 +2604,153 @@ input[type="date"]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.82
   .compact-date-control .date-control-range{display:grid;grid-template-columns:1fr 14px 1fr;gap:6px}
   .compact-date-control .date-apply-btn{grid-column:1/-1;width:100%}
 }
+
+/* RC6.1 compact, scroll-free workspaces and dashboard popups */
+html,body,#root,.app-shell,.main-panel,.content-area{max-width:100%;overflow-x:hidden!important}
+
+/* Keep every data card inside the viewport. Columns compress and wrap instead of creating a horizontal scrollbar. */
+.table-scroll,.table-wrap,.payroll-rc5-table-wrap,.payroll-approved-table,
+.vendor-list-scroll,.diagnostics-table-wrap,.invoice-table-wrap,
+.invoice-items-card,.table-card,.compact-table-card{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  overflow-x:hidden!important;
+}
+.table-card table,.table-scroll table,.table-wrap table,
+.payroll-rc5-table,.payroll-approved-table table,.sales-table,
+.employee-table-card table,.invoice-items-card table,.vendor-list-scroll table,
+.sales-history-table,.price-increase-table{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  table-layout:fixed!important;
+}
+.table-card th,.table-card td,.table-scroll th,.table-scroll td,.table-wrap th,.table-wrap td,
+.payroll-rc5-table th,.payroll-rc5-table td,.payroll-approved-table th,.payroll-approved-table td,
+.sales-table th,.sales-table td,.invoice-items-card th,.invoice-items-card td{
+  padding:7px 8px!important;
+  font-size:11.5px!important;
+  line-height:1.25!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  vertical-align:middle;
+}
+.table-card th,.table-scroll th,.table-wrap th,.payroll-rc5-table th,
+.payroll-approved-table th,.sales-table th,.invoice-items-card th{
+  font-size:10px!important;
+  letter-spacing:.025em!important;
+}
+.row-actions{display:flex!important;flex-wrap:wrap!important;gap:4px!important;white-space:normal!important}
+.row-actions .btn,.row-actions button{min-height:27px!important;height:27px!important;padding:0 7px!important;font-size:10.5px!important}
+.table-card input,.table-card select,.table-card textarea,
+.table-scroll input,.table-scroll select,.table-wrap input,.table-wrap select{
+  max-width:100%!important;
+  min-width:0!important;
+}
+
+/* Compact global date toolbar. */
+.compact-date-control.date-control-card{
+  gap:7px!important;
+  padding:7px 9px!important;
+  border-radius:10px!important;
+  box-shadow:0 2px 8px rgba(15,23,42,.04)!important;
+  flex-wrap:nowrap!important;
+}
+.compact-date-control .date-preset-field{width:145px!important}
+.compact-date-control .date-range-field{width:142px!important}
+.compact-date-control .date-preset-field,
+.compact-date-control .date-range-field{gap:2px!important}
+.compact-date-control .date-preset-field>span,
+.compact-date-control .date-range-field>span{min-height:12px!important;font-size:10px!important;line-height:12px!important}
+.compact-date-control select,
+.compact-date-control input[type="date"],
+.compact-date-control .date-apply-btn{height:32px!important;min-height:32px!important;font-size:12px!important;border-radius:7px!important}
+.compact-date-control .date-control-range{gap:6px!important;flex-wrap:nowrap!important}
+.compact-date-control .range-arrow{width:12px!important;height:32px!important;font-size:12px!important}
+.compact-date-control .date-apply-btn{padding:0 11px!important}
+
+/* Dashboard popup uses nearly the full viewport but wastes no space. */
+.dashboard-detail-backdrop{padding:10px!important;overflow:hidden!important}
+.dashboard-detail-modal{
+  width:min(1180px,calc(100vw - 20px))!important;
+  height:min(760px,calc(100vh - 20px))!important;
+  max-height:calc(100vh - 20px)!important;
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,1fr)!important;
+  overflow:hidden!important;
+  border-radius:14px!important;
+}
+.dashboard-detail-modal .detail-modal-header{
+  align-items:center!important;
+  gap:10px!important;
+  padding:10px 12px!important;
+}
+.detail-modal-heading{align-items:center!important;gap:9px!important}
+.detail-modal-icon{width:34px!important;height:34px!important;flex-basis:34px!important;border-radius:9px!important;box-shadow:none!important}
+.detail-modal-kicker{margin-bottom:1px!important;font-size:9px!important}
+.dashboard-detail-modal h2{font-size:17px!important;line-height:1.15!important}
+.dashboard-detail-modal .notice-line{margin:2px 0 0!important;font-size:11px!important;line-height:1.25!important}
+.detail-modal-actions{gap:5px!important}
+.detail-modal-actions .btn{min-height:31px!important;height:31px!important;padding:0 9px!important;border-radius:7px!important;font-size:10.5px!important}
+.modal-close-button{width:31px!important;height:31px!important;border-radius:7px!important;font-size:20px!important;box-shadow:none!important}
+.detail-total-strip{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.detail-total-strip>div{padding:7px 10px!important}
+.detail-total-strip span{margin-bottom:2px!important;font-size:8.5px!important}
+.detail-total-strip strong{font-size:13px!important}
+.detail-table-scroll{
+  min-height:0!important;
+  max-height:none!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+.detail-reconciliation-table{width:100%!important;min-width:0!important;table-layout:fixed!important}
+.detail-reconciliation-table thead th{
+  padding:7px 9px!important;
+  font-size:9px!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere;
+}
+.detail-reconciliation-table tbody td{
+  padding:7px 9px!important;
+  font-size:11px!important;
+  line-height:1.2!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere;
+}
+.dashboard-detail-modal tfoot td{padding:7px 9px!important;font-size:11px!important}
+
+/* Other application popups follow the same compact, no-horizontal-scroll treatment. */
+.cost-modal,.mi-modal,.vc-history-modal,.payroll-rc5-modal,.payroll-rc5-group-modal{
+  width:min(1180px,calc(100vw - 20px))!important;
+  max-width:calc(100vw - 20px)!important;
+  max-height:calc(100vh - 20px)!important;
+  overflow-x:hidden!important;
+  border-radius:14px!important;
+}
+.cost-modal>header,.mi-modal>header,.payroll-rc5-modal>header,.payroll-rc5-group-modal>header{padding:10px 12px!important}
+.cost-modal-total{padding:7px 12px!important}
+.cost-modal .table-scroll,.mi-modal .table-scroll,.vc-history-modal .table-scroll,
+.payroll-rc5-modal .table-scroll,.payroll-rc5-group-modal .table-scroll{overflow-x:hidden!important}
+.cost-modal table,.mi-modal table,.vc-history-modal table,
+.payroll-rc5-modal table,.payroll-rc5-group-modal table{width:100%!important;min-width:0!important;table-layout:fixed!important}
+.mi-modal-metrics{gap:7px!important;padding:9px 12px!important}
+.mi-modal-metrics div{padding:8px 9px!important;border-radius:9px!important}
+.mi-modal-metrics strong{margin-top:2px!important;font-size:14px!important}
+.mi-modal>footer{padding:8px 12px!important}
+
+@media(max-width:900px){
+  .compact-date-control.date-control-card{flex-wrap:wrap!important}
+  .compact-date-control .date-preset-field{width:140px!important;flex:1 1 140px!important}
+  .compact-date-control .date-control-range{flex:1 1 420px!important}
+  .compact-date-control .date-range-field{flex:1 1 130px!important;width:auto!important}
+  .dashboard-detail-modal{width:calc(100vw - 12px)!important;height:calc(100vh - 12px)!important;max-height:calc(100vh - 12px)!important}
+  .dashboard-detail-backdrop{padding:6px!important}
+}
+@media(max-width:600px){
+  .detail-total-strip{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .dashboard-detail-modal .detail-modal-header{align-items:flex-start!important;flex-direction:row!important}
+  .detail-modal-actions{margin-left:auto!important;width:auto!important}
+  .detail-modal-actions .btn{display:none!important}
+}
