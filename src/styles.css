@@ -1888,3 +1888,175 @@ button.delete-link {
 .approved-modern-summary{grid-template-columns:repeat(4,minmax(155px,1fr))}
 @media(max-width:1100px){.approved-modern-summary{grid-template-columns:repeat(2,minmax(150px,1fr))}}
 @media(max-width:680px){.payroll-modern-summary,.approved-modern-summary{grid-template-columns:1fr 1fr!important}.payroll-modern-card{min-height:106px}.payroll-modern-card>strong{font-size:18px!important}}
+
+/* =========================================================
+   RC4.5 compact rounded-square payroll cards
+   ========================================================= */
+.payroll-rc5-page .payroll-modern-summary,
+.payroll-approved-page .payroll-modern-summary,
+.payroll-modern-summary {
+  display:grid !important;
+  grid-template-columns:repeat(6,minmax(132px,1fr)) !important;
+  gap:8px !important;
+  margin:10px 0 12px !important;
+}
+
+.payroll-modern-card,
+.summary-card.payroll-modern-card {
+  position:relative !important;
+  display:grid !important;
+  grid-template-columns:36px minmax(0,1fr) !important;
+  grid-template-rows:18px 28px !important;
+  column-gap:10px !important;
+  row-gap:1px !important;
+  align-items:center !important;
+  min-height:76px !important;
+  height:76px !important;
+  padding:10px 11px !important;
+  overflow:hidden !important;
+  border:1px solid var(--payroll-card-border,#dbe3ec) !important;
+  border-radius:18px !important;
+  background:var(--payroll-card-body,#f8fafc) !important;
+  box-shadow:0 2px 8px rgba(15,23,42,.055) !important;
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease !important;
+}
+
+.payroll-modern-card:hover {
+  transform:translateY(-1px) !important;
+  border-color:var(--payroll-card-accent,#94a3b8) !important;
+  box-shadow:0 5px 14px rgba(15,23,42,.085) !important;
+}
+
+.payroll-modern-card-head {
+  display:contents !important;
+  height:auto !important;
+  color:inherit !important;
+}
+
+.payroll-modern-card-head > span:first-child {
+  grid-column:2 !important;
+  grid-row:1 !important;
+  align-self:end !important;
+  min-width:0 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  color:#607087 !important;
+  font-size:10.5px !important;
+  line-height:1.1 !important;
+  font-weight:700 !important;
+  letter-spacing:.015em !important;
+  text-transform:none !important;
+}
+
+.payroll-modern-card-icon {
+  grid-column:1 !important;
+  grid-row:1 / 3 !important;
+  width:36px !important;
+  height:36px !important;
+  border-radius:12px !important;
+  display:grid !important;
+  place-items:center !important;
+  align-self:center !important;
+  background:var(--payroll-card-accent,#475569) !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+
+.payroll-modern-card-icon svg {
+  width:17px !important;
+  height:17px !important;
+  color:#fff !important;
+  stroke-width:2.15 !important;
+}
+
+.payroll-modern-card > strong {
+  grid-column:2 !important;
+  grid-row:2 !important;
+  align-self:start !important;
+  display:block !important;
+  min-width:0 !important;
+  margin:0 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  color:#172033 !important;
+  font-size:19px !important;
+  line-height:1.08 !important;
+  font-weight:760 !important;
+  letter-spacing:-.025em !important;
+}
+
+.payroll-modern-card > small {
+  display:none !important;
+}
+
+.payroll-modern-card.tone-blue   {--payroll-card-accent:#2563eb;--payroll-card-body:#f5f8ff;--payroll-card-border:#d7e3ff}
+.payroll-modern-card.tone-green  {--payroll-card-accent:#159947;--payroll-card-body:#f3fbf6;--payroll-card-border:#d2eedc}
+.payroll-modern-card.tone-orange {--payroll-card-accent:#d97706;--payroll-card-body:#fff9f1;--payroll-card-border:#f8dfba}
+.payroll-modern-card.tone-purple {--payroll-card-accent:#7c3aed;--payroll-card-body:#f8f5ff;--payroll-card-border:#e4dafc}
+.payroll-modern-card.tone-red    {--payroll-card-accent:#c2414b;--payroll-card-body:#fff6f7;--payroll-card-border:#f4d7db}
+.payroll-modern-card.tone-slate  {--payroll-card-accent:#475569;--payroll-card-body:#f6f8fa;--payroll-card-border:#dce2e8}
+
+.approved-modern-summary {
+  grid-template-columns:repeat(4,minmax(150px,1fr)) !important;
+}
+
+/* Compact filter/card shells on payroll screens */
+.payroll-rc5-filter-card,
+.payroll-approved-filters,
+.payroll-rc5-card {
+  border-radius:14px !important;
+}
+
+.payroll-rc5-filter-card {
+  padding:10px 12px !important;
+}
+
+.payroll-rc5-filter-card .toolbar-row,
+.payroll-approved-filters {
+  gap:7px !important;
+}
+
+.payroll-rc5-filter-card input,
+.payroll-rc5-filter-card select,
+.payroll-approved-filters input,
+.payroll-approved-filters select,
+.payroll-rc5-filter-card .btn,
+.payroll-approved-filters .btn {
+  min-height:34px !important;
+  height:34px !important;
+  border-radius:9px !important;
+  font-size:12px !important;
+}
+
+@media (max-width:1280px) {
+  .payroll-rc5-page .payroll-modern-summary,
+  .payroll-modern-summary {
+    grid-template-columns:repeat(3,minmax(150px,1fr)) !important;
+  }
+  .approved-modern-summary {
+    grid-template-columns:repeat(4,minmax(140px,1fr)) !important;
+  }
+}
+
+@media (max-width:860px) {
+  .payroll-rc5-page .payroll-modern-summary,
+  .payroll-modern-summary,
+  .approved-modern-summary {
+    grid-template-columns:repeat(2,minmax(138px,1fr)) !important;
+  }
+}
+
+@media (max-width:520px) {
+  .payroll-rc5-page .payroll-modern-summary,
+  .payroll-modern-summary,
+  .approved-modern-summary {
+    grid-template-columns:1fr !important;
+  }
+  .payroll-modern-card,
+  .summary-card.payroll-modern-card {
+    height:72px !important;
+    min-height:72px !important;
+  }
+}
