@@ -75,8 +75,31 @@ function rowInSelectedRange(row, start, end) {
   return true
 }
 function isApproved(row) { return String(row.approval_status || '').toLowerCase() === 'approved' || Boolean(row.approved_at) }
-function originalTips(row) { return round2(row.credit_card_tips ?? row.original_tips ?? row.total_tips ?? (num(row.tips) + num(row.tip_deduction))) }
-function finalTips(row) { return round2(Math.max(0, originalTips(row) - num(row.tip_deduction))) }
+function firstNonZeroAmount(row, keys = []) {
+  for (const key of keys) {
+    const value = num(row?.[key])
+    if (value !== 0) return value
+  }
+  return 0
+}
+function tipWithheld(row = {}) {
+  return round2(firstNonZeroAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding', 'withheld_tips']))
+}
+function storedNetTips(row = {}) {
+  return round2(firstNonZeroAmount(row, ['tips_after_withheld', 'tips_after_withholding', 'final_tips', 'net_tips', 'tips']))
+}
+function originalTips(row = {}) {
+  const explicit = firstNonZeroAmount(row, ['credit_card_tips', 'original_tips', 'total_tips', 'gross_tips'])
+  if (explicit !== 0) return round2(explicit)
+  const net = storedNetTips(row)
+  const withheld = tipWithheld(row)
+  return round2(net + withheld)
+}
+function finalTips(row = {}) {
+  const stored = storedNetTips(row)
+  if (stored !== 0) return stored
+  return round2(Math.max(0, originalTips(row) - tipWithheld(row)))
+}
 function employeePayType(employee = {}) {
   return String(employee.pay_type || employee.employee_type || '').trim().toLowerCase()
 }
@@ -117,11 +140,11 @@ function resolvedOvertimePay(row, employee = {}) {
   return round2(overtimeHours > 0 && rate > 0 ? overtimeHours * rate * 1.5 : 0)
 }
 function finalPay(row, employee = {}) {
-  // RESTAPAY payroll rule: tipped/front-of-house employees are paid their net
-  // credit-card tips plus any extra pay. Hourly/back-of-house employees are
-  // paid wages plus any extra pay. This keeps the Toast import totals intact
-  // and prevents server wages from being added a second time.
-  if (isTipEmployee(employee) || /tip|server|bartender|waiter|waitress|front.?of.?house|foh/i.test(String(row.pay_type || row.job_type || ''))) {
+  // Existing Supabase rows may store the completed amount under `total`
+  // while newer rows use `total_pay`. Prefer any populated saved total first.
+  const storedTotal = firstNonZeroAmount(row, ['total_pay', 'final_pay', 'payroll_total', 'total'])
+  if (storedTotal !== 0) return round2(storedTotal)
+  if (isTipEmployee(employee) || /tip|server|bartender|waiter|waitress|front.?of.?house|foh/i.test(String(row.pay_type || row.job_type || '')) || originalTips(row) > 0) {
     return round2(finalTips(row) + num(row.extra_pay))
   }
   return round2(resolvedRegularPay(row, employee) + resolvedOvertimePay(row, employee) + num(row.extra_pay))
@@ -431,11 +454,13 @@ export default function Payroll({ data, setData }) {
       }
       if (field === 'original_tips' || field === 'credit_card_tips' || field === 'tip_deduction') {
         const original = field === 'original_tips' || field === 'credit_card_tips' ? num(value) : originalTips(next)
-        const withheld = field === 'tip_deduction' ? num(value) : num(next.tip_deduction)
+        const withheld = field === 'tip_deduction' ? num(value) : tipWithheld(next)
         next.credit_card_tips = round2(original)
         next.original_tips = round2(original)
         next.total_tips = round2(original)
         next.tips = round2(Math.max(0, original - withheld))
+          next.tips_withheld = round2(withheld)
+          next.tips_after_withheld = next.tips
       }
       next.final_tips = finalTips(next)
       next.total_pay = finalPay(next)
@@ -521,9 +546,9 @@ export default function Payroll({ data, setData }) {
         pay_date: row.pay_date || row.period_end || dateEnd || today(), period_start: row.period_start || dateStart || row.pay_date, period_end: row.period_end || dateEnd || row.pay_date,
         job_type: row.job_type || employee.job_type || '', pay_type: row.pay_type || employee.pay_type || employee.employee_type || 'Hourly', payroll_type: row.payroll_type || employee.payroll_type || 'Check',
         check_number: row.check_number || '', hours: round2(row.hours), rate: num(row.rate) || employeeHourlyRate(employee), regular_hours: round2(row.regular_hours), overtime_hours: round2(row.overtime_hours), regular_pay: round2(resolvedRegularPay(row, employee)), overtime_pay: round2(resolvedOvertimePay(row, employee)),
-        credit_card_tips: originalTips(row), original_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: round2(row.tip_deduction), tips: round2(Math.max(0, originalTips(row) - num(row.tip_deduction))), final_tips: finalTips(row),
+        credit_card_tips: originalTips(row), original_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: tipWithheld(row), tips_withheld: tipWithheld(row), tips: finalTips(row), final_tips: finalTips(row), tips_after_withheld: finalTips(row),
         extra_pay: round2(row.extra_pay), extra_reason: String(row.extra_reason || '').trim(), notes: String(row.notes || '').trim(),
-        total_pay: finalPay({ ...row, regular_pay: resolvedRegularPay(row, employee), overtime_pay: resolvedOvertimePay(row, employee) }, employee), approval_status: 'Pending', created_at: new Date().toISOString()
+        total_pay: finalPay({ ...row, regular_pay: resolvedRegularPay(row, employee), overtime_pay: resolvedOvertimePay(row, employee) }, employee), total: finalPay({ ...row, regular_pay: resolvedRegularPay(row, employee), overtime_pay: resolvedOvertimePay(row, employee) }, employee), approval_status: 'Pending', created_at: new Date().toISOString()
       }))
       return {
         ...prev,
@@ -547,7 +572,7 @@ export default function Payroll({ data, setData }) {
     setData(prev => ({
       ...prev,
       payrollEntries: (prev.payrollEntries || []).map(row => selectedIds.includes(row.id)
-        ? { ...row, approval_status: 'Approved', approved_at: approvedAt, total_pay: finalPay(row) }
+        ? { ...row, approval_status: 'Approved', approved_at: approvedAt, total_pay: finalPay(row), total: finalPay(row), original_tips: originalTips(row), credit_card_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: tipWithheld(row), tips_withheld: tipWithheld(row), tips: finalTips(row), final_tips: finalTips(row), tips_after_withheld: finalTips(row) }
         : row)
     }))
     setStatus(`Approved ${selectedIds.length} payroll entries. They are now available on the Approved Payroll page.`)
@@ -561,14 +586,19 @@ export default function Payroll({ data, setData }) {
         const next = { ...row, [field]: value }
         if (field === 'original_tips' || field === 'credit_card_tips' || field === 'tip_deduction') {
           const original = field === 'original_tips' || field === 'credit_card_tips' ? num(value) : originalTips(next)
-          const withheld = field === 'tip_deduction' ? num(value) : num(next.tip_deduction)
+          const withheld = field === 'tip_deduction' ? num(value) : tipWithheld(next)
           next.credit_card_tips = round2(original)
           next.original_tips = round2(original)
           next.total_tips = round2(original)
           next.tips = round2(Math.max(0, original - withheld))
+          next.tips_withheld = round2(withheld)
+          next.tips_after_withheld = next.tips
         }
         next.final_tips = finalTips(next)
+        next.tips_after_withheld = next.final_tips
+        next.tips_withheld = tipWithheld(next)
         next.total_pay = finalPay(next)
+        next.total = next.total_pay
         return next
       })
     }))
@@ -597,11 +627,12 @@ export default function Payroll({ data, setData }) {
       id: createId('pay'), source: 'Manual Payroll', employee_id: employee?.id || '', employee_name: name,
       group_name: 'Manual Payroll', pay_date: manual.pay_date || manual.period_end || today(), period_start: manual.period_start, period_end: manual.period_end,
       hours: round2(manual.hours), regular_pay: round2(manual.regular_pay), overtime_pay: round2(manual.overtime_pay),
-      original_tips: tips, total_tips: tips, tip_deduction: withheld, tips: round2(Math.max(0, tips - withheld)),
+      credit_card_tips: tips, original_tips: tips, total_tips: tips, tip_deduction: withheld, tips_withheld: withheld, tips: round2(Math.max(0, tips - withheld)), final_tips: round2(Math.max(0, tips - withheld)), tips_after_withheld: round2(Math.max(0, tips - withheld)),
       extra_pay: round2(manual.extra_pay), extra_reason: manual.extra_reason.trim(), payroll_type: manual.payroll_type,
       check_number: manual.check_number.trim(), notes: manual.notes.trim(), approval_status: 'Pending', created_at: new Date().toISOString()
     }
     row.total_pay = finalPay(row)
+    row.total = row.total_pay
     setData(prev => ({ ...prev, payrollEntries: [row, ...(prev.payrollEntries || [])] }))
     setManual(blankManual())
     setShowManual(false)
@@ -612,7 +643,7 @@ export default function Payroll({ data, setData }) {
     const rows = filteredHistory
     if (!rows.length) return setStatus('No payroll rows to export.')
     const headers = ['Status','Period Start','Period End','Pay Date','Employee','Hours','Regular Pay','Overtime Pay','Original Tips','Tips Withheld','Net Tips','Extra Pay','Extra Reason','Payment Method','Check Number','Final Payroll']
-    const values = rows.map(row => [isApproved(row) ? 'Approved' : 'Pending', row.period_start || '', row.period_end || '', entryDate(row), row.employee_name || '', money(row.hours), money(resolvedRegularPay(row, employeeForRow(row))), money(row.overtime_pay), money(originalTips(row)), money(row.tip_deduction), money(row.tips), money(row.extra_pay), row.extra_reason || '', row.payroll_type || '', row.check_number || '', money(finalPay(row, employeeForRow(row)))])
+    const values = rows.map(row => [isApproved(row) ? 'Approved' : 'Pending', row.period_start || '', row.period_end || '', entryDate(row), row.employee_name || '', money(row.hours), money(resolvedRegularPay(row, employeeForRow(row))), money(row.overtime_pay), money(originalTips(row)), money(tipWithheld(row)), money(finalTips(row)), money(row.extra_pay), row.extra_reason || '', row.payroll_type || '', row.check_number || '', money(finalPay(row, employeeForRow(row)))])
     const csv = [headers, ...values].map(cols => cols.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\r\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a'); link.href = url; link.download = `payroll-${dateStart || 'all'}-to-${dateEnd || 'all'}.csv`; link.click(); URL.revokeObjectURL(url)
