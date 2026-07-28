@@ -10,6 +10,14 @@ function openDatePicker(event) {
   }
 }
 
+const PRESETS = [
+  ['today', 'Today'],
+  ['lastWeek', 'Last Week'],
+  ['lastMonth', 'Last Month'],
+  ['thisMonth', 'This Month'],
+  ['all', 'All Dates']
+]
+
 export default function DateControls({
   start,
   end,
@@ -19,39 +27,55 @@ export default function DateControls({
   onPreset,
   className = '',
   showLabels = true,
-  applyLabel = 'Apply Date Range',
+  applyLabel = 'Apply',
   activePreset = ''
 }) {
-  const presets = [
-    ['today', 'Today'],
-    ['lastWeek', 'Last Week'],
-    ['lastMonth', 'Last Month'],
-    ['thisMonth', 'This Month'],
-    ['all', 'All Dates']
-  ]
+  const selectedPreset = activePreset || 'custom'
+
+  function handlePresetChange(event) {
+    const value = event.target.value
+    if (value !== 'custom') onPreset?.(value)
+  }
 
   return (
-    <div className={`date-control-card ${className}`.trim()}>
+    <div className={`date-control-card compact-date-control ${className}`.trim()}>
+      <label className="date-preset-field">
+        <span>Date Range</span>
+        <select value={selectedPreset} onChange={handlePresetChange} aria-label="Choose date range preset">
+          <option value="custom">Custom Range</option>
+          {PRESETS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        </select>
+      </label>
+
       <div className="date-control-range">
         <label className="date-range-field">
-          <span>{showLabels ? 'Start' : ''}</span>
-          <input type="date" value={start || ''} onClick={openDatePicker} onFocus={openDatePicker} onChange={event => onStartChange?.(event.target.value)} />
+          <span>{showLabels ? 'From' : ''}</span>
+          <input
+            type="date"
+            value={start || ''}
+            onClick={openDatePicker}
+            onFocus={openDatePicker}
+            onChange={event => onStartChange?.(event.target.value)}
+          />
         </label>
+
         <span className="range-arrow" aria-hidden="true">→</span>
+
         <label className="date-range-field">
-          <span>{showLabels ? 'End' : ''}</span>
-          <input type="date" value={end || ''} onClick={openDatePicker} onFocus={openDatePicker} onChange={event => onEndChange?.(event.target.value)} />
+          <span>{showLabels ? 'To' : ''}</span>
+          <input
+            type="date"
+            value={end || ''}
+            onClick={openDatePicker}
+            onFocus={openDatePicker}
+            onChange={event => onEndChange?.(event.target.value)}
+          />
         </label>
+
         <button className="btn primary date-apply-btn" onClick={() => onApply?.()} type="button">
-          <Icon name="calendar" size={15} /> {applyLabel}
+          <Icon name="calendar" size={14} />
+          <span>{applyLabel}</span>
         </button>
-      </div>
-      <div className="quick-preset-group">
-        {presets.map(([key, label]) => (
-          <button key={key} type="button" className={`btn ghost preset-pill ${activePreset === key ? 'active' : ''}`.trim()} onClick={() => onPreset?.(key)}>
-            {label}
-          </button>
-        ))}
       </div>
     </div>
   )

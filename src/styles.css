@@ -2504,3 +2504,103 @@ input[type="date"]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.82
   .detail-modal-actions{width:100%;justify-content:flex-end}
   .dashboard-detail-modal h2{font-size:20px}
 }
+
+/* RC6.0 compact global date toolbar */
+.compact-date-control.date-control-card{
+  display:flex;
+  align-items:flex-end;
+  justify-content:flex-start;
+  gap:10px;
+  flex-wrap:wrap;
+  width:100%;
+  min-width:0;
+  padding:10px 12px;
+  border:1px solid #dbe3ee;
+  border-radius:12px;
+  background:#fff;
+  box-shadow:0 4px 14px rgba(15,23,42,.05);
+}
+.compact-date-control .date-preset-field,
+.compact-date-control .date-range-field{
+  display:grid;
+  gap:4px;
+  min-width:0;
+  margin:0;
+}
+.compact-date-control .date-preset-field{width:164px}
+.compact-date-control .date-range-field{width:158px}
+.compact-date-control .date-preset-field>span,
+.compact-date-control .date-range-field>span{
+  min-height:14px;
+  color:#64748b;
+  font-size:11px;
+  font-weight:650;
+  line-height:14px;
+  letter-spacing:.01em;
+}
+.compact-date-control select,
+.compact-date-control input[type="date"]{
+  width:100%;
+  height:36px;
+  min-height:36px;
+  padding:0 10px;
+  border:1px solid #cbd5e1;
+  border-radius:8px;
+  background:#f8fafc;
+  color:#0f172a;
+  font-size:13px;
+  font-weight:600;
+  box-shadow:none;
+}
+.compact-date-control select:hover,
+.compact-date-control input[type="date"]:hover{border-color:#94a3b8;background:#fff}
+.compact-date-control select:focus,
+.compact-date-control input[type="date"]:focus{
+  outline:none;
+  border-color:#2563eb;
+  background:#fff;
+  box-shadow:0 0 0 3px rgba(37,99,235,.12);
+}
+.compact-date-control .date-control-range{
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.compact-date-control .range-arrow{
+  display:grid;
+  place-items:center;
+  width:18px;
+  height:36px;
+  color:#94a3b8;
+  font-size:14px;
+}
+.compact-date-control .date-apply-btn{
+  height:36px;
+  min-height:36px;
+  padding:0 14px;
+  border-radius:8px;
+  gap:6px;
+  font-size:13px;
+  font-weight:650;
+  white-space:nowrap;
+  box-shadow:none;
+}
+.compact-date-control .quick-preset-group{display:none!important}
+.dashboard-date-panel .compact-date-control.date-control-card{
+  align-items:flex-end;
+  flex-direction:row;
+  padding:10px 12px;
+}
+@media(max-width:780px){
+  .compact-date-control.date-control-card{align-items:stretch}
+  .compact-date-control .date-preset-field,
+  .compact-date-control .date-range-field{width:auto;flex:1 1 145px}
+  .compact-date-control .date-control-range{width:100%;align-items:flex-end}
+  .compact-date-control .date-apply-btn{flex:0 0 auto}
+}
+@media(max-width:520px){
+  .compact-date-control .date-preset-field{width:100%;flex-basis:100%}
+  .compact-date-control .date-control-range{display:grid;grid-template-columns:1fr 14px 1fr;gap:6px}
+  .compact-date-control .date-apply-btn{grid-column:1/-1;width:100%}
+}
