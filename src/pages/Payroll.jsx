@@ -98,16 +98,26 @@ function employeeHourlyRate(employee = {}) {
   return 0
 }
 function resolvedRegularPay(row, employee = {}) {
-  // Front-of-house/tipped employees are paid from net tips, not hourly wages.
-  if (isTipEmployee(employee)) return 0
+  // Tipped employees can still earn hourly wages. Never discard imported or
+  // calculated wages merely because an employee also receives tips.
   const stored = num(row.regular_pay ?? row.regularPay ?? row.base_pay)
   if (stored > 0) return round2(stored)
-  const hours = num(row.hours)
   const rate = num(row.rate) || employeeHourlyRate(employee)
-  return round2(hours > 0 && rate > 0 ? hours * rate : 0)
+  const regularHours = num(row.regular_hours)
+  const overtimeHours = num(row.overtime_hours)
+  const totalHours = num(row.hours)
+  const payableRegularHours = regularHours > 0 ? regularHours : Math.max(totalHours - overtimeHours, 0)
+  return round2(payableRegularHours > 0 && rate > 0 ? payableRegularHours * rate : 0)
+}
+function resolvedOvertimePay(row, employee = {}) {
+  const stored = num(row.overtime_pay)
+  if (stored > 0) return round2(stored)
+  const overtimeHours = num(row.overtime_hours)
+  const rate = num(row.rate) || employeeHourlyRate(employee)
+  return round2(overtimeHours > 0 && rate > 0 ? overtimeHours * rate * 1.5 : 0)
 }
 function finalPay(row, employee = {}) {
-  return round2(resolvedRegularPay(row, employee) + num(row.overtime_pay) + finalTips(row) + num(row.extra_pay))
+  return round2(resolvedRegularPay(row, employee) + resolvedOvertimePay(row, employee) + finalTips(row) + num(row.extra_pay))
 }
 
 function presetRange(key) {
@@ -221,19 +231,28 @@ export default function Payroll({ data, setData }) {
       const key = mergeWeekly ? employeeKey : `${employeeKey}::${workDate}`
       const current = groups.get(key) || {
         id: createId('build'), employee_id: employee?.id || '', employee_name: name,
-        job_type: employee?.job_type || source.job_type || '', pay_date: periodEnd, hours: 0, regular_pay: 0, overtime_pay: 0,
+        job_type: employee?.job_type || source.job_type || '', pay_date: periodEnd, hours: 0, regular_hours: 0, overtime_hours: 0, regular_pay: 0, overtime_pay: 0,
         credit_card_tips: 0, original_tips: 0, total_tips: 0, tip_deduction: 0, tips: 0, extra_pay: 0, extra_reason: '',
         payroll_type: employee?.payroll_type || 'Check', check_number: employee?.default_check_number || '', notes: '',
         period_start: periodStart, period_end: periodEnd,
         source_file: sourceFile, source_rows: 0
       }
       const sourceHours = num(source.hours)
-      const sourceRate = num(source.rate) || (isHourlyEmployee(employee) ? employeeHourlyRate(employee) : 0)
-      const importedRegularPay = num(source.regular_pay || source.gross_pay)
-      const resolvedRegularPay = importedRegularPay || (sourceHours > 0 && sourceRate > 0 ? sourceHours * sourceRate : 0)
+      const sourceRegularHours = num(source.regular_hours)
+      const sourceOvertimeHours = num(source.overtime_hours)
+      const sourceRate = num(source.rate) || employeeHourlyRate(employee)
+      const importedRegularPay = num(source.regular_pay)
+      const importedOvertimePay = num(source.overtime_pay)
+      const calculatedRegularPay = sourceRate > 0
+        ? (sourceRegularHours > 0 ? sourceRegularHours : Math.max(sourceHours - sourceOvertimeHours, 0)) * sourceRate
+        : 0
+      const calculatedOvertimePay = sourceRate > 0 && sourceOvertimeHours > 0 ? sourceOvertimeHours * sourceRate * 1.5 : 0
+      const wageFallback = num(source.gross_pay) > 0 && !importedRegularPay && !importedOvertimePay ? num(source.gross_pay) : 0
       current.hours = round2(current.hours + sourceHours)
-      current.regular_pay = round2(current.regular_pay + resolvedRegularPay)
-      current.overtime_pay = round2(current.overtime_pay + num(source.overtime_pay))
+      current.regular_hours = round2(current.regular_hours + sourceRegularHours)
+      current.overtime_hours = round2(current.overtime_hours + sourceOvertimeHours)
+      current.regular_pay = round2(current.regular_pay + (importedRegularPay || calculatedRegularPay || wageFallback))
+      current.overtime_pay = round2(current.overtime_pay + (importedOvertimePay || calculatedOvertimePay))
       current.rate = sourceRate || current.rate || 0
       current.credit_card_tips = round2(current.credit_card_tips + num(source.credit_card_tips ?? source.total_tips))
       current.original_tips = current.credit_card_tips
@@ -494,10 +513,10 @@ export default function Payroll({ data, setData }) {
         employee_id: employee.id, employee_name: employee.name, group_name: `Toast Payroll ${row.period_start} to ${row.period_end}`,
         pay_date: row.pay_date || row.period_end || dateEnd || today(), period_start: row.period_start || dateStart || row.pay_date, period_end: row.period_end || dateEnd || row.pay_date,
         job_type: row.job_type || employee.job_type || '', pay_type: employee.pay_type || 'Hourly', payroll_type: row.payroll_type || employee.payroll_type || 'Check',
-        check_number: row.check_number || '', hours: round2(row.hours), rate: num(row.rate) || (isHourlyEmployee(employee) ? employeeHourlyRate(employee) : 0), regular_pay: isTipEmployee(employee) ? 0 : round2(resolvedRegularPay(row, employee)), overtime_pay: round2(row.overtime_pay),
+        check_number: row.check_number || '', hours: round2(row.hours), rate: num(row.rate) || employeeHourlyRate(employee), regular_hours: round2(row.regular_hours), overtime_hours: round2(row.overtime_hours), regular_pay: round2(resolvedRegularPay(row, employee)), overtime_pay: round2(resolvedOvertimePay(row, employee)),
         credit_card_tips: originalTips(row), original_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: round2(row.tip_deduction), tips: round2(Math.max(0, originalTips(row) - num(row.tip_deduction))), final_tips: finalTips(row),
         extra_pay: round2(row.extra_pay), extra_reason: String(row.extra_reason || '').trim(), notes: String(row.notes || '').trim(),
-        total_pay: finalPay({ ...row, regular_pay: isTipEmployee(employee) ? 0 : resolvedRegularPay(row, employee) }, employee), approval_status: 'Pending', created_at: new Date().toISOString()
+        total_pay: finalPay({ ...row, regular_pay: resolvedRegularPay(row, employee), overtime_pay: resolvedOvertimePay(row, employee) }, employee), approval_status: 'Pending', created_at: new Date().toISOString()
       }))
       return {
         ...prev,
