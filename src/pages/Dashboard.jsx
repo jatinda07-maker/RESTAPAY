@@ -648,7 +648,21 @@ export default function Dashboard({ data, setData, setActive }) {
   }
 
   return (
-    <div className="dashboard-v3">
+    <div className="dashboard-v3 dashboard-phase-one">
+      <header className="dashboard-masthead">
+        <div>
+          <span className="dashboard-kicker">Restaurant command center</span>
+          <h1>Financial Overview</h1>
+          <p>Live sales, payroll, costs, cash position and operating profit for the selected period.</p>
+        </div>
+        <div className="dashboard-source-strip" aria-label="Dashboard data sources">
+          <span><i className="source-dot is-live" />Toast sales</span>
+          <span><i className="source-dot is-live" />Payroll</span>
+          <span><i className="source-dot is-live" />Invoices</span>
+          <span><i className="source-dot is-live" />Expenses</span>
+        </div>
+      </header>
+
       <section className="dashboard-control-panel" aria-label="Dashboard date and sync controls">
         <div className="preset-group" aria-label="Quick date presets">
           <button type="button" className={`preset-btn ${preset === 'lastMonth' ? 'active' : ''}`} onClick={() => applyPreset('lastMonth')}>Last Month</button>
