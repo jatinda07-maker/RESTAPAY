@@ -82,14 +82,21 @@ function firstNonZeroAmount(row, keys = []) {
   }
   return 0
 }
-function tipWithheld(row = {}) {
-  return round2(firstNonZeroAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding', 'withheld_tips']))
+function storedGrossTips(row = {}) {
+  return round2(firstNonZeroAmount(row, ['credit_card_tips', 'original_tips', 'total_tips', 'gross_tips']))
 }
 function storedNetTips(row = {}) {
   return round2(firstNonZeroAmount(row, ['tips_after_withheld', 'tips_after_withholding', 'final_tips', 'net_tips', 'tips']))
 }
+function tipWithheld(row = {}) {
+  const explicit = firstNonZeroAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding', 'withheld_tips'])
+  if (explicit !== 0) return round2(explicit)
+  const gross = storedGrossTips(row)
+  const net = storedNetTips(row)
+  return round2(gross > 0 && net >= 0 ? Math.max(0, gross - net) : 0)
+}
 function originalTips(row = {}) {
-  const explicit = firstNonZeroAmount(row, ['credit_card_tips', 'original_tips', 'total_tips', 'gross_tips'])
+  const explicit = storedGrossTips(row)
   if (explicit !== 0) return round2(explicit)
   const net = storedNetTips(row)
   const withheld = tipWithheld(row)
@@ -326,7 +333,7 @@ export default function Payroll({ data, setData }) {
     acc.regular += num(row.regular_pay)
     acc.overtime += num(row.overtime_pay)
     acc.originalTips += originalTips(row)
-    acc.withheld += num(row.tip_deduction)
+    acc.withheld += tipWithheld(row)
     acc.netTips += finalTips(row)
     acc.extra += num(row.extra_pay)
     acc.final += finalPay(row, employeeForRow(row))
@@ -337,7 +344,7 @@ export default function Payroll({ data, setData }) {
     acc.employees.add(normalizeName(row.employee_name))
     acc.hours += num(row.hours)
     acc.originalTips += originalTips(row)
-    acc.withheld += num(row.tip_deduction)
+    acc.withheld += tipWithheld(row)
     acc.extra += num(row.extra_pay)
     acc.final += finalPay(row, employeeForRow(row))
     return acc
@@ -692,7 +699,7 @@ export default function Payroll({ data, setData }) {
         <div><h2>Toast Labor Line Entries</h2><p>{filteredImportedRows.length} individual entries match the selected employee and date range.</p></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table history"><thead><tr><th>Date</th><th>Employee</th><th>Job</th><th>Hours</th><th>Regular Pay</th><th>OT Pay</th><th>Original Tips</th><th>Withheld</th><th>Net Tips</th></tr></thead><tbody>
-        {filteredImportedRows.map((row, index) => <tr key={`${row.employee_external_id || row.employee_name}-${row.pay_date}-${index}`}><td>{row.pay_date || '—'}</td><td><b>{displayToastName(row.raw_name || row.employee_name)}</b></td><td>{row.job_type || '—'}</td><td>{money(row.hours)}</td><td>${money(row.regular_pay)}</td><td>${money(row.overtime_pay)}</td><td>${money(row.total_tips)}</td><td>${money(row.tip_deduction)}</td><td>${money(finalTips(row))}</td></tr>)}
+        {filteredImportedRows.map((row, index) => <tr key={`${row.employee_external_id || row.employee_name}-${row.pay_date}-${index}`}><td>{row.pay_date || '—'}</td><td><b>{displayToastName(row.raw_name || row.employee_name)}</b></td><td>{row.job_type || '—'}</td><td>{money(row.hours)}</td><td>${money(row.regular_pay)}</td><td>${money(row.overtime_pay)}</td><td>${money(row.total_tips)}</td><td>${money(tipWithheld(row))}</td><td>${money(finalTips(row))}</td></tr>)}
         {!filteredImportedRows.length && <tr><td colSpan="9" className="empty-cell">No line entries match this employee and date range.</td></tr>}
       </tbody></table></div>
     </section>}
@@ -712,7 +719,7 @@ export default function Payroll({ data, setData }) {
         <td><input type="number" step="0.01" value={row.regular_pay} onChange={e => updateBuilder(row.id, 'regular_pay', e.target.value)} /></td>
         <td><input type="number" step="0.01" value={row.overtime_pay} onChange={e => updateBuilder(row.id, 'overtime_pay', e.target.value)} /></td>
         <td><input type="number" step="0.01" value={originalTips(row)} onChange={e => updateBuilder(row.id, 'credit_card_tips', e.target.value)} /></td>
-        <td><input type="number" step="0.01" value={row.tip_deduction} onChange={e => updateBuilder(row.id, 'tip_deduction', e.target.value)} /></td>
+        <td><input type="number" step="0.01" value={tipWithheld(row)} onChange={e => updateBuilder(row.id, 'tip_deduction', e.target.value)} /></td>
         <td className="money-positive">${money(finalTips(row))}</td>
         <td><input type="number" step="0.01" value={row.extra_pay} onChange={e => updateBuilder(row.id, 'extra_pay', e.target.value)} /></td>
         <td><input value={row.extra_reason} onChange={e => updateBuilder(row.id, 'extra_reason', e.target.value)} placeholder={num(row.extra_pay) > 0 ? 'Required' : 'Optional'} /></td>
@@ -740,7 +747,7 @@ export default function Payroll({ data, setData }) {
           <td>{editable ? <input type="number" value={row.hours} onChange={e => updateEntry(row.id, 'hours', e.target.value)} /> : money(row.hours)}</td>
           <td>{editable ? <input type="number" value={row.regular_pay} onChange={e => updateEntry(row.id, 'regular_pay', e.target.value)} /> : `$${money(resolvedRegularPay(row, employeeForRow(row)))}`}</td>
           <td>{editable ? <input type="number" value={originalTips(row)} onChange={e => updateEntry(row.id, 'credit_card_tips', e.target.value)} /> : `$${money(originalTips(row))}`}</td>
-          <td>{editable ? <input type="number" value={row.tip_deduction} onChange={e => updateEntry(row.id, 'tip_deduction', e.target.value)} /> : `$${money(row.tip_deduction)}`}</td>
+          <td>{editable ? <input type="number" value={tipWithheld(row)} onChange={e => updateEntry(row.id, 'tip_deduction', e.target.value)} /> : `$${money(tipWithheld(row))}`}</td>
           <td>{editable ? <input type="number" value={row.extra_pay} onChange={e => updateEntry(row.id, 'extra_pay', e.target.value)} /> : `$${money(row.extra_pay)}`}</td>
           <td>{editable ? <input value={row.extra_reason || ''} onChange={e => updateEntry(row.id, 'extra_reason', e.target.value)} /> : (row.extra_reason || '—')}</td>
           <td className="money-positive">${money(finalTips(row))}</td>

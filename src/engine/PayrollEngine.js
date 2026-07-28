@@ -7,14 +7,22 @@ const firstNonZeroAmount = (row = {}, keys = []) => {
   }
   return 0
 }
-export const tipsWithheld = row => roundPayroll(firstNonZeroAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding', 'withheld_tips']))
+const storedGrossTips = row => roundPayroll(firstNonZeroAmount(row, ['credit_card_tips', 'original_tips', 'total_tips', 'gross_tips']))
+const storedNetTips = row => roundPayroll(firstNonZeroAmount(row, ['tips_after_withheld', 'tips_after_withholding', 'final_tips', 'net_tips', 'tips']))
+export const tipsWithheld = row => {
+  const explicit = firstNonZeroAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding', 'withheld_tips'])
+  if (explicit !== 0) return roundPayroll(explicit)
+  const gross = storedGrossTips(row)
+  const net = storedNetTips(row)
+  return roundPayroll(gross > 0 && net >= 0 ? Math.max(0, gross - net) : 0)
+}
 export const netTips = row => {
-  const stored = firstNonZeroAmount(row, ['tips_after_withheld', 'tips_after_withholding', 'final_tips', 'net_tips', 'tips'])
+  const stored = storedNetTips(row)
   if (stored !== 0) return roundPayroll(Math.max(0, stored))
   return roundPayroll(Math.max(0, originalTips(row) - tipsWithheld(row)))
 }
 export const originalTips = row => {
-  const explicit = firstNonZeroAmount(row, ['credit_card_tips', 'original_tips', 'total_tips', 'gross_tips'])
+  const explicit = storedGrossTips(row)
   if (explicit !== 0) return roundPayroll(explicit)
   return roundPayroll(netTips(row) + tipsWithheld(row))
 }
