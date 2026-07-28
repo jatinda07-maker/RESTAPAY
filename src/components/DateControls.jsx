@@ -13,11 +13,11 @@ export default function DateControls({
   applyLabel = 'Apply Date Range'
 }) {
   const presets = [
-    ['today', 'Today'],
-    ['lastWeek', 'Last Week'],
-    ['lastMonth', 'Last Month'],
-    ['thisMonth', 'This Month'],
-    ['all', 'All Dates']
+    ['today', 'Today', '#16803f'],
+    ['lastWeek', 'Last Week', '#0f7c83'],
+    ['lastMonth', 'Last Month', '#2447a8'],
+    ['thisMonth', 'This Month', '#7527c7'],
+    ['all', 'All Dates', '#1762cf']
   ]
 
   return (
@@ -29,7 +29,7 @@ export default function DateControls({
         <button className="btn primary date-apply-btn" onClick={onApply} type="button"><Icon name="calendar" size={15} /> {applyLabel}</button>
       </div>
       <div className="quick-preset-group">
-        {presets.map(([key, label]) => <button key={key} type="button" className="btn ghost preset-pill" onClick={() => onPreset(key)}>{label}</button>)}
+        {presets.map(([key, label, color]) => <button key={key} type="button" className={`btn preset-pill preset-${key}`} style={{backgroundColor:color,borderColor:color,color:'#fff'}} onClick={() => onPreset(key)}><Icon name="calendar" size={14}/>{label}</button>)}
       </div>
     </div>
   )

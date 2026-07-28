@@ -48,8 +48,18 @@ function rowInSelectedRange(row, start, end) {
 }
 function isApproved(row) { return String(row.approval_status || '').toLowerCase() === 'approved' || Boolean(row.approved_at) }
 function originalTips(row) { return round2(row.credit_card_tips ?? row.original_tips ?? row.total_tips ?? (num(row.tips) + num(row.tip_deduction))) }
-function finalTips(row) { return round2(originalTips(row) - num(row.tip_deduction) + num(row.extra_pay)) }
-function finalPay(row) { return round2(num(row.regular_pay) + num(row.overtime_pay) + num(row.tips) + num(row.extra_pay)) }
+function regularPay(row) {
+  const direct = num(row.regular_pay)
+  if (direct) return round2(direct)
+  const total = num(row.total_pay ?? row.final_payroll ?? row.approved_amount ?? row.amount)
+  if (!total) return 0
+  return round2(Math.max(0, total - num(row.overtime_pay) - num(row.tips) - num(row.extra_pay)))
+}
+function finalTips(row) { return round2(originalTips(row) - num(row.tip_deduction)) }
+function finalPay(row) {
+  const computed = round2(regularPay(row) + num(row.overtime_pay) + num(row.tips) + num(row.extra_pay))
+  return computed || round2(row.total_pay ?? row.final_payroll ?? row.approved_amount ?? row.amount)
+}
 function employeeHourlyRate(employee = {}) {
   const payType = String(employee.pay_type || employee.employee_type || '').toLowerCase()
   const explicit = num(employee.hourly_rate ?? employee.pay_rate ?? employee.rate)
@@ -219,7 +229,7 @@ export default function Payroll({ data, setData }) {
   const builderTotals = useMemo(() => visibleBuilderRows.reduce((acc, row) => {
     acc.employees += 1
     acc.hours += num(row.hours)
-    acc.regular += num(row.regular_pay)
+    acc.regular += regularPay(row)
     acc.overtime += num(row.overtime_pay)
     acc.originalTips += originalTips(row)
     acc.withheld += num(row.tip_deduction)
@@ -582,7 +592,7 @@ export default function Payroll({ data, setData }) {
           <td><b>{row.employee_name}</b><small>{row.source || row.group_name || 'Payroll'}</small></td>
           <td>{row.period_start || entryDate(row)}<small>{row.period_end && row.period_end !== row.period_start ? `to ${row.period_end}` : ''}</small></td>
           <td>{editable ? <input type="number" value={row.hours} onChange={e => updateEntry(row.id, 'hours', e.target.value)} /> : money(row.hours)}</td>
-          <td>{editable ? <input type="number" value={row.regular_pay} onChange={e => updateEntry(row.id, 'regular_pay', e.target.value)} /> : `$${money(row.regular_pay)}`}</td>
+          <td>{editable ? <input type="number" value={row.regular_pay} onChange={e => updateEntry(row.id, 'regular_pay', e.target.value)} /> : `$${money(regularPay(row))}`}</td>
           <td>{editable ? <input type="number" value={originalTips(row)} onChange={e => updateEntry(row.id, 'credit_card_tips', e.target.value)} /> : `$${money(originalTips(row))}`}</td>
           <td>{editable ? <input type="number" value={row.tip_deduction} onChange={e => updateEntry(row.id, 'tip_deduction', e.target.value)} /> : `$${money(row.tip_deduction)}`}</td>
           <td>{editable ? <input type="number" value={row.extra_pay} onChange={e => updateEntry(row.id, 'extra_pay', e.target.value)} /> : `$${money(row.extra_pay)}`}</td>

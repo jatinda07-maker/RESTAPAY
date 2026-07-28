@@ -2076,3 +2076,29 @@ button.delete-link {
 .btn.primary:hover,.btn.success:hover,button[type="submit"].btn:hover { background:#134fa8 !important;border-color:#134fa8 !important;color:#fff !important; }
 .btn.danger,.danger-btn,.bulk-delete-btn { background:#dc2626 !important;border-color:#dc2626 !important;color:#fff !important; }
 .btn.danger:hover,.danger-btn:hover,.bulk-delete-btn:hover { background:#b91c1c !important;border-color:#b91c1c !important;color:#fff !important; }
+
+/* RC4.8 global sleek controls — final override */
+:root{--sleek-radius:9px;--sleek-height:36px}
+.btn,.small-btn,.preset-pill,.preset-btn,.date-preset-btn,.quick-range-btn,
+button:not(.top-menu):not(.icon-btn):not(.modal-close){
+  min-height:var(--sleek-height)!important;border-radius:var(--sleek-radius)!important;
+  padding:0 14px!important;font-size:12.5px!important;font-weight:750!important;
+  letter-spacing:-.01em;box-shadow:0 3px 8px rgba(15,23,42,.10)!important;
+  transition:transform .14s ease,filter .14s ease,box-shadow .14s ease!important
+}
+.btn:hover,.small-btn:hover,.preset-pill:hover,.preset-btn:hover,.date-preset-btn:hover,.quick-range-btn:hover{
+  transform:translateY(-1px)!important;filter:brightness(1.06)!important;box-shadow:0 6px 13px rgba(15,23,42,.15)!important
+}
+.date-control-card{padding:12px 14px!important;border-radius:12px!important}
+.date-control-range{gap:10px!important}.date-range-field input{min-height:38px!important;border-radius:9px!important}
+.quick-preset-group{gap:8px!important}.quick-preset-group .preset-pill{min-width:112px!important;color:#fff!important;border-color:transparent!important}
+.quick-preset-group .preset-today{background:#16803f!important}.quick-preset-group .preset-lastWeek{background:#0f7c83!important}
+.quick-preset-group .preset-lastMonth{background:#2447a8!important}.quick-preset-group .preset-thisMonth{background:#7527c7!important}
+.quick-preset-group .preset-all{background:#1762cf!important}
+.date-apply-btn,.btn.primary{background:#1762cf!important;border-color:#1762cf!important;color:#fff!important}
+.btn.danger,.danger-btn,.bulk-delete-btn{background:#dc2626!important;border-color:#dc2626!important;color:#fff!important}
+.btn.secondary{background:#eef2f7!important;border-color:#ccd7e4!important;color:#23344d!important;box-shadow:none!important}
+.payroll-modern-grid{gap:10px!important}.payroll-modern-card{min-height:82px!important;padding:12px 14px!important;border-radius:12px!important;box-shadow:0 3px 10px rgba(15,23,42,.06)!important}
+.payroll-modern-card strong{font-size:23px!important}.payroll-modern-card small{font-size:11px!important}
+.payroll-rc5-table th,.payroll-rc5-table td{padding:9px 11px!important}
+@media(max-width:900px){.quick-preset-group .preset-pill{min-width:0!important;flex:1 1 130px!important}}
