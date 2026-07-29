@@ -68,10 +68,15 @@ function payrollFilterDate(row) {
   return String(entryDate(row) || row.period_start || row.period_end || '').slice(0, 10)
 }
 function rowInSelectedRange(row, start, end) {
-  const date = payrollFilterDate(row)
-  if (!date) return !start && !end
-  if (start && date < start) return false
-  if (end && date > end) return false
+  const fallback = payrollFilterDate(row)
+  const rowStart = String(row.period_start || fallback || '').slice(0, 10)
+  const rowEnd = String(row.period_end || fallback || rowStart || '').slice(0, 10)
+  if (!rowStart && !rowEnd) return !start && !end
+  // Weekly payroll rows represent the complete payroll period. Filter them by
+  // period overlap instead of only the pay date so selecting the same Toast
+  // report range never drops or misstates an approved weekly row.
+  if (start && rowEnd && rowEnd < start) return false
+  if (end && rowStart && rowStart > end) return false
   return true
 }
 function isApproved(row) { return String(row.approval_status || '').toLowerCase() === 'approved' || Boolean(row.approved_at) }
@@ -245,8 +250,10 @@ export default function Payroll({ data, setData }) {
 
   const filteredImportedRows = useMemo(() => importedRows.filter(row => {
     const date = String(row.pay_date || row.business_date || '').slice(0, 10)
-    if (dateStart && date && date < dateStart) return false
-    if (dateEnd && date && date > dateEnd) return false
+    const rowStart = String(row.period_start || date || '').slice(0, 10)
+    const rowEnd = String(row.period_end || date || rowStart || '').slice(0, 10)
+    if (dateStart && rowEnd && rowEnd < dateStart) return false
+    if (dateEnd && rowStart && rowStart > dateEnd) return false
     if (employeeFilter && !sameEmployee(employeeFilter, row.raw_name || row.employee_name)) return false
     if (employeeSearch && !normalizeName(displayToastName(row.raw_name || row.employee_name)).includes(normalizeName(employeeSearch))) return false
     return true
@@ -504,7 +511,7 @@ export default function Payroll({ data, setData }) {
       }
       const diag = laborImportDiagnostics(parsed)
       setStatus(parsed.length
-        ? `Imported ${parsed.length} Toast labor entries from ${file.name}. Payroll totals are calculated automatically and ready for review.`
+        ? `Imported ${parsed.length} Toast labor entries from ${file.name}: ${money(diag.hours)} hours, $${money(diag.totalTips)} original tips, $${money(diag.withheld)} withheld, and $${money(diag.netTips)} final tips. Payroll totals are calculated automatically and ready for review.`
         : `No Toast labor line entries were found in ${file.name}.`)
     } catch (error) {
       console.error(error)
@@ -542,10 +549,26 @@ export default function Payroll({ data, setData }) {
         }
         return { row, employee }
       })
-      const replaceKeys = new Set(resolved.map(({ row, employee }) => `${employee.id}|${row.period_start}|${row.period_end}`))
+      const replacementRows = resolved.map(({ row, employee }) => ({
+        employeeId: String(employee.id || ''),
+        employeeName: normalizeName(employee.name || row.employee_name),
+        periodStart: String(row.period_start || row.pay_date || dateStart || '').slice(0, 10),
+        periodEnd: String(row.period_end || row.pay_date || dateEnd || '').slice(0, 10)
+      }))
       const kept = oldEntries.filter(entry => {
-        const key = `${entry.employee_id}|${entry.period_start || entryDate(entry)}|${entry.period_end || entryDate(entry)}`
-        return !replaceKeys.has(key)
+        const entryStart = String(entry.period_start || entryDate(entry) || '').slice(0, 10)
+        const entryEnd = String(entry.period_end || entryDate(entry) || entryStart || '').slice(0, 10)
+        const entryEmployeeId = String(entry.employee_id || '')
+        const entryEmployeeName = normalizeName(entry.employee_name)
+        const duplicate = replacementRows.some(candidate => {
+          const samePeriod = candidate.periodStart === entryStart && candidate.periodEnd === entryEnd
+          const sameEmployee = Boolean(
+            (candidate.employeeId && entryEmployeeId && candidate.employeeId === entryEmployeeId) ||
+            (candidate.employeeName && entryEmployeeName && candidate.employeeName === entryEmployeeName)
+          )
+          return samePeriod && sameEmployee
+        })
+        return !duplicate
       })
       const created = resolved.map(({ row, employee }) => ({
         id: createId('pay'), import_id: createId('import'), source: 'Toast Payroll Builder', source_file: row.source_file || sourceFile,

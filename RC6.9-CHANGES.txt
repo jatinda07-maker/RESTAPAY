@@ -1,0 +1,13 @@
+RESTAPAY RC6.9 - PAYROLL DATE RANGE RECONCILIATION
+
+- Weekly payroll rows are filtered by period overlap instead of only pay date.
+- Toast summary rows use their full report period when the selected range matches.
+- Re-importing the same employee and payroll period replaces the stale row even if employee IDs changed.
+- Import status now reports hours, original tips, withheld tips, and final tips for audit.
+- Prevents old approved payroll amounts from remaining alongside a corrected Toast import.
+
+Expected from PayrollExport_2026_07_20-2026_07_26.csv for Israel Cruz:
+Hours: 72.88
+Original tips: $1,011.35
+Withheld: $35.30
+Final tips/payroll: $976.05
