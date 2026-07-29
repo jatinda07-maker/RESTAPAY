@@ -2872,3 +2872,105 @@ html,body,#root,.app-shell,.main-panel,.content-area{max-width:100%;overflow-x:h
   .enterprise-reconciliation-modal .enterprise-ledger-wrap{min-height:180px!important;margin-bottom:10px!important}
   .enterprise-reconciliation-footer{margin-bottom:10px!important}
 }
+
+/* RC6.6: maximize entry space and keep subtotal/dashboard total visible on every drill-down */
+.enterprise-reconciliation-modal{
+  width:min(1240px,calc(100vw - 24px))!important;
+  height:calc(100vh - 24px)!important;
+  max-height:calc(100vh - 24px)!important;
+}
+.enterprise-reconciliation-modal .enterprise-modal-header{
+  padding:14px 20px!important;
+  min-height:74px!important;
+}
+.enterprise-reconciliation-modal .enterprise-modal-icon{
+  width:46px!important;height:46px!important;border-radius:12px!important;
+}
+.enterprise-reconciliation-modal .enterprise-modal-header h2{font-size:23px!important;line-height:1.15!important}
+.enterprise-reconciliation-modal .enterprise-modal-header p{margin-top:3px!important;font-size:11px!important}
+.enterprise-reconciliation-modal .enterprise-kpi-grid{
+  padding:10px 20px!important;
+  gap:10px!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+}
+.enterprise-reconciliation-modal .enterprise-kpi-card{
+  min-height:62px!important;
+  padding:9px 12px!important;
+  border-radius:11px!important;
+  gap:9px!important;
+}
+.enterprise-reconciliation-modal .enterprise-kpi-icon{width:34px!important;height:34px!important}
+.enterprise-reconciliation-modal .enterprise-kpi-card span{font-size:9px!important}
+.enterprise-reconciliation-modal .enterprise-kpi-card strong{font-size:17px!important;margin-top:1px!important}
+.enterprise-reconciliation-modal .enterprise-kpi-card small{font-size:9px!important;margin-top:1px!important}
+.enterprise-reconciliation-modal .enterprise-ledger-wrap{
+  min-height:0!important;
+  margin:4px 20px 8px!important;
+  border-radius:10px!important;
+}
+.enterprise-reconciliation-modal .enterprise-ledger-title{
+  flex:0 0 36px!important;height:36px!important;padding:0 14px!important;
+}
+.enterprise-reconciliation-modal .enterprise-ledger-title h3{font-size:11px!important}
+.enterprise-reconciliation-modal .detail-table-scroll{
+  flex:1 1 auto!important;
+  min-height:360px!important;
+  background:#fff!important;
+}
+.enterprise-reconciliation-modal .detail-reconciliation-table thead th{
+  padding:8px 12px!important;
+  font-size:10px!important;
+}
+.enterprise-reconciliation-modal .detail-reconciliation-table tbody td{
+  padding:7px 12px!important;
+  height:32px!important;
+  font-size:11px!important;
+  line-height:1.15!important;
+}
+.enterprise-reconciliation-modal .detail-empty-row td{
+  height:180px!important;text-align:center!important;color:#64748b!important;
+}
+.enterprise-ledger-summary{
+  flex:0 0 auto!important;
+  border-top:1px solid #d9e3ee!important;
+  background:#fff!important;
+  box-shadow:0 -4px 12px rgba(15,23,42,.08)!important;
+}
+.enterprise-summary-row{
+  display:grid!important;
+  grid-template-columns:1fr auto!important;
+  align-items:center!important;
+  min-height:30px!important;
+  padding:5px 12px!important;
+  font-size:11px!important;
+  border-top:1px solid rgba(15,23,42,.06)!important;
+}
+.enterprise-summary-row:first-child{border-top:0!important}
+.enterprise-summary-row.group{background:#f8fafc!important}
+.enterprise-summary-row.subtotal{background:#edf6ff!important;color:#172033!important}
+.enterprise-summary-row.dashboard-total{background:#eefaf3!important;color:#172033!important}
+.enterprise-summary-row.balanced{background:#edf9f2!important;color:#198754!important}
+.enterprise-summary-row.difference{background:#fff1f2!important;color:#b42335!important}
+.enterprise-reconciliation-footer{
+  min-height:48px!important;
+  margin:0 20px 10px!important;
+  padding:8px 12px!important;
+  border-radius:9px!important;
+  grid-template-columns:32px 1fr auto!important;
+  gap:9px!important;
+}
+.enterprise-footer-icon{width:32px!important;height:32px!important}
+.enterprise-reconciliation-footer strong{font-size:13px!important}
+.enterprise-reconciliation-footer span{font-size:9px!important}
+.enterprise-reconciliation-footer>b{font-size:14px!important}
+@media(min-height:800px){
+  .enterprise-reconciliation-modal .detail-table-scroll{min-height:480px!important}
+}
+@media(max-height:720px){
+  .enterprise-reconciliation-modal .enterprise-kpi-grid{display:none!important}
+  .enterprise-reconciliation-modal .detail-table-scroll{min-height:360px!important}
+}
+@media(max-width:760px){
+  .enterprise-reconciliation-modal .enterprise-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .enterprise-reconciliation-modal .detail-table-scroll{min-height:300px!important}
+}

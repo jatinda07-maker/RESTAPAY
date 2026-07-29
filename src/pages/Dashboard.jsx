@@ -292,13 +292,14 @@ function DetailTable({ config, setActive, onClose }) {
       <div className="enterprise-ledger-wrap">
         <div className="enterprise-ledger-title"><Icon name="list" size={18} /><h3>Component Ledger</h3></div>
         <div className="table-scroll detail-table-scroll"><table className="detail-reconciliation-table"><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
-          {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
-        </tbody>{config.hideTotals ? null : <tfoot>
-          {config.groupSubtotals ? config.groupSubtotals.map(group => <tr key={group.label}><td colSpan={Math.max(1, config.columns.length - 1)}><b>{group.label}</b></td><td><b>{money(group.amount)}</b></td></tr>) : null}
-          <tr className="detail-subtotal-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Calculated Subtotal</b></td><td><b>{formatTotal(subtotal)}</b></td></tr>
-          <tr className="detail-dashboard-total-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Dashboard Total</b></td><td><b>{formatTotal(clickedTotal)}</b></td></tr>
-          <tr className={balanced ? 'detail-balanced-row' : 'detail-difference-row'}><td colSpan={Math.max(1, config.columns.length - 1)}><b>Difference</b></td><td><b>{formatTotal(difference)}</b></td></tr>
-        </tfoot>}</table></div>
+          {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr className="detail-empty-row"><td colSpan={config.columns.length}><small>No entries were found for the selected date range.</small></td></tr>}
+        </tbody></table></div>
+        {config.hideTotals ? null : <div className="enterprise-ledger-summary">
+          {config.groupSubtotals ? config.groupSubtotals.map(group => <div className="enterprise-summary-row group" key={group.label}><b>{group.label}</b><b>{money(group.amount)}</b></div>) : null}
+          <div className="enterprise-summary-row subtotal"><b>Calculated Subtotal</b><b>{formatTotal(subtotal)}</b></div>
+          <div className="enterprise-summary-row dashboard-total"><b>Dashboard Total</b><b>{formatTotal(clickedTotal)}</b></div>
+          <div className={`enterprise-summary-row ${balanced ? 'balanced' : 'difference'}`}><b>Difference</b><b>{formatTotal(difference)}</b></div>
+        </div>}
       </div>
 
       <footer className={`enterprise-reconciliation-footer ${balanced ? 'is-balanced' : 'needs-review'}`}>
@@ -319,7 +320,28 @@ export default function Dashboard({ data, setData, setActive }) {
   const [dateEnd, setDateEnd] = useState(savedRange.end)
 
   const salesDays = data?.salesDays || []
-  const payroll = data?.payrollEntries || []
+  const payroll = useMemo(() => {
+    const entries = Array.isArray(data?.payrollEntries) ? data.payrollEntries : []
+    const approved = Array.isArray(data?.approvedPayroll) ? data.approvedPayroll : []
+    const existingIds = new Set(entries.map(row => String(row.id || '')).filter(Boolean))
+    const existingSources = new Set(entries.map(row => String(row.source_payroll_entry_id || '')).filter(Boolean))
+    const approvedFallbackRows = approved
+      .filter(row => {
+        const id = String(row.id || '')
+        const sourceId = String(row.source_payroll_entry_id || '')
+        return !(id && existingIds.has(id)) && !(sourceId && (existingIds.has(sourceId) || existingSources.has(sourceId)))
+      })
+      .map(row => ({
+        ...row,
+        id: row.id || `approved-${row.source_payroll_entry_id || row.employee_name || Math.random()}`,
+        total_pay: firstAmount(row, ['approved_amount', 'original_amount', 'total_pay', 'total', 'amount']),
+        payment_method: row.payment_method || row.payment_type || row.payroll_type || row.method || 'Check',
+        payroll_type: row.payroll_type || row.payment_type || row.payment_method || row.method || 'Check',
+        pay_date: row.pay_date || row.payroll_date || row.pay_period_end || String(row.approved_at || row.created_at || '').slice(0, 10),
+        payroll_classification: row.payroll_classification || row.classification || row.group_name || 'Operating Labor'
+      }))
+    return [...entries, ...approvedFallbackRows]
+  }, [data?.payrollEntries, data?.approvedPayroll])
   const invoices = data?.invoices || []
   const invoiceItems = data?.invoiceItems || []
   const expenseRows = data?.expenses || []
@@ -647,8 +669,8 @@ export default function Dashboard({ data, setData, setActive }) {
     'profit-net-sales': { title: 'Net Restaurant Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.trueNetSales, amountGetter: r => num(r.net_sales), columns: [
       { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date','date']) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }
     ]},
-    'profit-payroll': { title: 'Operating Payroll Details', open: 'payroll', rows: derived.operatingLaborRows, expected: derived.operatingPayroll, amountGetter: rowTotalPay, columns: [
-      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date','payroll_date','date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Classification', render: r => payrollClassification(r) }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
+    'profit-payroll': { title: 'Operating Payroll Details', open: 'payroll', rows: derived.operatingLaborRows, expected: derived.operatingPayroll, amountGetter: rowOperatingPay, columns: [
+      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date','payroll_date','date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Classification', render: r => payrollClassification(r) }, { key: 'total_pay', label: 'Operating Pay', render: r => money(rowOperatingPay(r)) }
     ]},
     'profit-spend': { title: 'Vendor + Expense Spend Details', open: 'expenses', rows: derived.allSpendRows, expected: derived.totalSpend, amountGetter: r => num(r.amount), columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
