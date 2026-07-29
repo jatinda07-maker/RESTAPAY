@@ -1,0 +1,9 @@
+RESTAPAY RC6.4 - Reconciliation Modal Viewport Fix
+
+- Prevents the component ledger from being cut off in all dashboard detail cards.
+- Keeps the modal header, KPI cards, and reconciliation footer visible.
+- Makes only the component ledger scroll when content exceeds available height.
+- Adds sticky ledger column headers and sticky total rows.
+- Adds compact behavior for shorter screens and mobile screens.
+- Applies automatically to every dashboard card using Enterprise Reconciliation Modal.
+- Includes PUSH_RC6.4.ps1 to commit and push the current Git branch.
