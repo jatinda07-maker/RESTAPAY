@@ -110,13 +110,15 @@ function rowTipsPaid(row) {
   const withheld = firstAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding'])
   return Math.max(0, original - withheld)
 }
+function rowRegularPay(row = {}) { return firstAmount(row, ['regular_pay', 'regularPay', 'base_pay', 'basePay', 'wages', 'wage_pay']) }
+function rowOvertimePay(row = {}) { return firstAmount(row, ['overtime_pay', 'overtimePay', 'ot_pay', 'overtime']) }
+function rowExtraPay(row = {}) { return firstAmount(row, ['extra_pay', 'extraPay', 'bonus_pay', 'bonus']) }
+function rowHours(row = {}) { return firstAmount(row, ['hours', 'total_hours', 'regular_hours', 'worked_hours']) }
 function rowOperatingPay(row) {
-  // Operating labor includes wages, overtime and extra pay for every employee,
-  // including servers. Customer tips are pass-through and are excluded only
-  // from the labor/profit calculation, not by excluding the whole employee row.
-  const explicitWages = firstAmount(row, ['regular_pay', 'regularPay'])
-    + firstAmount(row, ['overtime_pay', 'overtimePay'])
-    + firstAmount(row, ['extra_pay', 'extraPay'])
+  // Labor Mix is operating wages divided by Toast net sales. Operating wages
+  // include regular wages, overtime and extra pay for every employee, including
+  // servers. Customer tips are pass-through funds and are excluded.
+  const explicitWages = rowRegularPay(row) + rowOvertimePay(row) + rowExtraPay(row)
   if (explicitWages > 0) return explicitWages
   return Math.max(0, rowTotalPay(row) - rowTipsPaid(row))
 }
@@ -304,7 +306,11 @@ function DetailTable({ config, setActive, onClose }) {
 
       <footer className={`enterprise-reconciliation-footer ${balanced ? 'is-balanced' : 'needs-review'}`}>
         <div className="enterprise-footer-icon"><Icon name={balanced ? 'check' : 'alert'} size={30} /></div>
-        <div><strong>{balanced ? 'Reconciled' : 'Review Required'}</strong><span>{balanced ? 'All values match. No differences found.' : `The component ledger differs from the dashboard by ${money(difference)}.`}</span></div>
+        <div>
+          <strong>{balanced ? 'Reconciled' : 'Review Required'}</strong>
+          <span>{balanced ? 'All values match. No differences found.' : `The component ledger differs from the dashboard by ${money(difference)}.`}</span>
+          {/labor mix/i.test(title) ? <small>Labor Mix = operating wages ÷ Toast net sales × 100. Tips are excluded.</small> : null}
+        </div>
         <b>{formatTotal(difference)}</b>
       </footer>
     </section>
@@ -669,9 +675,24 @@ export default function Dashboard({ data, setData, setActive }) {
     'profit-net-sales': { title: 'Net Restaurant Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.trueNetSales, amountGetter: r => num(r.net_sales), columns: [
       { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date','date']) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }
     ]},
-    'profit-payroll': { title: 'Operating Payroll Details', open: 'payroll', rows: derived.operatingLaborRows, expected: derived.operatingPayroll, amountGetter: rowOperatingPay, columns: [
-      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date','payroll_date','date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Classification', render: r => payrollClassification(r) }, { key: 'total_pay', label: 'Operating Pay', render: r => money(rowOperatingPay(r)) }
-    ]},
+    'profit-payroll': { title: 'Labor Mix — Operating Wages', open: 'payroll', rows: derived.operatingLaborRows, expected: derived.operatingPayroll, amountGetter: rowOperatingPay,
+      message: `Labor Mix ${pct(derived.laborPct)} = operating wages ${money(derived.operatingPayroll)} ÷ Toast net sales ${money(derived.trueNetSales)}. Customer tips are excluded, but server hourly wages remain included.`,
+      groupSubtotals: [
+        { label: 'Cash Operating Wages', amount: derived.cashOperatingPayroll },
+        { label: 'Check / Other Operating Wages', amount: Math.max(0, derived.operatingPayroll - derived.cashOperatingPayroll) }
+      ],
+      columns: [
+        { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date','payroll_date','date']) },
+        { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' },
+        { key: 'job_type', label: 'Job / Group', render: r => r.job_type || r.employee_type || r.group_name || payrollClassification(r) },
+        { key: 'hours', label: 'Hours', render: r => rowHours(r).toFixed(2) },
+        { key: 'regular_pay', label: 'Regular', render: r => money(rowRegularPay(r)) },
+        { key: 'overtime_pay', label: 'OT', render: r => money(rowOvertimePay(r)) },
+        { key: 'extra_pay', label: 'Extra', render: r => money(rowExtraPay(r)) },
+        { key: 'tips', label: 'Tips Excluded', render: r => money(rowTipsPaid(r)) },
+        { key: 'method', label: 'Method', render: r => r.payment_method || r.payment_type || r.payroll_type || r.method || '-' },
+        { key: 'total_pay', label: 'Operating Wages', render: r => money(rowOperatingPay(r)) }
+      ]},
     'profit-spend': { title: 'Vendor + Expense Spend Details', open: 'expenses', rows: derived.allSpendRows, expected: derived.totalSpend, amountGetter: r => num(r.amount), columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},

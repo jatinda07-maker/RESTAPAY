@@ -2974,3 +2974,118 @@ html,body,#root,.app-shell,.main-panel,.content-area{max-width:100%;overflow-x:h
   .enterprise-reconciliation-modal .enterprise-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .enterprise-reconciliation-modal .detail-table-scroll{min-height:300px!important}
 }
+
+/* RC6.7: keep subtotal/dashboard total visible and maximize labor/detail rows */
+.enterprise-reconciliation-modal .enterprise-ledger-wrap{
+  flex:1 1 0!important;
+  min-height:0!important;
+}
+.enterprise-reconciliation-modal .detail-table-scroll{
+  flex:1 1 0!important;
+  min-height:0!important;
+  height:auto!important;
+  max-height:none!important;
+  overflow-y:auto!important;
+  overflow-x:auto!important;
+}
+.enterprise-reconciliation-modal .enterprise-ledger-summary{
+  flex:0 0 auto!important;
+  position:relative!important;
+  z-index:5!important;
+}
+.enterprise-reconciliation-modal .enterprise-reconciliation-footer{
+  flex:0 0 auto!important;
+}
+@media(min-height:800px){
+  .enterprise-reconciliation-modal .detail-table-scroll{min-height:0!important}
+}
+@media(max-height:720px){
+  .enterprise-reconciliation-modal .detail-table-scroll{min-height:0!important}
+}
+@media(max-width:760px){
+  .enterprise-reconciliation-modal .detail-table-scroll{min-height:0!important}
+}
+.enterprise-reconciliation-modal.is-fullscreen .enterprise-ledger-wrap{
+  flex:1 1 0!important;
+  min-height:0!important;
+}
+.enterprise-reconciliation-modal.is-fullscreen .detail-table-scroll{
+  min-height:0!important;
+}
+
+/* RC6.8: reliable sticky totals, 15-row ledger viewport, and compact labor audit */
+.enterprise-reconciliation-modal{
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,1fr) auto!important;
+  height:calc(100vh - 24px)!important;
+  max-height:calc(100vh - 24px)!important;
+  overflow:hidden!important;
+}
+.enterprise-reconciliation-modal.is-fullscreen{
+  height:100vh!important;
+  max-height:100vh!important;
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+}
+.enterprise-reconciliation-modal.is-fullscreen .enterprise-kpi-grid{display:none!important}
+.enterprise-reconciliation-modal .enterprise-ledger-wrap{
+  display:grid!important;
+  grid-template-rows:36px minmax(0,1fr) auto!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  margin:4px 20px 8px!important;
+}
+.enterprise-reconciliation-modal .detail-table-scroll{
+  min-height:0!important;
+  max-height:none!important;
+  overflow:auto!important;
+  overscroll-behavior:contain;
+}
+.enterprise-reconciliation-modal .detail-reconciliation-table{
+  width:100%!important;
+  min-width:980px!important;
+}
+.enterprise-reconciliation-modal .detail-reconciliation-table thead th{
+  position:sticky!important;
+  top:0!important;
+  z-index:4!important;
+}
+.enterprise-reconciliation-modal .detail-reconciliation-table tbody td{
+  height:34px!important;
+  padding:7px 10px!important;
+  white-space:nowrap!important;
+}
+.enterprise-reconciliation-modal .enterprise-ledger-summary{
+  position:sticky!important;
+  bottom:0!important;
+  z-index:8!important;
+  display:block!important;
+  flex:none!important;
+  background:#fff!important;
+  box-shadow:0 -6px 16px rgba(15,23,42,.12)!important;
+}
+.enterprise-reconciliation-modal .enterprise-summary-row{
+  min-height:28px!important;
+  padding:4px 12px!important;
+}
+.enterprise-reconciliation-modal .enterprise-reconciliation-footer{
+  margin:0 20px 10px!important;
+  min-height:50px!important;
+}
+.enterprise-reconciliation-footer small{
+  display:block;
+  margin-top:2px;
+  font-size:9px;
+  font-weight:700;
+  color:inherit;
+  opacity:.82;
+}
+@media(min-height:850px){
+  .enterprise-reconciliation-modal:not(.is-fullscreen) .detail-table-scroll{min-height:510px!important}
+}
+@media(max-height:760px){
+  .enterprise-reconciliation-modal{grid-template-rows:auto minmax(0,1fr) auto!important}
+  .enterprise-reconciliation-modal .enterprise-kpi-grid{display:none!important}
+}
+@media(max-width:900px){
+  .enterprise-reconciliation-modal .detail-reconciliation-table{min-width:860px!important}
+}
