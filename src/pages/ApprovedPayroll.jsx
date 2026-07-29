@@ -199,7 +199,7 @@ export default function ApprovedPayroll({ data, setData }) {
         {label:'Cash',value:totals.cash,icon:'wallet',tone:'green'},
         {label:'Check',value:totals.check,icon:'receipt',tone:'orange'},
         {label:'ACH',value:totals.ach,icon:'landmark',tone:'purple'}
-      ].map(card=><button type="button" className={`summary-card payroll-modern-card tone-${card.tone}`} key={card.label} onClick={() => setSearch(card.label === 'Approved Total' ? '' : card.label)} aria-label={`Filter approved payroll by ${card.label}`}><div className="payroll-modern-card-head"><span>{card.label}</span><span className="payroll-modern-card-icon"><Icon name={card.icon === 'wallet' ? 'dollar' : card.icon} size={18}/></span></div><strong>${money(card.value)}</strong><small>{card.label === 'Approved Total' ? 'Show all filtered payroll' : `Show ${card.label} payments`}</small></button>)}
+      ].map(card=><article className={`summary-card payroll-modern-card tone-${card.tone}`} key={card.label}><div className="payroll-modern-card-head"><span>{card.label}</span><span className="payroll-modern-card-icon"><Icon name={card.icon === 'wallet' ? 'dollar' : card.icon} size={18}/></span></div><strong>${money(card.value)}</strong><small>Filtered approved payroll</small></article>)}
     </section>
 
     <section className="card">

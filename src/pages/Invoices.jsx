@@ -753,19 +753,19 @@ export default function Invoices({ data, setData }) {
     </div> : null}
 
     <section className="invoice-spend-grid compact-invoice-grid" aria-label="Invoice spending totals">
-      <button type="button" className="invoice-spend-card primary flat-summary-card" onClick={() => setSearch('')} aria-label="Show all invoices">
+      <button type="button" className="invoice-spend-card primary flat-summary-card">
         <span className="invoice-spend-icon"><Icon name="invoices" size={19} /></span>
         <span className="invoice-spend-copy"><small>Net Invoice Spend</small><strong>{formatMoney(spendingSummary.totalSpend)}</strong><em>{spendingSummary.rows.length} invoices in view</em></span>
       </button>
-      <button type="button" className="invoice-spend-card flat-summary-card" onClick={() => setSearch(topCategoryLabel)} aria-label={`Filter invoices to ${topCategoryLabel}`}>
+      <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon green"><Icon name="vendors" size={19} /></span>
         <span className="invoice-spend-copy"><small>Top Category</small><strong>{formatMoney(topCategoryAmount)}</strong><em>{topCategoryLabel}</em></span>
       </button>
-      <button type="button" className="invoice-spend-card flat-summary-card" onClick={() => setSearch('unpaid')} aria-label="Filter open and unpaid invoices">
+      <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon orange"><Icon name="expenses" size={19} /></span>
         <span className="invoice-spend-copy"><small>Open / Unpaid</small><strong>{formatMoney(spendingSummary.openSpend)}</strong><em>Paid {formatMoney(spendingSummary.paidSpend)}</em></span>
       </button>
-      <button type="button" className="invoice-spend-card flat-summary-card" onClick={() => setSearch('rebate')} aria-label="Filter rebates and credits">
+      <button type="button" className="invoice-spend-card flat-summary-card">
         <span className="invoice-spend-icon blue"><Icon name="check" size={19} /></span>
         <span className="invoice-spend-copy"><small>Rebates / Credits</small><strong>{formatMoney(-spendingSummary.rebateSpend)}</strong><em>{rebateCount} rebate or credit entries</em></span>
       </button>

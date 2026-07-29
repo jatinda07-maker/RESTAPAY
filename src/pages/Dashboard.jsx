@@ -230,12 +230,14 @@ function MiniBars({ rows, tone = 'blue' }) {
 }
 
 function DetailTable({ config, setActive, onClose }) {
-  const [fullScreen, setFullScreen] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(false)
   if (!config) return null
+
   function openScreen() {
     if (config.onOpen) return config.onOpen()
     if (config.open) setActive(config.open)
   }
+
   const rows = config.rows || []
   const subtotal = rows.reduce((sum, row) => {
     const value = config.amountGetter
@@ -245,43 +247,65 @@ function DetailTable({ config, setActive, onClose }) {
   }, 0)
   const clickedTotal = Number(config.expected ?? config.total ?? subtotal)
   const difference = clickedTotal - subtotal
-  function exportCsv() {
-    const headers = config.columns.map(column => column.label)
-    const values = rows.map(row => config.columns.map(column => {
-      const value = column.exportValue ? column.exportValue(row) : (row[column.key] ?? '')
-      return `\"${String(value).replace(/\"/g, '\"\"')}\"`
-    }).join(','))
-    const blob = new Blob([[headers.join(','), ...values].join('\n')], { type: 'text/csv;charset=utf-8' })
-    const href = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = href
-    link.download = `${String(config.title || 'restapay-details').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.csv`
-    link.click()
-    URL.revokeObjectURL(href)
-  }
-  return <div className={`dashboard-detail-backdrop ${fullScreen ? 'is-fullscreen' : ''}`} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
-    <section className={`table-card detail-section dashboard-detail-modal ${fullScreen ? 'is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={config.title}>
-      <header className="detail-modal-header">
+  const balanced = Math.abs(difference) < 0.01
+  const formatTotal = value => config.totalFormatter ? config.totalFormatter(value) : money(value)
+  const title = String(config.title || 'Dashboard Details')
+  const iconName = /prime/i.test(title) ? 'calculator' : /payroll|labor/i.test(title) ? 'payroll' : /food/i.test(title) ? 'food' : /alcohol|beer|liquor/i.test(title) ? 'beer' : /profit/i.test(title) ? 'trending' : 'sales'
+
+  return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
+    <section className={`table-card detail-section dashboard-detail-modal enterprise-reconciliation-modal${isFullScreen ? ' is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={title}>
+      <header className="detail-modal-header enterprise-modal-header">
         <div className="detail-modal-heading">
-          <span className="detail-modal-icon"><Icon name={config.icon || 'sales'} size={21} /></span>
-          <div><span className="detail-modal-kicker">RestaPay reconciliation</span><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : <p className="notice-line">Review every amount supporting the selected dashboard card.</p>}</div>
+          <span className="detail-modal-icon enterprise-modal-icon"><Icon name={iconName} size={30} /></span>
+          <div>
+            <h2>{title}</h2>
+            <p className="notice-line">{config.message || 'Component ledger used by the dashboard calculation.'}</p>
+          </div>
         </div>
-        <div className="detail-modal-actions"><button type="button" className="btn secondary small-btn" onClick={() => setFullScreen(value => !value)}><Icon name="maximize" size={15} /> {fullScreen ? 'Exit Full Screen' : 'Open Full Screen'}</button><button type="button" className="btn secondary small-btn" onClick={exportCsv}><Icon name="spreadsheet" size={15} /> Export</button>{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}><Icon name="trending" size={15} /> Open Page</button> : null}<button type="button" className="modal-close-button" onClick={onClose} aria-label="Close details">×</button></div>
+        <div className="detail-modal-actions">
+          <button type="button" className="btn secondary enterprise-fullscreen-btn" onClick={() => setIsFullScreen(value => !value)}>
+            <span aria-hidden="true">⛶</span> {isFullScreen ? 'Exit Full Screen' : 'Open Full Screen'}
+          </button>
+          <button type="button" className="btn enterprise-close-btn" onClick={onClose}><span aria-hidden="true">×</span> Close</button>
+        </div>
       </header>
-      <div className="detail-total-strip">
-        <div><span>Detail rows</span><strong>{rows.length}</strong></div>
-        <div><span>Calculated subtotal</span><strong>{config.totalFormatter ? config.totalFormatter(subtotal) : money(subtotal)}</strong></div>
-        <div><span>Dashboard total</span><strong>{config.totalFormatter ? config.totalFormatter(clickedTotal) : money(clickedTotal)}</strong></div>
-        <div className={Math.abs(difference) < 0.01 ? 'is-balanced' : 'needs-review'}><span>Status</span><strong>{Math.abs(difference) < 0.01 ? 'Balanced' : `Review ${money(difference)}`}</strong></div>
+
+      <div className="detail-total-strip enterprise-kpi-grid">
+        <div className="enterprise-kpi-card tone-blue">
+          <span className="enterprise-kpi-icon"><Icon name="sales" size={24} /></span>
+          <div><span>Detail Rows</span><strong>{rows.length}</strong><small>Components included</small></div>
+        </div>
+        <div className="enterprise-kpi-card tone-purple">
+          <span className="enterprise-kpi-icon"><Icon name="calculator" size={24} /></span>
+          <div><span>Calculated Subtotal</span><strong>{formatTotal(subtotal)}</strong><small>Sum of detail rows</small></div>
+        </div>
+        <div className="enterprise-kpi-card tone-green">
+          <span className="enterprise-kpi-icon"><Icon name="trending" size={24} /></span>
+          <div><span>Dashboard Total</span><strong>{formatTotal(clickedTotal)}</strong><small>Displayed card total</small></div>
+        </div>
+        <div className={`enterprise-kpi-card ${balanced ? 'tone-orange' : 'tone-red'}`}>
+          <span className="enterprise-kpi-icon"><Icon name={balanced ? 'check' : 'alert'} size={24} /></span>
+          <div><span>Status</span><strong>{balanced ? 'Balanced' : 'Review'}</strong><small>{balanced ? 'All values match' : `${money(difference)} difference`}</small></div>
+        </div>
       </div>
-      <div className="table-scroll detail-table-scroll"><table className="detail-reconciliation-table"><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
-        {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
-      </tbody>{config.hideTotals ? null : <tfoot>
-        {config.groupSubtotals ? config.groupSubtotals.map(group => <tr key={group.label}><td colSpan={Math.max(1, config.columns.length - 1)}><b>{group.label}</b></td><td><b>{money(group.amount)}</b></td></tr>) : null}
-        <tr className="detail-subtotal-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Calculated subtotal</b></td><td><b>{config.totalFormatter ? config.totalFormatter(subtotal) : money(subtotal)}</b></td></tr>
-        <tr className="detail-dashboard-total-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Dashboard total</b></td><td><b>{config.totalFormatter ? config.totalFormatter(clickedTotal) : money(clickedTotal)}</b></td></tr>
-        {Math.abs(difference) >= 0.01 ? <tr className="detail-difference-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Difference requiring review</b></td><td><b>{money(difference)}</b></td></tr> : null}
-      </tfoot>}</table></div>
+
+      <div className="enterprise-ledger-wrap">
+        <div className="enterprise-ledger-title"><Icon name="list" size={18} /><h3>Component Ledger</h3></div>
+        <div className="table-scroll detail-table-scroll"><table className="detail-reconciliation-table"><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
+          {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
+        </tbody>{config.hideTotals ? null : <tfoot>
+          {config.groupSubtotals ? config.groupSubtotals.map(group => <tr key={group.label}><td colSpan={Math.max(1, config.columns.length - 1)}><b>{group.label}</b></td><td><b>{money(group.amount)}</b></td></tr>) : null}
+          <tr className="detail-subtotal-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Calculated Subtotal</b></td><td><b>{formatTotal(subtotal)}</b></td></tr>
+          <tr className="detail-dashboard-total-row"><td colSpan={Math.max(1, config.columns.length - 1)}><b>Dashboard Total</b></td><td><b>{formatTotal(clickedTotal)}</b></td></tr>
+          <tr className={balanced ? 'detail-balanced-row' : 'detail-difference-row'}><td colSpan={Math.max(1, config.columns.length - 1)}><b>Difference</b></td><td><b>{formatTotal(difference)}</b></td></tr>
+        </tfoot>}</table></div>
+      </div>
+
+      <footer className={`enterprise-reconciliation-footer ${balanced ? 'is-balanced' : 'needs-review'}`}>
+        <div className="enterprise-footer-icon"><Icon name={balanced ? 'check' : 'alert'} size={30} /></div>
+        <div><strong>{balanced ? 'Reconciled' : 'Review Required'}</strong><span>{balanced ? 'All values match. No differences found.' : `The component ledger differs from the dashboard by ${money(difference)}.`}</span></div>
+        <b>{formatTotal(difference)}</b>
+      </footer>
     </section>
   </div>
 }
