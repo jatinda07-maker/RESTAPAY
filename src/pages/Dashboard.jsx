@@ -230,6 +230,7 @@ function MiniBars({ rows, tone = 'blue' }) {
 }
 
 function DetailTable({ config, setActive, onClose }) {
+  const [fullScreen, setFullScreen] = useState(false)
   if (!config) return null
   function openScreen() {
     if (config.onOpen) return config.onOpen()
@@ -244,14 +245,28 @@ function DetailTable({ config, setActive, onClose }) {
   }, 0)
   const clickedTotal = Number(config.expected ?? config.total ?? subtotal)
   const difference = clickedTotal - subtotal
-  return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
-    <section className="table-card detail-section dashboard-detail-modal" id="dashboard-details" role="dialog" aria-modal="true" aria-label={config.title}>
+  function exportCsv() {
+    const headers = config.columns.map(column => column.label)
+    const values = rows.map(row => config.columns.map(column => {
+      const value = column.exportValue ? column.exportValue(row) : (row[column.key] ?? '')
+      return `\"${String(value).replace(/\"/g, '\"\"')}\"`
+    }).join(','))
+    const blob = new Blob([[headers.join(','), ...values].join('\n')], { type: 'text/csv;charset=utf-8' })
+    const href = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = href
+    link.download = `${String(config.title || 'restapay-details').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.csv`
+    link.click()
+    URL.revokeObjectURL(href)
+  }
+  return <div className={`dashboard-detail-backdrop ${fullScreen ? 'is-fullscreen' : ''}`} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
+    <section className={`table-card detail-section dashboard-detail-modal ${fullScreen ? 'is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={config.title}>
       <header className="detail-modal-header">
         <div className="detail-modal-heading">
-          <span className="detail-modal-icon"><Icon name="sales" size={19} /></span>
-          <div><span className="detail-modal-kicker">Dashboard detail</span><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : null}</div>
+          <span className="detail-modal-icon"><Icon name={config.icon || 'sales'} size={21} /></span>
+          <div><span className="detail-modal-kicker">RestaPay reconciliation</span><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : <p className="notice-line">Review every amount supporting the selected dashboard card.</p>}</div>
         </div>
-        <div className="detail-modal-actions">{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}><Icon name="trending" size={15} /> Open Page</button> : null}<button type="button" className="modal-close-button" onClick={onClose} aria-label="Close details">×</button></div>
+        <div className="detail-modal-actions"><button type="button" className="btn secondary small-btn" onClick={() => setFullScreen(value => !value)}><Icon name="maximize" size={15} /> {fullScreen ? 'Exit Full Screen' : 'Open Full Screen'}</button><button type="button" className="btn secondary small-btn" onClick={exportCsv}><Icon name="spreadsheet" size={15} /> Export</button>{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}><Icon name="trending" size={15} /> Open Page</button> : null}<button type="button" className="modal-close-button" onClick={onClose} aria-label="Close details">×</button></div>
       </header>
       <div className="detail-total-strip">
         <div><span>Detail rows</span><strong>{rows.length}</strong></div>

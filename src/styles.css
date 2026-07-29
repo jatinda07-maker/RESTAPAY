@@ -2754,3 +2754,82 @@ html,body,#root,.app-shell,.main-panel,.content-area{max-width:100%;overflow-x:h
   .detail-modal-actions{margin-left:auto!important;width:auto!important}
   .detail-modal-actions .btn{display:none!important}
 }
+
+/* RC6.2 enterprise visual system - approved image reference implementation */
+:root {
+  --rc6-bg: #f4f7fb;
+  --rc6-surface: #ffffff;
+  --rc6-border: #dfe6f0;
+  --rc6-text: #172033;
+  --rc6-muted: #68758a;
+  --rc6-navy: #163a63;
+  --rc6-blue: #2563eb;
+  --rc6-radius: 16px;
+  --rc6-shadow: 0 12px 32px rgba(24, 39, 75, .08);
+}
+body { background: var(--rc6-bg); color: var(--rc6-text); }
+.content-area { padding: 18px 22px 32px; }
+.page-stack, .dashboard-page { gap: 14px; }
+.card, .form-card, .table-card, .filter-card, .panel-card, .section-card,
+.expense-entry-card, .payroll-rc5-card, .mi-card, .mi-matrix-card,
+.cost-department-card, .report-builder-card {
+  border: 1px solid var(--rc6-border) !important;
+  border-radius: var(--rc6-radius) !important;
+  box-shadow: var(--rc6-shadow);
+  background: var(--rc6-surface);
+}
+button.metric-card, button.invoice-spend-card, button.summary-card,
+button.summary-click-card, button.import-type-card, .section-card-title-button,
+.line-row-button { cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+button.metric-card:hover, button.invoice-spend-card:hover, button.summary-card:hover,
+button.summary-click-card:hover, button.import-type-card:hover {
+  transform: translateY(-2px); box-shadow: 0 16px 34px rgba(24,39,75,.13); border-color: #b9c8dd !important;
+}
+button.metric-card:focus-visible, button.invoice-spend-card:focus-visible,
+button.summary-card:focus-visible, button.summary-click-card:focus-visible,
+button.import-type-card:focus-visible { outline: 3px solid rgba(37,99,235,.22); outline-offset: 2px; }
+.table-scroll, .table-wrap, .payroll-rc5-table-wrap { border-radius: 12px; border: 1px solid var(--rc6-border); overflow: auto; }
+table thead th { position: sticky; top: 0; z-index: 2; background: var(--rc6-navy) !important; color: white !important; font-size: 11px; letter-spacing: .035em; text-transform: uppercase; }
+table tbody tr:nth-child(even) { background: #f8fafc; }
+table tbody tr:hover { background: #eef5ff; }
+table td, table th { padding: 10px 12px; }
+.btn { min-height: 36px; border-radius: 9px; font-weight: 700; }
+input, select, textarea { border-radius: 9px !important; border-color: #ccd6e5 !important; background: #fbfcfe; }
+
+/* Standard reconciliation popup based on approved Prime Cost design */
+.dashboard-detail-backdrop { padding: 22px; backdrop-filter: blur(5px); background: rgba(12, 24, 42, .48); }
+.dashboard-detail-modal { width: min(1180px, 96vw); max-height: 92vh; padding: 0 !important; overflow: hidden; border-radius: 20px !important; box-shadow: 0 30px 80px rgba(7,20,38,.28); }
+.dashboard-detail-modal.is-fullscreen { width: calc(100vw - 24px); height: calc(100vh - 24px); max-height: none; }
+.dashboard-detail-backdrop.is-fullscreen { padding: 12px; }
+.detail-modal-header { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px 22px; background: #fff; border-bottom: 1px solid var(--rc6-border); }
+.detail-modal-heading { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.detail-modal-icon { display: grid; place-items: center; width: 46px; height: 46px; flex: 0 0 46px; border-radius: 13px; background: linear-gradient(135deg,#e6efff,#f4eaff); color: #2856c6; }
+.detail-modal-kicker { color: #68758a; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.detail-modal-heading h2 { margin: 2px 0 0; font-size: 22px; }
+.notice-line { margin: 4px 0 0; color: var(--rc6-muted); font-size: 13px; }
+.detail-modal-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.modal-close-button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; border: 1px solid #d7dfeb; background: #f8fafc; font-size: 22px; }
+.detail-total-strip { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; padding: 16px 22px; background: #f7f9fc; }
+.detail-total-strip > div { min-height: 86px; padding: 15px 16px; border-radius: 14px; border: 1px solid #e0e7f1; background: linear-gradient(145deg,#fff,#f5f8fc); }
+.detail-total-strip > div:nth-child(1) { background: linear-gradient(145deg,#edf5ff,#f9fcff); }
+.detail-total-strip > div:nth-child(2) { background: linear-gradient(145deg,#f2edff,#fbfaff); }
+.detail-total-strip > div:nth-child(3) { background: linear-gradient(145deg,#fff3e7,#fffaf5); }
+.detail-total-strip > div.is-balanced { background: linear-gradient(145deg,#eafaf1,#f8fffb); }
+.detail-total-strip > div.needs-review { background: linear-gradient(145deg,#fff0ef,#fff9f8); }
+.detail-total-strip span { display: block; color: var(--rc6-muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.detail-total-strip strong { display: block; margin-top: 8px; font-size: 20px; }
+.detail-table-scroll { margin: 0 22px 22px; max-height: 54vh; }
+.dashboard-detail-modal.is-fullscreen .detail-table-scroll { max-height: calc(100vh - 230px); }
+.detail-reconciliation-table tfoot tr { background: #f4f7fb; }
+.detail-reconciliation-table tfoot .detail-subtotal-row { background: #eef4ff; }
+.detail-reconciliation-table tfoot .detail-dashboard-total-row { background: #eaf8ef; }
+.detail-reconciliation-table tfoot .detail-difference-row { background: #fff0ef; }
+
+@media (max-width: 820px) {
+  .content-area { padding: 12px; }
+  .detail-modal-header { align-items: flex-start; flex-direction: column; }
+  .detail-modal-actions { width: 100%; justify-content: flex-start; }
+  .detail-total-strip { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 12px; }
+  .detail-table-scroll { margin: 0 12px 12px; }
+}
+@media (max-width: 520px) { .detail-total-strip { grid-template-columns: 1fr; } }
