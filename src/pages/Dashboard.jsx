@@ -744,7 +744,7 @@ export default function Dashboard({ data, setData, setActive }) {
           <strong>{pct(derived.primeCostPct)}</strong>
           <small>Food + payroll against net restaurant sales</small>
         </button>
-        <button type="button" className="command-tile" onClick={() => showDetail('operating-payroll')}>
+        <button type="button" className="command-tile" onClick={() => showDetail('profit-payroll')}>
           <span>Labor Mix</span>
           <strong>{pct(derived.laborPct)}</strong>
           <small>Cash {money(derived.cashPayroll)} · Check {money(derived.checkPayroll)}</small>
@@ -773,7 +773,7 @@ export default function Dashboard({ data, setData, setActive }) {
       <section className="business-health-strip" aria-label="Today business health and reconciliation">
         <button type="button" onClick={() => showDetail('true-food-cost')}><span>Food Cost</span><strong>{pct(derived.foodCostPct)}</strong><small>{money(derived.foodSpend)}</small></button>
         <button type="button" onClick={() => showDetail('department', 'alcohol-sales')}><span>Alcohol Sales</span><strong>{money(derived.departmentCosts.alcoholSales)}</strong><small>Margaritas included: {money(derived.margaritaSales)}</small></button>
-        <button type="button" onClick={() => showDetail('operating-payroll')}><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></button>
+        <button type="button" onClick={() => showDetail('profit-payroll')}><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></button>
         <button type="button" onClick={() => showDetail('prime-cost')}><span>Prime Cost</span><strong>{pct(derived.primeCostPct)}</strong><small>Food + alcohol COGS + labor</small></button>
         <button type="button" onClick={() => showDetail('operating-profit')}><span>Net Profit</span><strong>{money(derived.operatingProfit)}</strong><small>{pct(derived.profitMargin)} margin</small></button>
         <button type="button" onClick={() => showDetail('sales')}><span>Average Check</span><strong>{money(derived.averageCheck)}</strong><small>{derived.guestCount.toLocaleString()} guests/checks</small></button>
