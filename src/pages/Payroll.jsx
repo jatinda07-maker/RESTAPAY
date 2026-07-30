@@ -589,9 +589,15 @@ export default function Payroll({ data, setData }) {
     })
     setDateStart(selected.reduce((min, row) => !min || row.period_start < min ? row.period_start : min, selected[0]?.period_start || dateStart))
     setDateEnd(selected.reduce((max, row) => !max || row.period_end > max ? row.period_end : max, selected[0]?.period_end || dateEnd))
+    // Clear the completed import workspace after payroll rows are created.
+    // The newly-created pending rows remain visible in the Payroll Register below.
+    setImportedRows([])
     setBuilderRows([])
     setSelectedBuilderIds([])
-    setStatus(`Created payroll for ${selected.length} employees. The new pending rows are ready below for approval.`)
+    setEmployeeFilter('')
+    setEmployeeSearch('')
+    setSourceFile('')
+    setStatus(`Created payroll for ${selected.length} employees. Import workspace cleared; the new pending rows are ready below for approval.`)
   }
 
   function approveRows(ids) {
@@ -605,7 +611,15 @@ export default function Payroll({ data, setData }) {
         ? { ...row, approval_status: 'Approved', approved_at: approvedAt, total_pay: finalPay(row), total: finalPay(row), original_tips: originalTips(row), credit_card_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: tipWithheld(row), tips_withheld: tipWithheld(row), tips: finalTips(row), final_tips: finalTips(row), tips_after_withheld: finalTips(row) }
         : row)
     }))
-    setStatus(`Approved ${selectedIds.length} payroll entries. They are now available on the Approved Payroll page.`)
+    // Approval completes the current payroll workflow. Remove any stale import or
+    // builder rows so the same Toast batch cannot accidentally be created again.
+    setImportedRows([])
+    setBuilderRows([])
+    setSelectedBuilderIds([])
+    setEmployeeFilter('')
+    setEmployeeSearch('')
+    setSourceFile('')
+    setStatus(`Approved ${selectedIds.length} payroll entries. Import workspace cleared; they are now available on the Approved Payroll page.`)
   }
 
   function updateEntry(id, field, value) {
