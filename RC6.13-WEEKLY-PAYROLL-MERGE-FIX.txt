@@ -1,0 +1,15 @@
+RESTAPAY RC6.13 - WEEKLY PAYROLL MERGE FIX
+
+Fixed Payroll.jsx so Toast labor rows merge into one weekly row per employee.
+
+Changes:
+- Weekly grouping now uses a stable normalized employee name instead of potentially different database IDs.
+- Weekly period start/end now use the selected payroll week consistently.
+- Pay date now stays aligned to the selected week-ending date.
+- Multiple Toast job/shift/day rows for the same employee are added together into one weekly builder row.
+- Existing payroll workspace clearing, permanent approved-payroll deletion, and tombstone protections remain included.
+
+Build validation note:
+- Source patch was completed.
+- Automated Vite build could not run in the packaging environment because npm dependency installation timed out / registry package access failed.
+- Run npm install and npm run build on the local machine before deployment.

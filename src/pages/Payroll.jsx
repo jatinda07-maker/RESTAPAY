@@ -288,11 +288,15 @@ export default function Payroll({ data, setData }) {
       if (!name) return
       const workDate = String(source.pay_date || source.business_date || '').slice(0, 10)
       if (!workDate) return
-      const employeeKey = employee?.id || normalizeName(name)
+      // Weekly merge must use one stable employee key and one selected week.
+      // Toast can repeat the same person with different job rows, external IDs,
+      // punctuation, or daily period values. Using an employee database ID or a
+      // row-level period can split one employee into several weekly rows.
+      const employeeKey = normalizeName(employee?.name || name || rawName)
       const importedPeriodStart = String(source.period_start || '').slice(0,10)
       const importedPeriodEnd = String(source.period_end || '').slice(0,10)
-      const periodStart = mergeWeekly ? (importedPeriodStart || dateStart || workDate) : workDate
-      const periodEnd = mergeWeekly ? (importedPeriodEnd || dateEnd || workDate) : workDate
+      const periodStart = mergeWeekly ? (dateStart || importedPeriodStart || workDate) : workDate
+      const periodEnd = mergeWeekly ? (dateEnd || importedPeriodEnd || workDate) : workDate
       const key = mergeWeekly ? employeeKey : `${employeeKey}::${workDate}`
       const current = groups.get(key) || {
         id: createId('build'), employee_id: employee?.id || '', employee_name: name,
@@ -325,6 +329,11 @@ export default function Payroll({ data, setData }) {
       current.tip_deduction = round2(current.tip_deduction + num(source.tip_deduction))
       current.tips = round2(Math.max(0, current.credit_card_tips - current.tip_deduction))
       current.source_rows += 1
+      if (mergeWeekly) {
+        current.period_start = dateStart || current.period_start || importedPeriodStart || workDate
+        current.period_end = dateEnd || current.period_end || importedPeriodEnd || workDate
+        current.pay_date = current.period_end
+      }
       current.total_pay = finalPay(current)
       groups.set(key, current)
     })
