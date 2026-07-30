@@ -159,12 +159,16 @@ export default function ApprovedPayroll({ data, setData }) {
         <div class="stub employee-copy"><h3>Employee Copy</h3><div><b>Employee:</b> ${employee}</div><div><b>Check #:</b> ${number}</div><div><b>Pay period:</b> ${escapeHtml(payPeriod||row.pay_date||'')}</div><div class="stub-total">Net Pay: $${amount}</div></div>
       </section>`
     }).join('')
-    const printWindow=window.open('','_blank','noopener,noreferrer')
-    if(!printWindow){window.alert('Allow pop-ups to print checks.');return}
+    // Do not use the `noopener` feature here. Chrome can return `null` while
+    // still opening an empty tab, which leaves the user with a blank screen.
+    const printWindow=window.open('about:blank','_blank')
+    if(!printWindow){window.alert('Your browser blocked the check preview. Allow pop-ups for this site and try again.');return}
+    printWindow.document.open()
     printWindow.document.write(`<!doctype html><html><head><title>Payroll Checks</title><style>
       @page{size:letter;margin:0.25in}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#111}.check-page{height:10.5in;page-break-after:always}.check-page:last-child{page-break-after:auto}.check{height:3.45in;border:1px solid #777;padding:.22in .3in;position:relative}.check-head{display:grid;grid-template-columns:1fr 1fr auto;gap:15px;min-height:.55in;font-size:12px}.check-head strong{font-size:17px}.bank{text-align:center;font-weight:700}.check-no{text-align:right;font-size:14px}.check-date{text-align:right;margin:.08in 0}.check-date span{margin-right:12px;font-size:11px}.check-date b{display:inline-block;border-bottom:1px solid #222;min-width:1.25in;padding:3px}.pay-line{display:grid;grid-template-columns:.7in 1fr 1.25in;gap:10px;align-items:end;margin:.18in 0}.pay-line span{font-size:9px}.pay-line b{border-bottom:1px solid #222;padding:6px;font-size:15px}.pay-line strong{border:1px solid #222;padding:7px;text-align:right;font-size:16px}.words{border-bottom:1px solid #222;padding:7px 4px;font-weight:700;min-height:.35in}.check-foot{display:flex;justify-content:space-between;align-items:end;margin-top:.55in}.signature{border-top:1px solid #222;width:2.4in;text-align:center;padding-top:4px;font-size:10px}.stub{height:3.2in;border:1px dashed #777;border-top:0;padding:.25in .35in;font-size:12px}.stub h3{margin:0 0 .15in}.stub>div{margin:5px 0}.stub table{border-collapse:collapse;width:100%;margin-top:.2in}.stub th,.stub td{border:1px solid #aaa;padding:9px;text-align:right}.stub th:first-child,.stub td:first-child{text-align:left}.employee-copy{height:3.2in}.stub-total{font-size:18px;font-weight:700;text-align:right;margin-top:.25in!important}@media screen{body{background:#eee}.check-page{width:8in;margin:15px auto;background:white;box-shadow:0 2px 12px #aaa}}
-    </style></head><body>${pages}<script>window.onload=()=>{window.focus();window.print()}<\/script></body></html>`)
+    </style></head><body>${pages}<script>window.onload=()=>{window.focus();setTimeout(()=>window.print(),250)}<\/script></body></html>`)
     printWindow.document.close()
+    printWindow.focus()
     setCheckPrintOpen(false)
   }
 
