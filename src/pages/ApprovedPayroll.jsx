@@ -48,7 +48,11 @@ export default function ApprovedPayroll({ data, setData }) {
   const [form,setForm]=useState({})
   const [selected,setSelected]=useState([])
   const [bulkEditing,setBulkEditing]=useState(false)
-  const [bulkForm,setBulkForm]=useState({payment_status:'',payment_type:'',check_number:'',paid_date:''})
+  const [bulkForm,setBulkForm]=useState({payment_status:'Paid',payment_type:'Check',check_number:'',paid_date:today(),notes:''})
+
+
+  const selectedRows=useMemo(()=>rows.filter(row=>selected.includes(String(row.id))),[rows,selected])
+  const selectedTotal=useMemo(()=>selectedRows.reduce((sum,row)=>sum+num(row.approved_amount),0),[selectedRows])
 
   const employeeOptions=useMemo(()=>Array.from(new Set(rows.map(r=>String(r.employee_name||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b)),[rows])
 
@@ -134,19 +138,43 @@ export default function ApprovedPayroll({ data, setData }) {
 
   function applyBulkEdit(){
     if(!selected.length) return
-    const updates={}
-    if(bulkForm.payment_status){
-      updates.payment_status=bulkForm.payment_status
-      if(bulkForm.payment_status==='Paid') updates.paid_date=bulkForm.paid_date||today()
-      else if(bulkForm.paid_date) updates.paid_date=bulkForm.paid_date
-    } else if(bulkForm.paid_date) updates.paid_date=bulkForm.paid_date
-    if(bulkForm.payment_type) updates.payment_type=bulkForm.payment_type
-    if(bulkForm.check_number!=='') updates.check_number=bulkForm.check_number
-    if(!Object.keys(updates).length){ window.alert('Choose at least one field to update.'); return }
-    if(!window.confirm(`Apply these changes to ${selected.length} selected payroll record${selected.length===1?'':'s'}?`)) return
-    applyUpdates(selected,updates)
+    const now=new Date().toISOString()
+    const startingCheck=String(bulkForm.check_number||'').trim()
+    const numericStart=/^\d+$/.test(startingCheck)?Number(startingCheck):null
+    const chosenRows=rows.filter(row=>selected.includes(String(row.id)))
+    if(!window.confirm(`Apply payment changes to ${chosenRows.length} selected payroll record${chosenRows.length===1?'':'s'}?`)) return
+
+    setData(prev=>{
+      const perApproved=new Map()
+      const perSource=new Map()
+      chosenRows.forEach((row,index)=>{
+        const checkNumber=bulkForm.payment_type==='Check' && startingCheck
+          ? String(numericStart===null?startingCheck:numericStart+index)
+          : (bulkForm.payment_type==='Check'?row.check_number:'')
+        const updates={
+          payment_status:bulkForm.payment_status||row.payment_status||'Pending',
+          payment_type:bulkForm.payment_type||row.payment_type||'Check',
+          paid_date:(bulkForm.payment_status==='Paid'?(bulkForm.paid_date||today()):(bulkForm.paid_date||row.paid_date||'')),
+          check_number:checkNumber,
+          notes:bulkForm.notes?`${row.notes?`${row.notes}\n`:''}${bulkForm.notes}`:row.notes,
+          updated_at:now
+        }
+        perApproved.set(String(row.id),updates)
+        if(row.source_payroll_entry_id) perSource.set(String(row.source_payroll_entry_id),updates)
+      })
+      const existing=Array.isArray(prev.approvedPayroll)?prev.approvedPayroll:[]
+      const existingIds=new Set(existing.map(row=>String(row.id)))
+      const approvedPayroll=existing.map(row=>perApproved.has(String(row.id))?{...row,...perApproved.get(String(row.id))}:row)
+      chosenRows.forEach(row=>{if(!existingIds.has(String(row.id))) approvedPayroll.push({...row,...perApproved.get(String(row.id))})})
+      const payrollEntries=(prev.payrollEntries||[]).map(entry=>{
+        const updates=perSource.get(String(entry.id))
+        if(!updates) return entry
+        return {...entry,payment_status:updates.payment_status,payment_method:updates.payment_type,payroll_type:updates.payment_type,check_number:updates.check_number,paid_date:updates.paid_date,notes:updates.notes,updated_at:now}
+      })
+      return {...prev,approvedPayroll,payrollEntries}
+    })
     setBulkEditing(false)
-    setBulkForm({payment_status:'',payment_type:'',check_number:'',paid_date:''})
+    setBulkForm({payment_status:'Paid',payment_type:'Check',check_number:'',paid_date:today(),notes:''})
   }
 
   function toggleRow(id){
@@ -258,6 +286,6 @@ export default function ApprovedPayroll({ data, setData }) {
 
     {editing&&<div className="payroll-edit-overlay" onClick={()=>setEditing(null)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Approved Payroll</h2><p>The original payroll amount remains visible for audit.</p></div><button className="modal-close" onClick={()=>setEditing(null)}>×</button></header><div className="payroll-edit-grid"><label>Employee<input value={form.employee_name||''} disabled/></label><label>Original Amount<input value={money(form.original_amount)} disabled/></label><label>Approved Amount<input type="number" step="0.01" value={form.approved_amount??''} onChange={e=>setForm(f=>({...f,approved_amount:e.target.value}))}/></label><label>Payment Type<select value={form.payment_type||'Check'} onChange={e=>setForm(f=>({...f,payment_type:e.target.value}))}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>Check Number<input value={form.check_number||''} onChange={e=>setForm(f=>({...f,check_number:e.target.value}))}/></label><label>Status<select value={form.payment_status||'Pending'} onChange={e=>setForm(f=>({...f,payment_status:e.target.value,paid_date:e.target.value==='Paid'?(f.paid_date||today()):f.paid_date}))}><option>Pending</option><option>Paid</option><option>Void</option></select></label><label>Paid Date<input type="date" value={form.paid_date||''} onChange={e=>setForm(f=>({...f,paid_date:e.target.value}))}/></label><label className="wide">Notes<textarea value={form.notes||''} onChange={e=>setForm(f=>({...f,notes:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setEditing(null)}>Cancel</button><button className="btn primary" onClick={save}>Save Changes</button></footer></section></div>}
 
-    {bulkEditing&&<div className="payroll-edit-overlay" onClick={()=>setBulkEditing(false)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Selected Payroll</h2><p>Only fields you choose below will be changed for {selected.length} selected record{selected.length===1?'':'s'}.</p></div><button className="modal-close" onClick={()=>setBulkEditing(false)}>×</button></header><div className="payroll-edit-grid"><label>Status<select value={bulkForm.payment_status} onChange={e=>setBulkForm(f=>({...f,payment_status:e.target.value,paid_date:e.target.value==='Paid'?(f.paid_date||today()):f.paid_date}))}><option value="">Keep current status</option><option>Pending</option><option>Paid</option><option>Void</option></select></label><label>Payment Type<select value={bulkForm.payment_type} onChange={e=>setBulkForm(f=>({...f,payment_type:e.target.value}))}><option value="">Keep current payment type</option><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>Check Number<input value={bulkForm.check_number} placeholder="Leave blank to keep current" onChange={e=>setBulkForm(f=>({...f,check_number:e.target.value}))}/></label><label>Paid Date<input type="date" value={bulkForm.paid_date} onChange={e=>setBulkForm(f=>({...f,paid_date:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setBulkEditing(false)}>Cancel</button><button className="btn primary" onClick={applyBulkEdit}>Apply Changes</button></footer></section></div>}
+    {bulkEditing&&<div className="payroll-edit-overlay approved-bulk-overlay" onClick={()=>setBulkEditing(false)}><section className="payroll-edit-modal approved-bulk-modal" onClick={e=>e.stopPropagation()}><header className="approved-bulk-header"><div><span className="approved-bulk-eyebrow">PAYMENT WORKSPACE</span><h2>Process Selected Payroll</h2><p>Review all selected employees, choose how to pay them, and apply the payment details in one step.</p></div><button className="modal-close" onClick={()=>setBulkEditing(false)} aria-label="Close">×</button></header><div className="approved-bulk-kpis"><article><span>Selected Employees</span><strong>{selectedRows.length}</strong></article><article><span>Total Payroll</span><strong>${money(selectedTotal)}</strong></article><article><span>Payment Method</span><strong>{bulkForm.payment_type||'Keep Current'}</strong></article></div><div className="approved-bulk-body"><section className="approved-bulk-form-card"><h3>Payment Options</h3><div className="payroll-edit-grid"><label>Status<select value={bulkForm.payment_status} onChange={e=>setBulkForm(f=>({...f,payment_status:e.target.value,paid_date:e.target.value==='Paid'?(f.paid_date||today()):f.paid_date}))}><option>Pending</option><option>Paid</option><option>Void</option></select></label><label>Payment Type<select value={bulkForm.payment_type} onChange={e=>setBulkForm(f=>({...f,payment_type:e.target.value}))}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>{bulkForm.payment_type==='Check'?'Starting Check Number':'Reference Number'}<input value={bulkForm.check_number} placeholder={bulkForm.payment_type==='Check'?'Example: 12501':'Optional'} onChange={e=>setBulkForm(f=>({...f,check_number:e.target.value}))}/><small>{bulkForm.payment_type==='Check'?'Numbers continue automatically for each employee.':'Optional payment reference.'}</small></label><label>Paid Date<input type="date" value={bulkForm.paid_date} onChange={e=>setBulkForm(f=>({...f,paid_date:e.target.value}))}/></label><label className="wide">Payment Note<textarea value={bulkForm.notes} placeholder="Optional note applied to all selected payroll records" onChange={e=>setBulkForm(f=>({...f,notes:e.target.value}))}/></label></div></section><section className="approved-bulk-list-card"><div className="approved-bulk-list-head"><h3>Selected Employees</h3><span>{selectedRows.length} entries</span></div><div className="approved-bulk-list">{selectedRows.map((row,index)=><article key={row.id} className="approved-bulk-employee"><div className="approved-bulk-avatar">{String(row.employee_name||'?').trim().charAt(0).toUpperCase()}</div><div><strong>{row.employee_name}</strong><small>{row.pay_date||row.pay_period_end||'No pay date'} · {row.payment_type||'Check'}</small></div><b>${money(row.approved_amount)}</b>{bulkForm.payment_type==='Check'&&bulkForm.check_number&&<em>#{/^\d+$/.test(String(bulkForm.check_number))?Number(bulkForm.check_number)+index:bulkForm.check_number}</em>}</article>)}</div></section></div><footer className="approved-bulk-footer"><div><span>Total to process</span><strong>${money(selectedTotal)}</strong></div><div><button className="btn secondary" onClick={()=>setBulkEditing(false)}>Cancel</button><button className="btn primary approved-process-button" onClick={applyBulkEdit}><Icon name="check" size={16}/> Apply Payment to {selectedRows.length}</button></div></footer></section></div>}
   </div>
 }
