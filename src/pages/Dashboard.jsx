@@ -54,6 +54,28 @@ function rowDate(row, keys = []) {
   for (const key of keys) if (row?.[key]) return String(row[key]).slice(0, 10)
   return String(row?.business_date || row?.pay_date || row?.payroll_date || row?.invoice_date || row?.date || row?.expense_date || row?.created_at || '').slice(0, 10)
 }
+
+function detailRowDate(row = {}) {
+  return rowDate(row, [
+    'business_date', 'pay_date', 'payroll_date', 'pay_period_end',
+    'invoice_date', 'expense_date', 'transaction_date', 'date', 'created_at'
+  ])
+}
+
+function sortDetailRowsAscending(rows = []) {
+  return rows
+    .map((row, index) => ({ row, index, date: detailRowDate(row) }))
+    .sort((a, b) => {
+      if (a.date && b.date) {
+        const byDate = a.date.localeCompare(b.date)
+        if (byDate !== 0) return byDate
+      } else if (a.date) return -1
+      else if (b.date) return 1
+      return a.index - b.index
+    })
+    .map(item => item.row)
+}
+
 function isDateInRange(dateText, start, end) {
   const d = String(dateText || '').slice(0, 10)
   if (!d) return false
@@ -240,7 +262,7 @@ function DetailTable({ config, setActive, onClose }) {
     if (config.open) setActive(config.open)
   }
 
-  const rows = config.rows || []
+  const rows = config.preserveOrder ? (config.rows || []) : sortDetailRowsAscending(config.rows || [])
   const subtotal = rows.reduce((sum, row) => {
     const value = config.amountGetter
       ? config.amountGetter(row)
@@ -642,8 +664,12 @@ export default function Dashboard({ data, setData, setActive }) {
   }
 
   const detailConfig = {
-    sales: { title: 'Toast Total Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.toastTotalSales, amountGetter: toastNetSalesAmount, columns: [
-      { key: 'business_date', label: 'Date' }, { key: 'gross_sales', label: 'Gross', render: r => money(num(r.gross_sales)) }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
+    sales: { title: 'Toast Total Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.toastTotalSales, amountGetter: toastNetSalesAmount, groupSubtotals: [
+      { label: 'Cash Sales Subtotal', amount: derived.cashSales },
+      { label: 'Credit Sales Subtotal', amount: derived.creditSales },
+      { label: 'Tips Subtotal', amount: derived.tips }
+    ], columns: [
+      { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date', 'date']) }, { key: 'gross_sales', label: 'Gross', render: r => money(num(r.gross_sales)) }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(toastCashSalesAmount(r)) }, { key: 'credit_sales', label: 'Credit', render: r => money(toastCreditSalesAmount(r)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
     ]},
     'cash-sales': { title: 'Toast Cash Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.cashSales, amountGetter: toastCashSalesAmount, message: 'Cash Collected uses Toast Cash sales/payments only. Actual Closeout Cash is not used.', columns: [
       { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date','date']) },
@@ -696,21 +722,21 @@ export default function Dashboard({ data, setData, setActive }) {
     'profit-spend': { title: 'Vendor + Expense Spend Details', open: 'expenses', rows: derived.allSpendRows, expected: derived.totalSpend, amountGetter: r => num(r.amount), columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
-    'profit-summary': { title: 'Profit & Loss Reconciliation', open: 'reports', rows: [
+    'profit-summary': { preserveOrder: true, title: 'Profit & Loss Reconciliation', open: 'reports', rows: [
       { label: 'Net Restaurant Sales', amount: derived.trueNetSales }, { label: 'Less: Operating Payroll', amount: -derived.operatingPayroll }, { label: 'Less: Vendor + Expense Spend', amount: -derived.totalSpend }
     ], expected: derived.operatingProfit, amountGetter: r => num(r.amount), columns: [{ key:'label', label:'Component' }, { key:'amount', label:'Amount', render:r=>money(r.amount) }]},
-    'operating-profit': { title: 'Operating Profit Reconciliation', open: 'reports', rows: [
+    'operating-profit': { preserveOrder: true, title: 'Operating Profit Reconciliation', open: 'reports', rows: [
       { label: 'Toast Net Sales', amount: derived.trueNetSales },
       { label: 'Less: Vendor Invoices', amount: -derived.vendorSpend },
       { label: 'Less: Business Operating Expenses', amount: -derived.businessSpend },
       { label: 'Less: Operating Payroll', amount: -derived.operatingPayroll }
     ], expected: derived.operatingProfit, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}]},
-    'cash-remaining': { title: 'Cash Remaining Reconciliation', open: 'reports', rows: [
+    'cash-remaining': { preserveOrder: true, title: 'Cash Remaining Reconciliation', open: 'reports', rows: [
       { label: 'Toast Cash Sales', amount: derived.cashSales },
       { label: 'Less: Cash Operating Payroll', amount: -derived.cashOperatingPayroll },
       { label: 'Less: Cash Vendor / Business Spending', amount: -derived.cashVendorSpend }
     ], expected: derived.cashRemaining, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}]},
-    'prime-cost': { title: 'Prime Cost Reconciliation', open: 'reports', rows: [
+    'prime-cost': { preserveOrder: true, title: 'Prime Cost Reconciliation', open: 'reports', rows: [
       { label: 'Direct Food Cost', amount: derived.directFoodCost },
       { label: 'Direct Alcohol Cost', amount: derived.directAlcoholCost },
       { label: 'Operating Payroll (tips excluded)', amount: derived.operatingPayroll }
@@ -734,10 +760,10 @@ export default function Dashboard({ data, setData, setActive }) {
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
     department: departmentDetailConfig(detailCategory),
-    reconciliation: { title: 'Dashboard Reconciliation', open: 'reports', rows: derived.reconciliationChecks.map(check => ({ ...check, status: Math.abs(check.difference) < 0.01 ? 'Balanced' : 'Review' })), expected: 0, amountGetter: r => num(r.difference), columns: [
+    reconciliation: { preserveOrder: true, title: 'Dashboard Reconciliation', open: 'reports', rows: derived.reconciliationChecks.map(check => ({ ...check, status: Math.abs(check.difference) < 0.01 ? 'Balanced' : 'Review' })), expected: 0, amountGetter: r => num(r.difference), columns: [
       { key: 'label', label: 'Check' }, { key: 'status', label: 'Status' }, { key: 'difference', label: 'Difference', render: r => money(num(r.difference)) }
     ], message: 'A $0.00 difference means the card total and its underlying sources reconcile.' },
-    health: { title: 'Restaurant Health Inputs', open: 'reports', hideTotals: true, rows: [
+    health: { preserveOrder: true, title: 'Restaurant Health Inputs', open: 'reports', hideTotals: true, rows: [
       { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Operating Profit', value: money(derived.operatingProfit) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
     ], columns: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }] }
   }
