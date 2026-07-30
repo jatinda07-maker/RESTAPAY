@@ -1,0 +1,13 @@
+RESTAPAY RC6.15 - Monday-Sunday Weekly Payroll Fix
+
+Fixes:
+- Payroll import now groups by Employee + Sunday week-ending date.
+- Each Monday through Sunday week creates one separate row per employee.
+- Multi-week Toast reports no longer collapse the whole report into one employee row.
+- Pay date and period end are always Sunday.
+- Period start is always Monday.
+- Multiple shifts or daily rows within the same week are merged once.
+
+Example:
+2026-07-20 through 2026-07-26 -> pay date 2026-07-26
+2026-07-27 through 2026-08-02 -> pay date 2026-08-02

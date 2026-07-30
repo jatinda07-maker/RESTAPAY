@@ -8,6 +8,19 @@ import { detectToastLaborPeriod, laborImportDiagnostics, parseToastLaborRows } f
 const PAY_METHODS = ['Cash', 'Check', 'ACH', 'Card', 'Other']
 
 function today() { return new Date().toISOString().slice(0, 10) }
+function isoDateUTC(date) { return date.toISOString().slice(0, 10) }
+function mondaySundayWeek(dateValue) {
+  const raw = String(dateValue || '').slice(0, 10)
+  const date = new Date(`${raw}T12:00:00Z`)
+  if (!raw || Number.isNaN(date.getTime())) return { start: raw, end: raw }
+  const day = date.getUTCDay()
+  const daysFromMonday = day === 0 ? 6 : day - 1
+  const monday = new Date(date)
+  monday.setUTCDate(date.getUTCDate() - daysFromMonday)
+  const sunday = new Date(monday)
+  sunday.setUTCDate(monday.getUTCDate() + 6)
+  return { start: isoDateUTC(monday), end: isoDateUTC(sunday) }
+}
 function monthStart() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10) }
 function num(value) { return Number(String(value ?? '').replace(/[$,%]/g, '').trim()) || 0 }
 function round2(value) { return Math.round((num(value) + Number.EPSILON) * 100) / 100 }
@@ -288,16 +301,13 @@ export default function Payroll({ data, setData }) {
       if (!name) return
       const workDate = String(source.pay_date || source.business_date || '').slice(0, 10)
       if (!workDate) return
-      // Weekly merge must use one stable employee key and one selected week.
-      // Toast can repeat the same person with different job rows, external IDs,
-      // punctuation, or daily period values. Using an employee database ID or a
-      // row-level period can split one employee into several weekly rows.
-      const employeeKey = normalizeName(employee?.name || name || rawName)
-      const importedPeriodStart = String(source.period_start || '').slice(0,10)
-      const importedPeriodEnd = String(source.period_end || '').slice(0,10)
-      const periodStart = mergeWeekly ? (dateStart || importedPeriodStart || workDate) : workDate
-      const periodEnd = mergeWeekly ? (dateEnd || importedPeriodEnd || workDate) : workDate
-      const key = mergeWeekly ? employeeKey : `${employeeKey}::${workDate}`
+      const employeeKey = employee?.id || normalizeName(name)
+      const week = mondaySundayWeek(workDate)
+      const periodStart = mergeWeekly ? week.start : workDate
+      const periodEnd = mergeWeekly ? week.end : workDate
+      // A weekly row is unique by employee AND Sunday week-ending date.
+      // Never merge an entire multi-week Toast report into one employee row.
+      const key = mergeWeekly ? `${employeeKey}::${periodEnd}` : `${employeeKey}::${workDate}`
       const current = groups.get(key) || {
         id: createId('build'), employee_id: employee?.id || '', employee_name: name,
         job_type: employee?.job_type || source.job_type || '', pay_type: employee?.pay_type || employee?.employee_type || source.pay_type || source.job_type || '', pay_date: periodEnd, hours: 0, regular_hours: 0, overtime_hours: 0, regular_pay: 0, overtime_pay: 0,
@@ -329,11 +339,6 @@ export default function Payroll({ data, setData }) {
       current.tip_deduction = round2(current.tip_deduction + num(source.tip_deduction))
       current.tips = round2(Math.max(0, current.credit_card_tips - current.tip_deduction))
       current.source_rows += 1
-      if (mergeWeekly) {
-        current.period_start = dateStart || current.period_start || importedPeriodStart || workDate
-        current.period_end = dateEnd || current.period_end || importedPeriodEnd || workDate
-        current.pay_date = current.period_end
-      }
       current.total_pay = finalPay(current)
       groups.set(key, current)
     })
@@ -763,7 +768,7 @@ export default function Payroll({ data, setData }) {
 
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
-        <div><h2>{mergeWeekly ? 'Toast Weekly Payroll Builder' : 'Toast Daily Payroll Builder'}</h2><p>{mergeWeekly ? `One editable row per employee for ${dateStart} through ${dateEnd}. Pay date uses the selected week ending date.` : 'One editable row per employee per workday. Multiple shifts on the same day are combined.'}</p></div>
+        <div><h2>{mergeWeekly ? 'Toast Weekly Payroll Builder' : 'Toast Daily Payroll Builder'}</h2><p>{mergeWeekly ? `One row per employee for each Monday-Sunday payroll week in ${dateStart} through ${dateEnd}. Every row uses Sunday as its week-ending pay date.` : 'One editable row per employee per workday. Multiple shifts on the same day are combined.'}</p></div>
         <div className="payroll-rc5-actions"><button type="button" className="btn secondary" onClick={() => clearImportWorkspace()}>Clear Import</button><button type="button" className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>
