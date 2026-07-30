@@ -218,6 +218,8 @@ export default function Payroll({ data, setData }) {
   const [sourceFile, setSourceFile] = useState('')
   const [mergeWeekly, setMergeWeekly] = useState(true)
   const initializedRangeRef = useRef(false)
+  const importGenerationRef = useRef(0)
+  const uploadInputRef = useRef(null)
 
 
   useEffect(() => {
@@ -243,6 +245,18 @@ export default function Payroll({ data, setData }) {
     initializedRangeRef.current = true
   }, [data.payrollImports, entries])
 
+  function clearImportWorkspace(message='Import workspace cleared.') {
+    importGenerationRef.current += 1
+    setImportedRows([])
+    setBuilderRows([])
+    setSelectedBuilderIds([])
+    setEmployeeFilter('')
+    setEmployeeSearch('')
+    setSourceFile('')
+    if (uploadInputRef.current) uploadInputRef.current.value = ''
+    if (message) setStatus(message)
+  }
+
   const importedEmployeeOptions = useMemo(() => {
     const names = importedRows.map(row => displayToastName(row.raw_name || row.employee_name)).filter(Boolean)
     return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
@@ -260,7 +274,12 @@ export default function Payroll({ data, setData }) {
   }), [importedRows, dateStart, dateEnd, employeeFilter, employeeSearch])
 
   useEffect(() => {
-    if (!importedRows.length) return
+    const generation = importGenerationRef.current
+    if (!importedRows.length) {
+      setBuilderRows([])
+      setSelectedBuilderIds([])
+      return
+    }
     const groups = new Map()
     filteredImportedRows.forEach(source => {
       const rawName = source.raw_name || source.employee_name || ''
@@ -270,8 +289,10 @@ export default function Payroll({ data, setData }) {
       const workDate = String(source.pay_date || source.business_date || '').slice(0, 10)
       if (!workDate) return
       const employeeKey = employee?.id || normalizeName(name)
-      const periodStart = mergeWeekly ? (dateStart || workDate) : workDate
-      const periodEnd = mergeWeekly ? (dateEnd || workDate) : workDate
+      const importedPeriodStart = String(source.period_start || '').slice(0,10)
+      const importedPeriodEnd = String(source.period_end || '').slice(0,10)
+      const periodStart = mergeWeekly ? (importedPeriodStart || dateStart || workDate) : workDate
+      const periodEnd = mergeWeekly ? (importedPeriodEnd || dateEnd || workDate) : workDate
       const key = mergeWeekly ? employeeKey : `${employeeKey}::${workDate}`
       const current = groups.get(key) || {
         id: createId('build'), employee_id: employee?.id || '', employee_name: name,
@@ -308,6 +329,7 @@ export default function Payroll({ data, setData }) {
       groups.set(key, current)
     })
     const rows = Array.from(groups.values()).sort((a, b) => String(a.pay_date).localeCompare(String(b.pay_date)) || a.employee_name.localeCompare(b.employee_name))
+    if (generation !== importGenerationRef.current) return
     setBuilderRows(rows)
     setSelectedBuilderIds(rows.map(row => row.id))
     const diag = laborImportDiagnostics(filteredImportedRows)
@@ -501,13 +523,16 @@ export default function Payroll({ data, setData }) {
       const parsed = parseToastLaborRows(XLSX, workbook, {
         payDate: detected.end || today(), tipRate, reportPeriod: detected, fileName: file.name
       })
+      importGenerationRef.current += 1
+      const parsedStart = parsed.map(row => String(row.period_start || '').slice(0,10)).filter(Boolean).sort()[0] || detected.start
+      const parsedEnd = parsed.map(row => String(row.period_end || '').slice(0,10)).filter(Boolean).sort().slice(-1)[0] || detected.end
       setSourceFile(file.name)
       setImportedRows(parsed)
       setEmployeeFilter('')
       setEmployeeSearch('')
-      if (detected.start && detected.end) {
-        setDateStart(detected.start)
-        setDateEnd(detected.end)
+      if (parsedStart && parsedEnd) {
+        setDateStart(parsedStart)
+        setDateEnd(parsedEnd)
       }
       const diag = laborImportDiagnostics(parsed)
       setStatus(parsed.length
@@ -587,17 +612,11 @@ export default function Payroll({ data, setData }) {
         payrollImports: [{ id: createId('import'), file_name: sourceFile, period_start: dateStart, period_end: dateEnd, row_count: created.length, created_at: new Date().toISOString() }, ...(prev.payrollImports || [])]
       }
     })
-    setDateStart(selected.reduce((min, row) => !min || row.period_start < min ? row.period_start : min, selected[0]?.period_start || dateStart))
-    setDateEnd(selected.reduce((max, row) => !max || row.period_end > max ? row.period_end : max, selected[0]?.period_end || dateEnd))
-    // Clear the completed import workspace after payroll rows are created.
-    // The newly-created pending rows remain visible in the Payroll Register below.
-    setImportedRows([])
-    setBuilderRows([])
-    setSelectedBuilderIds([])
-    setEmployeeFilter('')
-    setEmployeeSearch('')
-    setSourceFile('')
-    setStatus(`Created payroll for ${selected.length} employees. Import workspace cleared; the new pending rows are ready below for approval.`)
+    const createdStart=selected.map(row=>String(row.period_start||row.pay_date||'').slice(0,10)).filter(Boolean).sort()[0]||dateStart
+    const createdEnd=selected.map(row=>String(row.period_end||row.pay_date||'').slice(0,10)).filter(Boolean).sort().slice(-1)[0]||dateEnd
+    setDateStart(createdStart)
+    setDateEnd(createdEnd)
+    clearImportWorkspace(`Created payroll for ${selected.length} employees. Import workspace cleared; the new pending rows are ready below for approval.`)
   }
 
   function approveRows(ids) {
@@ -611,15 +630,7 @@ export default function Payroll({ data, setData }) {
         ? { ...row, approval_status: 'Approved', approved_at: approvedAt, total_pay: finalPay(row), total: finalPay(row), original_tips: originalTips(row), credit_card_tips: originalTips(row), total_tips: originalTips(row), tip_deduction: tipWithheld(row), tips_withheld: tipWithheld(row), tips: finalTips(row), final_tips: finalTips(row), tips_after_withheld: finalTips(row) }
         : row)
     }))
-    // Approval completes the current payroll workflow. Remove any stale import or
-    // builder rows so the same Toast batch cannot accidentally be created again.
-    setImportedRows([])
-    setBuilderRows([])
-    setSelectedBuilderIds([])
-    setEmployeeFilter('')
-    setEmployeeSearch('')
-    setSourceFile('')
-    setStatus(`Approved ${selectedIds.length} payroll entries. Import workspace cleared; they are now available on the Approved Payroll page.`)
+    clearImportWorkspace(`Approved ${selectedIds.length} payroll entries. Import workspace cleared; they are now available on the Approved Payroll page.`)
   }
 
   function updateEntry(id, field, value) {
@@ -744,7 +755,7 @@ export default function Payroll({ data, setData }) {
     {builderRows.length > 0 && <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
         <div><h2>{mergeWeekly ? 'Toast Weekly Payroll Builder' : 'Toast Daily Payroll Builder'}</h2><p>{mergeWeekly ? `One editable row per employee for ${dateStart} through ${dateEnd}. Pay date uses the selected week ending date.` : 'One editable row per employee per workday. Multiple shifts on the same day are combined.'}</p></div>
-        <div className="payroll-rc5-actions"><button type="button" className="btn secondary" onClick={() => { setImportedRows([]); setBuilderRows([]); setSelectedBuilderIds([]); setEmployeeFilter('') }}>Clear Import</button><button type="button" className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
+        <div className="payroll-rc5-actions"><button type="button" className="btn secondary" onClick={() => clearImportWorkspace()}>Clear Import</button><button type="button" className="btn primary" onClick={createPayroll}>Create Selected Payroll</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr>
         <th><input type="checkbox" checked={builderAllSelected} onChange={toggleAllBuilder} /></th><th>Date</th><th>Employee</th><th>Hours</th><th>Regular</th><th>OT</th><th>Credit Card Tips</th><th>Withheld</th><th>Final Tips</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th>

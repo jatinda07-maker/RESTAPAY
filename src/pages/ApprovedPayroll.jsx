@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
 import { applyPresetToSetters, isDateInRange, readPageDateRange, savePageDateRange } from '../engine/DateEngine'
+import { markPayrollDeleted } from '../lib/localStore'
 
 function num(v){ return Number(String(v ?? '').replace(/[$,%]/g,'')) || 0 }
 function money(v){ return num(v).toFixed(2) }
@@ -160,15 +161,48 @@ export default function ApprovedPayroll({ data, setData }) {
     })
   }
 
-  function deleteApprovedRows(ids){
+  function linkedSourceIds(selectedRows=[]){
+    return new Set(selectedRows.flatMap(row=>[
+      row.source_payroll_entry_id,
+      row.source_payroll_id
+    ]).filter(Boolean).map(String))
+  }
+
+  function permanentlyDeleteApprovedRows(ids){
     const idSet=new Set(ids.map(String))
     const rowsToDelete=rows.filter(row=>idSet.has(String(row.id)))
-    const sourceIds=new Set(rowsToDelete.map(row=>row.source_payroll_entry_id).filter(Boolean).map(String))
+    const sourceIds=linkedSourceIds(rowsToDelete)
     const approvedIds=new Set(rowsToDelete.map(row=>row.id).filter(Boolean).map(String))
+    const tombstones=Array.from(new Set([...approvedIds,...sourceIds]))
+    markPayrollDeleted(tombstones)
 
     setData(prev=>({
       ...prev,
-      approvedPayroll:(prev.approvedPayroll||[]).filter(row=>!approvedIds.has(String(row.id)) && !sourceIds.has(String(row.source_payroll_entry_id||''))),
+      deletedPayrollIds:Array.from(new Set([...(prev.deletedPayrollIds||[]).map(String),...tombstones])),
+      approvedPayroll:(prev.approvedPayroll||[]).filter(row=>
+        !approvedIds.has(String(row.id)) &&
+        !sourceIds.has(String(row.source_payroll_entry_id||row.source_payroll_id||''))
+      ),
+      payrollEntries:(prev.payrollEntries||[]).filter(entry=>
+        !sourceIds.has(String(entry.id)) &&
+        !approvedIds.has(String(entry.approved_payroll_id||''))
+      )
+    }))
+    setSelected(current=>current.filter(id=>!idSet.has(id)))
+  }
+
+  function returnApprovedRowsToPending(ids){
+    const idSet=new Set(ids.map(String))
+    const rowsToReturn=rows.filter(row=>idSet.has(String(row.id)))
+    const sourceIds=linkedSourceIds(rowsToReturn)
+    const approvedIds=new Set(rowsToReturn.map(row=>row.id).filter(Boolean).map(String))
+
+    setData(prev=>({
+      ...prev,
+      approvedPayroll:(prev.approvedPayroll||[]).filter(row=>
+        !approvedIds.has(String(row.id)) &&
+        !sourceIds.has(String(row.source_payroll_entry_id||row.source_payroll_id||''))
+      ),
       payrollEntries:(prev.payrollEntries||[]).map(entry=>{
         if(!sourceIds.has(String(entry.id)) && !approvedIds.has(String(entry.approved_payroll_id||''))) return entry
         const next={...entry,approval_status:'Pending',payment_status:'Pending',updated_at:new Date().toISOString()}
@@ -182,14 +216,20 @@ export default function ApprovedPayroll({ data, setData }) {
   }
 
   function remove(id){
-    if(!window.confirm('Delete this approved payroll record? It will return to Pending Payroll.')) return
-    deleteApprovedRows([id])
+    if(!window.confirm('Permanently delete this approved payroll record and its linked payroll entry? This cannot be undone.')) return
+    permanentlyDeleteApprovedRows([id])
   }
 
   function removeSelected(){
     if(!selected.length) return
-    if(!window.confirm(`Delete ${selected.length} selected approved payroll record${selected.length===1?'':'s'}? They will return to Pending Payroll.`)) return
-    deleteApprovedRows(selected)
+    if(!window.confirm(`Permanently delete ${selected.length} selected approved payroll record${selected.length===1?'':'s'} and their linked payroll entries? This cannot be undone.`)) return
+    permanentlyDeleteApprovedRows(selected)
+  }
+
+  function returnSelectedToPending(){
+    if(!selected.length) return
+    if(!window.confirm(`Return ${selected.length} selected approved payroll record${selected.length===1?'':'s'} to Pending Payroll?`)) return
+    returnApprovedRowsToPending(selected)
   }
 
   return <div className="page-stack approved-payroll-page">
@@ -210,7 +250,8 @@ export default function ApprovedPayroll({ data, setData }) {
         <select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)} aria-label="Filter approved payroll by employee"><option value="all">All employees</option>{employeeOptions.map(name=><option key={name} value={name}>{name}</option>)}</select>
         <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="void">Void</option></select>
         <button className="btn secondary" disabled={!selected.length} onClick={()=>setBulkEditing(true)}><Icon name="edit" size={15}/> Edit Selected{selected.length?` (${selected.length})`:''}</button>
-        <button className="btn danger" disabled={!selected.length} onClick={removeSelected}><Icon name="trash" size={15}/> Delete Selected{selected.length?` (${selected.length})`:''}</button>
+        <button className="btn secondary" disabled={!selected.length} onClick={returnSelectedToPending}>Return to Pending{selected.length?` (${selected.length})`:''}</button>
+        <button className="btn danger" disabled={!selected.length} onClick={removeSelected}><Icon name="trash" size={15}/> Delete Permanently{selected.length?` (${selected.length})`:''}</button>
       </div>
       <div className="table-wrap"><table><thead><tr><th className="select-column"><input type="checkbox" checked={allVisibleSelected} ref={el=>{if(el) el.indeterminate=someVisibleSelected}} onChange={toggleAllVisible} aria-label="Select all visible approved payroll"/></th><th>Employee</th><th>Pay Date</th><th>Original</th><th>Approved Amount</th><th>Payment</th><th>Check #</th><th>Status</th><th>Approved</th><th></th></tr></thead><tbody>{filtered.length?filtered.map(r=><tr key={r.id} className={selected.includes(String(r.id))?'selected-row':''}><td className="select-column"><input type="checkbox" checked={selected.includes(String(r.id))} onChange={()=>toggleRow(r.id)} aria-label={`Select ${r.employee_name}`}/></td><td><b>{r.employee_name}</b><small>{r.group_name||r.payroll_classification||''}</small></td><td>{r.pay_date||'—'}</td><td>${money(r.original_amount)}</td><td><b>${money(r.approved_amount)}</b></td><td>{r.payment_type||'Check'}</td><td>{r.check_number||'—'}</td><td><select className="status-inline-select" value={r.payment_status||'Pending'} onChange={e=>updateStatus(r,e.target.value)} aria-label={`Update status for ${r.employee_name}`}><option>Pending</option><option>Paid</option><option>Void</option></select></td><td>{String(r.approved_at||'').slice(0,10)}</td><td><div className="row-actions"><button onClick={()=>edit(r)} title="Edit"><Icon name="edit" size={14}/></button><button onClick={()=>remove(r.id)} title="Delete"><Icon name="trash" size={14}/></button></div></td></tr>):<tr><td colSpan="10">No approved payroll records.</td></tr>}</tbody></table></div>
     </section>
