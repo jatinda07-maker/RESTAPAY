@@ -62,58 +62,6 @@ function isDateInRange(dateText, start, end) {
   return true
 }
 
-function sortRowsByDateAscending(rows = []) {
-  return [...rows].sort((a, b) => {
-    const aDate = rowDate(a)
-    const bDate = rowDate(b)
-    if (!aDate && !bDate) return 0
-    if (!aDate) return 1
-    if (!bDate) return -1
-    return aDate.localeCompare(bDate)
-  })
-}
-
-function aggregateSalesByBusinessDate(rows = []) {
-  const numericFields = [
-    'gross_sales', 'net_sales', 'cash_sales', 'credit_sales', 'gift_card_sales',
-    'online_orders', 'other_payments', 'other_sales', 'tips', 'tips_collected',
-    'tips_withheld', 'tips_after_withholding', 'refunds', 'voids', 'discounts',
-    'tax', 'guest_count', 'food_sales', 'alcohol_sales', 'excluded_sales'
-  ]
-  const byDate = new Map()
-  rows.forEach((row, index) => {
-    const date = rowDate(row, ['business_date', 'date'])
-    if (!date) return
-    const current = byDate.get(date) || {
-      id: `sales-day-${date}`,
-      business_date: date,
-      date,
-      source_file: '',
-      import_note: '',
-      _sourceFiles: new Set(),
-      _notes: new Set(),
-      _rows: 0
-    }
-    numericFields.forEach(field => { current[field] = num(current[field]) + num(row[field]) })
-    if (row.source_file) current._sourceFiles.add(String(row.source_file))
-    if (row.import_note) current._notes.add(String(row.import_note))
-    current._rows += 1
-    current._lastIndex = index
-    byDate.set(date, current)
-  })
-  return sortRowsByDateAscending(Array.from(byDate.values()).map(row => {
-    const clean = { ...row }
-    clean.source_file = Array.from(clean._sourceFiles).join(', ')
-    clean.import_note = Array.from(clean._notes).join(' | ')
-    clean.source_row_count = clean._rows
-    delete clean._sourceFiles
-    delete clean._notes
-    delete clean._rows
-    delete clean._lastIndex
-    return clean
-  }))
-}
-
 function menuItemOverlapsRange(item = {}, start = '', end = '') {
   const itemStart = String(item.dateStart || item.date_start || '').slice(0, 10)
   const itemEnd = String(item.dateEnd || item.date_end || itemStart || '').slice(0, 10)
@@ -292,7 +240,7 @@ function DetailTable({ config, setActive, onClose }) {
     if (config.open) setActive(config.open)
   }
 
-  const rows = config.preserveOrder ? (config.rows || []) : sortRowsByDateAscending(config.rows || [])
+  const rows = config.rows || []
   const subtotal = rows.reduce((sum, row) => {
     const value = config.amountGetter
       ? config.amountGetter(row)
@@ -465,7 +413,7 @@ export default function Dashboard({ data, setData, setActive }) {
 
   const derived = useMemo(() => {
     const inRange = date => isDateInRange(date, dateStart, dateEnd)
-    const monthSales = aggregateSalesByBusinessDate(salesDays.filter(row => inRange(rowDate(row, ['business_date', 'date']))))
+    const monthSales = salesDays.filter(row => inRange(rowDate(row, ['business_date', 'date'])))
     const monthPayroll = payroll.filter(row => inRange(rowDate(row, ['pay_date', 'payroll_date', 'date'])))
     const cashPayrollRows = monthPayroll.filter(isCashPayroll)
     const checkPayrollRows = monthPayroll.filter(isCheckPayroll)

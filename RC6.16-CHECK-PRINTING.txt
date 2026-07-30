@@ -1,0 +1,8 @@
+RC6.16 - Payroll Check Printing
+
+- Select approved payroll rows and click Print Checks.
+- Only non-void rows with payment type Check are printed.
+- Optional sequential check numbering fills blank check numbers.
+- Prints a letter-size check plus payroll stub and employee copy.
+- Saves business/check-print settings without storing bank account or routing numbers.
+- Can automatically mark printed payroll Paid and store the check date/number.
