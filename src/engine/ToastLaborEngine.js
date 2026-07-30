@@ -18,7 +18,9 @@ const ALIASES = {
   name: ['Employee', 'Employee Name', 'Team Member', 'Team Member Name', 'Staff', 'Staff Name', 'Name'],
   employeeId: ['Employee ID', 'Employee Id', 'Team Member ID', 'Team Member Id', 'Payroll ID'],
   job: ['Job', 'Job Title', 'Job Type', 'Role', 'Department', 'Position'],
-  date: ['Business Date', 'Shift Date', 'Shift Closed Date', 'Out Date', 'In Date', 'Clock In Date', 'Date Worked', 'Work Date', 'Payroll Date', 'Pay Date', 'Date', 'Week Ending', 'Period End'],
+  // Work-date priority is handled explicitly in parseToastLaborRows. Keep this
+  // fallback list business-day-first and never prefer a close/out timestamp.
+  date: ['Business Date', 'Shift Date', 'In Date', 'Clock In Date', 'Date Worked', 'Work Date', 'Payroll Date', 'Pay Date', 'Date', 'Week Ending', 'Period End', 'Shift Closed Date', 'Out Date'],
   regularHours: ['Regular Hours', 'Reg Hours', 'Regular Hrs', 'Reg Hrs'],
   overtimeHours: ['Overtime Hours', 'OT Hours', 'Overtime Hrs', 'OT Hrs'],
   doubleHours: ['Double Time Hours', 'Doubletime Hours', 'DT Hours'],
@@ -244,7 +246,10 @@ function isSummaryName(value) {
 export function parseToastLaborRows(XLSX, workbook, options = {}) {
   const detectedPeriod = options.reportPeriod || detectToastLaborPeriod(XLSX, workbook)
   const filePeriod = parsePeriodFromFileName(options.fileName || '')
-  const reportPeriod = detectedPeriod.start ? detectedPeriod : filePeriod
+  // The filename is the authoritative Toast report range. Workbook rows can
+  // contain after-midnight Shift Closed/Out timestamps that fall one calendar
+  // day beyond the requested business-date range.
+  const reportPeriod = filePeriod.start ? filePeriod : detectedPeriod
   const fallbackDate = reportPeriod.end || options.payDate || ''
   const tipRate = Number(options.tipRate ?? 3.5) || 0
   const sheets = candidateSheets(XLSX, workbook)
@@ -260,9 +265,20 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const rawName = text(find(row, ALIASES.name))
     if (isSummaryName(rawName)) return null
 
-    const rowDateValue = find(row, ALIASES.date)
+    // Toast Shifts Closed reports belong to the business day the employee
+    // clocked in. An overnight shift that starts 07/26 and closes 07/27 must
+    // remain on 07/26. Only fall back to Business/Shift/Close/Out dates when
+    // In Date is unavailable.
+    const inDateValue = toastShiftValue(row, 'In Date', ['Clock In Date'])
+    const businessDateValue = toastShiftValue(row, 'Business Date', ['Shift Date', 'Date Worked', 'Work Date'])
+    const closedDateValue = toastShiftValue(row, 'Shift Closed Date', ['Out Date'])
+    const rowDateValue = inDateValue || businessDateValue || closedDateValue || find(row, ALIASES.date)
     const sheetDate = parseDateTokens(sheetName)[0] || ''
-    const explicitDate = parseDate(rowDateValue, sheetDate)
+    let explicitDate = parseDate(rowDateValue, sheetDate)
+    // Guard against a close/out fallback extending a named report period.
+    // Do not discard the shift; pin it to the report end business date.
+    if (explicitDate && reportPeriod.end && explicitDate > reportPeriod.end) explicitDate = reportPeriod.end
+    if (explicitDate && reportPeriod.start && explicitDate < reportPeriod.start) explicitDate = reportPeriod.start
     const regularHours = num(find(row, ALIASES.regularHours))
     const overtimeHours = num(find(row, ALIASES.overtimeHours))
     const doubleHours = num(find(row, ALIASES.doubleHours))
@@ -314,6 +330,10 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
       check_number: text(find(row, ALIASES.checkNumber)),
       source_sheet: sheetName,
       source_sheet_rank: sheetRank,
+      source_in_date: text(inDateValue),
+      source_business_date: text(businessDateValue),
+      source_closed_date: text(closedDateValue),
+      work_date_source: inDateValue ? 'In Date' : businessDateValue ? 'Business Date' : closedDateValue ? 'Shift Closed/Out Date' : 'Fallback Date',
       source_columns: Object.keys(row)
     }
   }).filter(Boolean)
