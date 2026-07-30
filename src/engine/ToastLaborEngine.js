@@ -290,7 +290,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const grossPay = num(find(row, ALIASES.grossPay))
     // Keep overtime separate. Gross Pay can include overtime and sometimes tips,
     // so only use it as a last-resort wage fallback.
-    const pay = round2(regularPay || (hours && rate ? hours * rate : 0) || Math.max(grossPay - overtimePay, 0))
+    const pay = round2(regularPay || 0)
     const explicitTotalTips = has(row, ALIASES.totalTips) ? find(row, ALIASES.totalTips) : ''
     const hasCreditTipsColumn = has(row, ALIASES.creditTips)
     // Toast Shifts Closed uses these exact headers. Read them first so declared

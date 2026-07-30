@@ -1,0 +1,9 @@
+RESTAPAY RC6.25 INSTALL
+
+1. Extract this package.
+2. Copy all files into your RESTAPAY project folder and replace existing files.
+3. Open PowerShell in the project folder.
+4. Run:
+   powershell -ExecutionPolicy Bypass -File .\PUSH_RC6.25.ps1
+
+The script installs dependencies, verifies the production build, commits, and pushes the current Git branch. It stops immediately if any command fails.

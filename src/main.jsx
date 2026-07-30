@@ -10,7 +10,6 @@ const CostAnalysis = lazy(() => import('./pages/CostAnalysis'))
 const EntityPage = lazy(() => import('./pages/EntityPage'))
 const Employees = lazy(() => import('./pages/Employees'))
 const Payroll = lazy(() => import('./pages/Payroll'))
-const ApprovedPayroll = lazy(() => import('./pages/ApprovedPayroll'))
 const Vendors = lazy(() => import('./pages/Vendors'))
 const VendorComparison = lazy(() => import('./pages/VendorComparison'))
 const Invoices = lazy(() => import('./pages/Invoices'))
@@ -94,7 +93,6 @@ function App() {
     : active === 'vendor-comparison' ? <VendorComparison {...shared} />
     : active === 'invoices' ? <Invoices {...shared} />
     : active === 'payroll' ? <Payroll {...shared} setActive={setActive} />
-    : active === 'approved-payroll' ? <ApprovedPayroll {...shared} />
     : active === 'expenses' ? <Expenses {...shared} />
     : active === 'reports' ? <Reports {...shared} />
     : active === 'diagnostics' ? <Diagnostics {...shared} />

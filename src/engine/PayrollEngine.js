@@ -28,10 +28,10 @@ export const originalTips = row => {
 }
 const isTippedRow = row => /tip|server|bartender|waiter|waitress|front.?of.?house|foh/i.test(String(row.pay_type || row.employee_type || row.job_type || '')) || originalTips(row) > 0
 export const payrollTotal = row => {
-  const explicit = firstNonZeroAmount(row, ['total_pay', 'final_pay', 'payroll_total', 'total'])
-  if (explicit !== 0) return roundPayroll(explicit)
+  // RC6.26: total_pay from older imports may contain hidden hourly-wage math.
+  // Always rebuild the final payroll from the approved restaurant rules.
   if (isTippedRow(row)) return roundPayroll(netTips(row) + num(row.extra_pay))
-  return roundPayroll(num(row.regular_pay) + num(row.overtime_pay) + num(row.extra_pay))
+  return roundPayroll(num(row.regular_pay ?? row.fixed_pay ?? row.base_pay) + num(row.extra_pay))
 }
 export const normalizePayrollAliases = row => {
   const gross = originalTips(row)

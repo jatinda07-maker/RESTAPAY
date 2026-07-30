@@ -134,7 +134,7 @@ function payrollRows(workbook, fileName, payDate = today(), tipRate = 3.5) {
     source: fileName,
     source_file: fileName,
     source_sheet: row.source_sheet || '',
-    pay_type: Number(row.total_tips || 0) > 0 ? 'Tips' : 'Hourly',
+    pay_type: Number(row.total_tips || 0) > 0 ? 'Tips' : 'Fixed Weekly',
     payroll_type: 'Check',
     payroll_classification: /server|waiter|waitress|bartender|front house|foh|tip/i.test(`${row.job_type || ''} ${row.employee_name || ''}`) ? 'Customer Tips' : 'Operating Labor',
     payment_method: 'Check',
@@ -147,7 +147,7 @@ function payrollRows(workbook, fileName, payDate = today(), tipRate = 3.5) {
     tip_deduction: fmt(row.tip_deduction),
     tips_after_withholding: fmt(row.tips),
     tips_withheld: fmt(row.tip_deduction),
-    total_pay: fmt(Number(row.regular_pay || 0) + Number(row.tips || 0)),
+    total_pay: fmt(Number(row.total_tips || row.tips || 0) > 0 ? Number(row.tips || 0) : Number(row.regular_pay || 0)),
     extra_pay: '0.00',
     extra_reason: '',
     check_number: row.check_number || ''
@@ -225,7 +225,7 @@ export default function ImportCenter({ data, setData, setActive }) {
           const keptImports = (prev.payrollImports || []).filter(row => String(row.file_name || '').trim() !== file.name)
           return addHistory({ ...prev, payrollEntries: [...rows, ...keptEntries], payrollImports: [{ id: createId('payroll-import'), file_name: file.name, row_count: rows.length, created_at: new Date().toISOString() }, ...keptImports] }, { type: 'Toast Labor / Payroll', fileName: file.name, rowCount: rows.length, status: rows.length ? 'Imported' : 'No rows' })
         })
-        setStatus(rows.length ? `Imported ${rows.length} payroll rows: ${diag.hours.toFixed(2)} hours, $${diag.regularPay.toFixed(2)} wages, $${diag.netTips.toFixed(2)} net tips. Saved directly to database.` : `No employee labor rows were found in ${file.name}.`)
+        setStatus(rows.length ? `Imported ${rows.length} payroll rows: ${diag.hours.toFixed(2)} hours, $${diag.regularPay.toFixed(2)} fixed pay, $${diag.netTips.toFixed(2)} net tips. Saved directly to database.` : `No employee labor rows were found in ${file.name}.`)
       } else if (type === 'productMix') {
         if (!workbook) throw new Error('Product Mix import requires CSV/XLSX.')
         const items = productMixItems(workbook, file.name)
