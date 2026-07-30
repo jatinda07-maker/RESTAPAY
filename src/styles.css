@@ -3230,3 +3230,61 @@ html,body,#root,.app-shell,.main-panel,.content-area{max-width:100%;overflow-x:h
 @media(max-width:1450px){.expense-filter-exact .expense-filter-topline{grid-template-columns:minmax(240px,1fr) minmax(560px,2fr) auto}.expense-filter-exact .filter-note{grid-column:1/-1}.expense-kpi-six{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:1100px){.expenses-page-actions{margin:0;justify-content:flex-start}.expense-filter-exact .expense-filter-topline{grid-template-columns:1fr}.expense-form-exact{grid-template-columns:1fr}.expense-form-exact .expense-section+.expense-section{border-left:0;border-top:1px solid #e5e7eb}}
 @media(max-width:700px){.expense-kpi-six{grid-template-columns:1fr}.expense-two-col{grid-template-columns:1fr}.expense-entry-actions{grid-column:auto}}
+
+/* RC6.24 consolidated enterprise UI system */
+:root {
+  --ui-bg: #f6f8fb;
+  --ui-surface: #ffffff;
+  --ui-border: #dfe5ec;
+  --ui-text: #172033;
+  --ui-muted: #667085;
+  --ui-primary: #2563eb;
+  --ui-success: #15803d;
+  --ui-warning: #d97706;
+  --ui-danger: #dc2626;
+  --ui-radius: 10px;
+  --ui-shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px rgba(16,24,40,.06);
+}
+html, body, #root { min-height: 100%; background: var(--ui-bg); }
+body { color: var(--ui-text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.content-area { padding: 18px 20px 28px; }
+.content-area > * { max-width: 1600px; margin-inline: auto; }
+.page-header, .section-header, .panel-header, .card-header { gap: 12px; }
+.page-header h1, .section-header h2, .panel-header h2 { letter-spacing: -.02em; font-weight: 650; }
+.card, .panel, .workspace-card, .table-card, .summary-card, .form-card {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+  background: var(--ui-surface);
+}
+button, .button, .btn, input, select, textarea { font: inherit; }
+button, .button, .btn { border-radius: 8px; font-weight: 600; min-height: 36px; }
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+  border: 1px solid #cfd7e3;
+  border-radius: 8px;
+  background: #fff;
+  min-height: 36px;
+  padding: 7px 10px;
+}
+input:focus, select:focus, textarea:focus { outline: 3px solid rgba(37,99,235,.12); border-color: var(--ui-primary); }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+thead th { background: #f8fafc; color: #475467; font-size: 12px; font-weight: 700; text-transform: none; letter-spacing: .01em; }
+th, td { padding: 9px 10px; border-bottom: 1px solid #edf0f4; vertical-align: middle; }
+tbody tr:hover { background: #f8fbff; }
+.modal-overlay, .dialog-overlay, .payroll-modal-backdrop, .group-payroll-modal-backdrop {
+  position: fixed !important; inset: 0 !important; z-index: 9999 !important;
+  background: rgba(15,23,42,.58) !important; display: grid !important; place-items: center !important;
+  padding: 24px !important; overflow: hidden !important;
+}
+.modal, .dialog, .payroll-modal, .group-payroll-modal, .modal-card {
+  width: min(960px, 96vw); max-height: 90vh; overflow: auto;
+  background: #fff; border-radius: 14px; border: 1px solid var(--ui-border); box-shadow: 0 24px 70px rgba(15,23,42,.24);
+}
+.brand-home { width: 100%; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.topbar { border-bottom: 1px solid var(--ui-border); }
+.topbar-title-block h1 { font-weight: 680; letter-spacing: -.025em; }
+@media (max-width: 900px) {
+  .content-area { padding: 14px; }
+  .page-header, .section-header { align-items: flex-start; flex-direction: column; }
+  .modal-overlay, .dialog-overlay, .payroll-modal-backdrop, .group-payroll-modal-backdrop { padding: 10px !important; }
+}

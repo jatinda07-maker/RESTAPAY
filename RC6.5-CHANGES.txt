@@ -1,0 +1,12 @@
+RESTAPAY RC6.5 - Labor Mix Card Functionality Fix
+
+Changes:
+- Fixed the Dashboard Labor Mix command card so it opens Operating Payroll Details.
+- Fixed the Business Health Labor card so it opens the same payroll drill-down.
+- Both cards now use the existing profit-payroll detail configuration, including:
+  - selected date-range filtering
+  - operating payroll rows
+  - employee, classification, date, and total columns
+  - customer tips excluded from operating labor
+  - reconciliation against the dashboard operating payroll total
+- No payroll or Toast calculation formulas were changed.

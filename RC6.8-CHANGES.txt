@@ -1,0 +1,8 @@
+RESTAPAY RC6.8
+
+- Restored Calculated Subtotal, Dashboard Total, and Difference on every dashboard drill-down.
+- Totals remain pinned below the scrolling ledger in normal and full-screen modes.
+- Full-screen mode gives the ledger maximum height and fits about 15 or more compact rows on a standard desktop.
+- Labor Mix detail now shows date, employee, job/group, hours, regular pay, overtime, extra pay, excluded tips, payment method, and operating wages.
+- Labor Mix formula is explicitly documented as Operating Wages / Toast Net Sales x 100.
+- Customer tips remain excluded from Labor Mix, Prime Cost, and operating profit.

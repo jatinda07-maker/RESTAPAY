@@ -1,0 +1,21 @@
+RESTAPAY RC6.12 - PAYROLL WORKFLOW STABILITY FIX
+
+FIXED
+1. Approved Payroll permanent deletion now removes both the approved row and linked payroll entry.
+2. Deleted payroll IDs are tombstoned, so Supabase refresh cannot resurrect them.
+3. "Return to Pending" is now separate from "Delete Permanently".
+4. Cloud load merges normalized payroll rows with app_data backup fields so period dates,
+   approval status, original tips, withholding, and extended payroll fields survive refresh.
+5. Toast import report period is authoritative. Builder rows use imported period_start/period_end,
+   not an older date range left on the page.
+6. Import workspace clears after Create Payroll and Approve Pending.
+7. File input, imported rows, builder rows, selections, employee filters, and source filename reset.
+8. Stale builder effects are blocked with an import generation guard.
+
+TEST
+- Import Shifts_Closed_2026_07_01-2026_07_26.csv.
+- Confirm date range is 07/01/2026 through 07/26/2026.
+- Create payroll and confirm the builder becomes empty.
+- Approve payroll and confirm the workspace stays empty.
+- Delete an approved payroll row with Delete Permanently.
+- Refresh the browser and confirm it does not return.

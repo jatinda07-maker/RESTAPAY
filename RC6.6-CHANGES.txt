@@ -1,0 +1,10 @@
+RESTAPAY RC6.6 - LABOR ENTRIES + STICKY TOTALS
+
+- Labor Mix / Operating Payroll now reads payroll entries plus approved-payroll fallback rows.
+- Approved payroll values are normalized so employee, date, payment type, and approved amount display correctly.
+- Operating Payroll detail uses operating wages (tips excluded) for both rows and subtotal.
+- All dashboard detail cards now dedicate most of the screen to entries.
+- Compact row height allows about 15 or more entries on a normal desktop screen.
+- Calculated Subtotal, Dashboard Total, and Difference remain visible below the scrolling entries.
+- Compact reconciliation footer remains visible.
+- On short screens, large KPI cards automatically hide to preserve entry space.

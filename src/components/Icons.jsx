@@ -8,6 +8,9 @@ import {
   Building2,
   Calendar,
   CalendarDays,
+  Calculator,
+  CircleCheck,
+  List,
   Camera,
   Coffee,
   Cloud,
@@ -122,7 +125,10 @@ export const iconMap = {
   spreadsheet: FileSpreadsheet,
   pie: PieChart,
   compare: Scale,
-  history: History
+  history: History,
+  calculator: Calculator,
+  check: CircleCheck,
+  list: List
 }
 
 export function Icon({ name, size = 20, className = '' }) {

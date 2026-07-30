@@ -1,0 +1,8 @@
+RC6.11 - Payroll Workspace Clearing Fix
+
+- Clears Toast line entries after Create Selected Payroll.
+- Clears weekly/daily payroll builder rows after creation.
+- Clears import and builder rows after Approve Pending.
+- Clears employee filters and source filename after workflow completion.
+- Keeps newly-created pending payroll rows visible in Payroll Register.
+- Keeps approved rows available on Approved Payroll page.

@@ -338,17 +338,37 @@ export async function loadCloudData() {
       ? (tableData?.[tableKey] || [])
       : (appData?.[appKey] || [])
 
+    const deletedPayrollIds = Array.from(new Set([
+      ...((appData?.deletedPayrollIds || []).map(String)),
+      ...(() => {
+        try {
+          const local = JSON.parse(localStorage.getItem(RESTAPAY_PAYROLL_TOMBSTONES_KEY) || '[]')
+          return Array.isArray(local) ? local.map(String) : []
+        } catch { return [] }
+      })()
+    ]))
+    const deletedPayrollSet = new Set(deletedPayrollIds)
+    const mergeRowsWithBackup = (tableRows=[], backupRows=[]) => {
+      const backupById = new Map((backupRows || []).map(row => [String(row.id || ''), row]))
+      return (tableRows || []).map(row => ({ ...(backupById.get(String(row.id || '')) || {}), ...row }))
+    }
+    const tablePayrollEntries = choose('payroll_entries', 'payrollEntries')
+    const tablePayrollImports = choose('payroll_imports', 'payrollImports')
+    const payrollEntries = mergeRowsWithBackup(tablePayrollEntries, appData?.payrollEntries || [])
+      .filter(row => !deletedPayrollSet.has(String(row.id || '')) && !deletedPayrollSet.has(String(row.approved_payroll_id || '')))
+    const payrollImports = mergeRowsWithBackup(tablePayrollImports, appData?.payrollImports || [])
+
     const merged = appData || tableData ? mergeData({
       ...(appData || {}),
       employees: choose('employees', 'employees'),
       payrollGroups: choose('payroll_groups', 'payrollGroups'),
-      payrollEntries: choose('payroll_entries', 'payrollEntries'),
-      payrollImports: choose('payroll_imports', 'payrollImports'),
-      approvedPayroll: (appData?.approvedPayroll || []).filter(row => {
-        const deleted = new Set((appData?.deletedPayrollIds || []).map(String))
-        return !deleted.has(String(row.id)) && !deleted.has(String(row.source_payroll_entry_id || ''))
-      }),
-      deletedPayrollIds: appData?.deletedPayrollIds || [],
+      payrollEntries,
+      payrollImports,
+      approvedPayroll: (appData?.approvedPayroll || []).filter(row =>
+        !deletedPayrollSet.has(String(row.id || '')) &&
+        !deletedPayrollSet.has(String(row.source_payroll_entry_id || row.source_payroll_id || ''))
+      ),
+      deletedPayrollIds,
       vendors: choose('vendors', 'vendors'),
       expenses: choose('expenses', 'expenses'),
       invoices: choose('invoices', 'invoices'),

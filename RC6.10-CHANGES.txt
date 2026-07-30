@@ -1,0 +1,8 @@
+RESTAPAY RC6.10 - Toast Payroll Business Date Fix
+
+- Uses Toast "In Date" as the payroll work date.
+- Overnight shifts remain assigned to the business day on which they started.
+- Uses the date range embedded in the Toast filename as the authoritative report period.
+- Prevents Shift Closed Date / Out Date from extending a 07/01-07/26 report into 07/27.
+- Preserves all shift hours, non-cash tips, and withholding amounts.
+- Adds source date diagnostics to imported labor rows.

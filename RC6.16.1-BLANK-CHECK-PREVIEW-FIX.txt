@@ -1,0 +1,7 @@
+RC6.16.1 Blank Check Preview Fix
+
+- Fixes the blank browser tab shown after selecting employees and pressing Print Checks.
+- Removes the noopener window feature that can cause Chrome to return no writable print window.
+- Opens and initializes the check preview document before writing check pages.
+- Adds a short render delay before the browser print dialog opens.
+- Keeps the existing selected-employee check printing workflow.

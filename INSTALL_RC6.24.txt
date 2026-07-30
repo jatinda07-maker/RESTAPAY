@@ -1,0 +1,12 @@
+RESTAPAY RC6.24 INSTALLATION
+
+1. Keep the existing C:\Users\jatin\RESTAPAY-RC5 folder in its current merge state.
+2. Extract this ZIP to a temporary folder.
+3. Copy all extracted files into C:\Users\jatin\RESTAPAY-RC5 and replace existing files.
+   Do not copy or replace the .git folder.
+4. Open PowerShell in C:\Users\jatin\RESTAPAY-RC5.
+5. Run:
+
+   powershell -ExecutionPolicy Bypass -File .\PUSH_RC6.24.ps1
+
+The script checks for conflict markers, installs dependencies, creates the production build, stages the resolved merge, commits RC6.24, and pushes rc5-redesign. It stops immediately if any step fails.

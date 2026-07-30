@@ -36,7 +36,7 @@ function PageLoading() {
 }
 
 function App() {
-  const [active, setActiveState] = useState(() => localStorage.getItem('restapay_active_page') || 'dashboard')
+  const [active, setActiveState] = useState('dashboard')
   const setActive = next => {
     diagnosticLogger.info('Navigation', `Opened ${next}`, { from: active, to: next })
     localStorage.setItem('restapay_active_page', next)

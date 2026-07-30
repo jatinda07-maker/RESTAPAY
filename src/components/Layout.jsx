@@ -88,12 +88,12 @@ export default function Layout({ active, setActive, children }) {
         onMouseEnter={() => setIsHoveringSidebar(true)}
         onMouseLeave={() => setIsHoveringSidebar(false)}
       >
-        <div className="brand-row">
+        <button type="button" className="brand-row brand-home" onClick={() => handleNavPress('dashboard')} aria-label="Open Dashboard">
           <div className="brand-mark">R</div>
           <div className="brand-copy">
             <strong>Resta<span>Pay</span></strong>
           </div>
-        </div>
+        </button>
 
         <nav className="nav-list" aria-label="Primary navigation">
           {navSections.map(section => (
