@@ -1,0 +1,12 @@
+RESTAPAY RC6.23 INSTALLATION
+
+1. Make a backup copy of C:\Users\jatin\RESTAPAY-RC5.
+2. Extract this ZIP to a temporary folder.
+3. Copy all extracted files into C:\Users\jatin\RESTAPAY-RC5 and choose Replace when Windows asks.
+4. Do not copy a node_modules folder from another computer.
+5. Open PowerShell in C:\Users\jatin\RESTAPAY-RC5.
+6. Run:
+
+   powershell -ExecutionPolicy Bypass -File .\PUSH_RC6.23.ps1
+
+The script installs dependencies, runs the production build, stages the four resolved merge files and all other updates, commits the merge, and pushes your current branch.

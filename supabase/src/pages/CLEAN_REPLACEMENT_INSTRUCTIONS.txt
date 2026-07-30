@@ -1,0 +1,38 @@
+RESTAPAY CLEAN REPLACEMENT
+==========================
+
+1. Keep your existing folder as a backup:
+   C:\Users\jatin\RESTAPAY-GIT-OLD
+
+2. Extract this package to:
+   C:\Users\jatin\RESTAPAY-CLEAN
+
+3. Open Command Prompt and run:
+   cd C:\Users\jatin\RESTAPAY-CLEAN
+   copy .env.example .env
+   notepad .env
+
+4. Enter your existing Supabase URL and anon key in .env.
+
+5. Install and verify:
+   npm install --registry=https://registry.npmjs.org/
+   npm run check
+
+6. Start locally:
+   npm run dev
+
+7. For an EXISTING Supabase database, run this once in SQL Editor:
+   supabase\migrations\001_production_alignment.sql
+
+   This migration is non-destructive. Do NOT run:
+   supabase\DESTRUCTIVE_FULL_RESET_DO_NOT_RUN_ON_PRODUCTION.sql
+
+8. Recommended Git method: create a new clean branch first:
+   git init
+   git branch -M clean-main
+   git add .
+   git commit -m "RESTAPAY clean verified baseline"
+   git remote add origin https://github.com/jatinda07-maker/RESTAPAY.git
+   git push -u origin clean-main
+
+9. After testing clean-main on Render, merge it into main or make it the production branch.

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
 import DateControls from '../components/DateControls'
 import { applyPresetToSetters, isDateInRange, readPageDateRange, savePageDateRange } from '../engine/DateEngine'
+import { markPayrollDeleted } from '../lib/localStore'
 
 function num(v){ return Number(String(v ?? '').replace(/[$,%]/g,'')) || 0 }
 function money(v){ return num(v).toFixed(2) }
@@ -47,7 +48,7 @@ export default function ApprovedPayroll({ data, setData }) {
   const [form,setForm]=useState({})
   const [selected,setSelected]=useState([])
   const [bulkEditing,setBulkEditing]=useState(false)
-  const [bulkForm,setBulkForm]=useState({payment_status:'',payment_type:'',check_number:'',paid_date:''})
+  const [bulkForm,setBulkForm]=useState({payment_status:'',payment_type:'',check_number:'',paid_date:'',notes:''})
 
   const employeeOptions=useMemo(()=>Array.from(new Set(rows.map(r=>String(r.employee_name||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b)),[rows])
 
@@ -62,6 +63,8 @@ export default function ApprovedPayroll({ data, setData }) {
 
   const visibleIds=useMemo(()=>filtered.map(r=>String(r.id)),[filtered])
   const selectedVisibleCount=visibleIds.filter(id=>selected.includes(id)).length
+  const selectedRows=useMemo(()=>rows.filter(row=>selected.includes(String(row.id))),[rows,selected])
+  const selectedTotal=useMemo(()=>selectedRows.reduce((sum,row)=>sum+num(row.approved_amount),0),[selectedRows])
   const allVisibleSelected=visibleIds.length>0 && selectedVisibleCount===visibleIds.length
   const someVisibleSelected=selectedVisibleCount>0 && !allVisibleSelected
 
@@ -141,11 +144,12 @@ export default function ApprovedPayroll({ data, setData }) {
     } else if(bulkForm.paid_date) updates.paid_date=bulkForm.paid_date
     if(bulkForm.payment_type) updates.payment_type=bulkForm.payment_type
     if(bulkForm.check_number!=='') updates.check_number=bulkForm.check_number
+    if(bulkForm.notes.trim()!=='') updates.notes=bulkForm.notes.trim()
     if(!Object.keys(updates).length){ window.alert('Choose at least one field to update.'); return }
     if(!window.confirm(`Apply these changes to ${selected.length} selected payroll record${selected.length===1?'':'s'}?`)) return
     applyUpdates(selected,updates)
     setBulkEditing(false)
-    setBulkForm({payment_status:'',payment_type:'',check_number:'',paid_date:''})
+    setBulkForm({payment_status:'',payment_type:'',check_number:'',paid_date:'',notes:''})
   }
 
   function toggleRow(id){
@@ -160,15 +164,48 @@ export default function ApprovedPayroll({ data, setData }) {
     })
   }
 
-  function deleteApprovedRows(ids){
+  function linkedSourceIds(selectedRows=[]){
+    return new Set(selectedRows.flatMap(row=>[
+      row.source_payroll_entry_id,
+      row.source_payroll_id
+    ]).filter(Boolean).map(String))
+  }
+
+  function permanentlyDeleteApprovedRows(ids){
     const idSet=new Set(ids.map(String))
     const rowsToDelete=rows.filter(row=>idSet.has(String(row.id)))
-    const sourceIds=new Set(rowsToDelete.map(row=>row.source_payroll_entry_id).filter(Boolean).map(String))
+    const sourceIds=linkedSourceIds(rowsToDelete)
     const approvedIds=new Set(rowsToDelete.map(row=>row.id).filter(Boolean).map(String))
+    const tombstones=Array.from(new Set([...approvedIds,...sourceIds]))
+    markPayrollDeleted(tombstones)
 
     setData(prev=>({
       ...prev,
-      approvedPayroll:(prev.approvedPayroll||[]).filter(row=>!approvedIds.has(String(row.id)) && !sourceIds.has(String(row.source_payroll_entry_id||''))),
+      deletedPayrollIds:Array.from(new Set([...(prev.deletedPayrollIds||[]).map(String),...tombstones])),
+      approvedPayroll:(prev.approvedPayroll||[]).filter(row=>
+        !approvedIds.has(String(row.id)) &&
+        !sourceIds.has(String(row.source_payroll_entry_id||row.source_payroll_id||''))
+      ),
+      payrollEntries:(prev.payrollEntries||[]).filter(entry=>
+        !sourceIds.has(String(entry.id)) &&
+        !approvedIds.has(String(entry.approved_payroll_id||''))
+      )
+    }))
+    setSelected(current=>current.filter(id=>!idSet.has(id)))
+  }
+
+  function returnApprovedRowsToPending(ids){
+    const idSet=new Set(ids.map(String))
+    const rowsToReturn=rows.filter(row=>idSet.has(String(row.id)))
+    const sourceIds=linkedSourceIds(rowsToReturn)
+    const approvedIds=new Set(rowsToReturn.map(row=>row.id).filter(Boolean).map(String))
+
+    setData(prev=>({
+      ...prev,
+      approvedPayroll:(prev.approvedPayroll||[]).filter(row=>
+        !approvedIds.has(String(row.id)) &&
+        !sourceIds.has(String(row.source_payroll_entry_id||row.source_payroll_id||''))
+      ),
       payrollEntries:(prev.payrollEntries||[]).map(entry=>{
         if(!sourceIds.has(String(entry.id)) && !approvedIds.has(String(entry.approved_payroll_id||''))) return entry
         const next={...entry,approval_status:'Pending',payment_status:'Pending',updated_at:new Date().toISOString()}
@@ -182,14 +219,20 @@ export default function ApprovedPayroll({ data, setData }) {
   }
 
   function remove(id){
-    if(!window.confirm('Delete this approved payroll record? It will return to Pending Payroll.')) return
-    deleteApprovedRows([id])
+    if(!window.confirm('Permanently delete this approved payroll record and its linked payroll entry? This cannot be undone.')) return
+    permanentlyDeleteApprovedRows([id])
   }
 
   function removeSelected(){
     if(!selected.length) return
-    if(!window.confirm(`Delete ${selected.length} selected approved payroll record${selected.length===1?'':'s'}? They will return to Pending Payroll.`)) return
-    deleteApprovedRows(selected)
+    if(!window.confirm(`Permanently delete ${selected.length} selected approved payroll record${selected.length===1?'':'s'} and their linked payroll entries? This cannot be undone.`)) return
+    permanentlyDeleteApprovedRows(selected)
+  }
+
+  function returnSelectedToPending(){
+    if(!selected.length) return
+    if(!window.confirm(`Return ${selected.length} selected approved payroll record${selected.length===1?'':'s'} to Pending Payroll?`)) return
+    returnApprovedRowsToPending(selected)
   }
 
   return <div className="page-stack approved-payroll-page">
@@ -209,14 +252,64 @@ export default function ApprovedPayroll({ data, setData }) {
         <input type="search" placeholder="Search employee, date, or check number" value={search} onChange={e=>setSearch(e.target.value)}/>
         <select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)} aria-label="Filter approved payroll by employee"><option value="all">All employees</option>{employeeOptions.map(name=><option key={name} value={name}>{name}</option>)}</select>
         <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="void">Void</option></select>
-        <button className="btn secondary" disabled={!selected.length} onClick={()=>setBulkEditing(true)}><Icon name="edit" size={15}/> Edit Selected{selected.length?` (${selected.length})`:''}</button>
-        <button className="btn danger" disabled={!selected.length} onClick={removeSelected}><Icon name="trash" size={15}/> Delete Selected{selected.length?` (${selected.length})`:''}</button>
+        <button className="btn primary" disabled={!selected.length} onClick={()=>{if(selected.length===1){const row=rows.find(item=>String(item.id)===String(selected[0]));if(row) edit(row)}else setBulkEditing(true)}}><Icon name="edit" size={15}/> Edit Approved Payroll{selected.length?` (${selected.length})`:''}</button>
+        <button className="btn secondary" disabled={!selected.length} onClick={returnSelectedToPending}>Return to Pending{selected.length?` (${selected.length})`:''}</button>
+        <button className="btn danger" disabled={!selected.length} onClick={removeSelected}><Icon name="trash" size={15}/> Delete Permanently{selected.length?` (${selected.length})`:''}</button>
       </div>
-      <div className="table-wrap"><table><thead><tr><th className="select-column"><input type="checkbox" checked={allVisibleSelected} ref={el=>{if(el) el.indeterminate=someVisibleSelected}} onChange={toggleAllVisible} aria-label="Select all visible approved payroll"/></th><th>Employee</th><th>Pay Date</th><th>Original</th><th>Approved Amount</th><th>Payment</th><th>Check #</th><th>Status</th><th>Approved</th><th></th></tr></thead><tbody>{filtered.length?filtered.map(r=><tr key={r.id} className={selected.includes(String(r.id))?'selected-row':''}><td className="select-column"><input type="checkbox" checked={selected.includes(String(r.id))} onChange={()=>toggleRow(r.id)} aria-label={`Select ${r.employee_name}`}/></td><td><b>{r.employee_name}</b><small>{r.group_name||r.payroll_classification||''}</small></td><td>{r.pay_date||'—'}</td><td>${money(r.original_amount)}</td><td><b>${money(r.approved_amount)}</b></td><td>{r.payment_type||'Check'}</td><td>{r.check_number||'—'}</td><td><select className="status-inline-select" value={r.payment_status||'Pending'} onChange={e=>updateStatus(r,e.target.value)} aria-label={`Update status for ${r.employee_name}`}><option>Pending</option><option>Paid</option><option>Void</option></select></td><td>{String(r.approved_at||'').slice(0,10)}</td><td><div className="row-actions"><button onClick={()=>edit(r)} title="Edit"><Icon name="edit" size={14}/></button><button onClick={()=>remove(r.id)} title="Delete"><Icon name="trash" size={14}/></button></div></td></tr>):<tr><td colSpan="10">No approved payroll records.</td></tr>}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr><th className="select-column"><input type="checkbox" checked={allVisibleSelected} ref={el=>{if(el) el.indeterminate=someVisibleSelected}} onChange={toggleAllVisible} aria-label="Select all visible approved payroll"/></th><th>Employee</th><th>Pay Date</th><th>Original</th><th>Approved Amount</th><th>Payment</th><th>Check #</th><th>Status</th><th>Approved</th><th></th></tr></thead><tbody>{filtered.length?filtered.map(r=><tr key={r.id} className={selected.includes(String(r.id))?'selected-row':''}><td className="select-column"><input type="checkbox" checked={selected.includes(String(r.id))} onChange={()=>toggleRow(r.id)} aria-label={`Select ${r.employee_name}`}/></td><td><b>{r.employee_name}</b><small>{r.group_name||r.payroll_classification||''}</small></td><td>{r.pay_date||'—'}</td><td>${money(r.original_amount)}</td><td><b>${money(r.approved_amount)}</b></td><td>{r.payment_type||'Check'}</td><td>{r.check_number||'—'}</td><td><select className="status-inline-select" value={r.payment_status||'Pending'} onChange={e=>updateStatus(r,e.target.value)} aria-label={`Update status for ${r.employee_name}`}><option>Pending</option><option>Paid</option><option>Void</option></select></td><td>{String(r.approved_at||'').slice(0,10)}</td><td><div className="row-actions approved-row-actions"><button className="approved-edit-row" onClick={()=>edit(r)} title="Edit approved payroll"><Icon name="edit" size={14}/> <span>Edit</span></button><button onClick={()=>remove(r.id)} title="Delete"><Icon name="trash" size={14}/></button></div></td></tr>):<tr><td colSpan="10">No approved payroll records.</td></tr>}</tbody></table></div>
     </section>
 
     {editing&&<div className="payroll-edit-overlay" onClick={()=>setEditing(null)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Approved Payroll</h2><p>The original payroll amount remains visible for audit.</p></div><button className="modal-close" onClick={()=>setEditing(null)}>×</button></header><div className="payroll-edit-grid"><label>Employee<input value={form.employee_name||''} disabled/></label><label>Original Amount<input value={money(form.original_amount)} disabled/></label><label>Approved Amount<input type="number" step="0.01" value={form.approved_amount??''} onChange={e=>setForm(f=>({...f,approved_amount:e.target.value}))}/></label><label>Payment Type<select value={form.payment_type||'Check'} onChange={e=>setForm(f=>({...f,payment_type:e.target.value}))}><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>Check Number<input value={form.check_number||''} onChange={e=>setForm(f=>({...f,check_number:e.target.value}))}/></label><label>Status<select value={form.payment_status||'Pending'} onChange={e=>setForm(f=>({...f,payment_status:e.target.value,paid_date:e.target.value==='Paid'?(f.paid_date||today()):f.paid_date}))}><option>Pending</option><option>Paid</option><option>Void</option></select></label><label>Paid Date<input type="date" value={form.paid_date||''} onChange={e=>setForm(f=>({...f,paid_date:e.target.value}))}/></label><label className="wide">Notes<textarea value={form.notes||''} onChange={e=>setForm(f=>({...f,notes:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setEditing(null)}>Cancel</button><button className="btn primary" onClick={save}>Save Changes</button></footer></section></div>}
 
-    {bulkEditing&&<div className="payroll-edit-overlay" onClick={()=>setBulkEditing(false)}><section className="payroll-edit-modal" onClick={e=>e.stopPropagation()}><header><div><h2>Edit Selected Payroll</h2><p>Only fields you choose below will be changed for {selected.length} selected record{selected.length===1?'':'s'}.</p></div><button className="modal-close" onClick={()=>setBulkEditing(false)}>×</button></header><div className="payroll-edit-grid"><label>Status<select value={bulkForm.payment_status} onChange={e=>setBulkForm(f=>({...f,payment_status:e.target.value,paid_date:e.target.value==='Paid'?(f.paid_date||today()):f.paid_date}))}><option value="">Keep current status</option><option>Pending</option><option>Paid</option><option>Void</option></select></label><label>Payment Type<select value={bulkForm.payment_type} onChange={e=>setBulkForm(f=>({...f,payment_type:e.target.value}))}><option value="">Keep current payment type</option><option>Cash</option><option>Check</option><option>ACH</option><option>Card</option><option>Other</option></select></label><label>Check Number<input value={bulkForm.check_number} placeholder="Leave blank to keep current" onChange={e=>setBulkForm(f=>({...f,check_number:e.target.value}))}/></label><label>Paid Date<input type="date" value={bulkForm.paid_date} onChange={e=>setBulkForm(f=>({...f,paid_date:e.target.value}))}/></label></div><footer><button className="btn secondary" onClick={()=>setBulkEditing(false)}>Cancel</button><button className="btn primary" onClick={applyBulkEdit}>Apply Changes</button></footer></section></div>}
+    {bulkEditing&&<div className="payroll-edit-overlay approved-bulk-overlay" onClick={()=>setBulkEditing(false)}>
+      <section className="payroll-edit-modal approved-bulk-modal" onClick={e=>e.stopPropagation()}>
+        <header className="approved-bulk-header">
+          <div>
+            <span className="approved-bulk-eyebrow">Batch payment workspace</span>
+            <h2>Edit & Pay Selected Payroll</h2>
+            <p>Update payment details for {selected.length} selected employee{selected.length===1?'':'s'} in one professional payment batch.</p>
+          </div>
+          <button className="modal-close" onClick={()=>setBulkEditing(false)}>×</button>
+        </header>
+
+        <div className="approved-bulk-summary">
+          <article><span>Selected Employees</span><strong>{selected.length}</strong></article>
+          <article><span>Batch Amount</span><strong>${money(selectedTotal)}</strong></article>
+          <article><span>Pay Date</span><strong>{selectedRows[0]?.pay_date||'Multiple'}</strong></article>
+        </div>
+
+        <div className="approved-bulk-body">
+          <section className="approved-bulk-panel">
+            <div className="approved-bulk-panel-title"><div><h3>Payment Status</h3><p>Choose what should happen to this selected payroll batch.</p></div></div>
+            <div className="approved-option-cards three">
+              {[{value:'',label:'Keep Current',icon:'edit',copy:'Do not change status'},{value:'Pending',label:'Pending',icon:'clock',copy:'Leave ready for payment'},{value:'Paid',label:'Mark Paid',icon:'check',copy:'Complete the payroll payment'},{value:'Void',label:'Void',icon:'trash',copy:'Void selected records'}].map(option=><button type="button" key={option.label} className={`approved-option-card ${bulkForm.payment_status===option.value?'active':''}`} onClick={()=>setBulkForm(f=>({...f,payment_status:option.value,paid_date:option.value==='Paid'?(f.paid_date||today()):f.paid_date}))}><span className="approved-option-icon"><Icon name={option.icon} size={18}/></span><b>{option.label}</b><small>{option.copy}</small></button>)}
+            </div>
+          </section>
+
+          <section className="approved-bulk-panel">
+            <div className="approved-bulk-panel-title"><div><h3>Payment Method</h3><p>Select how these employees will be paid.</p></div></div>
+            <div className="approved-option-cards">
+              {[{value:'',label:'Keep Current',icon:'edit'},{value:'Check',label:'Check',icon:'receipt'},{value:'Cash',label:'Cash',icon:'dollar'},{value:'ACH',label:'ACH',icon:'landmark'},{value:'Card',label:'Card',icon:'card'},{value:'Other',label:'Other',icon:'more'}].map(option=><button type="button" key={option.label} className={`approved-option-card compact ${bulkForm.payment_type===option.value?'active':''}`} onClick={()=>setBulkForm(f=>({...f,payment_type:option.value}))}><span className="approved-option-icon"><Icon name={option.icon} size={17}/></span><b>{option.label}</b></button>)}
+            </div>
+          </section>
+
+          <section className="approved-bulk-panel">
+            <div className="approved-bulk-panel-title"><div><h3>Payment Details</h3><p>Blank fields keep each employee's existing value.</p></div></div>
+            <div className="approved-bulk-fields">
+              <label>Check Number<input value={bulkForm.check_number} placeholder="Leave blank to keep current" onChange={e=>setBulkForm(f=>({...f,check_number:e.target.value}))}/></label>
+              <label>Paid Date<input type="date" value={bulkForm.paid_date} onChange={e=>setBulkForm(f=>({...f,paid_date:e.target.value}))}/></label>
+              <label className="wide">Payment Note<textarea value={bulkForm.notes} placeholder="Optional note for all selected payroll records" onChange={e=>setBulkForm(f=>({...f,notes:e.target.value}))}/></label>
+            </div>
+          </section>
+
+          <section className="approved-bulk-panel selected-employees-panel">
+            <div className="approved-bulk-panel-title"><div><h3>Selected Employees</h3><p>Review the payment batch before applying changes.</p></div><strong>${money(selectedTotal)}</strong></div>
+            <div className="approved-selected-list">{selectedRows.map(row=><article key={row.id}><div><b>{row.employee_name}</b><small>{row.pay_date||'No pay date'} · {row.payment_type||'Check'} · {row.payment_status||'Pending'}</small></div><strong>${money(row.approved_amount)}</strong></article>)}</div>
+          </section>
+        </div>
+
+        <footer className="approved-bulk-footer"><div><span>Batch total</span><strong>${money(selectedTotal)}</strong></div><div className="approved-bulk-footer-actions"><button className="btn secondary" onClick={()=>setBulkEditing(false)}>Cancel</button><button className="btn primary" onClick={applyBulkEdit}><Icon name="check" size={16}/> Apply Payment Changes</button></div></footer>
+      </section>
+    </div>}
   </div>
 }
