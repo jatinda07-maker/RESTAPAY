@@ -3133,37 +3133,87 @@ html,body,#root,.app-shell,.main-panel,.content-area{max-width:100%;overflow-x:h
 .payroll-group-create-button{background:#166534!important;border-color:#166534!important;color:#fff!important;box-shadow:0 8px 18px rgba(22,101,52,.18)!important}.payroll-group-create-button:hover{background:#14532d!important}.payroll-group-create-button:disabled{opacity:.5!important}
 @media(max-width:980px){.payroll-rc5-group-toolbar{grid-template-columns:1fr 1fr!important}.payroll-group-addbar{grid-template-columns:1fr!important}.payroll-rc5-group-modal{width:98vw!important}}
 
-/* RC6.19 Approved Payroll professional payment popup and full table visibility */
-.payroll-edit-overlay{
-  position:fixed!important; inset:0!important; z-index:9999!important;
-  display:flex!important; align-items:center!important; justify-content:center!important;
-  padding:24px!important; background:rgba(15,23,42,.58)!important;
-  backdrop-filter:blur(5px)!important;
+/* RC6.19 Professional approved payroll batch payment modal */
+.approved-bulk-overlay{padding:24px!important;background:rgba(15,23,42,.62)!important;backdrop-filter:blur(7px)}
+.approved-bulk-modal{width:min(980px,96vw)!important;max-height:92vh!important;overflow:hidden!important;border:1px solid #d8e3f0!important;border-radius:20px!important;background:#f7faff!important;box-shadow:0 30px 80px rgba(15,23,42,.28)!important;display:flex!important;flex-direction:column!important}
+.approved-bulk-header{padding:22px 24px!important;background:linear-gradient(135deg,#163a70,#2563a9)!important;color:#fff!important;border:0!important;display:flex!important;align-items:flex-start!important;justify-content:space-between!important}
+.approved-bulk-header h2{margin:4px 0 5px!important;color:#fff!important;font-size:24px!important}.approved-bulk-header p{margin:0!important;color:#dbeafe!important}.approved-bulk-eyebrow{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#bfdbfe}.approved-bulk-header .modal-close{color:#fff!important;background:rgba(255,255,255,.14)!important;border-color:rgba(255,255,255,.25)!important}
+.approved-bulk-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 22px 4px}.approved-bulk-summary article{padding:14px 16px;border:1px solid #dbe6f2;border-radius:14px;background:#fff;box-shadow:0 5px 16px rgba(15,23,42,.05)}.approved-bulk-summary span{display:block;font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.055em}.approved-bulk-summary strong{display:block;margin-top:5px;font-size:20px;color:#0f2f5d}
+.approved-bulk-body{padding:14px 22px 20px;overflow:auto;display:grid;gap:14px}.approved-bulk-panel{padding:17px;border:1px solid #dbe6f2;border-radius:16px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.045)}.approved-bulk-panel-title{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:13px}.approved-bulk-panel-title h3{margin:0 0 3px;font-size:16px;color:#102a4c}.approved-bulk-panel-title p{margin:0;font-size:12px;color:#64748b}.approved-bulk-panel-title>strong{font-size:20px;color:#1763b0}
+.approved-option-cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px}.approved-option-cards.three{grid-template-columns:repeat(4,minmax(0,1fr))}.approved-option-card{min-height:91px;padding:12px 10px;border:1px solid #d7e2ef;border-radius:13px;background:#f8fbff;color:#17365d;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:left;cursor:pointer;transition:.16s ease}.approved-option-card:hover{transform:translateY(-1px);border-color:#7fb0e5;box-shadow:0 7px 16px rgba(37,99,169,.1)}.approved-option-card.active{border-color:#1763b0;background:#edf6ff;box-shadow:0 0 0 2px rgba(23,99,176,.13)}.approved-option-card b{font-size:13px}.approved-option-card small{margin-top:4px;font-size:10px;line-height:1.3;color:#64748b}.approved-option-icon{width:31px;height:31px;margin-bottom:8px;border-radius:9px;background:#e8f1fb;color:#1763b0;display:grid;place-items:center}.approved-option-card.active .approved-option-icon{background:#1763b0;color:#fff}.approved-option-card.compact{min-height:76px;align-items:center;text-align:center}.approved-option-card.compact .approved-option-icon{margin-bottom:6px}
+.approved-bulk-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.approved-bulk-fields label{display:grid;gap:6px;font-size:11px;font-weight:800;color:#37516f;text-transform:uppercase;letter-spacing:.04em}.approved-bulk-fields input,.approved-bulk-fields textarea{width:100%;border:1px solid #cad8e8;border-radius:11px;background:#fbfdff;padding:11px 12px;font:inherit;color:#102a4c}.approved-bulk-fields textarea{min-height:70px;resize:vertical}.approved-bulk-fields .wide{grid-column:1/-1}
+.approved-selected-list{max-height:210px;overflow:auto;border:1px solid #e1e9f2;border-radius:12px}.approved-selected-list article{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:11px 13px;border-bottom:1px solid #e8eef5}.approved-selected-list article:last-child{border-bottom:0}.approved-selected-list b{display:block;color:#14345a}.approved-selected-list small{display:block;margin-top:2px;color:#70839a}.approved-selected-list strong{color:#0f5fa8}
+.approved-bulk-footer{padding:15px 22px!important;background:#fff!important;border-top:1px solid #dbe6f2!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:18px!important}.approved-bulk-footer>div:first-child span{display:block;font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase}.approved-bulk-footer>div:first-child strong{font-size:21px;color:#0f2f5d}.approved-bulk-footer-actions{display:flex;gap:10px}
+@media(max-width:760px){.approved-bulk-summary{grid-template-columns:1fr}.approved-option-cards,.approved-option-cards.three{grid-template-columns:repeat(2,minmax(0,1fr))}.approved-bulk-fields{grid-template-columns:1fr}.approved-bulk-footer{align-items:stretch!important;flex-direction:column!important}.approved-bulk-footer-actions{display:grid;grid-template-columns:1fr 1fr}.approved-bulk-modal{max-height:96vh!important}}
+
+/* RC6.20 true centered payroll popup */
+.payroll-rc5-overlay{
+  position:fixed!important;
+  inset:0!important;
+  z-index:100000!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:20px!important;
+  overflow:hidden!important;
+  background:rgba(15,23,42,.62)!important;
+  backdrop-filter:blur(6px)!important;
 }
-.payroll-edit-modal{
-  width:min(760px,96vw)!important; max-height:92vh!important; overflow:auto!important;
-  background:#fff!important; border:1px solid #dbe5f0!important; border-radius:20px!important;
-  box-shadow:0 28px 80px rgba(15,23,42,.28)!important;
+.payroll-rc5-overlay .payroll-rc5-modal,
+.payroll-rc5-overlay .payroll-rc5-group-modal{
+  position:relative!important;
+  inset:auto!important;
+  margin:0!important;
+  width:min(1480px,calc(100vw - 40px))!important;
+  max-width:calc(100vw - 40px)!important;
+  height:min(820px,calc(100vh - 40px))!important;
+  max-height:calc(100vh - 40px)!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+  background:#fff!important;
 }
-.payroll-edit-modal>header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;gap:20px;padding:22px 24px;background:#fff;border-bottom:1px solid #e2e8f0}
-.payroll-edit-modal>header h2{margin:0 0 5px;font-size:22px}.payroll-edit-modal>header p{margin:0;color:#64748b}
-.payroll-edit-modal .modal-close{width:38px;height:38px;border:1px solid #d6e0ec;border-radius:12px;background:#fff;font-size:25px;line-height:1;cursor:pointer}
-.payroll-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:22px 24px}
-.payroll-edit-grid label{display:grid;gap:7px;font-size:12px;font-weight:800;color:#334155}
-.payroll-edit-grid label.wide{grid-column:1/-1}.payroll-edit-grid input,.payroll-edit-grid select,.payroll-edit-grid textarea{width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:11px;background:#fff;padding:11px 12px;font:inherit;color:#0f172a}.payroll-edit-grid textarea{min-height:82px;resize:vertical}.payroll-edit-grid small{font-weight:600;color:#64748b}
-.payroll-edit-modal>footer{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;background:#fff;border-top:1px solid #e2e8f0}
-.approved-bulk-modal{width:min(1080px,97vw)!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}
-.approved-bulk-header{position:relative!important;background:linear-gradient(135deg,#173d73,#285b9e)!important;color:#fff!important;border:0!important}
-.approved-bulk-header h2,.approved-bulk-header p{color:#fff!important}.approved-bulk-header p{opacity:.82}.approved-bulk-header .modal-close{color:#fff;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.28)}
-.approved-bulk-eyebrow{display:block;margin-bottom:5px;font-size:10px;font-weight:900;letter-spacing:.12em;opacity:.75}
-.approved-bulk-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px 22px;background:#f4f8fd;border-bottom:1px solid #dbe5f0}
-.approved-bulk-kpis article{padding:13px 15px;background:#fff;border:1px solid #dbe5f0;border-radius:13px;box-shadow:0 4px 12px rgba(15,23,42,.05)}
-.approved-bulk-kpis span{display:block;font-size:10px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.05em}.approved-bulk-kpis strong{display:block;margin-top:5px;font-size:19px;color:#173d73}
-.approved-bulk-body{display:grid;grid-template-columns:minmax(0,.9fr) minmax(380px,1.1fr);gap:16px;padding:18px 22px;overflow:auto;background:#f8fafc}
-.approved-bulk-form-card,.approved-bulk-list-card{min-width:0;background:#fff;border:1px solid #dbe5f0;border-radius:15px;overflow:hidden}
-.approved-bulk-form-card h3,.approved-bulk-list-head{margin:0;padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#173d73}.approved-bulk-form-card .payroll-edit-grid{padding:16px;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.approved-bulk-list-head{display:flex;align-items:center;justify-content:space-between}.approved-bulk-list-head h3{margin:0;font-size:14px}.approved-bulk-list-head span{font-size:11px;font-weight:800;color:#64748b}
-.approved-bulk-list{max-height:430px;overflow:auto;padding:8px}.approved-bulk-employee{display:grid;grid-template-columns:38px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:10px;border-bottom:1px solid #edf2f7}.approved-bulk-employee:last-child{border-bottom:0}.approved-bulk-avatar{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:#e8f1ff;color:#1d4f91;font-weight:900}.approved-bulk-employee strong,.approved-bulk-employee small{display:block}.approved-bulk-employee small{margin-top:3px;color:#64748b;font-size:11px}.approved-bulk-employee>b{color:#0f172a;white-space:nowrap}.approved-bulk-employee em{font-style:normal;font-size:11px;font-weight:800;color:#2563eb;background:#eff6ff;padding:4px 7px;border-radius:7px}
-.approved-bulk-footer{position:relative!important;display:flex!important;align-items:center!important;justify-content:space-between!important}.approved-bulk-footer>div{display:flex;align-items:center;gap:10px}.approved-bulk-footer>div:first-child{display:grid;gap:2px}.approved-bulk-footer span{font-size:10px;font-weight:900;color:#64748b;text-transform:uppercase}.approved-bulk-footer strong{font-size:20px;color:#173d73}.approved-process-button{background:#1769d2!important}
-.approved-payroll-page .card>.table-wrap{width:100%!important;max-width:100%!important;overflow-x:auto!important;overflow-y:visible!important;border-radius:12px!important}.approved-payroll-page .card>.table-wrap table{width:100%!important;min-width:1280px!important;table-layout:auto!important}.approved-payroll-page .card>.table-wrap th,.approved-payroll-page .card>.table-wrap td{white-space:nowrap!important}.approved-payroll-page .approved-payroll-toolbar{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important}.approved-payroll-page .approved-payroll-toolbar input[type=search]{flex:1 1 310px!important;min-width:220px!important}.approved-payroll-page .approved-payroll-toolbar select{flex:0 1 210px!important}.approved-payroll-page .approved-payroll-toolbar .btn{flex:0 0 auto!important;white-space:nowrap!important}
-@media(max-width:800px){.approved-bulk-body{grid-template-columns:1fr}.approved-bulk-kpis{grid-template-columns:1fr}.approved-bulk-form-card .payroll-edit-grid,.payroll-edit-grid{grid-template-columns:1fr}.approved-bulk-footer{align-items:stretch!important;flex-direction:column!important}.approved-bulk-footer>div:last-child{justify-content:flex-end}.payroll-edit-overlay{padding:10px!important}}
+.payroll-rc5-overlay .payroll-rc5-modal>header,
+.payroll-rc5-overlay .payroll-rc5-group-modal>header{
+  flex:0 0 auto!important;
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:16px!important;
+}
+.payroll-rc5-overlay .payroll-rc5-group-toolbar,
+.payroll-rc5-overlay .payroll-group-addbar,
+.payroll-rc5-overlay .payroll-group-selection-summary,
+.payroll-rc5-overlay .payroll-rc5-modal>footer,
+.payroll-rc5-overlay .payroll-rc5-group-modal>footer{
+  flex:0 0 auto!important;
+}
+.payroll-rc5-overlay .payroll-rc5-table-wrap{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:auto!important;
+  overscroll-behavior:contain!important;
+}
+.payroll-rc5-overlay .payroll-group-table{
+  min-width:1180px!important;
+  width:100%!important;
+  table-layout:auto!important;
+}
+.payroll-rc5-overlay .payroll-group-table thead{
+  position:sticky!important;
+  top:0!important;
+  z-index:2!important;
+  background:#f8fafc!important;
+}
+@media(max-width:900px){
+  .payroll-rc5-overlay{padding:8px!important;align-items:center!important}
+  .payroll-rc5-overlay .payroll-rc5-modal,
+  .payroll-rc5-overlay .payroll-rc5-group-modal{
+    width:calc(100vw - 16px)!important;
+    max-width:calc(100vw - 16px)!important;
+    height:calc(100vh - 16px)!important;
+    max-height:calc(100vh - 16px)!important;
+    border-radius:14px!important;
+  }
+}
