@@ -225,6 +225,8 @@ export default function Payroll({ data, setData }) {
   const [groupPeriodEnd, setGroupPeriodEnd] = useState(today())
   const [groupPayDate, setGroupPayDate] = useState(today())
   const [groupEmployeeSearch, setGroupEmployeeSearch] = useState('')
+  const [groupSelectedEmployeeIds, setGroupSelectedEmployeeIds] = useState([])
+  const [groupAddEmployeeId, setGroupAddEmployeeId] = useState('')
   const [groupAdjustments, setGroupAdjustments] = useState({})
   const [manual, setManual] = useState(blankManual())
   const [editingId, setEditingId] = useState('')
@@ -413,13 +415,28 @@ export default function Payroll({ data, setData }) {
   }, [filteredHistory, employees])
 
   const selectedPayrollGroup = payrollGroups.find(group => group.id === selectedGroupId)
+  const defaultGroupMembers = useMemo(() => selectedGroupId === 'kitchen-auto'
+    ? employees.filter(employee => /kitchen|cook|chef|prep|dish/i.test(`${employee.job_type || ''} ${employee.employee_type || ''}`))
+    : employees.filter(employee => (selectedPayrollGroup?.memberIds || []).includes(employee.id)), [employees, selectedGroupId, selectedPayrollGroup])
+
+  const selectedGroupMembers = useMemo(() => employees.filter(employee => groupSelectedEmployeeIds.includes(employee.id)), [employees, groupSelectedEmployeeIds])
+
   const groupMembers = useMemo(() => {
-    const base = selectedGroupId === 'kitchen-auto'
-      ? employees.filter(employee => /kitchen|cook|chef|prep|dish/i.test(`${employee.job_type || ''} ${employee.employee_type || ''}`))
-      : employees.filter(employee => (selectedPayrollGroup?.memberIds || []).includes(employee.id))
     const query = normalizeName(groupEmployeeSearch)
-    return base.filter(employee => !query || normalizeName(`${employee.name} ${employee.job_type} ${employee.employee_type}`).includes(query))
-  }, [employees, selectedGroupId, selectedPayrollGroup, groupEmployeeSearch])
+    return selectedGroupMembers.filter(employee => !query || normalizeName(`${employee.name} ${employee.job_type} ${employee.employee_type}`).includes(query))
+  }, [selectedGroupMembers, groupEmployeeSearch])
+
+  const groupAllSelected = selectedGroupMembers.length > 0 && selectedGroupMembers.length === employees.length
+
+  function toggleGroupEmployee(employeeId) {
+    setGroupSelectedEmployeeIds(current => current.includes(employeeId) ? current.filter(id => id !== employeeId) : [...current, employeeId])
+  }
+
+  function addEmployeeToGroupRun() {
+    if (!groupAddEmployeeId) return
+    setGroupSelectedEmployeeIds(current => current.includes(groupAddEmployeeId) ? current : [...current, groupAddEmployeeId])
+    setGroupAddEmployeeId('')
+  }
 
   function groupValue(employee, field) {
     const saved = groupAdjustments[employee.id] || {}
@@ -437,14 +454,14 @@ export default function Payroll({ data, setData }) {
 
   function createGroupPayroll() {
     if (!groupPeriodStart || !groupPeriodEnd || groupPeriodStart > groupPeriodEnd) return setStatus('Select a valid group payroll start and end date.')
-    if (!groupMembers.length) return setStatus('No kitchen employees are available in this payroll group.')
-    for (const employee of groupMembers) {
+    if (!selectedGroupMembers.length) return setStatus('Select at least one employee for this payroll group.')
+    for (const employee of selectedGroupMembers) {
       if (num(groupValue(employee, 'extra_pay')) > 0 && !String(groupValue(employee, 'extra_reason')).trim()) {
         return setStatus(`${employee.name}: enter an Extra Pay Reason.`)
       }
     }
     const groupName = selectedGroupId === 'kitchen-auto' ? 'Kitchen Payroll' : (selectedPayrollGroup?.name || 'Payroll Group')
-    const rows = groupMembers.map(employee => {
+    const rows = selectedGroupMembers.map(employee => {
       const row = {
         id: createId('pay'), source: 'Manual Payroll Group', employee_id: employee.id, employee_name: employee.name,
         group_name: groupName, pay_date: groupPayDate, period_start: groupPeriodStart, period_end: groupPeriodEnd,
@@ -708,6 +725,20 @@ export default function Payroll({ data, setData }) {
     setStatus(`Manual payroll added for ${name}.`)
   }
 
+  function openKitchenGroupPayroll() {
+    const anchorDate = dateEnd || today()
+    const week = mondaySundayWeek(anchorDate)
+    setGroupPeriodStart(week.start)
+    setGroupPeriodEnd(week.end)
+    setGroupPayDate(week.end)
+    setGroupEmployeeSearch('')
+    setGroupSelectedEmployeeIds(defaultGroupMembers.map(employee => employee.id))
+    setGroupAddEmployeeId('')
+    setGroupAdjustments({})
+    setShowManual(false)
+    setShowGroupPayroll(true)
+  }
+
   function exportCsv() {
     const rows = filteredHistory
     if (!rows.length) return setStatus('No payroll rows to export.')
@@ -724,8 +755,8 @@ export default function Payroll({ data, setData }) {
     <div className="page-head payroll-rc5-head">
       <div><h1>Payroll</h1><p>Build employee payroll from Toast, make adjustments, approve, and export.</p></div>
       <div className="payroll-rc5-head-actions">
-        <button type="button" className="btn secondary" onClick={() => setShowGroupPayroll(true)}><Icon name="users" /> Kitchen Group Payroll</button>
-        <button type="button" className="btn secondary" onClick={() => setShowManual(true)}><Icon name="plus" /> Manual Payroll</button>
+        <button type="button" className="btn payroll-kitchen-button" onClick={openKitchenGroupPayroll}><Icon name="users" /> Kitchen Group Payroll</button>
+        <button type="button" className="btn payroll-manual-button" onClick={() => { setShowGroupPayroll(false); setShowManual(true) }}><Icon name="plus" /> Manual Payroll</button>
         <label className="btn primary payroll-upload-button"><Icon name="upload" /> Upload Toast Labor<input type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
       </div>
     </div>
@@ -823,24 +854,30 @@ export default function Payroll({ data, setData }) {
     </section>
 
     {showGroupPayroll && <div className="payroll-rc5-overlay" onClick={() => setShowGroupPayroll(false)}><section className="payroll-rc5-modal payroll-rc5-group-modal" onClick={e => e.stopPropagation()}>
-      <header><div><h2>Kitchen Manual Payroll Group</h2><p>Create one manual payroll entry for every kitchen employee.</p></div><button type="button" onClick={() => setShowGroupPayroll(false)}>×</button></header>
+      <header><div><span className="payroll-group-eyebrow">GROUP PAYROLL</span><h2>Kitchen Payroll Group</h2><p>Select employees, enter adjustments, and create one professional payroll batch for the week.</p></div><button type="button" onClick={() => setShowGroupPayroll(false)} aria-label="Close group payroll">×</button></header>
       <div className="payroll-rc5-group-toolbar">
-        <label>Payroll Group<select value={selectedGroupId} onChange={e => { setSelectedGroupId(e.target.value); setGroupAdjustments({}) }}><option value="kitchen-auto">Kitchen Employees (automatic)</option>{payrollGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+        <label>Payroll Group<select value={selectedGroupId} onChange={e => { const nextId = e.target.value; setSelectedGroupId(nextId); const group = payrollGroups.find(item => item.id === nextId); const ids = nextId === 'kitchen-auto' ? employees.filter(employee => /kitchen|cook|chef|prep|dish/i.test(`${employee.job_type || ''} ${employee.employee_type || ''}`)).map(employee => employee.id) : (group?.memberIds || []); setGroupSelectedEmployeeIds(ids); setGroupAdjustments({}) }}><option value="kitchen-auto">Kitchen Employees (automatic)</option>{payrollGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
         <label>Period Start<input type="date" value={groupPeriodStart} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPeriodStart(e.target.value)} /></label>
         <label>Period End<input type="date" value={groupPeriodEnd} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPeriodEnd(e.target.value)} /></label>
         <label>Pay Date<input type="date" value={groupPayDate} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPayDate(e.target.value)} /></label>
         <label>Search Employee<input value={groupEmployeeSearch} onChange={e => setGroupEmployeeSearch(e.target.value)} placeholder="Kitchen employee name" /></label>
       </div>
-      <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table"><thead><tr><th>Employee</th><th>Job</th><th>Regular Pay</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th></tr></thead><tbody>
-        {groupMembers.map(employee => <tr key={employee.id}><td><b>{employee.name}</b></td><td>{employee.job_type || employee.employee_type || 'Kitchen'}</td><td><input type="number" step="0.01" value={groupValue(employee, 'regular_pay')} onChange={e => updateGroupAdjustment(employee.id, 'regular_pay', e.target.value)} /></td><td><input type="number" step="0.01" value={groupValue(employee, 'extra_pay')} onChange={e => updateGroupAdjustment(employee.id, 'extra_pay', e.target.value)} /></td><td><input value={groupValue(employee, 'extra_reason')} onChange={e => updateGroupAdjustment(employee.id, 'extra_reason', e.target.value)} placeholder={num(groupValue(employee, 'extra_pay')) > 0 ? 'Required' : 'Optional'} /></td><td><select value={groupValue(employee, 'payroll_type')} onChange={e => updateGroupAdjustment(employee.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select></td><td><input value={groupValue(employee, 'check_number')} onChange={e => updateGroupAdjustment(employee.id, 'check_number', e.target.value)} /></td><td className="payroll-rc5-money">${money(num(groupValue(employee, 'regular_pay')) + num(groupValue(employee, 'extra_pay')))}</td></tr>)}
-        {!groupMembers.length && <tr><td colSpan="8" className="empty-cell">No kitchen employees match this group/search.</td></tr>}
+      <div className="payroll-group-addbar">
+        <div><b>Add employee to this payroll group</b><small>Include any active employee in this weekly batch without changing their permanent job type.</small></div>
+        <select value={groupAddEmployeeId} onChange={e => setGroupAddEmployeeId(e.target.value)}><option value="">Select employee</option>{employees.filter(employee => !groupSelectedEmployeeIds.includes(employee.id)).map(employee => <option key={employee.id} value={employee.id}>{employee.name} — {employee.job_type || employee.employee_type || 'Employee'}</option>)}</select>
+        <button type="button" className="btn payroll-group-add-button" onClick={addEmployeeToGroupRun} disabled={!groupAddEmployeeId}><Icon name="plus" size={16}/> Add to Group</button>
+      </div>
+      <div className="payroll-group-selection-summary"><span><b>{groupSelectedEmployeeIds.length}</b> employees selected</span><button type="button" onClick={() => setGroupSelectedEmployeeIds(defaultGroupMembers.map(employee => employee.id))}>Reset to group defaults</button></div>
+      <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table payroll-group-table"><thead><tr><th><input type="checkbox" checked={groupAllSelected} onChange={() => setGroupSelectedEmployeeIds(groupAllSelected ? [] : employees.map(employee => employee.id))} /></th><th>Employee</th><th>Job</th><th>Regular Pay</th><th>Extra Pay</th><th>Reason</th><th>Method</th><th>Check #</th><th>Final</th></tr></thead><tbody>
+        {groupMembers.map(employee => <tr key={employee.id}><td><input type="checkbox" checked={groupSelectedEmployeeIds.includes(employee.id)} onChange={() => toggleGroupEmployee(employee.id)} /></td><td><b>{employee.name}</b><small>{employee.employee_type || 'Active employee'}</small></td><td>{employee.job_type || employee.employee_type || 'Kitchen'}</td><td><input type="number" step="0.01" value={groupValue(employee, 'regular_pay')} onChange={e => updateGroupAdjustment(employee.id, 'regular_pay', e.target.value)} /></td><td><input type="number" step="0.01" value={groupValue(employee, 'extra_pay')} onChange={e => updateGroupAdjustment(employee.id, 'extra_pay', e.target.value)} /></td><td><input value={groupValue(employee, 'extra_reason')} onChange={e => updateGroupAdjustment(employee.id, 'extra_reason', e.target.value)} placeholder={num(groupValue(employee, 'extra_pay')) > 0 ? 'Required' : 'Optional'} /></td><td><select value={groupValue(employee, 'payroll_type')} onChange={e => updateGroupAdjustment(employee.id, 'payroll_type', e.target.value)}>{PAY_METHODS.map(method => <option key={method}>{method}</option>)}</select></td><td><input value={groupValue(employee, 'check_number')} onChange={e => updateGroupAdjustment(employee.id, 'check_number', e.target.value)} /></td><td className="payroll-rc5-money">${money(num(groupValue(employee, 'regular_pay')) + num(groupValue(employee, 'extra_pay')))}</td></tr>)}
+        {!groupMembers.length && <tr><td colSpan="9" className="empty-cell">No employees are selected for this payroll group.</td></tr>}
       </tbody></table></div>
-      <footer><button type="button" className="btn secondary" onClick={() => setShowGroupPayroll(false)}>Cancel</button><button type="button" className="btn primary" onClick={createGroupPayroll}>Create Kitchen Group Payroll</button></footer>
+      <footer><div className="payroll-group-footer-summary"><b>{groupSelectedEmployeeIds.length} employees</b><span>{groupPeriodStart} through {groupPeriodEnd} · Pay date {groupPayDate}</span></div><button type="button" className="btn secondary" onClick={() => setShowGroupPayroll(false)}>Cancel</button><button type="button" className="btn payroll-group-create-button" onClick={createGroupPayroll} disabled={!groupSelectedEmployeeIds.length}>Create Group Payroll</button></footer>
     </section></div>}
 
     {showManual && <div className="payroll-rc5-overlay" onClick={() => setShowManual(false)}><section className="payroll-rc5-modal" onClick={e => e.stopPropagation()}>
       <header><div><h2>Add Manual Payroll</h2><p>Add one employee or open group payroll without a Toast import.</p></div><button type="button" onClick={() => setShowManual(false)}>×</button></header>
-      <div className="payroll-rc5-modal-switch"><button type="button" className="btn secondary" onClick={() => { setShowManual(false); setShowGroupPayroll(true) }}><Icon name="users" /> Add Group Payroll</button></div>
+      <div className="payroll-rc5-modal-switch"><button type="button" className="btn secondary" onClick={openKitchenGroupPayroll}><Icon name="users" /> Add Group Payroll</button></div>
       <div className="payroll-rc5-form">
         <label>Employee<select value={manual.employee_id} onChange={e => setManual(value => ({ ...value, employee_id: e.target.value }))}><option value="">Enter manual name</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
         <label>Manual Name<input value={manual.employee_name} onChange={e => setManual(value => ({ ...value, employee_name: e.target.value }))} /></label>
