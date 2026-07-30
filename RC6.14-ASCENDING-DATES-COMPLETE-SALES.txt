@@ -1,0 +1,8 @@
+RESTAPAY RC6.14
+
+Fixes:
+- All dashboard detail-card ledgers are sorted in ascending date order.
+- Sales history is sorted oldest-to-newest.
+- Dashboard sales rows are consolidated by business date so all loaded Toast sales entries for the same date are included in one complete daily total.
+- The All Dates range now uses every loaded sales date without clipping to the current month.
+- Keeps the RC6.13 Monday-Sunday payroll merge and Sunday week-ending logic.

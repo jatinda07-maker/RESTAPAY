@@ -349,7 +349,7 @@ export default function Sales({ data, setData }) {
 
   const filteredSales = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return [...salesDays].sort((a, b) => String(b.business_date).localeCompare(String(a.business_date))).filter(row => {
+    return [...salesDays].sort((a, b) => String(a.business_date || a.date || '').localeCompare(String(b.business_date || b.date || ''))).filter(row => {
       if (q && !String(row.business_date).includes(q) && !String(row.source_file || '').toLowerCase().includes(q) && !String(row.import_note || '').toLowerCase().includes(q)) return false
       if (dateStart && String(row.business_date) < dateStart) return false
       if (dateEnd && String(row.business_date) > dateEnd) return false
