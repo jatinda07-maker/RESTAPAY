@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/Icons'
+import DateControls from '../components/DateControls'
 import { RESTAPAY_CLOUD_STATUS_EVENT, loadCloudData, retryPendingCloudSave } from '../lib/localStore'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
 import { calculateDepartmentCosts, classifySpend, menuSaleCategoryLabel } from '../engine/DepartmentCostEngine'
@@ -53,6 +54,28 @@ function rowDate(row, keys = []) {
   for (const key of keys) if (row?.[key]) return String(row[key]).slice(0, 10)
   return String(row?.business_date || row?.pay_date || row?.payroll_date || row?.invoice_date || row?.date || row?.expense_date || row?.created_at || '').slice(0, 10)
 }
+
+function detailRowDate(row = {}) {
+  return rowDate(row, [
+    'business_date', 'pay_date', 'payroll_date', 'pay_period_end',
+    'invoice_date', 'expense_date', 'transaction_date', 'date', 'created_at'
+  ])
+}
+
+function sortDetailRowsAscending(rows = []) {
+  return rows
+    .map((row, index) => ({ row, index, date: detailRowDate(row) }))
+    .sort((a, b) => {
+      if (a.date && b.date) {
+        const byDate = a.date.localeCompare(b.date)
+        if (byDate !== 0) return byDate
+      } else if (a.date) return -1
+      else if (b.date) return 1
+      return a.index - b.index
+    })
+    .map(item => item.row)
+}
+
 function isDateInRange(dateText, start, end) {
   const d = String(dateText || '').slice(0, 10)
   if (!d) return false
@@ -109,13 +132,15 @@ function rowTipsPaid(row) {
   const withheld = firstAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding'])
   return Math.max(0, original - withheld)
 }
+function rowRegularPay(row = {}) { return firstAmount(row, ['regular_pay', 'regularPay', 'base_pay', 'basePay', 'wages', 'wage_pay']) }
+function rowOvertimePay(row = {}) { return firstAmount(row, ['overtime_pay', 'overtimePay', 'ot_pay', 'overtime']) }
+function rowExtraPay(row = {}) { return firstAmount(row, ['extra_pay', 'extraPay', 'bonus_pay', 'bonus']) }
+function rowHours(row = {}) { return firstAmount(row, ['hours', 'total_hours', 'regular_hours', 'worked_hours']) }
 function rowOperatingPay(row) {
-  // Operating labor includes wages, overtime and extra pay for every employee,
-  // including servers. Customer tips are pass-through and are excluded only
-  // from the labor/profit calculation, not by excluding the whole employee row.
-  const explicitWages = firstAmount(row, ['regular_pay', 'regularPay'])
-    + firstAmount(row, ['overtime_pay', 'overtimePay'])
-    + firstAmount(row, ['extra_pay', 'extraPay'])
+  // Labor Mix is operating payroll divided by Toast net sales. Operating wages
+  // include regular wages, overtime and extra pay for every employee, including
+  // servers. Customer tips are pass-through funds and are excluded.
+  const explicitWages = rowRegularPay(row) + rowOvertimePay(row) + rowExtraPay(row)
   if (explicitWages > 0) return explicitWages
   return Math.max(0, rowTotalPay(row) - rowTipsPaid(row))
 }
@@ -130,7 +155,14 @@ function invoiceTotal(row) {
 }
 function itemUnit(row) { return num(row.unit_price || row.price || row.cost || row.item_price || row.rate) }
 function itemAmount(row) { return num(row.line_total || row.total || row.amount || row.extended_price || (num(row.qty || row.quantity) * itemUnit(row))) }
-function rowTotalPay(row) { return num(row.total_pay || row.total || row.amount || row.regular_pay) }
+function rowTotalPay(row = {}) {
+  const explicit = firstAmount(row, ['total_pay', 'final_pay', 'payroll_total'])
+  if (explicit || ['total_pay', 'final_pay', 'payroll_total'].some(key => row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '')) return explicit
+  return firstAmount(row, ['regular_pay', 'regularPay', 'base_pay'])
+    + firstAmount(row, ['overtime_pay', 'overtimePay'])
+    + rowTipsPaid(row)
+    + firstAmount(row, ['extra_pay', 'extraPay'])
+}
 function rowCategory(row) { return String(row.category || row.expense_category || row.invoice_category || row.type || '').trim() }
 function normalizeCategory(value) {
   const text = String(value || '').toLowerCase()
@@ -222,12 +254,15 @@ function MiniBars({ rows, tone = 'blue' }) {
 }
 
 function DetailTable({ config, setActive, onClose }) {
+  const [isFullScreen, setIsFullScreen] = useState(false)
   if (!config) return null
+
   function openScreen() {
     if (config.onOpen) return config.onOpen()
     if (config.open) setActive(config.open)
   }
-  const rows = config.rows || []
+
+  const rows = config.preserveOrder ? (config.rows || []) : sortDetailRowsAscending(config.rows || [])
   const subtotal = rows.reduce((sum, row) => {
     const value = config.amountGetter
       ? config.amountGetter(row)
@@ -236,17 +271,70 @@ function DetailTable({ config, setActive, onClose }) {
   }, 0)
   const clickedTotal = Number(config.expected ?? config.total ?? subtotal)
   const difference = clickedTotal - subtotal
+  const balanced = Math.abs(difference) < 0.01
+  const formatTotal = value => config.totalFormatter ? config.totalFormatter(value) : money(value)
+  const title = String(config.title || 'Dashboard Details')
+  const iconName = /prime/i.test(title) ? 'calculator' : /payroll|labor/i.test(title) ? 'payroll' : /food/i.test(title) ? 'food' : /alcohol|beer|liquor/i.test(title) ? 'beer' : /profit/i.test(title) ? 'trending' : 'sales'
+
   return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
-    <section className="table-card detail-section dashboard-detail-modal" id="dashboard-details" role="dialog" aria-modal="true" aria-label={config.title}>
-      <header><div><h2>{config.title}</h2>{config.message ? <p className="notice-line">{config.message}</p> : null}</div><div className="detail-modal-actions">{config.open ? <button type="button" className="btn secondary small-btn" onClick={openScreen}>Open Full Screen</button> : null}<button type="button" className="btn primary small-btn" onClick={onClose}>Close</button></div></header>
-      <div className="table-scroll"><table><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
-        {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr><td colSpan={config.columns.length}><small>No details to show yet.</small></td></tr>}
-      </tbody>{config.hideTotals ? null : <tfoot>
-        {config.groupSubtotals ? config.groupSubtotals.map(group => <tr key={group.label}><td colSpan={Math.max(1, config.columns.length - 1)}><b>{group.label}</b></td><td><b>{money(group.amount)}</b></td></tr>) : null}
-        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Subtotal</b></td><td><b>{config.totalFormatter ? config.totalFormatter(subtotal) : money(subtotal)}</b></td></tr>
-        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>Clicked total</b></td><td><b>{config.totalFormatter ? config.totalFormatter(clickedTotal) : money(clickedTotal)}</b></td></tr>
-        <tr><td colSpan={Math.max(1, config.columns.length - 1)}><b>{Math.abs(difference) < 0.01 ? 'Reconciled' : 'Difference'}</b></td><td><b>{money(difference)}</b></td></tr>
-      </tfoot>}</table></div>
+    <section className={`table-card detail-section dashboard-detail-modal enterprise-reconciliation-modal${isFullScreen ? ' is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={title}>
+      <header className="detail-modal-header enterprise-modal-header">
+        <div className="detail-modal-heading">
+          <span className="detail-modal-icon enterprise-modal-icon"><Icon name={iconName} size={30} /></span>
+          <div>
+            <h2>{title}</h2>
+            <p className="notice-line">{config.message || 'Component ledger used by the dashboard calculation.'}</p>
+          </div>
+        </div>
+        <div className="detail-modal-actions">
+          <button type="button" className="btn secondary enterprise-fullscreen-btn" onClick={() => setIsFullScreen(value => !value)}>
+            <span aria-hidden="true">⛶</span> {isFullScreen ? 'Exit Full Screen' : 'Open Full Screen'}
+          </button>
+          <button type="button" className="btn enterprise-close-btn" onClick={onClose}><span aria-hidden="true">×</span> Close</button>
+        </div>
+      </header>
+
+      <div className="detail-total-strip enterprise-kpi-grid">
+        <div className="enterprise-kpi-card tone-blue">
+          <span className="enterprise-kpi-icon"><Icon name="sales" size={24} /></span>
+          <div><span>Detail Rows</span><strong>{rows.length}</strong><small>Components included</small></div>
+        </div>
+        <div className="enterprise-kpi-card tone-purple">
+          <span className="enterprise-kpi-icon"><Icon name="calculator" size={24} /></span>
+          <div><span>Calculated Subtotal</span><strong>{formatTotal(subtotal)}</strong><small>Sum of detail rows</small></div>
+        </div>
+        <div className="enterprise-kpi-card tone-green">
+          <span className="enterprise-kpi-icon"><Icon name="trending" size={24} /></span>
+          <div><span>Dashboard Total</span><strong>{formatTotal(clickedTotal)}</strong><small>Displayed card total</small></div>
+        </div>
+        <div className={`enterprise-kpi-card ${balanced ? 'tone-orange' : 'tone-red'}`}>
+          <span className="enterprise-kpi-icon"><Icon name={balanced ? 'check' : 'alert'} size={24} /></span>
+          <div><span>Status</span><strong>{balanced ? 'Balanced' : 'Review'}</strong><small>{balanced ? 'All values match' : `${money(difference)} difference`}</small></div>
+        </div>
+      </div>
+
+      <div className="enterprise-ledger-wrap">
+        <div className="enterprise-ledger-title"><Icon name="list" size={18} /><h3>Component Ledger</h3></div>
+        <div className="table-scroll detail-table-scroll"><table className="detail-reconciliation-table"><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
+          {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr className="detail-empty-row"><td colSpan={config.columns.length}><small>No entries were found for the selected date range.</small></td></tr>}
+        </tbody></table></div>
+        {config.hideTotals ? null : <div className="enterprise-ledger-summary">
+          {config.groupSubtotals ? config.groupSubtotals.map(group => <div className="enterprise-summary-row group" key={group.label}><b>{group.label}</b><b>{money(group.amount)}</b></div>) : null}
+          <div className="enterprise-summary-row subtotal"><b>Calculated Subtotal</b><b>{formatTotal(subtotal)}</b></div>
+          <div className="enterprise-summary-row dashboard-total"><b>Dashboard Total</b><b>{formatTotal(clickedTotal)}</b></div>
+          <div className={`enterprise-summary-row ${balanced ? 'balanced' : 'difference'}`}><b>Difference</b><b>{formatTotal(difference)}</b></div>
+        </div>}
+      </div>
+
+      <footer className={`enterprise-reconciliation-footer ${balanced ? 'is-balanced' : 'needs-review'}`}>
+        <div className="enterprise-footer-icon"><Icon name={balanced ? 'check' : 'alert'} size={30} /></div>
+        <div>
+          <strong>{balanced ? 'Reconciled' : 'Review Required'}</strong>
+          <span>{balanced ? 'All values match. No differences found.' : `The component ledger differs from the dashboard by ${money(difference)}.`}</span>
+          {/labor mix/i.test(title) ? <small>Labor Mix = operating payroll ÷ Toast net sales × 100. Tips are excluded.</small> : null}
+        </div>
+        <b>{formatTotal(difference)}</b>
+      </footer>
     </section>
   </div>
 }
@@ -260,7 +348,28 @@ export default function Dashboard({ data, setData, setActive }) {
   const [dateEnd, setDateEnd] = useState(savedRange.end)
 
   const salesDays = data?.salesDays || []
-  const payroll = data?.payrollEntries || []
+  const payroll = useMemo(() => {
+    const entries = Array.isArray(data?.payrollEntries) ? data.payrollEntries : []
+    const approved = Array.isArray(data?.approvedPayroll) ? data.approvedPayroll : []
+    const existingIds = new Set(entries.map(row => String(row.id || '')).filter(Boolean))
+    const existingSources = new Set(entries.map(row => String(row.source_payroll_entry_id || '')).filter(Boolean))
+    const approvedFallbackRows = approved
+      .filter(row => {
+        const id = String(row.id || '')
+        const sourceId = String(row.source_payroll_entry_id || '')
+        return !(id && existingIds.has(id)) && !(sourceId && (existingIds.has(sourceId) || existingSources.has(sourceId)))
+      })
+      .map(row => ({
+        ...row,
+        id: row.id || `approved-${row.source_payroll_entry_id || row.employee_name || Math.random()}`,
+        total_pay: firstAmount(row, ['approved_amount', 'original_amount', 'total_pay', 'total', 'amount']),
+        payment_method: row.payment_method || row.payment_type || row.payroll_type || row.method || 'Check',
+        payroll_type: row.payroll_type || row.payment_type || row.payment_method || row.method || 'Check',
+        pay_date: row.pay_date || row.payroll_date || row.pay_period_end || String(row.approved_at || row.created_at || '').slice(0, 10),
+        payroll_classification: row.payroll_classification || row.classification || row.group_name || 'Operating Labor'
+      }))
+    return [...entries, ...approvedFallbackRows]
+  }, [data?.payrollEntries, data?.approvedPayroll])
   const invoices = data?.invoices || []
   const invoiceItems = data?.invoiceItems || []
   const expenseRows = data?.expenses || []
@@ -555,8 +664,12 @@ export default function Dashboard({ data, setData, setActive }) {
   }
 
   const detailConfig = {
-    sales: { title: 'Toast Total Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.toastTotalSales, amountGetter: toastNetSalesAmount, columns: [
-      { key: 'business_date', label: 'Date' }, { key: 'gross_sales', label: 'Gross', render: r => money(num(r.gross_sales)) }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(num(r.cash_sales)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
+    sales: { title: 'Toast Total Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.toastTotalSales, amountGetter: toastNetSalesAmount, groupSubtotals: [
+      { label: 'Cash Sales Subtotal', amount: derived.cashSales },
+      { label: 'Credit Sales Subtotal', amount: derived.creditSales },
+      { label: 'Tips Subtotal', amount: derived.tips }
+    ], columns: [
+      { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date', 'date']) }, { key: 'gross_sales', label: 'Gross', render: r => money(num(r.gross_sales)) }, { key: 'net_sales', label: 'Net', render: r => money(num(r.net_sales)) }, { key: 'cash_sales', label: 'Cash', render: r => money(toastCashSalesAmount(r)) }, { key: 'credit_sales', label: 'Credit', render: r => money(toastCreditSalesAmount(r)) }, { key: 'tips', label: 'Tips', render: r => money(num(r.tips)) }
     ]},
     'cash-sales': { title: 'Toast Cash Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.cashSales, amountGetter: toastCashSalesAmount, message: 'Cash Collected uses Toast Cash sales/payments only. Actual Closeout Cash is not used.', columns: [
       { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date','date']) },
@@ -588,27 +701,42 @@ export default function Dashboard({ data, setData, setActive }) {
     'profit-net-sales': { title: 'Net Restaurant Sales Details', open: 'sales', rows: derived.monthSales, expected: derived.trueNetSales, amountGetter: r => num(r.net_sales), columns: [
       { key: 'business_date', label: 'Date', render: r => rowDate(r, ['business_date','date']) }, { key: 'net_sales', label: 'Net Sales', render: r => money(num(r.net_sales)) }
     ]},
-    'profit-payroll': { title: 'Operating Payroll Details', open: 'payroll', rows: derived.operatingLaborRows, expected: derived.operatingPayroll, amountGetter: rowTotalPay, columns: [
-      { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date','payroll_date','date']) }, { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' }, { key: 'classification', label: 'Classification', render: r => payrollClassification(r) }, { key: 'total_pay', label: 'Total', render: r => money(rowTotalPay(r)) }
-    ]},
+    'profit-payroll': { title: 'Labor Mix — Operating Payroll', open: 'payroll', rows: derived.operatingLaborRows, expected: derived.operatingPayroll, amountGetter: rowOperatingPay,
+      message: `Labor Mix ${pct(derived.laborPct)} = operating payroll ${money(derived.operatingPayroll)} ÷ Toast net sales ${money(derived.trueNetSales)}. Customer tips are excluded, but employee fixed payroll remains included.`,
+      groupSubtotals: [
+        { label: 'Cash Operating Payroll', amount: derived.cashOperatingPayroll },
+        { label: 'Check / Other Operating Payroll', amount: Math.max(0, derived.operatingPayroll - derived.cashOperatingPayroll) }
+      ],
+      columns: [
+        { key: 'pay_date', label: 'Date', render: r => rowDate(r, ['pay_date','payroll_date','date']) },
+        { key: 'employee_name', label: 'Employee', render: r => r.employee_name || r.name || '-' },
+        { key: 'job_type', label: 'Job / Group', render: r => r.job_type || r.employee_type || r.group_name || payrollClassification(r) },
+        { key: 'hours', label: 'Hours', render: r => rowHours(r).toFixed(2) },
+        { key: 'regular_pay', label: 'Regular', render: r => money(rowRegularPay(r)) },
+        { key: 'overtime_pay', label: 'OT', render: r => money(rowOvertimePay(r)) },
+        { key: 'extra_pay', label: 'Extra', render: r => money(rowExtraPay(r)) },
+        { key: 'tips', label: 'Tips Excluded', render: r => money(rowTipsPaid(r)) },
+        { key: 'method', label: 'Method', render: r => r.payment_method || r.payment_type || r.payroll_type || r.method || '-' },
+        { key: 'total_pay', label: 'Operating Payroll', render: r => money(rowOperatingPay(r)) }
+      ]},
     'profit-spend': { title: 'Vendor + Expense Spend Details', open: 'expenses', rows: derived.allSpendRows, expected: derived.totalSpend, amountGetter: r => num(r.amount), columns: [
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Vendor / Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
-    'profit-summary': { title: 'Profit & Loss Reconciliation', open: 'reports', rows: [
+    'profit-summary': { preserveOrder: true, title: 'Profit & Loss Reconciliation', open: 'reports', rows: [
       { label: 'Net Restaurant Sales', amount: derived.trueNetSales }, { label: 'Less: Operating Payroll', amount: -derived.operatingPayroll }, { label: 'Less: Vendor + Expense Spend', amount: -derived.totalSpend }
     ], expected: derived.operatingProfit, amountGetter: r => num(r.amount), columns: [{ key:'label', label:'Component' }, { key:'amount', label:'Amount', render:r=>money(r.amount) }]},
-    'operating-profit': { title: 'Operating Profit Reconciliation', open: 'reports', rows: [
+    'operating-profit': { preserveOrder: true, title: 'Operating Profit Reconciliation', open: 'reports', rows: [
       { label: 'Toast Net Sales', amount: derived.trueNetSales },
       { label: 'Less: Vendor Invoices', amount: -derived.vendorSpend },
       { label: 'Less: Business Operating Expenses', amount: -derived.businessSpend },
       { label: 'Less: Operating Payroll', amount: -derived.operatingPayroll }
     ], expected: derived.operatingProfit, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}]},
-    'cash-remaining': { title: 'Cash Remaining Reconciliation', open: 'reports', rows: [
+    'cash-remaining': { preserveOrder: true, title: 'Cash Remaining Reconciliation', open: 'reports', rows: [
       { label: 'Toast Cash Sales', amount: derived.cashSales },
       { label: 'Less: Cash Operating Payroll', amount: -derived.cashOperatingPayroll },
       { label: 'Less: Cash Vendor / Business Spending', amount: -derived.cashVendorSpend }
     ], expected: derived.cashRemaining, amountGetter: r => num(r.amount), columns: [{ key:'label',label:'Component'},{key:'amount',label:'Amount',render:r=>money(r.amount)}]},
-    'prime-cost': { title: 'Prime Cost Reconciliation', open: 'reports', rows: [
+    'prime-cost': { preserveOrder: true, title: 'Prime Cost Reconciliation', open: 'reports', rows: [
       { label: 'Direct Food Cost', amount: derived.directFoodCost },
       { label: 'Direct Alcohol Cost', amount: derived.directAlcoholCost },
       { label: 'Operating Payroll (tips excluded)', amount: derived.operatingPayroll }
@@ -632,33 +760,46 @@ export default function Dashboard({ data, setData, setActive }) {
       { key: 'date', label: 'Date' }, { key: 'vendor', label: 'Payee' }, { key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', render: r => money(num(r.amount)) }
     ]},
     department: departmentDetailConfig(detailCategory),
-    reconciliation: { title: 'Dashboard Reconciliation', open: 'reports', rows: derived.reconciliationChecks.map(check => ({ ...check, status: Math.abs(check.difference) < 0.01 ? 'Balanced' : 'Review' })), expected: 0, amountGetter: r => num(r.difference), columns: [
+    reconciliation: { preserveOrder: true, title: 'Dashboard Reconciliation', open: 'reports', rows: derived.reconciliationChecks.map(check => ({ ...check, status: Math.abs(check.difference) < 0.01 ? 'Balanced' : 'Review' })), expected: 0, amountGetter: r => num(r.difference), columns: [
       { key: 'label', label: 'Check' }, { key: 'status', label: 'Status' }, { key: 'difference', label: 'Difference', render: r => money(num(r.difference)) }
     ], message: 'A $0.00 difference means the card total and its underlying sources reconcile.' },
-    health: { title: 'Restaurant Health Inputs', open: 'reports', hideTotals: true, rows: [
+    health: { preserveOrder: true, title: 'Restaurant Health Inputs', open: 'reports', hideTotals: true, rows: [
       { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Operating Profit', value: money(derived.operatingProfit) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
     ], columns: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }] }
   }
 
   return (
-    <div className="dashboard-v3">
-      <section className="dashboard-control-panel" aria-label="Dashboard date and sync controls">
-        <div className="preset-group" aria-label="Quick date presets">
-          <button type="button" className={`preset-btn ${preset === 'lastMonth' ? 'active' : ''}`} onClick={() => applyPreset('lastMonth')}>Last Month</button>
-          <button type="button" className={`preset-btn ${preset === 'thisMonth' ? 'active' : ''}`} onClick={() => applyPreset('thisMonth')}>This Month</button>
-          <button type="button" className={`preset-btn ${preset === 'lastWeek' ? 'active' : ''}`} onClick={() => applyPreset('lastWeek')}>Last Week</button>
-          <button type="button" className={`preset-btn ${preset === 'all' ? 'active' : ''}`} onClick={() => applyPreset('all')}>All Dates</button>
+    <div className="dashboard-v3 dashboard-phase-one">
+      <header className="dashboard-masthead">
+        <div>
+          <span className="dashboard-kicker">Restaurant command center</span>
+          <h1>Financial Overview</h1>
+          <p>Live sales, payroll, costs, cash position and operating profit for the selected period.</p>
         </div>
-        <div className="date-range-inline">
-          <label><small>Start</small><input type="date" value={dateStart} onChange={e => { setDateStart(e.target.value); setPreset('custom') }} /></label>
-          <span className="date-arrow">→</span>
-          <label><small>End</small><input type="date" value={dateEnd} onChange={e => { setDateEnd(e.target.value); setPreset('custom') }} /></label>
-          <button type="button" className="btn primary" onClick={applyRange}>Apply</button>
+        <div className="dashboard-source-strip" aria-label="Dashboard data sources">
+          <span><i className="source-dot is-live" />Toast sales</span>
+          <span><i className="source-dot is-live" />Payroll</span>
+          <span><i className="source-dot is-live" />Invoices</span>
+          <span><i className="source-dot is-live" />Expenses</span>
         </div>
-        <div className="sync-group" aria-label="Database save status">
+      </header>
+
+      <section className="dashboard-control-panel dashboard-date-panel" aria-label="Dashboard date and sync controls">
+        <DateControls
+          start={dateStart}
+          end={dateEnd}
+          onStartChange={value => { setDateStart(value); setPreset('custom') }}
+          onEndChange={value => { setDateEnd(value); setPreset('custom') }}
+          onApply={applyRange}
+          onPreset={applyPreset}
+          activePreset={preset}
+          applyLabel="Apply"
+          className="dashboard-date-controls"
+        />
+        <div className="dashboard-save-state">
           <span className="cloud-save-pill"><span className="cloud-dot" /> Direct Database Save</span>
+          <span className="sync-status">{syncStatus}</span>
         </div>
-        <span className="sync-status">{syncStatus}</span>
       </section>
 
       <section className="dashboard-command-row" aria-label="Dashboard quick operating summary">
@@ -672,7 +813,7 @@ export default function Dashboard({ data, setData, setActive }) {
           <strong>{pct(derived.primeCostPct)}</strong>
           <small>Food + payroll against net restaurant sales</small>
         </button>
-        <button type="button" className="command-tile" onClick={() => showDetail('operating-payroll')}>
+        <button type="button" className="command-tile" onClick={() => showDetail('profit-payroll')}>
           <span>Labor Mix</span>
           <strong>{pct(derived.laborPct)}</strong>
           <small>Cash {money(derived.cashPayroll)} · Check {money(derived.checkPayroll)}</small>
@@ -701,7 +842,7 @@ export default function Dashboard({ data, setData, setActive }) {
       <section className="business-health-strip" aria-label="Today business health and reconciliation">
         <button type="button" onClick={() => showDetail('true-food-cost')}><span>Food Cost</span><strong>{pct(derived.foodCostPct)}</strong><small>{money(derived.foodSpend)}</small></button>
         <button type="button" onClick={() => showDetail('department', 'alcohol-sales')}><span>Alcohol Sales</span><strong>{money(derived.departmentCosts.alcoholSales)}</strong><small>Margaritas included: {money(derived.margaritaSales)}</small></button>
-        <button type="button" onClick={() => showDetail('operating-payroll')}><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></button>
+        <button type="button" onClick={() => showDetail('profit-payroll')}><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></button>
         <button type="button" onClick={() => showDetail('prime-cost')}><span>Prime Cost</span><strong>{pct(derived.primeCostPct)}</strong><small>Food + alcohol COGS + labor</small></button>
         <button type="button" onClick={() => showDetail('operating-profit')}><span>Net Profit</span><strong>{money(derived.operatingProfit)}</strong><small>{pct(derived.profitMargin)} margin</small></button>
         <button type="button" onClick={() => showDetail('sales')}><span>Average Check</span><strong>{money(derived.averageCheck)}</strong><small>{derived.guestCount.toLocaleString()} guests/checks</small></button>

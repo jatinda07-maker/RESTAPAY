@@ -17,11 +17,11 @@ export default function Expenses({ data, setData }) {
   const vendors = getActiveSortedVendors(data.vendors || [])
   const [form, setForm] = useState(blankExpense)
   const [editingId, setEditingId] = useState('')
+  const [payeeMode, setPayeeMode] = useState('vendor')
   const [search, setSearch] = useState('')
   const [dateStart, setDateStart] = useState(() => readPageDateRange('expenses').start)
   const [dateEnd, setDateEnd] = useState(() => readPageDateRange('expenses').end)
   const [selected, setSelected] = useState([])
-  const [payeeMode, setPayeeMode] = useState('vendor')
   const [recoveryStatus, setRecoveryStatus] = useState('')
 
 
@@ -115,6 +115,7 @@ export default function Expenses({ data, setData }) {
   function editExpense(row) {
     setEditingId(row.id)
     const matchedVendor = findVendorById(vendors, row.vendor_id) || findVendorByName(vendors, row.vendor)
+    setPayeeMode(matchedVendor ? 'vendor' : 'payee')
     setForm({
       date: row.date || row.expense_date || today(),
       name: row.name || '',
