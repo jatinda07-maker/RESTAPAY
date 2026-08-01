@@ -79,7 +79,7 @@ export default function Layout({ active, setActive, children }) {
           : 'Cloud Saved'
 
   return (
-    <div className={`app-shell is-collapsed ${sidebarOpen ? 'sidebar-open' : ''} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}>
+    <div className={`app-shell approved-ui is-collapsed ${sidebarOpen ? 'sidebar-open' : ''} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}>
       <button type="button" className="mobile-nav-backdrop" aria-label="Close navigation" onClick={closeMobileNav} />
       <aside
         className="sidebar"

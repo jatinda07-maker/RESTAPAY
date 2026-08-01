@@ -3,9 +3,9 @@ import { Icon } from '../components/Icons'
 import { createId, sortByName } from '../lib/localStore'
 
 const emptyForm = {
-  name: '', employee_type: 'Regular', job_type: 'Kitchen', pay_type: 'Fixed Weekly', payroll_type: 'Cash', base_pay: '', extra_pay: 0, extra_reason: '', is_active: true
+  name: '', employee_type: 'Regular', job_type: 'Kitchen', pay_type: 'Hourly', payroll_type: 'Cash', base_pay: '', extra_pay: 0, extra_reason: '', is_active: true
 }
-const payTypes = ['Fixed Weekly', 'Tips', 'Salary', 'Other']
+const payTypes = ['Tips', 'Hourly', 'Salary']
 const payrollMethods = ['Cash', 'Check']
 
 export default function Employees({ data, setData }) {
@@ -61,7 +61,7 @@ export default function Employees({ data, setData }) {
       name: emp.name || '',
       employee_type: emp.employee_type || 'Regular',
       job_type: emp.job_type || 'Kitchen',
-      pay_type: emp.pay_type === 'Hourly' ? 'Fixed Weekly' : (emp.pay_type || 'Fixed Weekly'),
+      pay_type: emp.pay_type || 'Hourly',
       payroll_type: emp.payroll_type || 'Cash',
       base_pay: emp.base_pay ?? '',
       extra_pay: emp.extra_pay ?? 0,
@@ -140,7 +140,7 @@ export default function Employees({ data, setData }) {
     <div className="page-head employee-head">
       <div>
         <h1>Employees</h1>
-        <p>Professional employee setup for fixed weekly, tipped, and salary payroll. Hours are reference-only and never calculate pay.</p>
+        <p>Compact employee setup with employee type, job type, pay type, and local auto-save.</p>
       </div>
       <div className="employee-head-actions">
         <div className="search-box"><Icon name="search" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search employees..." /></div>
@@ -158,7 +158,7 @@ export default function Employees({ data, setData }) {
         <label>Job type<select value={form.job_type} onChange={e => updateField('job_type', e.target.value)}>{jobTypes.map(type => <option key={type}>{type}</option>)}</select></label>
         <label>Pay type<select value={form.pay_type} onChange={e => updateField('pay_type', e.target.value)}>{payTypes.map(type => <option key={type}>{type}</option>)}</select></label>
         <label>Payroll method<select value={form.payroll_type} onChange={e => updateField('payroll_type', e.target.value)}>{payrollMethods.map(type => <option key={type}>{type}</option>)}</select></label>
-        <label>{form.pay_type === 'Salary' ? 'Salary amount' : form.pay_type === 'Tips' ? 'Default extra pay' : 'Weekly fixed pay'}<input type="number" min="0" step="0.01" value={form.base_pay} onChange={e => updateField('base_pay', e.target.value)} placeholder="0.00" /></label>
+        <label>Base pay<input type="number" min="0" step="0.01" value={form.base_pay} onChange={e => updateField('base_pay', e.target.value)} placeholder="0.00" /></label>
         <label>Extra pay<input type="number" min="0" step="0.01" value={form.extra_pay} onChange={e => updateField('extra_pay', e.target.value)} placeholder="0.00" /></label>
         <label>Extra reason<input value={form.extra_reason} onChange={e => updateField('extra_reason', e.target.value)} placeholder="Optional" /></label>
         <label className="check-line vendor-active"><input type="checkbox" checked={form.is_active} onChange={e => updateField('is_active', e.target.checked)} /> Active employee</label>
