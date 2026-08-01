@@ -778,7 +778,7 @@ export default function Dashboard({ data, setData, setActive }) {
       </div>
 
       <div className="dashboard-grid-main">
-        {visible.restaurantHealth && (<SectionCard title="Restaurant Health" onOpen={() => showDetail('health')} icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
+        {visible.restaurantHealth && (<SectionCard className="dashboard-card-health" title="Restaurant Health" onOpen={() => showDetail('health')} icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
           <div className="health-block">
             <div className="health-score"><strong>{derived.healthScore}</strong><span>{healthLabel(derived.healthScore)}</span></div>
             <div className="health-meters">
@@ -789,7 +789,7 @@ export default function Dashboard({ data, setData, setActive }) {
           </div>
         </SectionCard>)}
 
-        {visible.departmentProfitability && (<SectionCard title="Food & Alcohol Profitability" onOpen={() => setActive('cost-analysis')} icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules" action={<button type="button" className="btn secondary small-btn" onClick={() => setActive('cost-analysis')}>Open Cost Page</button>}>
+        {visible.departmentProfitability && (<SectionCard className="dashboard-card-departments" title="Food & Alcohol Profitability" onOpen={() => setActive('cost-analysis')} icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules" action={<button type="button" className="btn secondary small-btn" onClick={() => setActive('cost-analysis')}>Open Cost Page</button>}>
           {(() => {
             const classifiedSales = derived.departmentCosts.foodSales + derived.departmentCosts.alcoholSales
             const foodShare = classifiedSales > 0 ? derived.departmentCosts.foodSales / classifiedSales * 100 : 0
@@ -840,7 +840,7 @@ export default function Dashboard({ data, setData, setActive }) {
           </div>
         </SectionCard>)}
 
-        {visible.cashPosition && (<SectionCard title="Cash Position" onOpen={() => showDetail('cash-remaining')} icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
+        {visible.cashPosition && (<SectionCard className="dashboard-card-cash" title="Cash Position" onOpen={() => showDetail('cash-remaining')} icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
           <RowList rows={[
             { id: 'cash-sales', label: 'Cash Collected', amount: money(derived.cashSales), meta: 'From Toast sales' },
             { id: 'cash-payroll', label: 'Cash Payroll', amount: money(derived.cashPayroll), meta: `${derived.cashPayrollRows.length} cash payroll rows` },
@@ -850,7 +850,7 @@ export default function Dashboard({ data, setData, setActive }) {
           ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
-        {visible.profitLoss && (<SectionCard title="Profit & Loss" onOpen={() => showDetail('operating-profit')} icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
+        {visible.profitLoss && (<SectionCard className="dashboard-card-profit-loss" title="Profit & Loss" onOpen={() => showDetail('operating-profit')} icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
           <RowList rows={[
             { id: 'profit-net-sales', label: 'Net Restaurant Sales', amount: money(derived.trueNetSales), meta: 'Net after tax/tips adjustment' },
             { id: 'profit-payroll', label: 'Operating Payroll Cost', amount: money(derived.operatingPayroll), meta: 'Kitchen/manager labor only; server tips excluded' },
@@ -859,7 +859,7 @@ export default function Dashboard({ data, setData, setActive }) {
           ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
-        {visible.salesPerformance && (<SectionCard title="Sales Performance" onOpen={() => showDetail('sales')} icon="sales" tone="blue" total={money(derived.grossSales)} subtitle="Gross and payment mix">
+        {visible.salesPerformance && (<SectionCard className="dashboard-card-sales-performance" title="Sales Performance" onOpen={() => showDetail('sales')} icon="sales" tone="blue" total={money(derived.grossSales)} subtitle="Gross and payment mix">
           <RowList rows={[
             { id: 'sales-gross', label: 'Gross Sales', amount: money(derived.grossSales), meta: 'Before adjustments' },
             { id: 'sales-credit', label: 'Credit Sales', amount: money(derived.creditSales), meta: 'Card payments' },
@@ -868,25 +868,25 @@ export default function Dashboard({ data, setData, setActive }) {
           ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
-        {visible.vendorPurchases && (<SectionCard title="Vendor Purchases" onOpen={() => showDetail('vendors')} icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">
+        {visible.vendorPurchases && (<SectionCard className="dashboard-card-vendor-purchases" title="Vendor Purchases" onOpen={() => showDetail('vendors')} icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">
           <RowList rows={derived.vendorRecent.map(row => ({ onClick: () => setActive('invoices'), label: row.vendor || 'Vendor Purchase', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
           <div className="category-pills">{derived.vendorCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('vendors', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
         </SectionCard>)}
 
-        {visible.businessExpensePanel && (<SectionCard title="Business Expenses" onOpen={() => showDetail('expenses')} icon="expenses" tone="red" total={money(derived.businessSpend)} subtitle="Operating expenses">
+        {visible.businessExpensePanel && (<SectionCard className="dashboard-card-business-expenses" title="Business Expenses" onOpen={() => showDetail('expenses')} icon="expenses" tone="red" total={money(derived.businessSpend)} subtitle="Operating expenses">
           <RowList rows={derived.businessRecent.map(row => ({ onClick: () => setActive('expenses'), label: row.vendor || row.description || 'Expense', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
           <div className="category-pills">{derived.businessCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('expenses', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
         </SectionCard>)}
       </div>
 
       <div className="dashboard-grid-secondary">
-        {visible.weeklySalesTrend && (<SectionCard title="Weekly Sales Trend" onOpen={() => showDetail('sales')} icon="trending" tone="blue" subtitle="Last seven date buckets">
+        {visible.weeklySalesTrend && (<SectionCard className="dashboard-card-weekly-sales" title="Weekly Sales Trend" onOpen={() => showDetail('sales')} icon="trending" tone="blue" subtitle="Last seven date buckets">
           <MiniBars rows={derived.salesTrend} tone="blue" />
         </SectionCard>)}
-        {visible.spendingTrend && (<SectionCard title="Spending Trend" onOpen={() => showDetail('expenses')} icon="pie" tone="red" subtitle="Invoice + expense activity">
+        {visible.spendingTrend && (<SectionCard className="dashboard-card-spending-trend" title="Spending Trend" onOpen={() => showDetail('expenses')} icon="pie" tone="red" subtitle="Invoice + expense activity">
           <MiniBars rows={derived.expenseTrend} tone="red" />
         </SectionCard>)}
-        {visible.restaurantIntelligence && (<SectionCard title="Restaurant Intelligence" onOpen={() => showDetail('health')} icon="alert" tone="navy" subtitle="Suggested actions">
+        {visible.restaurantIntelligence && (<SectionCard className="dashboard-card-intelligence" title="Restaurant Intelligence" onOpen={() => showDetail('health')} icon="alert" tone="navy" subtitle="Suggested actions">
           <div className="insight-list">
             <div><b>{derived.healthScore >= 70 ? 'Restaurant health is stable' : 'Restaurant health needs review'}</b><span>Review food cost, operating labor, and cash position before payroll.</span></div>
             <div><b>{derived.foodCostPct > 35 ? 'Food cost is high' : 'Food cost is under control'}</b><span>Food cost is currently {pct(derived.foodCostPct)}.</span></div>
