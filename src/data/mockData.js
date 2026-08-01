@@ -1,21 +1,6 @@
 export const navItems = [
-  ['dashboard', 'Dashboard'],
-  ['sales', 'Sales'],
-  ['cost-analysis', 'Food & Alcohol Cost'],
-  ['invoices', 'Invoices'],
-  ['vendors', 'Vendors'],
-  ['vendor-comparison', 'Vendor Comparison'],
-  ['price-increase', 'Price Increase'],
-  ['employees', 'Employees'],
-  ['payroll', 'Payroll'],
-  ['expenses', 'Expenses'],
-  ['reports', 'Reports'],
-  ['menu-intelligence', 'Menu Intelligence'],
-  ['menu-costing', 'Menu Costing'],
-  ['import-center', 'Import Center'],
-  ['toast-integration', 'Toast Integration'],
-  ['diagnostics', 'Diagnostics'],
-  ['settings', 'Settings']
+  ['dashboard', 'Dashboard'], ['cost-analysis', 'Food & Alcohol Cost'], ['import-center', 'Import Center'], ['toast-integration', 'Toast Integration'], ['sales', 'Sales'], ['menu-intelligence', 'Menu Intelligence'], ['menu-costing', 'Menu Costing'], ['vendors', 'Vendors'], ['vendor-comparison', 'Vendor Comparison'], ['invoices', 'Invoices'],
+  ['price-increase', 'Price Increase'], ['diagnostics', 'Diagnostics'], ['settings', 'Settings']
 ]
 
 export const kpis = [
