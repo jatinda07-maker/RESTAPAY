@@ -195,10 +195,13 @@ function trendRows(rows, dateKey, amountGetter) {
 function MetricCard({ title, value, subtitle, icon, tone = 'blue', onClick }) {
   return (
     <button type="button" className={`metric-card tone-${tone}`} onClick={onClick}>
-      <span className="metric-icon"><Icon name={icon} size={18} /></span>
-      <span className="metric-label">{title}</span>
-      <strong>{value}</strong>
-      <small>{subtitle}</small>
+      <span className="metric-icon" aria-hidden="true"><Icon name={icon} size={20} /></span>
+      <span className="metric-copy">
+        <span className="metric-label">{title}</span>
+        <strong className="metric-value">{value}</strong>
+        <small className="metric-subtitle">{subtitle}</small>
+      </span>
+      <span className="metric-chevron" aria-hidden="true">›</span>
     </button>
   )
 }
@@ -802,29 +805,6 @@ export default function Dashboard({ data, setData, setActive }) {
         </div>
       </section>
 
-      <section className="dashboard-command-row" aria-label="Dashboard quick operating summary">
-        <button type="button" className="command-tile is-primary" onClick={() => showDetail('cash-remaining')}>
-          <span>Cash Flow</span>
-          <strong>{money(derived.cashRemaining)}</strong>
-          <small>Toast cash {money(derived.cashSales)} minus operating cash payroll and cash expenses</small>
-        </button>
-        <button type="button" className="command-tile" onClick={() => showDetail('prime-cost')}>
-          <span>Prime Cost</span>
-          <strong>{pct(derived.primeCostPct)}</strong>
-          <small>Food + payroll against net restaurant sales</small>
-        </button>
-        <button type="button" className="command-tile" onClick={() => showDetail('profit-payroll')}>
-          <span>Labor Mix</span>
-          <strong>{pct(derived.laborPct)}</strong>
-          <small>Cash {money(derived.cashPayroll)} · Check {money(derived.checkPayroll)}</small>
-        </button>
-        <button type="button" className="command-tile" onClick={() => showDetail('true-food-cost')}>
-          <span>Food Cost</span>
-          <strong>{pct(derived.foodCostPct)}</strong>
-          <small>{money(derived.foodSpend)} food spend in selected range</small>
-        </button>
-      </section>
-
       <div className="metric-grid">
         {visible.netSales && <MetricCard title="Total Sales" value={money(derived.toastTotalSales)} subtitle={`Toast Sales Summary · ${derived.monthSales.length} rows`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />}
         {visible.cashCollected && <MetricCard title="Cash Collected" value={money(derived.cashSales)} subtitle="Toast Cash sales/payments" icon="dollar" tone="green" onClick={() => showDetail('cash-sales')} />}
@@ -838,18 +818,6 @@ export default function Dashboard({ data, setData, setActive }) {
         {visible.trueFoodCost && <MetricCard title="True Food Cost" value={money(derived.directFoodCost)} subtitle="Actual categorized invoice line totals" icon="menu-costing" tone="orange" onClick={() => showDetail('true-food-cost')} />}
         {visible.trueAlcoholCost && <MetricCard title="True Alcohol Cost" value={money(derived.directAlcoholCost)} subtitle="Beer + liquor/wine + margarita invoice lines" icon="beer" tone="purple" onClick={() => showDetail('true-alcohol-cost')} />}
       </div>
-
-      <section className="business-health-strip" aria-label="Today business health and reconciliation">
-        <button type="button" onClick={() => showDetail('true-food-cost')}><span>Food Cost</span><strong>{pct(derived.foodCostPct)}</strong><small>{money(derived.foodSpend)}</small></button>
-        <button type="button" onClick={() => showDetail('department', 'alcohol-sales')}><span>Alcohol Sales</span><strong>{money(derived.departmentCosts.alcoholSales)}</strong><small>Margaritas included: {money(derived.margaritaSales)}</small></button>
-        <button type="button" onClick={() => showDetail('profit-payroll')}><span>Labor</span><strong>{pct(derived.laborPct)}</strong><small>Customer tips excluded</small></button>
-        <button type="button" onClick={() => showDetail('prime-cost')}><span>Prime Cost</span><strong>{pct(derived.primeCostPct)}</strong><small>Food + alcohol COGS + labor</small></button>
-        <button type="button" onClick={() => showDetail('operating-profit')}><span>Net Profit</span><strong>{money(derived.operatingProfit)}</strong><small>{pct(derived.profitMargin)} margin</small></button>
-        <button type="button" onClick={() => showDetail('sales')}><span>Average Check</span><strong>{money(derived.averageCheck)}</strong><small>{derived.guestCount.toLocaleString()} guests/checks</small></button>
-        <button type="button" className={`reconciliation-tile ${derived.reconciliationOk ? 'ok' : 'warning'}`} onClick={() => showDetail('reconciliation')}>
-          <span>Reconciliation</span><strong>{derived.reconciliationOk ? 'Balanced' : 'Review'}</strong><small>{derived.reconciliationOk ? 'All dashboard checks passed' : 'A total does not match its details'}</small>
-        </button>
-      </section>
 
       <div className="dashboard-grid-main">
         {visible.restaurantHealth && (<SectionCard title="Restaurant Health" onOpen={() => showDetail('health')} icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
