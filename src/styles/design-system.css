@@ -1,0 +1,155 @@
+/* RESTAPAY DESIGN SYSTEM
+   Shared tokens and reusable components. This file is the only styling layer
+   pages should depend on as they are migrated away from legacy styles.css. */
+:root {
+  --ui-bg: #f3f7fb;
+  --ui-surface: #ffffff;
+  --ui-ink: #0b1f3a;
+  --ui-muted: #607493;
+  --ui-line: #d9e4f0;
+  --ui-radius-sm: 10px;
+  --ui-radius: 15px;
+  --ui-radius-lg: 19px;
+  --ui-shadow: 0 8px 24px rgba(19, 43, 71, .075);
+  --ui-shadow-hover: 0 14px 32px rgba(19, 43, 71, .12);
+
+  --ui-blue: #1f73e8;
+  --ui-blue-bg: #dfeaff;
+  --ui-blue-bg-2: #edf4ff;
+  --ui-blue-line: #b8d0fb;
+
+  --ui-green: #0b944a;
+  --ui-green-bg: #d9eee1;
+  --ui-green-bg-2: #edf7f1;
+  --ui-green-line: #b6d9c3;
+
+  --ui-purple: #7641d8;
+  --ui-purple-bg: #e7dcfb;
+  --ui-purple-bg-2: #f3edff;
+  --ui-purple-line: #cdbaf4;
+
+  --ui-orange: #ed6f0b;
+  --ui-orange-bg: #ffe1c4;
+  --ui-orange-bg-2: #fff0df;
+  --ui-orange-line: #f5bf86;
+
+  --ui-red: #e8414e;
+  --ui-red-bg: #ffd9de;
+  --ui-red-bg-2: #ffedf0;
+  --ui-red-line: #f3b2ba;
+
+  --ui-teal: #0c9fa2;
+  --ui-teal-bg: #d4ecec;
+  --ui-teal-bg-2: #eaf7f7;
+  --ui-teal-line: #acd8da;
+}
+
+html, body, #root { background: var(--ui-bg); color: var(--ui-ink); }
+body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+.ui-kpi-card {
+  --tone: var(--ui-blue);
+  --tone-bg: var(--ui-blue-bg);
+  --tone-bg-2: var(--ui-blue-bg-2);
+  --tone-line: var(--ui-blue-line);
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  min-height: 112px;
+  border: 1px solid var(--tone-line);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(135deg, var(--tone-bg) 0%, var(--tone-bg-2) 100%);
+  box-shadow: var(--ui-shadow);
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  color: var(--ui-ink);
+  overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+button.ui-kpi-card { cursor: pointer; }
+button.ui-kpi-card:hover { transform: translateY(-2px); box-shadow: var(--ui-shadow-hover); }
+.ui-kpi-card.is-compact { min-height: 96px; padding: 14px; }
+.ui-kpi-icon {
+  width: 50px; height: 50px; border-radius: 15px;
+  display: grid; place-items: center;
+  color: #fff;
+  background: var(--tone);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.36), 0 8px 18px color-mix(in srgb, var(--tone) 26%, transparent);
+}
+.ui-kpi-copy { min-width: 0; display: grid; gap: 4px; }
+.ui-kpi-title { color: #304969; font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+.ui-kpi-value { color: var(--ui-ink); font-size: clamp(24px, 1.8vw, 31px); line-height: 1; letter-spacing: -.035em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ui-kpi-subtitle { color: var(--ui-muted); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.ui-kpi-chevron { color: color-mix(in srgb, var(--tone) 74%, #233b5b); display: grid; place-items: center; }
+
+.ui-tone-green { --tone: var(--ui-green); --tone-bg: var(--ui-green-bg); --tone-bg-2: var(--ui-green-bg-2); --tone-line: var(--ui-green-line); }
+.ui-tone-blue { --tone: var(--ui-blue); --tone-bg: var(--ui-blue-bg); --tone-bg-2: var(--ui-blue-bg-2); --tone-line: var(--ui-blue-line); }
+.ui-tone-purple { --tone: var(--ui-purple); --tone-bg: var(--ui-purple-bg); --tone-bg-2: var(--ui-purple-bg-2); --tone-line: var(--ui-purple-line); }
+.ui-tone-orange { --tone: var(--ui-orange); --tone-bg: var(--ui-orange-bg); --tone-bg-2: var(--ui-orange-bg-2); --tone-line: var(--ui-orange-line); }
+.ui-tone-red { --tone: var(--ui-red); --tone-bg: var(--ui-red-bg); --tone-bg-2: var(--ui-red-bg-2); --tone-line: var(--ui-red-line); }
+.ui-tone-teal { --tone: var(--ui-teal); --tone-bg: var(--ui-teal-bg); --tone-bg-2: var(--ui-teal-bg-2); --tone-line: var(--ui-teal-line); }
+
+.ui-section-card {
+  --tone: var(--ui-blue);
+  --tone-bg: var(--ui-blue-bg);
+  --tone-bg-2: var(--ui-blue-bg-2);
+  --tone-line: var(--ui-blue-line);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow);
+  overflow: hidden;
+}
+.ui-section-header { display: flex; align-items: stretch; border-bottom: 1px solid var(--ui-line); background: linear-gradient(90deg, var(--tone-bg-2), #fff 72%); }
+.ui-section-title { flex: 1; min-width: 0; display: grid; grid-template-columns: 42px minmax(0,1fr) auto 18px; gap: 12px; align-items: center; padding: 14px 16px; border: 0; background: transparent; text-align: left; color: var(--ui-ink); }
+.ui-section-title:not(:disabled) { cursor: pointer; }
+.ui-section-icon { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; color: var(--tone); background: var(--tone-bg); border: 1px solid var(--tone-line); }
+.ui-section-heading { min-width: 0; display: grid; gap: 2px; }
+.ui-section-heading strong { font-size: 16px; }
+.ui-section-heading small { color: var(--ui-muted); font-size: 12px; }
+.ui-section-total { font-size: 18px; font-weight: 800; white-space: nowrap; }
+.ui-section-action { display: flex; align-items: center; padding: 10px 14px 10px 0; }
+.ui-section-body { padding: 14px 16px 16px; }
+
+/* Shared controls */
+.ui-button, .primary-btn, .secondary-btn, .danger-btn {
+  min-height: 40px; border-radius: var(--ui-radius-sm); padding: 0 15px;
+  font: inherit; font-weight: 750; border: 1px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.primary-btn { color: #fff; background: linear-gradient(180deg, #128f4b, #08763d); border-color: #08763d; }
+.secondary-btn { color: var(--ui-ink); background: #f6f9fc; border-color: var(--ui-line); }
+.danger-btn { color: #b4232d; background: #fff1f2; border-color: #f2c1c6; }
+
+input, select, textarea {
+  min-height: 42px; border: 1px solid #cbd8e7; border-radius: var(--ui-radius-sm);
+  background: #fff; color: var(--ui-ink); padding: 0 13px; font: inherit;
+}
+textarea { padding-top: 10px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: #4c8fe8; box-shadow: 0 0 0 3px rgba(40,120,230,.12); }
+
+/* Shared tables */
+.ui-table-shell, .table-card { border: 1px solid var(--ui-line); border-radius: var(--ui-radius); background: #fff; box-shadow: var(--ui-shadow); overflow: hidden; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
+thead th { background: #f4f8fc; color: #425a78; font-size: 11px; font-weight: 800; letter-spacing: .045em; text-transform: uppercase; border-bottom: 1px solid var(--ui-line); }
+tbody td { color: #1d324f; border-bottom: 1px solid #e7eef6; }
+tbody tr:hover td { background: #f8fbff; }
+
+/* Shared dialogs */
+.modal, .dialog, .popup, [role="dialog"] { border: 1px solid var(--ui-line); border-radius: 18px; background: #fff; box-shadow: 0 24px 70px rgba(10,28,48,.22); }
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: rgba(67,89,116,.27) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(67,89,116,.24); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(67,89,116,.38); }
+
+@media (max-width: 1100px) {
+  .ui-kpi-card { grid-template-columns: 46px minmax(0,1fr) 18px; min-height: 104px; }
+  .ui-kpi-icon { width: 46px; height: 46px; }
+}

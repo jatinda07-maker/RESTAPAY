@@ -4,7 +4,7 @@ import Layout from './components/Layout'
 import { diagnosticLogger, installGlobalDiagnostics } from './lib/diagnostics'
 import { useLocalData } from './lib/useLocalData'
 import './styles.css'
-import './styles/ui-v5.css'
+import './styles/design-system.css'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const CostAnalysis = lazy(() => import('./pages/CostAnalysis'))
