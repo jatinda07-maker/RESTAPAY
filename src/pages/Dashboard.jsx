@@ -254,10 +254,11 @@ function DetailTable({ config, setActive, onClose }) {
   const balanced = Math.abs(difference) < 0.01
   const formatTotal = value => config.totalFormatter ? config.totalFormatter(value) : money(value)
   const title = String(config.title || 'Dashboard Details')
-  const iconName = /prime/i.test(title) ? 'calculator' : /payroll|labor/i.test(title) ? 'payroll' : /food/i.test(title) ? 'food' : /alcohol|beer|liquor/i.test(title) ? 'beer' : /profit/i.test(title) ? 'trending' : 'sales'
+  const iconName = /vendor|spend/i.test(title) ? 'vendors' : /prime/i.test(title) ? 'calculator' : /payroll|labor/i.test(title) ? 'payroll' : /food/i.test(title) ? 'food' : /alcohol|beer|liquor/i.test(title) ? 'beer' : /profit/i.test(title) ? 'trending' : 'sales'
+  const modalTone = /vendor|spend|tip/i.test(title) ? 'orange' : /expense/i.test(title) ? 'red' : /food|cash/i.test(title) ? 'green' : /alcohol|beer|liquor|profit/i.test(title) ? 'purple' : 'blue'
 
   return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
-    <section className={`table-card detail-section dashboard-detail-modal enterprise-reconciliation-modal${isFullScreen ? ' is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={title}>
+    <section className={`table-card detail-section dashboard-detail-modal enterprise-reconciliation-modal modal-tone-${modalTone}${isFullScreen ? ' is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={title}>
       <header className="detail-modal-header enterprise-modal-header">
         <div className="detail-modal-heading">
           <span className="detail-modal-icon enterprise-modal-icon"><Icon name={iconName} size={30} /></span>
@@ -275,9 +276,8 @@ function DetailTable({ config, setActive, onClose }) {
       </header>
 
       <div className="enterprise-ledger-wrap">
-        <div className="enterprise-ledger-title"><Icon name="list" size={18} /><h3>Component Ledger</h3></div>
         <div className="table-scroll detail-table-scroll"><table className="detail-reconciliation-table"><thead><tr>{config.columns.map(col => <th key={col.key}>{col.label}</th>)}</tr></thead><tbody>
-          {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr className="detail-empty-row"><td colSpan={config.columns.length}><small>No entries were found for the selected date range.</small></td></tr>}
+          {rows.length ? rows.map((row, index) => <tr key={row.id || index}>{config.columns.map(col => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '-')}</td>)}</tr>) : <tr className="detail-empty-row"><td colSpan={config.columns.length}><div className="enterprise-empty-state"><Icon name="invoices" size={34} /><small>No entries were found for the selected date range.</small></div></td></tr>}
         </tbody></table></div>
         {config.hideTotals ? null : <div className="enterprise-ledger-summary">
           {config.groupSubtotals ? config.groupSubtotals.map(group => <div className="enterprise-summary-row group" key={group.label}><b>{group.label}</b><b>{money(group.amount)}</b></div>) : null}
