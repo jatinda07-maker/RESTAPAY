@@ -150,7 +150,7 @@ export default function Layout({ active, setActive, children }) {
             </div>
           </div>
         </header>
-        <section className="content-area">{children}</section>
+        <section className={`content-area page-${active}`}>{children}</section>
       </main>
     </div>
   )

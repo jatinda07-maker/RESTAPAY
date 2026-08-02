@@ -14,34 +14,34 @@
   --ui-shadow-hover: 0 14px 32px rgba(19, 43, 71, .12);
 
   --ui-blue: #1f73e8;
-  --ui-blue-bg: #dfeaff;
-  --ui-blue-bg-2: #edf4ff;
-  --ui-blue-line: #b8d0fb;
+  --ui-blue-bg: #ccdeff;
+  --ui-blue-bg-2: #e1ecff;
+  --ui-blue-line: #9bbcf2;
 
   --ui-green: #0b944a;
-  --ui-green-bg: #d9eee1;
-  --ui-green-bg-2: #edf7f1;
-  --ui-green-line: #b6d9c3;
+  --ui-green-bg: #c7e5d2;
+  --ui-green-bg-2: #dff0e6;
+  --ui-green-line: #98c9aa;
 
   --ui-purple: #7641d8;
-  --ui-purple-bg: #e7dcfb;
-  --ui-purple-bg-2: #f3edff;
-  --ui-purple-line: #cdbaf4;
+  --ui-purple-bg: #d8c7f7;
+  --ui-purple-bg-2: #e9defb;
+  --ui-purple-line: #b79eea;
 
   --ui-orange: #ed6f0b;
-  --ui-orange-bg: #ffe1c4;
-  --ui-orange-bg-2: #fff0df;
-  --ui-orange-line: #f5bf86;
+  --ui-orange-bg: #ffd1a3;
+  --ui-orange-bg-2: #ffe3c3;
+  --ui-orange-line: #edaa61;
 
   --ui-red: #e8414e;
-  --ui-red-bg: #ffd9de;
-  --ui-red-bg-2: #ffedf0;
-  --ui-red-line: #f3b2ba;
+  --ui-red-bg: #ffc7d0;
+  --ui-red-bg-2: #ffdee4;
+  --ui-red-line: #e996a3;
 
   --ui-teal: #0c9fa2;
-  --ui-teal-bg: #d4ecec;
-  --ui-teal-bg-2: #eaf7f7;
-  --ui-teal-line: #acd8da;
+  --ui-teal-bg: #bee1e2;
+  --ui-teal-bg-2: #d9eeee;
+  --ui-teal-line: #8fc5c8;
 }
 
 html, body, #root { background: var(--ui-bg); color: var(--ui-ink); }
@@ -81,9 +81,9 @@ button.ui-kpi-card:hover { transform: translateY(-2px); box-shadow: var(--ui-sha
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.36), 0 8px 18px color-mix(in srgb, var(--tone) 26%, transparent);
 }
 .ui-kpi-copy { min-width: 0; display: grid; gap: 4px; }
-.ui-kpi-title { color: #304969; font-size: 13px; font-weight: 800; letter-spacing: .02em; }
-.ui-kpi-value { color: var(--ui-ink); font-size: clamp(24px, 1.8vw, 31px); line-height: 1; letter-spacing: -.035em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ui-kpi-subtitle { color: var(--ui-muted); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.ui-kpi-title { color: #39526f; font-size: 12.5px; font-weight: 600; letter-spacing: .005em; }
+.ui-kpi-value { color: #102944; font-size: clamp(23px, 1.65vw, 29px); font-weight: 650; line-height: 1; letter-spacing: -.025em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ui-kpi-subtitle { color: #667c99; font-size: 11.5px; font-weight: 450; line-height: 1.32; overflow-wrap: anywhere; }
 .ui-kpi-chevron { color: color-mix(in srgb, var(--tone) 74%, #233b5b); display: grid; place-items: center; }
 
 .ui-tone-green { --tone: var(--ui-green); --tone-bg: var(--ui-green-bg); --tone-bg-2: var(--ui-green-bg-2); --tone-line: var(--ui-green-line); }
@@ -109,9 +109,9 @@ button.ui-kpi-card:hover { transform: translateY(-2px); box-shadow: var(--ui-sha
 .ui-section-title:not(:disabled) { cursor: pointer; }
 .ui-section-icon { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; color: var(--tone); background: var(--tone-bg); border: 1px solid var(--tone-line); }
 .ui-section-heading { min-width: 0; display: grid; gap: 2px; }
-.ui-section-heading strong { font-size: 16px; }
+.ui-section-heading strong { font-size: 15px; font-weight: 600; }
 .ui-section-heading small { color: var(--ui-muted); font-size: 12px; }
-.ui-section-total { font-size: 18px; font-weight: 800; white-space: nowrap; }
+.ui-section-total { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ui-section-action { display: flex; align-items: center; padding: 10px 14px 10px 0; }
 .ui-section-body { padding: 14px 16px 16px; }
 
@@ -181,10 +181,12 @@ tbody tr:hover td { background: #f8fbff; }
 }
 .dashboard-phase-one .ui-kpi-title {
   font-size: 12px;
+  font-weight: 600;
   line-height: 1.15;
 }
 .dashboard-phase-one .ui-kpi-value {
-  font-size: clamp(21px, 1.45vw, 27px);
+  font-size: clamp(21px, 1.4vw, 26px);
+  font-weight: 650;
 }
 .dashboard-phase-one .ui-kpi-subtitle {
   font-size: 11px;
@@ -1205,4 +1207,55 @@ tbody tr:hover td { background: #f8fbff; }
 @media (max-width: 620px) {
   .dashboard-phase-one .metric-grid,
   .dashboard-phase-one .dashboard-approved-summary-strip { grid-template-columns: 1fr !important; }
+}
+
+
+/* Dashboard approved final lock — one header only, slightly richer pastel cards */
+.dashboard-phase-one > .dashboard-masthead,
+.dashboard-phase-one > .dashboard-approved-masthead { display: none !important; }
+.dashboard-phase-one { padding-top: 0 !important; }
+.dashboard-phase-one .dashboard-control-panel { margin-top: 0 !important; }
+.dashboard-phase-one .ui-kpi-card {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tone-bg) 94%, var(--tone) 6%) 0%, var(--tone-bg-2) 100%) !important;
+}
+.dashboard-phase-one .ui-kpi-copy { gap: 3px; }
+.dashboard-phase-one .ui-kpi-title { color: #38506c !important; }
+.dashboard-phase-one .ui-kpi-value { color: #102944 !important; }
+.dashboard-phase-one .ui-kpi-subtitle { color: #667c99 !important; }
+.dashboard-phase-one .ui-section-heading strong,
+.dashboard-phase-one .line-row strong,
+.dashboard-phase-one .line-row b { font-weight: 600 !important; }
+
+
+/* Dashboard approved layout lock: only the shared topbar title is shown. */
+.content-area.page-dashboard > .page-head,
+.content-area.page-dashboard > .dashboard-hero,
+.content-area.page-dashboard > .dashboard-intro,
+.content-area.page-dashboard .dashboard-v3 > .page-head,
+.content-area.page-dashboard .dashboard-v3 > .dashboard-hero,
+.content-area.page-dashboard .dashboard-v3 > .dashboard-intro {
+  display: none !important;
+}
+
+/* Slightly richer approved pastel cards without making the dashboard dark. */
+.content-area.page-dashboard .ui-kpi-card {
+  background: linear-gradient(135deg, var(--tone-bg) 0%, var(--tone-bg-2) 88%);
+  border-color: color-mix(in srgb, var(--tone-line) 88%, var(--tone));
+}
+.content-area.page-dashboard .ui-kpi-title {
+  color: #314d6c;
+  font-weight: 560;
+}
+.content-area.page-dashboard .ui-kpi-value {
+  color: #102944;
+  font-weight: 620;
+}
+.content-area.page-dashboard .ui-kpi-subtitle {
+  color: #587394;
+  font-weight: 430;
+}
+.content-area.page-dashboard .dashboard-v3 > h1:first-child,
+.content-area.page-dashboard .dashboard-v3 > h1:first-child + p,
+.content-area.page-dashboard .dashboard-v3 > header:first-child:not(.enterprise-modal-header) {
+  display: none !important;
 }
