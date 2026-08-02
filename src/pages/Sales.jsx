@@ -597,12 +597,6 @@ export default function Sales({ data, setData }) {
 
     <div className="page-filter-shell compact-filter-shell sales-v7-filter-shell">
       <DateControls className="sales-v7-date-controls" activePreset={filter} start={dateStart} end={dateEnd} onStartChange={value => { setDateStart(value); setFilter('custom') }} onEndChange={value => { setDateEnd(value); setFilter('custom') }} onApply={() => setStatus(`Showing ${filteredSales.length} sales rows${dateStart || dateEnd ? ` from ${dateStart || 'start'} to ${dateEnd || 'today'}` : ''}`)} onPreset={applyFilterPreset} />
-      <div className="sales-v7-quick-ranges" aria-label="Quick date ranges">
-        <button type="button" className={filter === 'today' ? 'is-active' : ''} onClick={() => applyFilterPreset('today')}>Today</button>
-        <button type="button" className={filter === 'lastWeek' ? 'is-active' : ''} onClick={() => applyFilterPreset('lastWeek')}>Last Week</button>
-        <button type="button" className={filter === 'thisMonth' ? 'is-active' : ''} onClick={() => applyFilterPreset('thisMonth')}>This Month</button>
-        <button type="button" className={filter === 'lastMonth' ? 'is-active' : ''} onClick={() => applyFilterPreset('lastMonth')}>Last Month</button>
-      </div>
     </div>
     {(dateStart || dateEnd) && <p className="filter-note">Showing data from {dateStart || 'first record'} to {dateEnd || 'latest record'}</p>}
 
@@ -680,8 +674,8 @@ export default function Sales({ data, setData }) {
       </table>
     </section>
 
-    <section className="table-card compact-table-card sales-history-card">
-      <header><h2>Import History</h2><span>{salesImports.length} imports</span></header>
+    <section className="table-card compact-table-card sales-history-card sales-import-history-card">
+      <header className="sales-v7-card-header"><div><h2>Import History</h2><small>Previously imported Toast sales files</small></div><span>{salesImports.length} imports</span></header>
       <table><thead><tr><th>File</th><th>Rows</th><th>Imported</th></tr></thead><tbody>{salesImports.map(item => <tr key={item.id}><td>{item.file_name}</td><td>{item.row_count}</td><td>{new Date(item.created_at).toLocaleString()}</td></tr>)}</tbody></table>
     </section>
   </div>
