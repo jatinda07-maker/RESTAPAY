@@ -1,176 +1,108 @@
-/* Dashboard-only visual system. Loaded with Dashboard.jsx so it wins over legacy global rules. */
-.dashboard-v3.dashboard-phase-one {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
+/* RestaPay Dashboard V7 — isolated, compact card layout. */
+.rv7-dashboard{
+  --rv7-navy:#0f2747;
+  --rv7-muted:#4f6f9f;
+  display:grid;
+  gap:18px;
+  min-width:0;
+  padding:2px 4px 24px;
 }
-
-.dashboard-v3 .metric-grid {
-  display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 14px !important;
-  min-width: 0 !important;
+.rv7-control-shell{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  min-width:0;
+  padding:14px 18px;
+  border:1px solid #d8e2ef;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(15,39,71,.06);
 }
-
-.dashboard-v3 .metric-card {
-  --dash-card-bg: #dce9ff;
-  --dash-card-border: #b8cff8;
-  --dash-card-accent: #2472e5;
-  appearance: none !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  min-height: 124px !important;
-  margin: 0 !important;
-  padding: 18px 20px !important;
-  display: grid !important;
-  grid-template-columns: 56px minmax(0, 1fr) 18px !important;
-  grid-template-areas: "icon copy arrow" !important;
-  align-items: center !important;
-  column-gap: 16px !important;
-  text-align: left !important;
-  border: 1px solid var(--dash-card-border) !important;
-  border-radius: 18px !important;
-  background: var(--dash-card-bg) !important;
-  background-image: none !important;
-  color: #0d2747 !important;
-  box-shadow: 0 7px 18px rgba(15, 39, 68, 0.06) !important;
-  overflow: hidden !important;
-  position: relative !important;
-  cursor: pointer !important;
+.rv7-control-shell .rv7-date-controls{
+  display:flex;
+  align-items:flex-end;
+  gap:12px;
+  min-width:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  box-shadow:none;
 }
-
-.dashboard-v3 .metric-card::before,
-.dashboard-v3 .metric-card::after {
-  display: none !important;
-  content: none !important;
+.rv7-control-shell .date-preset-field,
+.rv7-control-shell .date-range-field{
+  display:grid;
+  gap:5px;
+  min-width:0;
 }
-
-.dashboard-v3 .metric-card:hover {
-  transform: translateY(-1px) !important;
-  box-shadow: 0 10px 24px rgba(15, 39, 68, 0.10) !important;
+.rv7-control-shell .date-preset-field>span,
+.rv7-control-shell .date-range-field>span{
+  font-size:12px;
+  line-height:1;
+  font-weight:700;
+  color:#536b8f;
 }
-
-.dashboard-v3 .metric-card .metric-icon {
-  grid-area: icon !important;
-  width: 56px !important;
-  height: 56px !important;
-  min-width: 56px !important;
-  border-radius: 15px !important;
-  display: grid !important;
-  place-items: center !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  background: var(--dash-card-accent) !important;
-  color: #fff !important;
-  box-shadow: none !important;
+.rv7-control-shell .date-preset-field select,
+.rv7-control-shell .date-range-field input,
+.rv7-control-shell .date-apply-btn{
+  height:42px!important;
+  min-height:42px!important;
+  border-radius:10px!important;
+  font-size:14px!important;
+  font-weight:650!important;
 }
+.rv7-control-shell .date-preset-field select{min-width:200px;padding:0 40px 0 14px;border:1px solid #cbd8e8;background:#fff;color:#0f2747}
+.rv7-control-shell .date-range-field input{width:190px;padding:0 12px;border:1px solid #cbd8e8;background:#fff;color:#0f2747}
+.rv7-control-shell .date-control-range{display:flex;align-items:flex-end;gap:10px}
+.rv7-control-shell .range-arrow{height:42px;display:grid;place-items:center;color:#7b91b2;font-size:15px}
+.rv7-control-shell .date-apply-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 18px!important;border:0!important;background:#0f9f49!important;color:#fff!important;box-shadow:0 7px 16px rgba(15,159,73,.18)!important}
+.rv7-save-state{display:grid;justify-items:end;gap:4px;flex:0 0 auto}
+.rv7-save-pill{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px;border:1px solid #bee7cd;border-radius:999px;background:#eefaf2;color:#08753a;font-size:13px;font-weight:700;white-space:nowrap}
+.rv7-save-dot{width:10px;height:10px;border-radius:50%;background:#189552;box-shadow:0 0 0 5px rgba(24,149,82,.12)}
+.rv7-sync-status{font-size:11px;color:#64809f}
 
-.dashboard-v3 .metric-card .metric-icon svg {
-  width: 25px !important;
-  height: 25px !important;
-  stroke: currentColor !important;
+.rv7-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;min-width:0}
+.rv7-kpi-card{
+  --rv7-bg:#edf5ff;
+  --rv7-border:#c9ddfb;
+  --rv7-accent:#2478e8;
+  appearance:none;
+  width:100%;
+  min-width:0;
+  min-height:142px;
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr) 18px;
+  align-items:center;
+  gap:14px;
+  padding:20px 18px;
+  border:1px solid var(--rv7-border);
+  border-radius:18px;
+  background:var(--rv7-bg);
+  color:var(--rv7-navy);
+  text-align:left;
+  box-shadow:0 10px 24px rgba(15,39,71,.055);
+  cursor:pointer;
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;
 }
+.rv7-kpi-card:hover{transform:translateY(-2px);border-color:var(--rv7-accent);box-shadow:0 14px 28px rgba(15,39,71,.10)}
+.rv7-kpi-card:focus-visible{outline:3px solid color-mix(in srgb,var(--rv7-accent) 25%,transparent);outline-offset:2px}
+.rv7-kpi-icon{width:58px;height:58px;display:grid;place-items:center;border-radius:15px;background:var(--rv7-accent);color:#fff;box-shadow:none}
+.rv7-kpi-icon svg,.rv7-kpi-icon svg *{stroke:currentColor!important;color:inherit!important}
+.rv7-kpi-copy{display:flex;flex-direction:column;min-width:0}
+.rv7-kpi-label{font-size:14px;line-height:1.2;font-weight:650;color:#163a68;white-space:normal}
+.rv7-kpi-value{margin-top:5px;font-size:30px;line-height:1;font-weight:680;letter-spacing:-.035em;color:#071c38;font-variant-numeric:tabular-nums}
+.rv7-kpi-subtitle{margin-top:9px;font-size:12.5px;line-height:1.42;font-weight:500;color:#4b6f9e;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rv7-kpi-chevron{font-size:29px;line-height:1;color:var(--rv7-accent);justify-self:end}
 
-.dashboard-v3 .metric-card .metric-copy {
-  grid-area: copy !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: flex-start !important;
-  justify-content: center !important;
-  min-width: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
+.rv7-tone-blue{--rv7-bg:#edf5ff;--rv7-border:#c7dcfb;--rv7-accent:#2478e8}
+.rv7-tone-green{--rv7-bg:#edf8f0;--rv7-border:#c7e7cf;--rv7-accent:#16933d}
+.rv7-tone-emerald{--rv7-bg:#eef8f1;--rv7-border:#c9e5d1;--rv7-accent:#279557}
+.rv7-tone-teal{--rv7-bg:#eaf8f7;--rv7-border:#bfe4e1;--rv7-accent:#0e948e}
+.rv7-tone-orange{--rv7-bg:#fff3e8;--rv7-border:#ffd1a7;--rv7-accent:#ff6a00}
+.rv7-tone-red{--rv7-bg:#fff0f3;--rv7-border:#ffc5d0;--rv7-accent:#ed3655}
+.rv7-tone-purple{--rv7-bg:#f5efff;--rv7-border:#dcc8ff;--rv7-accent:#7a3fe0}
+.rv7-tone-indigo{--rv7-bg:#f0f1ff;--rv7-border:#ced1ff;--rv7-accent:#4f46e5}
 
-.dashboard-v3 .metric-card .metric-label {
-  display: block !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  font-size: 15px !important;
-  line-height: 1.2 !important;
-  font-weight: 600 !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
-  color: #17375e !important;
-  white-space: normal !important;
-}
-
-.dashboard-v3 .metric-card .metric-value {
-  display: block !important;
-  margin: 5px 0 0 !important;
-  padding: 0 !important;
-  font-size: 29px !important;
-  line-height: 1.05 !important;
-  font-weight: 680 !important;
-  letter-spacing: -0.025em !important;
-  color: #071f3d !important;
-  white-space: nowrap !important;
-  font-variant-numeric: tabular-nums !important;
-}
-
-.dashboard-v3 .metric-card .metric-subtitle {
-  display: -webkit-box !important;
-  margin: 7px 0 0 !important;
-  padding: 0 !important;
-  font-size: 13px !important;
-  line-height: 1.3 !important;
-  font-weight: 500 !important;
-  color: #4e7096 !important;
-  white-space: normal !important;
-  overflow: hidden !important;
-  overflow-wrap: anywhere !important;
-  -webkit-line-clamp: 2 !important;
-  -webkit-box-orient: vertical !important;
-}
-
-.dashboard-v3 .metric-card .metric-chevron {
-  grid-area: arrow !important;
-  align-self: center !important;
-  justify-self: end !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  font-size: 28px !important;
-  line-height: 1 !important;
-  color: #6282a6 !important;
-}
-
-.dashboard-v3 .metric-card.tone-blue { --dash-card-bg: #dce9ff; --dash-card-border: #b8cff8; --dash-card-accent: #2472e5; }
-.dashboard-v3 .metric-card.tone-green { --dash-card-bg: #dcefe5; --dash-card-border: #b7ddc8; --dash-card-accent: #0a9a50; }
-.dashboard-v3 .metric-card.tone-purple { --dash-card-bg: #eadffd; --dash-card-border: #d2bdf6; --dash-card-accent: #7740df; }
-.dashboard-v3 .metric-card.tone-orange { --dash-card-bg: #ffe5cc; --dash-card-border: #f7c594; --dash-card-accent: #f36b08; }
-.dashboard-v3 .metric-card.tone-red { --dash-card-bg: #ffe0e6; --dash-card-border: #f5b6c2; --dash-card-accent: #ee3651; }
-.dashboard-v3 .metric-card.tone-emerald { --dash-card-bg: #d9efe8; --dash-card-border: #b7ddcf; --dash-card-accent: #07866a; }
-.dashboard-v3 .metric-card.tone-teal { --dash-card-bg: #d8efef; --dash-card-border: #b0dddd; --dash-card-accent: #119c9c; }
-.dashboard-v3 .metric-card.tone-indigo { --dash-card-bg: #e1e4ff; --dash-card-border: #c3c8fb; --dash-card-accent: #4a48dc; }
-
-.dashboard-v3 .dashboard-grid-main,
-.dashboard-v3 .dashboard-grid-secondary {
-  display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 14px !important;
-  min-width: 0 !important;
-}
-
-.dashboard-v3 .dashboard-control-panel,
-.dashboard-v3 .section-card {
-  border: 1px solid #d7e1ec !important;
-  border-radius: 18px !important;
-  background: #fff !important;
-  box-shadow: 0 8px 22px rgba(15, 39, 68, 0.05) !important;
-}
-
-@media (max-width: 1320px) {
-  .dashboard-v3 .metric-grid,
-  .dashboard-v3 .dashboard-grid-main,
-  .dashboard-v3 .dashboard-grid-secondary {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-}
-
-@media (max-width: 760px) {
-  .dashboard-v3 .metric-grid,
-  .dashboard-v3 .dashboard-grid-main,
-  .dashboard-v3 .dashboard-grid-secondary {
-    grid-template-columns: 1fr !important;
-  }
-}
+@media(max-width:1450px){.rv7-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1080px){.rv7-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rv7-control-shell{align-items:stretch;flex-direction:column}.rv7-save-state{justify-items:start}.rv7-control-shell .rv7-date-controls{flex-wrap:wrap}}
+@media(max-width:700px){.rv7-kpi-grid{grid-template-columns:1fr}.rv7-control-shell .rv7-date-controls,.rv7-control-shell .date-control-range{align-items:stretch;flex-direction:column}.rv7-control-shell .date-preset-field select,.rv7-control-shell .date-range-field input{width:100%;min-width:0}.rv7-control-shell .range-arrow{display:none}.rv7-kpi-card{min-height:124px;padding:16px}.rv7-kpi-value{font-size:27px}}
