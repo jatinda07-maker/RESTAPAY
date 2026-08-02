@@ -730,14 +730,7 @@ export default function Dashboard({ data, setData, setActive }) {
   }
 
   return (
-    <div className="dashboard-v3 dashboard-phase-one">
-      <header className="dashboard-masthead dashboard-approved-masthead">
-        <div>
-          <h1>Dashboard</h1>
-          <p>Live sales, payroll, costs, cash position and operating profit for the selected period.</p>
-        </div>
-      </header>
-
+    <div className="dashboard-v3 dashboard-phase-one dashboard-final-approved">
       <section className="dashboard-control-panel dashboard-date-panel" aria-label="Dashboard date and sync controls">
         <DateControls
           start={dateStart}
