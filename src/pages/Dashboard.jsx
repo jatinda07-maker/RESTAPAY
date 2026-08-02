@@ -724,13 +724,13 @@ export default function Dashboard({ data, setData, setActive }) {
     reconciliation: { preserveOrder: true, title: 'Dashboard Reconciliation', open: 'reports', rows: derived.reconciliationChecks.map(check => ({ ...check, status: Math.abs(check.difference) < 0.01 ? 'Balanced' : 'Review' })), expected: 0, amountGetter: r => num(r.difference), columns: [
       { key: 'label', label: 'Check' }, { key: 'status', label: 'Status' }, { key: 'difference', label: 'Difference', render: r => money(num(r.difference)) }
     ], message: 'A $0.00 difference means the card total and its underlying sources reconcile.' },
-    health: { preserveOrder: true, title: 'Restaurant Health Inputs', open: 'reports', hideTotals: true, rows: [
+    health: { preserveOrder: true, title: 'Restaurant Health Details', open: 'reports', hideTotals: true, rows: [
       { metric: 'Food Cost %', value: pct(derived.foodCostPct) }, { metric: 'Operating Labor %', value: pct(derived.laborPct) }, { metric: 'Prime Cost %', value: pct(derived.primeCostPct) }, { metric: 'Operating Profit', value: money(derived.operatingProfit) }, { metric: 'Profit Margin', value: pct(derived.profitMargin) }, { metric: 'Cash Remaining', value: money(derived.cashRemaining) }
     ], columns: [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }] }
   }
 
   return (
-    <div className="dashboard-v3 dashboard-phase-one">
+    <div className="dashboard-v3 dashboard-phase-one dashboard-final-approved">
       <section className="dashboard-control-panel dashboard-date-panel" aria-label="Dashboard date and sync controls">
         <DateControls
           start={dateStart}
@@ -761,82 +761,11 @@ export default function Dashboard({ data, setData, setActive }) {
         {visible.primeCost && <MetricCard title="Prime Cost" value={pct(derived.primeCostPct)} subtitle={`${money(derived.primeCost)} · Food + alcohol COGS + labor`} icon="pie" tone="indigo" onClick={() => showDetail('prime-cost')} />}
         {visible.trueFoodCost && <MetricCard title="True Food Cost" value={money(derived.directFoodCost)} subtitle="Actual categorized invoice line totals" icon="menu-costing" tone="orange" onClick={() => showDetail('true-food-cost')} />}
         {visible.trueAlcoholCost && <MetricCard title="True Alcohol Cost" value={money(derived.directAlcoholCost)} subtitle="Beer + liquor/wine + margarita invoice lines" icon="beer" tone="purple" onClick={() => showDetail('true-alcohol-cost')} />}
+        {visible.restaurantHealth && <MetricCard title="Restaurant Health" value={`${derived.healthScore}/100`} subtitle={`${healthLabel(derived.healthScore)} overall performance score`} icon="shield" tone="teal" onClick={() => showDetail('health')} />}
       </div>
 
-      <div className="dashboard-grid-main">
-        {visible.restaurantHealth && (<SectionCard title="Restaurant Health" onOpen={() => showDetail('health')} icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
-          <div className="health-block">
-            <div className="health-score"><strong>{derived.healthScore}</strong><span>{healthLabel(derived.healthScore)}</span></div>
-            <div className="health-meters">
-              <ProgressMeter label="Food Cost" value={derived.foodCostPct} tone="orange" caption={`${money(derived.foodSpend)} food spend`} />
-              <ProgressMeter label="Operating Labor" value={derived.laborPct} tone="teal" caption={`${money(derived.operatingPayroll)} excludes customer tips`} />
-              <ProgressMeter label="Prime Cost" value={derived.primeCostPct} tone="purple" caption="Food + alcohol COGS + operating labor target under 65%" />
-            </div>
-          </div>
-        </SectionCard>)}
-
-        {visible.departmentProfitability && (<SectionCard title="Food & Alcohol Profitability" onOpen={() => setActive('cost-analysis')} icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules" action={<button type="button" className="btn secondary small-btn" onClick={() => setActive('cost-analysis')}>Open Cost Page</button>}>
-          {(() => {
-            const classifiedSales = derived.departmentCosts.foodSales + derived.departmentCosts.alcoholSales
-            const foodShare = classifiedSales > 0 ? derived.departmentCosts.foodSales / classifiedSales * 100 : 0
-            const alcoholShare = classifiedSales > 0 ? derived.departmentCosts.alcoholSales / classifiedSales * 100 : 0
-            const foodLed = derived.departmentCosts.foodSales >= derived.departmentCosts.alcoholSales
-            const leadAmount = Math.abs(derived.departmentCosts.foodSales - derived.departmentCosts.alcoholSales)
-            return (
-              <div className={`department-sales-mix ${foodLed ? 'food-led' : 'alcohol-led'}`}>
-                <div>
-                  <span className="department-sales-mix-kicker">Sales Mix</span>
-                  <strong>{foodLed ? 'Food sales were higher' : 'Alcohol sales were higher'}</strong>
-                  <small>{`${foodLed ? 'Food' : 'Alcohol'} led by ${money(leadAmount)} in the selected period`}</small>
-                </div>
-                <div className="department-sales-mix-shares">
-                  <span><b>{pct(foodShare)}</b><small>Food</small></span>
-                  <span><b>{pct(alcoholShare)}</b><small>Alcohol</small></span>
-                </div>
-              </div>
-            )
-          })()}
-          <div className="department-cost-grid">
-            <div className="department-cost-panel department-food-panel">
-              <h3>Food Department</h3>
-              <RowList rows={[
-                { id: 'food-sales', label: 'Food Sales', amount: money(derived.departmentCosts.foodSales), meta: 'Toast food items from Product Mix' },
-                { id: 'food-purchases', label: 'Food Purchases', amount: money(derived.departmentCosts.foodPurchases), meta: 'Net of rebates and credits' },
-                { id: 'kitchen-payroll', label: 'Kitchen Payroll', amount: money(derived.departmentCosts.kitchenPayroll), meta: '100% allocated to food' },
-                { id: 'manager-food', label: 'Manager Allocation', amount: money(derived.departmentCosts.managerFood), meta: 'Default 50% food' },
-                { id: 'food-shared', label: 'Shared Supplies, Cintas & Utilities', amount: money(derived.departmentCosts.foodSupplies + derived.departmentCosts.foodShared), meta: 'Food share using Settings percentages' },
-                { id: 'true-food-cost', label: 'True Food Cost', amount: money(derived.departmentCosts.trueFoodCost), meta: pct(derived.departmentCosts.foodCostPercent) },
-                { id: 'food-profit', label: 'Food Profit', amount: money(derived.departmentCosts.foodProfit), meta: `${pct(derived.departmentCosts.foodProfitMargin)} margin` }
-              ]} onRowClick={row => showDetail('department', row.id)} />
-            </div>
-            <div className="department-cost-panel department-alcohol-panel">
-              <h3>Alcohol Department</h3>
-              <RowList rows={[
-                { id: 'alcohol-sales', label: 'Alcohol Sales', amount: money(derived.departmentCosts.alcoholSales), meta: 'Beer, liquor, wine, margaritas, cocktails and shots' },
-                { id: 'beer-purchases', label: 'Beer Purchases', amount: money(derived.departmentCosts.beerPurchases), meta: 'All beer vendors' },
-                { id: 'liquor-purchases', label: 'Liquor / Wine', amount: money(derived.departmentCosts.liquorPurchases), meta: 'ABC Store and all liquor/wine vendors' },
-                { id: 'margarita-mix', label: 'Margarita Mix', amount: money(derived.departmentCosts.margaritaMix), meta: 'US Foods mix allocated to alcohol' },
-                { id: 'manager-alcohol', label: 'Manager Allocation', amount: money(derived.departmentCosts.managerAlcohol), meta: 'Kept separate; percentage from Settings' },
-                { id: 'bar-payroll', label: 'Bar Payroll', amount: money(derived.departmentCosts.barPayroll), meta: 'Bartender, barback and bar manager' },
-                { id: 'alcohol-shared', label: 'Shared Supplies, Cintas & Utilities', amount: money(derived.departmentCosts.alcoholShared), meta: 'Alcohol share using Settings percentages' },
-                { id: 'true-alcohol-cost', label: 'True Alcohol Cost', amount: money(derived.departmentCosts.trueAlcoholCost), meta: pct(derived.departmentCosts.alcoholCostPercent) },
-                { id: 'alcohol-profit', label: 'Alcohol Profit', amount: money(derived.departmentCosts.alcoholProfit), meta: `${pct(derived.departmentCosts.alcoholProfitMargin)} margin` }
-              ]} onRowClick={row => showDetail('department', row.id)} />
-            </div>
-          </div>
-        </SectionCard>)}
-
-        {visible.cashPosition && (<SectionCard title="Cash Position" onOpen={() => showDetail('cash-remaining')} icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
-          <RowList rows={[
-            { id: 'cash-sales', label: 'Cash Collected', amount: money(derived.cashSales), meta: 'From Toast sales' },
-            { id: 'cash-payroll', label: 'Cash Payroll', amount: money(derived.cashPayroll), meta: `${derived.cashPayrollRows.length} cash payroll rows` },
-            { id: 'server-tips', label: 'Server Tips Paid', amount: money(derived.customerTipsPaid), meta: 'Tracked separately from operating payroll' },
-            { id: 'vendors', label: 'Invoice Spend', amount: money(derived.invoiceSpend), meta: `${derived.monthInvoices.length} invoices` },
-            { id: 'expenses', label: 'Manual Expenses', amount: money(derived.manualExpenseSpend), meta: `${derived.monthExpenses.length} expenses` }
-          ]} onRowClick={row => showDetail(row.id)} />
-        </SectionCard>)}
-
-      </div>
+      {/* Detailed dashboard sections were removed to avoid duplicating information.
+          Every KPI card still opens its full drill-down popup. */}
 
       <DetailTable config={detailConfig[detailKey]} setActive={setActive} onClose={() => setDetail('')} />
     </div>
