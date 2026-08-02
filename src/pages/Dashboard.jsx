@@ -731,17 +731,10 @@ export default function Dashboard({ data, setData, setActive }) {
 
   return (
     <div className="dashboard-v3 dashboard-phase-one">
-      <header className="dashboard-masthead">
+      <header className="dashboard-masthead dashboard-approved-masthead">
         <div>
-          <span className="dashboard-kicker">Restaurant command center</span>
-          <h1>Financial Overview</h1>
+          <h1>Dashboard</h1>
           <p>Live sales, payroll, costs, cash position and operating profit for the selected period.</p>
-        </div>
-        <div className="dashboard-source-strip" aria-label="Dashboard data sources">
-          <span><i className="source-dot is-live" />Toast sales</span>
-          <span><i className="source-dot is-live" />Payroll</span>
-          <span><i className="source-dot is-live" />Invoices</span>
-          <span><i className="source-dot is-live" />Expenses</span>
         </div>
       </header>
 
@@ -850,49 +843,14 @@ export default function Dashboard({ data, setData, setActive }) {
           ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
-        {visible.profitLoss && (<SectionCard className="dashboard-card-profit-loss" title="Profit & Loss" onOpen={() => showDetail('operating-profit')} icon="receipt" tone="purple" total={money(derived.operatingProfit)} subtitle="Selected date range">
-          <RowList rows={[
-            { id: 'profit-net-sales', label: 'Net Restaurant Sales', amount: money(derived.trueNetSales), meta: 'Net after tax/tips adjustment' },
-            { id: 'profit-payroll', label: 'Operating Payroll Cost', amount: money(derived.operatingPayroll), meta: 'Kitchen/manager labor only; server tips excluded' },
-            { id: 'profit-spend', label: 'Vendor + Expense Spend', amount: money(derived.totalSpend), meta: 'Invoices, line items, expenses' },
-            { id: 'profit-summary', label: 'Profit Margin', amount: pct(derived.profitMargin), meta: 'Operating profit / net sales' }
-          ]} onRowClick={row => showDetail(row.id)} />
-        </SectionCard>)}
-
-        {visible.salesPerformance && (<SectionCard className="dashboard-card-sales-performance" title="Sales Performance" onOpen={() => showDetail('sales')} icon="sales" tone="blue" total={money(derived.grossSales)} subtitle="Gross and payment mix">
-          <RowList rows={[
-            { id: 'sales-gross', label: 'Gross Sales', amount: money(derived.grossSales), meta: 'Before adjustments' },
-            { id: 'sales-credit', label: 'Credit Sales', amount: money(derived.creditSales), meta: 'Card payments' },
-            { id: 'sales-tips', label: 'Tips Collected', amount: money(derived.tips), meta: `${money(derived.customerTipsPaid)} paid separately · ${money(derived.tipsWithheld)} withheld` },
-            { id: 'sales-tax', label: 'Sales Tax', amount: money(derived.tax), meta: 'Tax collected' }
-          ]} onRowClick={row => showDetail(row.id)} />
-        </SectionCard>)}
-
-        {visible.vendorPurchases && (<SectionCard className="dashboard-card-vendor-purchases" title="Vendor Purchases" onOpen={() => showDetail('vendors')} icon="invoices" tone="orange" total={money(derived.vendorSpend)} subtitle="COGS and vendor spend">
-          <RowList rows={derived.vendorRecent.map(row => ({ onClick: () => setActive('invoices'), label: row.vendor || 'Vendor Purchase', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
-          <div className="category-pills">{derived.vendorCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('vendors', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
-        </SectionCard>)}
-
-        {visible.businessExpensePanel && (<SectionCard className="dashboard-card-business-expenses" title="Business Expenses" onOpen={() => showDetail('expenses')} icon="expenses" tone="red" total={money(derived.businessSpend)} subtitle="Operating expenses">
-          <RowList rows={derived.businessRecent.map(row => ({ onClick: () => setActive('expenses'), label: row.vendor || row.description || 'Expense', meta: `${row.date || ''} · ${row.category || 'Other'}`, amount: money(row.amount) }))} />
-          <div className="category-pills">{derived.businessCategories.slice(0, 6).map(row => <button key={row.id || row.label} type="button" onClick={() => showDetail('expenses', row.label)}><span>{row.label}</span><b>{money(row.amount)}</b></button>)}</div>
-        </SectionCard>)}
       </div>
 
-      <div className="dashboard-grid-secondary">
-        {visible.weeklySalesTrend && (<SectionCard className="dashboard-card-weekly-sales" title="Weekly Sales Trend" onOpen={() => showDetail('sales')} icon="trending" tone="blue" subtitle="Last seven date buckets">
-          <MiniBars rows={derived.salesTrend} tone="blue" />
-        </SectionCard>)}
-        {visible.spendingTrend && (<SectionCard className="dashboard-card-spending-trend" title="Spending Trend" onOpen={() => showDetail('expenses')} icon="pie" tone="red" subtitle="Invoice + expense activity">
-          <MiniBars rows={derived.expenseTrend} tone="red" />
-        </SectionCard>)}
-        {visible.restaurantIntelligence && (<SectionCard className="dashboard-card-intelligence" title="Restaurant Intelligence" onOpen={() => showDetail('health')} icon="alert" tone="navy" subtitle="Suggested actions">
-          <div className="insight-list">
-            <div><b>{derived.healthScore >= 70 ? 'Restaurant health is stable' : 'Restaurant health needs review'}</b><span>Review food cost, operating labor, and cash position before payroll.</span></div>
-            <div><b>{derived.foodCostPct > 35 ? 'Food cost is high' : 'Food cost is under control'}</b><span>Food cost is currently {pct(derived.foodCostPct)}.</span></div>
-            <div><b>{derived.cashRemaining < 0 ? 'Cash shortfall risk' : 'Cash position looks usable'}</b><span>Remaining cash is {money(derived.cashRemaining)}.</span></div>
-          </div>
-        </SectionCard>)}
+      <div className="dashboard-grid-secondary dashboard-approved-summary-strip">
+        <MetricCard compact title="Sales This Week" value={money(derived.toastTotalSales)} subtitle={`vs last week ${money(0)} (0.0%)`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />
+        <MetricCard compact title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />
+        <MetricCard compact title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />
+        <MetricCard compact title="Cash Payroll" value={money(derived.cashPayroll)} subtitle={`${derived.cashPayrollRows?.length || 0} cash payroll rows`} icon="payroll" tone="teal" onClick={() => showDetail('management-payroll')} />
+        <MetricCard compact title="Server Tips" value={money(derived.customerTipsPaid)} subtitle="Separate from payroll" icon="receipt" tone="orange" onClick={() => showDetail('server-tips')} />
       </div>
 
       <DetailTable config={detailConfig[detailKey]} setActive={setActive} onClose={() => setDetail('')} />
