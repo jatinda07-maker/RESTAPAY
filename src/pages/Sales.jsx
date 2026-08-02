@@ -445,7 +445,7 @@ export default function Sales({ data, setData }) {
   const numberFields = ['gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips_after_withholding','refunds','discounts','tax','guest_count']
   const checkedAll = filteredSales.length > 0 && filteredSales.every(row => selectedIds.includes(row.id))
 
-  return <div className="sales-v8-page">
+  return <div className="sales-v7-page">
     <style>{`
       .sales-history-card,
       .sales-preview-card {
@@ -573,29 +573,30 @@ export default function Sales({ data, setData }) {
       .subtle-search input { background:transparent !important; border:0 !important; box-shadow:none !important; padding:0 4px !important; height:36px !important; }
       @media (max-width:1000px){ .sales-entry-filter-bar{grid-template-columns:1fr 1fr}.sales-entry-filter-bar .subtle-search{grid-column:1/-1;} }
     `}</style>
-    <div className="sales-action-bar sales-top-actions sales-v8-actions">
-      <label className="btn secondary file-action sales-upload-btn">
-        <Icon name="upload" />
-        Upload Sales
-        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
-      </label>
+    <div className="sales-v7-toolbar">
+      <div className="status-pill sales-v7-status"><Icon name="check" size={16} />{status}</div>
+      <div className="sales-action-bar sales-top-actions">
+        <label className="btn sales-v7-btn sales-upload-btn file-action">
+          <Icon name="upload" size={17} />
+          Upload Sales
+          <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
+        </label>
 
-      <label className="btn primary file-action sales-import-btn">
-        <Icon name="upload" />
-        Import Toast
-        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
-      </label>
+        <label className="btn primary sales-v7-btn file-action">
+          <Icon name="upload" size={17} />
+          Import Toast
+          <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
+        </label>
 
-      <button className="btn primary sales-manual-btn" onClick={addManualSale} type="button">
-        <Icon name="plus" />
-        Add Manual Sale
-      </button>
+        <button className="btn primary sales-v7-btn" onClick={addManualSale} type="button">
+          <Icon name="plus" size={17} />
+          Add Manual Sale
+        </button>
+      </div>
     </div>
 
-    <div className="status-pill">{status}</div>
-
-    <div className="page-filter-shell compact-filter-shell sales-v8-filter-shell">
-      <DateControls start={dateStart} end={dateEnd} onStartChange={value => { setDateStart(value); setFilter('custom') }} onEndChange={value => { setDateEnd(value); setFilter('custom') }} onApply={() => setStatus(`Showing ${filteredSales.length} sales rows${dateStart || dateEnd ? ` from ${dateStart || 'start'} to ${dateEnd || 'today'}` : ''}`)} onPreset={applyFilterPreset} />
+    <div className="page-filter-shell compact-filter-shell sales-v7-filter-shell">
+      <DateControls className="sales-v7-date-controls" activePreset={filter} start={dateStart} end={dateEnd} onStartChange={value => { setDateStart(value); setFilter('custom') }} onEndChange={value => { setDateEnd(value); setFilter('custom') }} onApply={() => setStatus(`Showing ${filteredSales.length} sales rows${dateStart || dateEnd ? ` from ${dateStart || 'start'} to ${dateEnd || 'today'}` : ''}`)} onPreset={applyFilterPreset} />
     </div>
     {(dateStart || dateEnd) && <p className="filter-note">Showing data from {dateStart || 'first record'} to {dateEnd || 'latest record'}</p>}
 
@@ -634,8 +635,11 @@ export default function Sales({ data, setData }) {
       </table>
     </section>}
 
-    <div className="payroll-summary-row sales-summary-row">
-      <div><span>Net Sales</span><b>${money(totals.net)}</b></div><div><span>Cash</span><b>${money(totals.cash)}</b></div><div><span>Credit</span><b>${money(totals.credit)}</b></div><div><span>Tips After Withholding</span><b>${money(totals.tips)}</b></div>
+    <div className="sales-v7-metrics">
+      <article className="sales-v7-metric sales-tone-blue"><span className="sales-v7-metric-icon"><Icon name="sales" size={22} /></span><div><span>Net Sales</span><b>${money(totals.net)}</b><small>{filteredSales.length} sales rows</small></div></article>
+      <article className="sales-v7-metric sales-tone-green"><span className="sales-v7-metric-icon"><Icon name="dollar" size={22} /></span><div><span>Cash</span><b>${money(totals.cash)}</b><small>{totals.net ? `${((totals.cash / totals.net) * 100).toFixed(1)}% of net sales` : '0% of net sales'}</small></div></article>
+      <article className="sales-v7-metric sales-tone-orange"><span className="sales-v7-metric-icon"><Icon name="card" size={22} /></span><div><span>Credit</span><b>${money(totals.credit)}</b><small>{totals.net ? `${((totals.credit / totals.net) * 100).toFixed(1)}% of net sales` : '0% of net sales'}</small></div></article>
+      <article className="sales-v7-metric sales-tone-purple"><span className="sales-v7-metric-icon"><Icon name="receipt" size={22} /></span><div><span>Tips After Withholding</span><b>${money(totals.tips)}</b><small>{totals.net ? `${((totals.tips / totals.net) * 100).toFixed(1)}% of net sales` : '0% of net sales'}</small></div></article>
     </div>
 
     {previewRows.length > 0 && <section className="table-card compact-table-card sales-preview-card">
@@ -648,12 +652,12 @@ export default function Sales({ data, setData }) {
     </section>}
 
     <section className="table-card compact-table-card sales-history-card">
-      <header><h2>Sales History</h2><span>{filteredSales.length} rows {selectedIds.length ? <button className="delete-link small-btn" onClick={bulkDelete} type="button">Delete {selectedIds.length}</button> : null}</span></header>
+      <header className="sales-v7-card-header"><div><h2>Sales History</h2><small>Search, review, edit, and manage imported sales</small></div><span>{filteredSales.length} rows {selectedIds.length ? <button className="delete-link small-btn" onClick={bulkDelete} type="button">Delete {selectedIds.length}</button> : null}</span></header>
       <div className="sales-entry-filter-bar">
-        <div className="search-box subtle-search"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date, import file or note" /></div>
+        <div className="search-box subtle-search"><Icon name="search" size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search date, import file or note..." /></div>
         <label>Source<select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}><option value="all">All sources</option><option value="toast">Toast imports</option><option value="manual">Manual entries</option></select></label>
         <label>Payment<select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}><option value="all">All sales</option><option value="cash">Cash collected</option><option value="credit">Credit collected</option><option value="tips">Tips collected</option></select></label>
-        {(search || sourceFilter !== 'all' || paymentFilter !== 'all') && <button type="button" className="btn ghost clear-filter-btn" onClick={() => { setSearch(''); setSourceFilter('all'); setPaymentFilter('all') }}>Clear</button>}
+        {(search || sourceFilter !== 'all' || paymentFilter !== 'all') && <button type="button" className="btn ghost clear-filter-btn" onClick={() => { setSearch(''); setSourceFilter('all'); setPaymentFilter('all') }}><Icon name="x" size={14} />Clear Filters</button>}
         <span className="filter-note">Newest date first</span>
       </div>
       <table className="sales-table fit-sales-table"><thead><tr><th className="sales-check-col"><input type="checkbox" checked={checkedAll} onChange={e => toggleAllFiltered(e.target.checked)} /></th><th className="sales-date-col">Date</th><th>Gross</th><th>Net</th><th>Cash</th><th>Credit</th><th>Gift</th><th>Other</th><th>Tips After Withholding</th><th>Refunds</th><th>Discounts</th><th>Tax</th><th>Guests</th><th className="sales-action-col">Action</th></tr></thead><tbody>{filteredSales.map(row => {
@@ -670,8 +674,8 @@ export default function Sales({ data, setData }) {
       </table>
     </section>
 
-    <section className="table-card compact-table-card sales-history-card">
-      <header><h2>Import History</h2><span>{salesImports.length} imports</span></header>
+    <section className="table-card compact-table-card sales-history-card sales-import-history-card">
+      <header className="sales-v7-card-header"><div><h2>Import History</h2><small>Previously imported Toast sales files</small></div><span>{salesImports.length} imports</span></header>
       <table><thead><tr><th>File</th><th>Rows</th><th>Imported</th></tr></thead><tbody>{salesImports.map(item => <tr key={item.id}><td>{item.file_name}</td><td>{item.row_count}</td><td>{new Date(item.created_at).toLocaleString()}</td></tr>)}</tbody></table>
     </section>
   </div>
