@@ -445,7 +445,7 @@ export default function Sales({ data, setData }) {
   const numberFields = ['gross_sales','net_sales','cash_sales','credit_sales','gift_card_sales','online_orders','tips_after_withholding','refunds','discounts','tax','guest_count']
   const checkedAll = filteredSales.length > 0 && filteredSales.every(row => selectedIds.includes(row.id))
 
-  return <div className="sales-page ui-page">
+  return <div className="sales-page">
     <div className="sales-action-bar sales-top-actions">
       <label className="btn secondary file-action">
         <Icon name="upload" />
