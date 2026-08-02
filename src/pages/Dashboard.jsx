@@ -730,7 +730,7 @@ export default function Dashboard({ data, setData, setActive }) {
   }
 
   return (
-    <div className="dashboard-v3 dashboard-phase-one dashboard-final-approved">
+    <div className="dashboard-v3 dashboard-phase-one">
       <section className="dashboard-control-panel dashboard-date-panel" aria-label="Dashboard date and sync controls">
         <DateControls
           start={dateStart}
@@ -764,7 +764,7 @@ export default function Dashboard({ data, setData, setActive }) {
       </div>
 
       <div className="dashboard-grid-main">
-        {visible.restaurantHealth && (<SectionCard className="dashboard-card-health" title="Restaurant Health" onOpen={() => showDetail('health')} icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
+        {visible.restaurantHealth && (<SectionCard title="Restaurant Health" onOpen={() => showDetail('health')} icon="shield" tone="emerald" total={`${derived.healthScore}/100`} subtitle={healthLabel(derived.healthScore)}>
           <div className="health-block">
             <div className="health-score"><strong>{derived.healthScore}</strong><span>{healthLabel(derived.healthScore)}</span></div>
             <div className="health-meters">
@@ -775,7 +775,7 @@ export default function Dashboard({ data, setData, setActive }) {
           </div>
         </SectionCard>)}
 
-        {visible.departmentProfitability && (<SectionCard className="dashboard-card-departments" title="Food & Alcohol Profitability" onOpen={() => setActive('cost-analysis')} icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules" action={<button type="button" className="btn secondary small-btn" onClick={() => setActive('cost-analysis')}>Open Cost Page</button>}>
+        {visible.departmentProfitability && (<SectionCard title="Food & Alcohol Profitability" onOpen={() => setActive('cost-analysis')} icon="pie" tone="purple" total={money(derived.departmentCosts.foodProfit + derived.departmentCosts.alcoholProfit)} subtitle="True departmental cost with allocation rules" action={<button type="button" className="btn secondary small-btn" onClick={() => setActive('cost-analysis')}>Open Cost Page</button>}>
           {(() => {
             const classifiedSales = derived.departmentCosts.foodSales + derived.departmentCosts.alcoholSales
             const foodShare = classifiedSales > 0 ? derived.departmentCosts.foodSales / classifiedSales * 100 : 0
@@ -826,7 +826,7 @@ export default function Dashboard({ data, setData, setActive }) {
           </div>
         </SectionCard>)}
 
-        {visible.cashPosition && (<SectionCard className="dashboard-card-cash" title="Cash Position" onOpen={() => showDetail('cash-remaining')} icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
+        {visible.cashPosition && (<SectionCard title="Cash Position" onOpen={() => showDetail('cash-remaining')} icon="dollar" tone="green" total={money(derived.cashRemaining)} subtitle="Cash in vs cash out">
           <RowList rows={[
             { id: 'cash-sales', label: 'Cash Collected', amount: money(derived.cashSales), meta: 'From Toast sales' },
             { id: 'cash-payroll', label: 'Cash Payroll', amount: money(derived.cashPayroll), meta: `${derived.cashPayrollRows.length} cash payroll rows` },
@@ -836,14 +836,6 @@ export default function Dashboard({ data, setData, setActive }) {
           ]} onRowClick={row => showDetail(row.id)} />
         </SectionCard>)}
 
-      </div>
-
-      <div className="dashboard-grid-secondary dashboard-approved-summary-strip">
-        <MetricCard compact title="Sales This Week" value={money(derived.toastTotalSales)} subtitle={`vs last week ${money(0)} (0.0%)`} icon="sales" tone="blue" onClick={() => showDetail('sales')} />
-        <MetricCard compact title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />
-        <MetricCard compact title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />
-        <MetricCard compact title="Cash Payroll" value={money(derived.cashPayroll)} subtitle={`${derived.cashPayrollRows?.length || 0} cash payroll rows`} icon="payroll" tone="teal" onClick={() => showDetail('management-payroll')} />
-        <MetricCard compact title="Server Tips" value={money(derived.customerTipsPaid)} subtitle="Separate from payroll" icon="receipt" tone="orange" onClick={() => showDetail('server-tips')} />
       </div>
 
       <DetailTable config={detailConfig[detailKey]} setActive={setActive} onClose={() => setDetail('')} />
