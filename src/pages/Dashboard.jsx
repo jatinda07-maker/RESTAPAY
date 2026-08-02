@@ -278,11 +278,11 @@ function DetailTable({ config, setActive, onClose }) {
   const balanced = Math.abs(difference) < 0.01
   const formatTotal = value => config.totalFormatter ? config.totalFormatter(value) : money(value)
   const title = String(config.title || 'Dashboard Details')
-  const iconName = /prime/i.test(title) ? 'calculator' : /payroll|labor/i.test(title) ? 'payroll' : /food/i.test(title) ? 'food' : /alcohol|beer|liquor/i.test(title) ? 'beer' : /vendor|spend|invoice/i.test(title) ? 'vendors' : /expense/i.test(title) ? 'expenses' : /profit/i.test(title) ? 'trending' : /health/i.test(title) ? 'shield' : 'sales'
-  const modalTone = /vendor|spend|invoice|alcohol|beer|liquor/i.test(title) ? 'orange' : /expense/i.test(title) ? 'red' : /food/i.test(title) ? 'green' : /health/i.test(title) ? 'emerald' : /prime|profit/i.test(title) ? 'purple' : 'blue'
+  const iconName = /prime/i.test(title) ? 'calculator' : /payroll|labor/i.test(title) ? 'payroll' : /food/i.test(title) ? 'food' : /alcohol|beer|liquor/i.test(title) ? 'beer' : /profit/i.test(title) ? 'trending' : /vendor|spend|purchase/i.test(title) ? 'vendors' : /expense/i.test(title) ? 'expenses' : /health/i.test(title) ? 'shield' : 'sales'
+  const modalTone = /vendor|spend|purchase|alcohol|beer|liquor/i.test(title) ? 'orange' : /expense/i.test(title) ? 'red' : /payroll|labor|cash/i.test(title) ? 'teal' : /food/i.test(title) ? 'green' : /prime/i.test(title) ? 'purple' : /health/i.test(title) ? 'emerald' : 'blue'
 
-  return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
-    <section className={`table-card detail-section dashboard-detail-modal rv7-detail-modal rv7-modal-tone-${modalTone}${isFullScreen ? ' is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={title}>
+  return <div className={`dashboard-detail-backdrop detail-tone-${modalTone}`} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
+    <section className={`table-card detail-section dashboard-detail-modal enterprise-reconciliation-modal${isFullScreen ? ' is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={title}>
       <header className="detail-modal-header enterprise-modal-header">
         <div className="detail-modal-heading">
           <span className="detail-modal-icon enterprise-modal-icon"><Icon name={iconName} size={30} /></span>
