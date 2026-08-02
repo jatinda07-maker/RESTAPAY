@@ -195,14 +195,14 @@ function trendRows(rows, dateKey, amountGetter) {
 
 function MetricCard({ title, value, subtitle, icon, tone = 'blue', onClick }) {
   return (
-    <button type="button" className={`rp-dashboard-kpi-card rp-dashboard-tone-${tone}`} onClick={onClick}>
-      <span className="rp-dashboard-kpi-icon" aria-hidden="true"><Icon name={icon} size={20} /></span>
-      <span className="rp-dashboard-kpi-copy">
-        <span className="rp-dashboard-kpi-label">{title}</span>
-        <strong className="rp-dashboard-kpi-value">{value}</strong>
-        <small className="rp-dashboard-kpi-subtitle">{subtitle}</small>
+    <button type="button" className={`rv7-kpi-card rv7-tone-${tone}`} onClick={onClick}>
+      <span className="rv7-kpi-icon" aria-hidden="true"><Icon name={icon} size={20} /></span>
+      <span className="rv7-kpi-copy">
+        <span className="rv7-kpi-label">{title}</span>
+        <strong className="rv7-kpi-value">{value}</strong>
+        <small className="rv7-kpi-subtitle">{subtitle}</small>
       </span>
-      <span className="rp-dashboard-kpi-chevron" aria-hidden="true">›</span>
+      <span className="rv7-kpi-chevron" aria-hidden="true">›</span>
     </button>
   )
 }
@@ -278,10 +278,11 @@ function DetailTable({ config, setActive, onClose }) {
   const balanced = Math.abs(difference) < 0.01
   const formatTotal = value => config.totalFormatter ? config.totalFormatter(value) : money(value)
   const title = String(config.title || 'Dashboard Details')
-  const iconName = /prime/i.test(title) ? 'calculator' : /payroll|labor/i.test(title) ? 'payroll' : /food/i.test(title) ? 'food' : /alcohol|beer|liquor/i.test(title) ? 'beer' : /profit/i.test(title) ? 'trending' : 'sales'
+  const iconName = /prime/i.test(title) ? 'calculator' : /payroll|labor/i.test(title) ? 'payroll' : /food/i.test(title) ? 'food' : /alcohol|beer|liquor/i.test(title) ? 'beer' : /vendor|spend|invoice/i.test(title) ? 'vendors' : /expense/i.test(title) ? 'expenses' : /profit/i.test(title) ? 'trending' : /health/i.test(title) ? 'shield' : 'sales'
+  const modalTone = /vendor|spend|invoice|alcohol|beer|liquor/i.test(title) ? 'orange' : /expense/i.test(title) ? 'red' : /food/i.test(title) ? 'green' : /health/i.test(title) ? 'emerald' : /prime|profit/i.test(title) ? 'purple' : 'blue'
 
   return <div className="dashboard-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.() }}>
-    <section className={`table-card detail-section dashboard-detail-modal enterprise-reconciliation-modal${isFullScreen ? ' is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={title}>
+    <section className={`table-card detail-section dashboard-detail-modal rv7-detail-modal rv7-modal-tone-${modalTone}${isFullScreen ? ' is-fullscreen' : ''}`} id="dashboard-details" role="dialog" aria-modal="true" aria-label={title}>
       <header className="detail-modal-header enterprise-modal-header">
         <div className="detail-modal-heading">
           <span className="detail-modal-icon enterprise-modal-icon"><Icon name={iconName} size={30} /></span>
@@ -297,25 +298,6 @@ function DetailTable({ config, setActive, onClose }) {
           <button type="button" className="btn enterprise-close-btn" onClick={onClose}><span aria-hidden="true">×</span> Close</button>
         </div>
       </header>
-
-      <div className="detail-total-strip enterprise-kpi-grid">
-        <div className="enterprise-kpi-card tone-blue">
-          <span className="enterprise-kpi-icon"><Icon name="sales" size={24} /></span>
-          <div><span>Detail Rows</span><strong>{rows.length}</strong><small>Components included</small></div>
-        </div>
-        <div className="enterprise-kpi-card tone-purple">
-          <span className="enterprise-kpi-icon"><Icon name="calculator" size={24} /></span>
-          <div><span>Calculated Subtotal</span><strong>{formatTotal(subtotal)}</strong><small>Sum of detail rows</small></div>
-        </div>
-        <div className="enterprise-kpi-card tone-green">
-          <span className="enterprise-kpi-icon"><Icon name="trending" size={24} /></span>
-          <div><span>Dashboard Total</span><strong>{formatTotal(clickedTotal)}</strong><small>Displayed card total</small></div>
-        </div>
-        <div className={`enterprise-kpi-card ${balanced ? 'tone-orange' : 'tone-red'}`}>
-          <span className="enterprise-kpi-icon"><Icon name={balanced ? 'check' : 'alert'} size={24} /></span>
-          <div><span>Status</span><strong>{balanced ? 'Balanced' : 'Review'}</strong><small>{balanced ? 'All values match' : `${money(difference)} difference`}</small></div>
-        </div>
-      </div>
 
       <div className="enterprise-ledger-wrap">
         <div className="enterprise-ledger-title"><Icon name="list" size={18} /><h3>Component Ledger</h3></div>
@@ -773,8 +755,8 @@ export default function Dashboard({ data, setData, setActive }) {
   }
 
   return (
-    <div className="rp-dashboard">
-      <section className="rp-dashboard-controls" aria-label="Dashboard date and sync controls">
+    <div className="rv7-dashboard">
+      <section className="rv7-control-shell" aria-label="Dashboard date and sync controls">
         <DateControls
           start={dateStart}
           end={dateEnd}
@@ -784,15 +766,15 @@ export default function Dashboard({ data, setData, setActive }) {
           onPreset={applyPreset}
           activePreset={preset}
           applyLabel="Apply"
-          className="rp-dashboard-date-controls"
+          className="rv7-date-controls"
         />
-        <div className="rp-dashboard-save-state">
-          <span className="rp-dashboard-save-pill"><span className="rp-dashboard-save-dot" />Direct Database Save</span>
-          {syncStatus ? <span className="rp-dashboard-sync-status">{syncStatus}</span> : null}
+        <div className="rv7-save-state">
+          <span className="rv7-save-pill"><span className="rv7-save-dot" />Direct Database Save</span>
+          {syncStatus ? <span className="rv7-sync-status">{syncStatus}</span> : null}
         </div>
       </section>
 
-      <div className="rp-dashboard-kpi-grid">
+      <div className="rv7-kpi-grid">
         {visible.managementCashPayroll && <MetricCard title="Cash + Management Payroll" value={money(derived.managementCashPayroll)} subtitle={`Cash ${money(derived.cashPayroll)} · Managers ${money(derived.managerPayrollTotal)} · Assistants ${money(derived.assistantManagerPayroll)}`} icon="payroll" tone="teal" onClick={() => showDetail('management-payroll')} />}
         {visible.vendorSpend && <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />}
         {visible.businessExpenses && <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />}
