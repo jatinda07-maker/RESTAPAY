@@ -110,6 +110,7 @@ export default function Layout({ active, setActive, children }) {
                     aria-label={label}
                     onClick={() => handleNavPress(key)}
                     className={`nav-item ${active === key ? 'active' : ''}`}
+                    aria-current={active === key ? 'page' : undefined}
                   >
                     <span className="nav-icon"><Icon name={key} size={20} /></span>
                     <span className="nav-label">{label}</span>

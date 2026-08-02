@@ -35,12 +35,30 @@ function PageLoading() {
   )
 }
 
+const VALID_PAGES = new Set([
+  'dashboard', 'sales', 'cost-analysis', 'invoices', 'vendors',
+  'vendor-comparison', 'price-increase', 'employees', 'payroll',
+  'expenses', 'reports', 'menu-intelligence', 'menu-costing',
+  'import-center', 'toast-integration', 'diagnostics', 'settings'
+])
+
+function initialActivePage() {
+  try {
+    const saved = localStorage.getItem('restapay_active_page')
+    return VALID_PAGES.has(saved) ? saved : 'dashboard'
+  } catch {
+    return 'dashboard'
+  }
+}
+
 function App() {
-  const [active, setActiveState] = useState('dashboard')
+  const [active, setActiveState] = useState(initialActivePage)
   const setActive = next => {
-    diagnosticLogger.info('Navigation', `Opened ${next}`, { from: active, to: next })
-    localStorage.setItem('restapay_active_page', next)
-    setActiveState(next)
+    const safeNext = VALID_PAGES.has(next) ? next : 'dashboard'
+    diagnosticLogger.info('Navigation', `Opened ${safeNext}`, { from: active, to: safeNext })
+    try { localStorage.setItem('restapay_active_page', safeNext) } catch {}
+    setActiveState(safeNext)
+    window.scrollTo({ top: 0, behavior: 'auto' })
   }
 
   useEffect(() => {
