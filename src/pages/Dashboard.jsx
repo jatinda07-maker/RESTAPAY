@@ -195,14 +195,14 @@ function trendRows(rows, dateKey, amountGetter) {
 
 function MetricCard({ title, value, subtitle, icon, tone = 'blue', onClick }) {
   return (
-    <button type="button" className={`rv7-kpi-card rv7-tone-${tone}`} onClick={onClick}>
-      <span className="rv7-kpi-icon" aria-hidden="true"><Icon name={icon} size={20} /></span>
-      <span className="rv7-kpi-copy">
-        <span className="rv7-kpi-label">{title}</span>
-        <strong className="rv7-kpi-value">{value}</strong>
-        <small className="rv7-kpi-subtitle">{subtitle}</small>
+    <button type="button" className={`rp-dashboard-kpi-card rp-dashboard-tone-${tone}`} onClick={onClick}>
+      <span className="rp-dashboard-kpi-icon" aria-hidden="true"><Icon name={icon} size={20} /></span>
+      <span className="rp-dashboard-kpi-copy">
+        <span className="rp-dashboard-kpi-label">{title}</span>
+        <strong className="rp-dashboard-kpi-value">{value}</strong>
+        <small className="rp-dashboard-kpi-subtitle">{subtitle}</small>
       </span>
-      <span className="rv7-kpi-chevron" aria-hidden="true">›</span>
+      <span className="rp-dashboard-kpi-chevron" aria-hidden="true">›</span>
     </button>
   )
 }
@@ -773,8 +773,8 @@ export default function Dashboard({ data, setData, setActive }) {
   }
 
   return (
-    <div className="rv7-dashboard">
-      <section className="rv7-control-shell" aria-label="Dashboard date and sync controls">
+    <div className="rp-dashboard">
+      <section className="rp-dashboard-controls" aria-label="Dashboard date and sync controls">
         <DateControls
           start={dateStart}
           end={dateEnd}
@@ -784,15 +784,15 @@ export default function Dashboard({ data, setData, setActive }) {
           onPreset={applyPreset}
           activePreset={preset}
           applyLabel="Apply"
-          className="rv7-date-controls"
+          className="rp-dashboard-date-controls"
         />
-        <div className="rv7-save-state">
-          <span className="rv7-save-pill"><span className="rv7-save-dot" />Direct Database Save</span>
-          {syncStatus ? <span className="rv7-sync-status">{syncStatus}</span> : null}
+        <div className="rp-dashboard-save-state">
+          <span className="rp-dashboard-save-pill"><span className="rp-dashboard-save-dot" />Direct Database Save</span>
+          {syncStatus ? <span className="rp-dashboard-sync-status">{syncStatus}</span> : null}
         </div>
       </section>
 
-      <div className="rv7-kpi-grid">
+      <div className="rp-dashboard-kpi-grid">
         {visible.managementCashPayroll && <MetricCard title="Cash + Management Payroll" value={money(derived.managementCashPayroll)} subtitle={`Cash ${money(derived.cashPayroll)} · Managers ${money(derived.managerPayrollTotal)} · Assistants ${money(derived.assistantManagerPayroll)}`} icon="payroll" tone="teal" onClick={() => showDetail('management-payroll')} />}
         {visible.vendorSpend && <MetricCard title="Vendor Spend" value={money(derived.vendorSpend)} subtitle={`${derived.vendorRecent.length} recent rows`} icon="vendors" tone="orange" onClick={() => showDetail('vendors')} />}
         {visible.businessExpenses && <MetricCard title="Business Expenses" value={money(derived.businessSpend)} subtitle={`${derived.businessRecent.length} expense rows`} icon="expenses" tone="red" onClick={() => showDetail('expenses')} />}
