@@ -1,0 +1,176 @@
+/* Dashboard-only visual system. Loaded with Dashboard.jsx so it wins over legacy global rules. */
+.dashboard-v3.dashboard-phase-one {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.dashboard-v3 .metric-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  min-width: 0 !important;
+}
+
+.dashboard-v3 .metric-card {
+  --dash-card-bg: #dce9ff;
+  --dash-card-border: #b8cff8;
+  --dash-card-accent: #2472e5;
+  appearance: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 124px !important;
+  margin: 0 !important;
+  padding: 18px 20px !important;
+  display: grid !important;
+  grid-template-columns: 56px minmax(0, 1fr) 18px !important;
+  grid-template-areas: "icon copy arrow" !important;
+  align-items: center !important;
+  column-gap: 16px !important;
+  text-align: left !important;
+  border: 1px solid var(--dash-card-border) !important;
+  border-radius: 18px !important;
+  background: var(--dash-card-bg) !important;
+  background-image: none !important;
+  color: #0d2747 !important;
+  box-shadow: 0 7px 18px rgba(15, 39, 68, 0.06) !important;
+  overflow: hidden !important;
+  position: relative !important;
+  cursor: pointer !important;
+}
+
+.dashboard-v3 .metric-card::before,
+.dashboard-v3 .metric-card::after {
+  display: none !important;
+  content: none !important;
+}
+
+.dashboard-v3 .metric-card:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 10px 24px rgba(15, 39, 68, 0.10) !important;
+}
+
+.dashboard-v3 .metric-card .metric-icon {
+  grid-area: icon !important;
+  width: 56px !important;
+  height: 56px !important;
+  min-width: 56px !important;
+  border-radius: 15px !important;
+  display: grid !important;
+  place-items: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: var(--dash-card-accent) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.dashboard-v3 .metric-card .metric-icon svg {
+  width: 25px !important;
+  height: 25px !important;
+  stroke: currentColor !important;
+}
+
+.dashboard-v3 .metric-card .metric-copy {
+  grid-area: copy !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.dashboard-v3 .metric-card .metric-label {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 15px !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: #17375e !important;
+  white-space: normal !important;
+}
+
+.dashboard-v3 .metric-card .metric-value {
+  display: block !important;
+  margin: 5px 0 0 !important;
+  padding: 0 !important;
+  font-size: 29px !important;
+  line-height: 1.05 !important;
+  font-weight: 680 !important;
+  letter-spacing: -0.025em !important;
+  color: #071f3d !important;
+  white-space: nowrap !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.dashboard-v3 .metric-card .metric-subtitle {
+  display: -webkit-box !important;
+  margin: 7px 0 0 !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+  font-weight: 500 !important;
+  color: #4e7096 !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+  overflow-wrap: anywhere !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+}
+
+.dashboard-v3 .metric-card .metric-chevron {
+  grid-area: arrow !important;
+  align-self: center !important;
+  justify-self: end !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  color: #6282a6 !important;
+}
+
+.dashboard-v3 .metric-card.tone-blue { --dash-card-bg: #dce9ff; --dash-card-border: #b8cff8; --dash-card-accent: #2472e5; }
+.dashboard-v3 .metric-card.tone-green { --dash-card-bg: #dcefe5; --dash-card-border: #b7ddc8; --dash-card-accent: #0a9a50; }
+.dashboard-v3 .metric-card.tone-purple { --dash-card-bg: #eadffd; --dash-card-border: #d2bdf6; --dash-card-accent: #7740df; }
+.dashboard-v3 .metric-card.tone-orange { --dash-card-bg: #ffe5cc; --dash-card-border: #f7c594; --dash-card-accent: #f36b08; }
+.dashboard-v3 .metric-card.tone-red { --dash-card-bg: #ffe0e6; --dash-card-border: #f5b6c2; --dash-card-accent: #ee3651; }
+.dashboard-v3 .metric-card.tone-emerald { --dash-card-bg: #d9efe8; --dash-card-border: #b7ddcf; --dash-card-accent: #07866a; }
+.dashboard-v3 .metric-card.tone-teal { --dash-card-bg: #d8efef; --dash-card-border: #b0dddd; --dash-card-accent: #119c9c; }
+.dashboard-v3 .metric-card.tone-indigo { --dash-card-bg: #e1e4ff; --dash-card-border: #c3c8fb; --dash-card-accent: #4a48dc; }
+
+.dashboard-v3 .dashboard-grid-main,
+.dashboard-v3 .dashboard-grid-secondary {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  min-width: 0 !important;
+}
+
+.dashboard-v3 .dashboard-control-panel,
+.dashboard-v3 .section-card {
+  border: 1px solid #d7e1ec !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+  box-shadow: 0 8px 22px rgba(15, 39, 68, 0.05) !important;
+}
+
+@media (max-width: 1320px) {
+  .dashboard-v3 .metric-grid,
+  .dashboard-v3 .dashboard-grid-main,
+  .dashboard-v3 .dashboard-grid-secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-v3 .metric-grid,
+  .dashboard-v3 .dashboard-grid-main,
+  .dashboard-v3 .dashboard-grid-secondary {
+    grid-template-columns: 1fr !important;
+  }
+}
