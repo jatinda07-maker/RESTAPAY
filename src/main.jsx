@@ -4,7 +4,8 @@ import Layout from './components/Layout'
 import { diagnosticLogger, installGlobalDiagnostics } from './lib/diagnostics'
 import { useLocalData } from './lib/useLocalData'
 import './styles.css'
-import './styles/design-system.css'
+import './styles/dashboard-v4.css'
+import './styles/universal-ui.css'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const CostAnalysis = lazy(() => import('./pages/CostAnalysis'))
@@ -35,30 +36,12 @@ function PageLoading() {
   )
 }
 
-const VALID_PAGES = new Set([
-  'dashboard', 'sales', 'cost-analysis', 'invoices', 'vendors',
-  'vendor-comparison', 'price-increase', 'employees', 'payroll',
-  'expenses', 'reports', 'menu-intelligence', 'menu-costing',
-  'import-center', 'toast-integration', 'diagnostics', 'settings'
-])
-
-function initialActivePage() {
-  try {
-    const saved = localStorage.getItem('restapay_active_page')
-    return VALID_PAGES.has(saved) ? saved : 'dashboard'
-  } catch {
-    return 'dashboard'
-  }
-}
-
 function App() {
-  const [active, setActiveState] = useState(initialActivePage)
+  const [active, setActiveState] = useState('dashboard')
   const setActive = next => {
-    const safeNext = VALID_PAGES.has(next) ? next : 'dashboard'
-    diagnosticLogger.info('Navigation', `Opened ${safeNext}`, { from: active, to: safeNext })
-    try { localStorage.setItem('restapay_active_page', safeNext) } catch {}
-    setActiveState(safeNext)
-    window.scrollTo({ top: 0, behavior: 'auto' })
+    diagnosticLogger.info('Navigation', `Opened ${next}`, { from: active, to: next })
+    localStorage.setItem('restapay_active_page', next)
+    setActiveState(next)
   }
 
   useEffect(() => {
