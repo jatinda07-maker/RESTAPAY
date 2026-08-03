@@ -4,7 +4,6 @@ import DateControls from '../components/DateControls'
 import { RESTAPAY_CLOUD_STATUS_EVENT, loadCloudData, retryPendingCloudSave } from '../lib/localStore'
 import { categoryGroup, categoriesForGroup, inferCategory, rollupCategoryRows, sumRowsByCategory as sumByCategoryEngine } from '../engine/CategoryEngine'
 import { calculateDepartmentCosts, classifySpend, menuSaleCategoryLabel } from '../engine/DepartmentCostEngine'
-import './Dashboard.css'
 
 function num(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
