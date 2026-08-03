@@ -450,8 +450,8 @@ export default function SalesV2({ data, setData }) {
     <section className="rv2-sales-kpis" aria-label="Sales summary">
       <article className="rv2-sales-kpi rv2-sales-kpi-blue"><span className="rv2-sales-kpi-icon"><Icon name="sales" /></span><div><small>Net Sales</small><strong>${money(totals.net)}</strong><span>Selected date range</span></div></article>
       <article className="rv2-sales-kpi rv2-sales-kpi-green"><span className="rv2-sales-kpi-icon"><Icon name="dollar" /></span><div><small>Cash Sales</small><strong>${money(totals.cash)}</strong><span>Cash payments received</span></div></article>
-      <article className="rv2-sales-kpi rv2-sales-kpi-purple"><span className="rv2-sales-kpi-icon"><Icon name="card" /></span><div><small>Credit Sales</small><strong>${money(totals.credit)}</strong><span>Credit and debit payments</span></div></article>
-      <article className="rv2-sales-kpi rv2-sales-kpi-orange"><span className="rv2-sales-kpi-icon"><Icon name="gift" /></span><div><small>Other Sales</small><strong>${money(totals.gift + totals.online)}</strong><span>Gift card and other payments</span></div></article>
+      <article className="rv2-sales-kpi rv2-sales-kpi-navy"><span className="rv2-sales-kpi-icon"><Icon name="card" /></span><div><small>Credit Sales</small><strong>${money(totals.credit)}</strong><span>Credit and debit payments</span></div></article>
+      <article className="rv2-sales-kpi rv2-sales-kpi-teal"><span className="rv2-sales-kpi-icon"><Icon name="gift" /></span><div><small>Other Sales</small><strong>${money(totals.gift + totals.online)}</strong><span>Gift card and other payments</span></div></article>
       <article className="rv2-sales-kpi rv2-sales-kpi-teal"><span className="rv2-sales-kpi-icon"><Icon name="receipt" /></span><div><small>Tips After Withholding</small><strong>${money(totals.tips)}</strong><span>Net server tips</span></div></article>
     </section>
     <UploadBar

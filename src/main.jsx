@@ -4,7 +4,6 @@ import AppShellV2 from './ui-v2/AppShellV2'
 import { diagnosticLogger, installGlobalDiagnostics } from './lib/diagnostics'
 import { useLocalData } from './lib/useLocalData'
 import './styles-v2/app.css'
-import './styles-v2/approved-green.css'
 
 const Dashboard = lazy(() => import('./pages-v2/DashboardV2'))
 const CostAnalysis = lazy(() => import('./pages/CostAnalysis'))
