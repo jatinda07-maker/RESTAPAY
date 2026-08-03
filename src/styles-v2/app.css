@@ -1130,3 +1130,90 @@
   .payroll-rc5-group-modal .payroll-group-manager-field,.payroll-rc5-group-modal .payroll-group-search-field{grid-column:auto!important}
   .payroll-rc5-group-modal .payroll-group-addbar,.payroll-rc5-group-modal .payroll-group-selection-summary,.payroll-rc5-group-modal .payroll-rc5-table-wrap{margin-left:18px!important;margin-right:18px!important}
 }
+
+/* ===== Approved August V2 visual lock: solid colors, stronger KPI cards, no gradients ===== */
+/* Dashboard and left navigation intentionally excluded. */
+.rv2-section-topbar{
+  background:rgba(234,88,12,.90)!important;
+  background-image:none!important;
+  border-bottom:1px solid rgba(194,65,12,.34)!important;
+  box-shadow:0 8px 22px rgba(124,45,18,.16)!important;
+  backdrop-filter:blur(12px)!important;
+  -webkit-backdrop-filter:blur(12px)!important;
+}
+.rv2-section-topbar .rv2-heading-title,
+.rv2-section-topbar .rv2-heading-title h1,
+.rv2-section-topbar .rv2-heading-icon,
+.rv2-section-topbar .rv2-heading-block p{color:#fff!important}
+.rv2-section-topbar .rv2-heading-block p{opacity:.86!important}
+.rv2-section-topbar .rv2-cloud,
+.rv2-section-topbar .rv2-icon-button,
+.rv2-section-topbar .rv2-profile{
+  background:rgba(255,255,255,.14)!important;
+  border-color:rgba(255,255,255,.28)!important;
+  color:#fff!important;
+  box-shadow:none!important;
+}
+.rv2-section-topbar .rv2-profile strong,
+.rv2-section-topbar .rv2-profile small,
+.rv2-section-topbar .rv2-profile>b,
+.rv2-section-topbar .rv2-icon-button svg{color:#fff!important}
+.rv2-section-topbar .rv2-avatar{background:#fff!important;color:#c2410c!important}
+
+.rv2-stat-grid-six{gap:16px!important}
+.rv2-stat-card{
+  min-height:122px!important;
+  padding:20px 22px!important;
+  border-width:1px!important;
+  border-style:solid!important;
+  border-radius:14px!important;
+  box-shadow:0 8px 20px rgba(15,23,42,.055)!important;
+  background-image:none!important;
+}
+.rv2-stat-card .rv2-stat-label{font-size:14px!important;font-weight:750!important;color:#102544!important;gap:12px!important}
+.rv2-stat-card .rv2-stat-label>span{width:38px!important;height:38px!important;border-radius:10px!important;display:grid!important;place-items:center!important}
+.rv2-stat-card>strong{font-size:30px!important;line-height:1!important;font-weight:800!important;letter-spacing:-.035em!important;color:#071a36!important;margin-top:18px!important}
+.rv2-stat-card.tone-purple{background:#f3efff!important;border-color:#d8ccff!important}.rv2-stat-card.tone-purple .rv2-stat-label>span{background:#e5dcff!important;color:#5b21b6!important}
+.rv2-stat-card.tone-green{background:#edf8f1!important;border-color:#bfe4cc!important}.rv2-stat-card.tone-green .rv2-stat-label>span{background:#d8f2e1!important;color:#087a41!important}
+.rv2-stat-card.tone-orange{background:#fff3e7!important;border-color:#f7c99b!important}.rv2-stat-card.tone-orange .rv2-stat-label>span{background:#ffe3c7!important;color:#d65400!important}
+.rv2-stat-card.tone-blue{background:#edf4ff!important;border-color:#bfd4f8!important}.rv2-stat-card.tone-blue .rv2-stat-label>span{background:#dce9ff!important;color:#0f56c7!important}
+.rv2-stat-card.tone-pink{background:#fff0f2!important;border-color:#f4c4cc!important}.rv2-stat-card.tone-pink .rv2-stat-label>span{background:#ffdce3!important;color:#c81e4b!important}
+.rv2-stat-card.tone-slate{background:#f1f4f8!important;border-color:#cfd8e5!important}.rv2-stat-card.tone-slate .rv2-stat-label>span{background:#e1e7ef!important;color:#41536b!important}
+
+/* Slightly darker approved upload surface, still clean and solid. */
+.rv2-upload-bar{
+  background:#eee8fb!important;
+  background-image:none!important;
+  border-color:#d8c9f4!important;
+  box-shadow:0 5px 14px rgba(91,33,182,.06)!important;
+}
+
+/* Group payroll: keep the selected employee list visible and professional. */
+.payroll-rc5-group-modal .payroll-rc5-table-wrap{
+  display:block!important;
+  min-height:250px!important;
+  max-height:330px!important;
+  background:#fff!important;
+}
+.payroll-rc5-group-modal .payroll-group-table{min-width:1080px!important}
+.payroll-rc5-group-modal .payroll-group-table tbody tr{display:table-row!important}
+.payroll-rc5-group-modal .payroll-group-table tbody td{height:52px!important;padding:8px 10px!important}
+.payroll-rc5-group-modal .payroll-group-table td:nth-child(2) b{display:block!important;font-size:12px!important;color:#102544!important}
+.payroll-rc5-group-modal .payroll-group-table td:nth-child(2) small{display:block!important;margin-top:3px!important;font-size:9.5px!important;color:#64748b!important}
+.payroll-rc5-group-modal .payroll-group-selection-summary{
+  background:#f8fafc!important;
+  border-color:#dce4ee!important;
+}
+.payroll-rc5-group-modal .payroll-group-selection-summary>span:after{
+  content:' • Employee details are listed below';
+  color:#64748b;
+  font-weight:500;
+  margin-left:6px;
+}
+
+/* No gradients anywhere in the approved mockup work area. */
+.rv2-content .rv2-stat-card,
+.rv2-content .payroll-modern-card,
+.rv2-content .rv2-upload-bar,
+.rv2-content .rv2-data-panel,
+.rv2-content .payroll-rc5-modal{background-image:none!important}
