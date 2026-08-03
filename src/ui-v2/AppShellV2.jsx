@@ -68,7 +68,7 @@ export default function AppShellV2({ active, setActive, children }) {
             <button key={key} className={`rv2-nav-item ${active === key ? 'is-active' : ''}`} type="button" onClick={() => openPage(key)}>
               <span className="rv2-nav-icon"><Icon name={key} size={18} /></span>
               <span>{labels[key]}</span>
-              {(key === 'payroll' || key === 'reports') && <span className="rv2-nav-chevron">⌄</span>}
+              {(key === 'payroll' || key === 'reports') && <span className="rv2-nav-chevron"><Icon name="chevronRight" size={15} /></span>}
             </button>
           ))}
         </nav>
