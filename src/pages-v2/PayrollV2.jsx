@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
+import UploadBar from '../components/UploadBar'
 import DateControls from '../components/DateControls'
 import { markPayrollDeleted, createId, sortByName } from '../lib/localStore'
 import { detectToastLaborPeriod, laborImportDiagnostics, parseToastLaborRows } from '../engine/ToastLaborEngine'
@@ -771,10 +772,15 @@ export default function Payroll({ data, setData }) {
       <div className="payroll-rc5-head-actions">
         <button type="button" className="btn payroll-kitchen-button" onClick={openKitchenGroupPayroll}><Icon name="users" /> Kitchen Group Payroll</button>
         <button type="button" className="btn payroll-manual-button" onClick={() => { setShowGroupPayroll(false); setShowManual(true) }}><Icon name="plus" /> Manual Payroll</button>
-        <label className="btn payroll-upload-button"><Icon name="upload" /> <span>Upload Toast Labor</span><input type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
         <button type="button" className="btn primary payroll-add-manual-button" onClick={() => { setShowGroupPayroll(false); setShowManual(true) }}><Icon name="plus" /> Add Manual Payroll</button>
       </div>
     </div>
+
+    <UploadBar
+      label="Upload Toast Labor"
+      accept=".csv,.xlsx,.xls"
+      onChange={handleToastFile}
+    />
 
     <DateControls start={dateStart} end={dateEnd} onStartChange={setDateStart} onEndChange={setDateEnd} onApply={() => setStatus(`Payroll range set to ${dateStart || 'first record'} through ${dateEnd || 'latest record'}.`)} onPreset={applyPreset} applyLabel="Use Date Range" />
 

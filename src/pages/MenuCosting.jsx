@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
+import UploadBar from '../components/UploadBar'
 import DateControls from '../components/DateControls'
 import { createId } from '../lib/localStore'
 
@@ -449,9 +450,14 @@ export default function MenuCosting({ data, setData }) {
         <div className="actions">
           <button className="btn secondary" type="button" onClick={() => setShowTargets(value => !value)}><Icon name="pie" size={16} /> Cost Targets</button>
           <button className="btn secondary" type="button" onClick={buildMissingRecipes}><Icon name="utensils" size={16} /> Build Recipes</button>
-          <label className="btn primary file-action"><Icon name="upload" size={16} /> Import Product Mix<input type="file" accept=".xlsx,.xls,.csv" onChange={handleProductMixUpload} /></label>
         </div>
       </section>
+
+      <UploadBar
+        label="Import Product Mix"
+        accept=".xlsx,.xls,.csv"
+        onChange={handleProductMixUpload}
+      />
 
       <section className="menu-costing-kpis">
         <article className="cost-kpi cost-kpi-food"><span className="cost-kpi-icon"><Icon name="utensils" size={25} /></span><div><small>Food Items</small><strong>{foodItemCount}</strong><span>Active recipes</span></div></article>

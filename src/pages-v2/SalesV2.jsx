@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
+import UploadBar from '../components/UploadBar'
 import DateControls from '../components/DateControls'
 import { createId } from '../lib/localStore'
 import { parseToastSalesRows } from '../engine/ToastSalesEngine'
@@ -453,24 +454,17 @@ export default function SalesV2({ data, setData }) {
       <article className="rv2-sales-kpi rv2-sales-kpi-orange"><span className="rv2-sales-kpi-icon"><Icon name="gift" /></span><div><small>Other Sales</small><strong>${money(totals.gift + totals.online)}</strong><span>Gift card and other payments</span></div></article>
       <article className="rv2-sales-kpi rv2-sales-kpi-teal"><span className="rv2-sales-kpi-icon"><Icon name="receipt" /></span><div><small>Tips After Withholding</small><strong>${money(totals.tips)}</strong><span>Net server tips</span></div></article>
     </section>
-    <div className="sales-action-bar sales-top-actions">
-      <label className="btn secondary file-action">
-        <Icon name="upload" />
-        Upload Sales
-        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
-      </label>
-
-      <label className="btn primary file-action">
-        <Icon name="upload" />
-        Import Toast
-        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleSalesFile} />
-      </label>
-
-      <button className="btn primary" onClick={addManualSale} type="button">
-        <Icon name="plus" />
-        Add Manual Sale
-      </button>
-    </div>
+    <UploadBar
+      label="Upload Toast Sales"
+      accept=".csv,.xlsx,.xls"
+      onChange={handleSalesFile}
+      action={(
+        <button className="btn primary" onClick={addManualSale} type="button">
+          <Icon name="plus" />
+          Add Manual Sale
+        </button>
+      )}
+    />
 
     <div className="status-pill">{status}</div>
 

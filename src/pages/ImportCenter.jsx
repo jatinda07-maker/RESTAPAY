@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
+import UploadBar from '../components/UploadBar'
 import { createId } from '../lib/localStore'
 import { parseToastSalesRows } from '../engine/ToastSalesEngine'
 import { parseToastLaborRows, laborImportDiagnostics } from '../engine/ToastLaborEngine'
@@ -279,12 +280,16 @@ export default function ImportCenter({ data, setData, setActive }) {
         <div>
           <h3>Upload file</h3>
           <p>{status}</p>
-          <div className="button-row compact-buttons">
-            <label className="btn primary file-action"><Icon name="upload" size={16} /> {busy ? 'Processing...' : 'Choose File'}<input ref={fileRef} type="file" accept={selected.accepts} onChange={handleFile} disabled={busy} /></label>
-            <button type="button" className="btn secondary" onClick={() => setActive?.(type === 'productMix' ? 'menu-costing' : type === 'payroll' ? 'payroll' : type === 'sales' ? 'sales' : 'invoices')}>Open Related Page</button>
-          </div>
+          <button type="button" className="btn secondary" onClick={() => setActive?.(type === 'productMix' ? 'menu-costing' : type === 'payroll' ? 'payroll' : type === 'sales' ? 'sales' : 'invoices')}>Open Related Page</button>
         </div>
       </div>
+      <UploadBar
+        label={selected.label || 'Upload File'}
+        accept={selected.accepts}
+        inputRef={fileRef}
+        disabled={busy}
+        onChange={handleFile}
+      />
     </section>
 
     <section className="panel-card">

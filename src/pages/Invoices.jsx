@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Icon } from '../components/Icons'
+import UploadBar from '../components/UploadBar'
 import DateControls from '../components/DateControls'
 import { createId, saveCloudData, sortByName } from '../lib/localStore'
 import { isSupabaseReady, supabase } from '../lib/supabase'
@@ -794,20 +795,23 @@ export default function Invoices({ data, setData }) {
           <span className="ai-env-note">AI OCR uses a secure Supabase Edge Function. The Gemini key is never sent to the browser.</span>
         </div>
         <div className="invoice-upload-actions compact-upload-actions">
-          <label className="btn secondary file-action">
-            <Icon name="upload" /> Local Upload
-            <input ref={localUploadRef} type="file" accept=".csv,.xlsx,.xls" onChange={e => handleFile(e.target.files?.[0], 'local')} />
-          </label>
-          <label className="btn primary file-action">
-            <Icon name="upload" /> Smart AI Upload
-            <input ref={aiUploadRef} type="file" accept=".pdf,image/*" onChange={e => handleFile(e.target.files?.[0], 'smart-ai')} />
-          </label>
-          <label className="btn secondary file-action">
-            <Icon name="camera" /> Camera Capture AI
-            <input ref={phoneRef} type="file" accept="image/*" capture="environment" onChange={e => handleFile(e.target.files?.[0], 'phone')} />
-          </label>
+          <button type="button" className="btn secondary" onClick={() => localUploadRef.current?.click()}>
+            <Icon name="upload" /> Local Spreadsheet
+          </button>
+          <button type="button" className="btn secondary" onClick={() => phoneRef.current?.click()}>
+            <Icon name="camera" /> Camera Capture
+          </button>
+          <input ref={localUploadRef} className="rv2-hidden-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={e => handleFile(e.target.files?.[0], 'local')} />
+          <input ref={phoneRef} className="rv2-hidden-file-input" type="file" accept="image/*" capture="environment" onChange={e => handleFile(e.target.files?.[0], 'phone')} />
         </div>
       </div>
+
+      <UploadBar
+        label="Upload Invoice"
+        accept=".pdf,image/*"
+        inputRef={aiUploadRef}
+        onChange={e => handleFile(e.target.files?.[0], 'smart-ai')}
+      />
 
       <div className="employee-form-grid invoice-form-grid">
         <label>Vendor <span>*</span>
