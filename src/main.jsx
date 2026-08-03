@@ -3,11 +3,10 @@ import { createRoot } from 'react-dom/client'
 import AppShellV2 from './ui-v2/AppShellV2'
 import { diagnosticLogger, installGlobalDiagnostics } from './lib/diagnostics'
 import { useLocalData } from './lib/useLocalData'
-import './styles.css'
-import './styles-v2/tokens.css'
+import './styles/universal.css'
 import './styles-v2/app.css'
 
-const DashboardV2 = lazy(() => import('./pages-v2/DashboardV2'))
+const Dashboard = lazy(() => import('./pages-v2/DashboardV2'))
 const CostAnalysis = lazy(() => import('./pages/CostAnalysis'))
 const EntityPage = lazy(() => import('./pages/EntityPage'))
 const Employees = lazy(() => import('./pages/Employees'))
@@ -83,7 +82,7 @@ function App() {
   const [data, setData] = useLocalData()
   const shared = { data, setData }
 
-  const page = active === 'dashboard' ? <DashboardV2 data={data} setActive={setActive} />
+  const page = active === 'dashboard' ? <Dashboard data={data} setData={setData} setActive={setActive} />
     : active === 'cost-analysis' ? <CostAnalysis {...shared} />
     : active === 'import-center' ? <ImportCenter {...shared} setActive={setActive} />
     : active === 'toast-integration' ? <ToastIntegration />
