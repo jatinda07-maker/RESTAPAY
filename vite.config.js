@@ -3,4 +3,15 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+
+  server: {
+    host: true,
+  },
+
+  preview: {
+    host: true,
+    allowedHosts: [
+      'restapay-v2-preview.onrender.com',
+    ],
+  },
 })
