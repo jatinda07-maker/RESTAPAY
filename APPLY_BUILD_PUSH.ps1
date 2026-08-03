@@ -1,58 +1,52 @@
 param(
-  [string]$ProjectPath = "C:\Users\jatin\RESTAPAY-RC4-GIT"
+  [string]$Target = "$env:USERPROFILE\RESTAPAY-RC4-GIT"
 )
 
 $ErrorActionPreference = "Stop"
-$SourceRoot = $PSScriptRoot
+$Source = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$BackupRoot = Join-Path $ProjectPath "ui-backups\universal-ui-$Timestamp"
+$Backup = Join-Path $Target "backups\universal-ui-$Timestamp"
 
-Write-Host "" 
-Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host " RESTAPAY UNIVERSAL UI - APPLY BUILD PUSH" -ForegroundColor Cyan
-Write-Host "==============================================" -ForegroundColor Cyan
+Write-Host "RESTAPAY Universal UI Rebuild" -ForegroundColor Cyan
+Write-Host "Source: $Source"
+Write-Host "Target: $Target"
 
-if (-not (Test-Path (Join-Path $ProjectPath "package.json"))) {
-  throw "RESTAPAY project was not found at $ProjectPath"
-}
-if (-not (Test-Path (Join-Path $SourceRoot "src\styles\universal.css"))) {
-  throw "The rebuilt universal.css file is missing from this package."
+if (!(Test-Path (Join-Path $Target "package.json"))) {
+  throw "RESTAPAY project not found at $Target"
 }
 
-Write-Host "Creating source backup..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
-Copy-Item (Join-Path $ProjectPath "src") (Join-Path $BackupRoot "src") -Recurse -Force
+New-Item -ItemType Directory -Path $Backup -Force | Out-Null
+Copy-Item (Join-Path $Target "src") (Join-Path $Backup "src") -Recurse -Force
+Write-Host "Backup created: $Backup" -ForegroundColor Green
 
-Write-Host "Installing rebuilt source..." -ForegroundColor Yellow
-Remove-Item (Join-Path $ProjectPath "src") -Recurse -Force
-Copy-Item (Join-Path $SourceRoot "src") (Join-Path $ProjectPath "src") -Recurse -Force
+# Replace the presentation source with the rebuilt source.
+Remove-Item (Join-Path $Target "src") -Recurse -Force
+Copy-Item (Join-Path $Source "src") (Join-Path $Target "src") -Recurse -Force
 
-Set-Location $ProjectPath
-
-Write-Host "Running production build..." -ForegroundColor Yellow
+Set-Location $Target
+Write-Host "Building..." -ForegroundColor Yellow
 npm run build
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "Build failed. Restoring original source..." -ForegroundColor Red
-  Remove-Item (Join-Path $ProjectPath "src") -Recurse -Force
-  Copy-Item (Join-Path $BackupRoot "src") (Join-Path $ProjectPath "src") -Recurse -Force
-  throw "Build failed; the previous source was restored and nothing was committed."
+  Write-Host "Build failed. Restoring source backup." -ForegroundColor Red
+  Remove-Item (Join-Path $Target "src") -Recurse -Force
+  Copy-Item (Join-Path $Backup "src") (Join-Path $Target "src") -Recurse -Force
+  exit 1
 }
 
-# Do not commit generated build output.
+# Avoid committing generated output when tracked.
 git restore dist/index.html 2>$null
 
-Write-Host "Changed source files:" -ForegroundColor Yellow
+git add -A
 git status --short
 
-git add src
-$changes = git diff --cached --name-only
-if (-not $changes) {
+git diff --cached --quiet
+if ($LASTEXITCODE -eq 0) {
   Write-Host "No source changes to commit." -ForegroundColor Yellow
   exit 0
 }
 
-git commit -m "Universal UI: synchronize all pages and fix alignment"
-if ($LASTEXITCODE -ne 0) { throw "Git commit failed." }
+git commit -m "Universal UI foundation and approved hybrid Dashboard"
+if ($LASTEXITCODE -ne 0) { exit 1 }
 
 git pull --rebase origin main
 if ($LASTEXITCODE -ne 0) {
@@ -61,10 +55,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 git push origin main
-if ($LASTEXITCODE -ne 0) { throw "Git push failed." }
+if ($LASTEXITCODE -ne 0) { exit 1 }
 
-Write-Host "" 
-Write-Host "==============================================" -ForegroundColor Green
-Write-Host " UNIVERSAL UI BUILT AND PUSHED SUCCESSFULLY" -ForegroundColor Green
-Write-Host " Backup: $BackupRoot" -ForegroundColor Green
-Write-Host "==============================================" -ForegroundColor Green
+Write-Host "Build, commit, and push completed." -ForegroundColor Green

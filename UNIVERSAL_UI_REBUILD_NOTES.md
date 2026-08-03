@@ -1,33 +1,19 @@
-# RestaPay Universal UI Rebuild
+# RESTAPAY Universal UI Foundation
 
-This package replaces the active legacy visual layer with one stylesheet:
+This build removes every legacy CSS file from `src` and uses one active stylesheet:
 
 - `src/styles/universal.css`
 
-Legacy styles removed from the active project:
+It also:
 
-- `src/styles.css`
-- `src/pages/Dashboard.css`
-- `src/styles/design-system.css`
-- `src/styles/universal-ui.css`
-- `src/styles/dashboard-v4.css`
+- removes the old `Dashboard.css` import;
+- changes `src/main.jsx` to load the universal stylesheet only;
+- applies a white navigation system;
+- implements a four-card desktop Dashboard grid;
+- adds the approved hybrid Dashboard summary, insights, and quick actions;
+- standardizes controls, forms, tables, cards, filters, and modals;
+- preserves the existing business logic and data engines.
 
-## Locked design rules
+## Build verification
 
-- White left navigation
-- Four Dashboard KPI cards per desktop row
-- Compact 36px buttons, inputs, selects, and date controls
-- Solid pastel cards with no gradients
-- Lighter typography and tabular financial values
-- Shared cards, tables, forms, filters, badges, and modals
-- Compact responsive layouts across all pages
-- Existing business logic and data functions preserved
-
-## Apply, build, commit, and push
-
-Run in PowerShell from this extracted package:
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\APPLY_REBUILD_BUILD_PUSH.ps1
-```
+The project could not install dependencies in the packaging environment because its npm registry mirror returned a 404 for a transitive package. `APPLY_BUILD_PUSH.ps1` performs the actual production build on the target computer and automatically restores the backed-up `src` folder if the build fails.
