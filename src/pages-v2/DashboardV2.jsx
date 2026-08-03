@@ -43,7 +43,19 @@ function Tasks({ setActive }) {
 
 function DetailModal({ item, onClose }) {
   if (!item) return null
-  return <div className="rv2-modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><section className="rv2-modal"><header><span className={`rv2-kpi-icon rv2-kpi-icon-${item.tone}`}><Icon name={item.icon} size={20}/></span><div><h2>{item.label} Details</h2><p>Component ledger for the selected date range</p></div><button type="button" onClick={onClose}>×</button></header><div className="rv2-modal-body"><table><thead><tr><th>Component</th><th>Description</th><th>Amount</th></tr></thead><tbody>{(item.details||[]).map(row=><tr key={row.label}><td>{row.label}</td><td>{row.description}</td><td>{money(row.amount)}</td></tr>)}</tbody></table><div className="rv2-modal-total"><span>Dashboard Total</span><strong>{item.value}</strong></div></div></section></div>
+  return <div className="rv2-modal-backdrop rv2-ledger-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}>
+    <section className={`rv2-ledger-modal tone-${item.tone}`} role="dialog" aria-modal="true" aria-labelledby="rv2-ledger-title">
+      <header>
+        <span className="rv2-ledger-icon"><Icon name={item.icon} size={24}/></span>
+        <div><h2 id="rv2-ledger-title">{item.label} Details</h2><p>Component ledger for the selected date range</p></div>
+        <button className="rv2-modal-close" type="button" onClick={onClose} aria-label="Close details"><Icon name="x" size={18}/></button>
+      </header>
+      <div className="rv2-ledger-body">
+        <div className="rv2-ledger-table-wrap"><table><thead><tr><th>Component</th><th>Description</th><th>Amount</th></tr></thead><tbody>{(item.details||[]).map(row=><tr key={row.label}><td>{row.label}</td><td>{row.description}</td><td>{money(row.amount)}</td></tr>)}</tbody></table></div>
+        <div className="rv2-ledger-total"><span>Dashboard Total</span><strong>{item.value}</strong></div>
+      </div>
+    </section>
+  </div>
 }
 
 export default function DashboardV2({ data = {}, setActive }) {
