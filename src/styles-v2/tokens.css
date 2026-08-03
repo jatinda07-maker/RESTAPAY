@@ -1,0 +1,11 @@
+:root {
+  --rv2-font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rv2-bg: #f6f8fb;
+  --rv2-surface: #ffffff;
+  --rv2-border: #e7ebf2;
+  --rv2-text: #182230;
+  --rv2-muted: #6b778c;
+  --rv2-primary: #2563eb;
+  --rv2-radius: 14px;
+  --rv2-shadow: 0 8px 24px rgba(30, 41, 59, .07);
+}
