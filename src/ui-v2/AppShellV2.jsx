@@ -4,10 +4,11 @@ import { Icon } from '../components/Icons'
 import { RESTAPAY_CLOUD_STATUS_EVENT } from '../lib/localStore'
 import { isSupabaseReady } from '../lib/supabase'
 
-const primaryNav = [
-  'dashboard', 'sales', 'payroll', 'employees', 'vendors', 'invoices',
-  'vendor-comparison', 'expenses', 'price-increase', 'reports',
-  'import-center', 'toast-integration', 'settings'
+const navGroups = [
+  { label: 'OVERVIEW', items: ['dashboard', 'sales'] },
+  { label: 'PURCHASING', items: ['invoices', 'vendors', 'vendor-comparison', 'price-increase'] },
+  { label: 'PEOPLE', items: ['employees', 'payroll'] },
+  { label: 'OPERATIONS', items: ['expenses', 'reports', 'import-center', 'toast-integration'] }
 ]
 
 const labels = {
@@ -64,13 +65,22 @@ export default function AppShellV2({ active, setActive, children }) {
         </button>
 
         <nav className="rv2-nav">
-          {primaryNav.map(key => (
-            <button key={key} className={`rv2-nav-item ${active === key ? 'is-active' : ''}`} type="button" onClick={() => openPage(key)}>
-              <span className="rv2-nav-icon"><Icon name={key} size={18} /></span>
-              <span>{labels[key]}</span>
-              {(key === 'payroll' || key === 'reports') && <span className="rv2-nav-chevron"><Icon name="chevronRight" size={15} /></span>}
-            </button>
+          {navGroups.map(group => (
+            <section className="rv2-nav-group" key={group.label}>
+              <div className="rv2-nav-section-label">{group.label}</div>
+              {group.items.map(key => (
+                <button key={key} className={`rv2-nav-item ${active === key ? 'is-active' : ''}`} type="button" onClick={() => openPage(key)}>
+                  <span className="rv2-nav-icon"><Icon name={key} size={18} /></span>
+                  <span>{labels[key]}</span>
+                </button>
+              ))}
+            </section>
           ))}
+          <section className="rv2-nav-group rv2-nav-settings-group">
+            <button className={`rv2-nav-item ${active === 'settings' ? 'is-active' : ''}`} type="button" onClick={() => openPage('settings')}>
+              <span className="rv2-nav-icon"><Icon name="settings" size={18} /></span><span>Settings</span>
+            </button>
+          </section>
         </nav>
 
         <div className="rv2-sidebar-bottom">

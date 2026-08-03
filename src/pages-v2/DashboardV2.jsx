@@ -73,7 +73,7 @@ export default function DashboardV2({ data = {}, setActive }) {
   },[data,applied])
 
   const kpis=[
-    ['Total Sales',metrics.totalSales,'sales','blue','↑ 12.5%','vs previous period'],['Cash Collected',metrics.cashCollected,'cash','green','↑ 8.3%','vs previous period'],['Net Profit',metrics.profit,'profit','teal','↑ 15.2%','vs previous period'],['Restaurant Health',`${metrics.health.toFixed(0)}%`,'health','purple','↑ Good','vs last period'],
+    ['Total Sales',metrics.totalSales,'sales','blue','↑ 12.5%','vs previous period'],['Cash Collected',metrics.cashCollected,'cash','green','↑ 8.3%','vs previous period'],['Net Profit',metrics.profit,'profit','teal','↑ 15.2%','vs previous period'],['Restaurant Health',`${metrics.health.toFixed(0)}%`,'health','navy','↑ Good','vs last period'],
     ['Cash Payroll',metrics.cashPayroll,'payroll','lime','↓ 5.6%','vs previous period'],['Check Payroll',metrics.checkPayroll,'employees','cyan','↑ 3.2%','vs previous period'],['Vendor Spending',metrics.vendorSpend,'vendors','orange','↑ 10.1%','vs previous period'],['Business Expenses',metrics.expenses,'expenses','red','↑ 6.4%','vs previous period']
   ].map(([label,value,icon,tone,delta,compare])=>({label,value:typeof value==='string'?value:money(value),rawValue:value,icon,tone,delta,compare,details:[{label,description:'Selected period total',amount:typeof value==='number'?value:metrics.health}]}))
 

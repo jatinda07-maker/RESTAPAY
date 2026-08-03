@@ -1217,3 +1217,98 @@
 .rv2-content .rv2-upload-bar,
 .rv2-content .rv2-data-panel,
 .rv2-content .payroll-rc5-modal{background-image:none!important}
+
+/* ===== Approved compact RestaPay visual system: green navigation + darker translucent cards ===== */
+:root{
+  --rv2-font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rv2-primary:#0f9f55;
+  --rv2-orange:#f97316;
+  --rv2-bg:#f7faf8;
+  --rv2-border:#dfe7e3;
+  --rv2-shadow:0 5px 16px rgba(15,23,42,.055);
+}
+.rv2-shell{grid-template-columns:212px minmax(0,1fr)!important;background:var(--rv2-bg)!important}
+.rv2-sidebar{background:rgba(255,255,255,.96)!important;border-right:1px solid #dce5e0!important;padding:16px 10px!important}
+.rv2-brand{padding:0 8px 18px!important;gap:10px!important}
+.rv2-brand-mark{width:40px!important;height:40px!important;border-radius:9px!important;background:#0f9f55!important;box-shadow:0 5px 12px rgba(15,159,85,.2)!important}
+.rv2-brand-copy strong{font-size:18px!important;font-weight:650!important;letter-spacing:-.035em!important}
+.rv2-brand-copy strong::first-letter{color:#0f9f55}
+.rv2-brand-copy small{display:none!important}
+.rv2-nav{gap:0!important}
+.rv2-nav-group{padding:0 0 12px!important;margin:0 0 10px!important;border-bottom:1px solid #e5ebe8!important}
+.rv2-nav-section-label{padding:0 10px 7px!important;font-size:8.5px!important;font-weight:650!important;letter-spacing:.08em!important;color:#53657b!important}
+.rv2-nav-item{height:38px!important;border-radius:8px!important;grid-template-columns:25px minmax(0,1fr)!important;padding:0 10px!important;font-size:11.5px!important;font-weight:520!important;color:#17213a!important;position:relative!important}
+.rv2-nav-item:hover{background:#f0f8f3!important;color:#087f43!important}
+.rv2-nav-item.is-active{background:rgba(15,159,85,.11)!important;color:#087f43!important;box-shadow:none!important;font-weight:620!important}
+.rv2-nav-item.is-active::before{content:"";position:absolute;left:-10px;top:7px;bottom:7px;width:4px;border-radius:999px;background:#18b667}
+.rv2-nav-icon,.rv2-nav-item.is-active .rv2-nav-icon{color:#17213a!important}
+.rv2-nav-item.is-active .rv2-nav-icon{color:#0f9f55!important}
+.rv2-nav-settings-group{margin-top:auto!important;border:0!important;padding-top:4px!important}
+.rv2-sidebar-bottom{display:none!important}
+.rv2-topbar{height:72px!important;background:rgba(255,255,255,.94)!important;padding:0 26px!important}
+.rv2-heading-block h1{font-size:23px!important;font-weight:650!important;color:#101a35!important}
+.rv2-heading-block p{font-size:10.5px!important;color:#5b6b82!important}
+.rv2-heading-icon{display:none!important}
+.rv2-content{padding:14px 22px 24px!important;background:#f8faf9!important}
+.rv2-cloud{border-color:#bfe8d0!important;background:#f1fbf5!important;color:#087f43!important}
+.rv2-avatar{background:#e7f7ee!important;color:#087f43!important}
+
+.rv2-dashboard{max-width:none!important}
+.rv2-dashboard-toolbar{height:54px!important;margin:0 0 12px!important;padding:8px 10px!important;border:1px solid #e0e7e4!important;border-radius:12px!important;background:rgba(255,255,255,.9)!important;box-shadow:0 4px 14px rgba(15,23,42,.04)!important}
+.rv2-date-range,.rv2-filter-button{height:36px!important;border-color:#d7e2dd!important;border-radius:8px!important;font-size:10px!important;box-shadow:none!important}
+.rv2-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;margin-bottom:12px!important}
+.rv2-kpi{min-height:92px!important;padding:12px!important;grid-template-columns:42px minmax(0,1fr) 14px!important;gap:10px!important;border-radius:11px!important;box-shadow:0 5px 14px rgba(15,23,42,.05)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important;transition:.16s ease!important}
+.rv2-kpi:hover{transform:translateY(-1px)!important;box-shadow:0 8px 18px rgba(15,23,42,.08)!important}
+.rv2-kpi-icon{width:40px!important;height:40px!important;border-radius:9px!important}
+.rv2-kpi-label{font-size:9.5px!important;font-weight:620!important;color:#18243b!important}
+.rv2-kpi-body strong{font-size:18px!important;font-weight:650!important;margin-top:3px!important}
+.rv2-kpi-body small{font-size:8.5px!important;margin-top:4px!important}.rv2-kpi-body em{font-size:8px!important}
+.rv2-kpi-arrow{font-size:19px!important;color:#40546d!important}
+.rv2-kpi-blue{background:rgba(202,222,255,.62)!important;border-color:#91baf5!important}.rv2-kpi-blue .rv2-kpi-icon{background:#1672e8!important}
+.rv2-kpi-green{background:rgba(195,232,208,.68)!important;border-color:#8bcda5!important}.rv2-kpi-green .rv2-kpi-icon{background:#079851!important}
+.rv2-kpi-teal{background:rgba(188,229,229,.7)!important;border-color:#73c4c2!important}.rv2-kpi-teal .rv2-kpi-icon{background:#078e96!important}
+.rv2-kpi-navy,.rv2-kpi-purple{background:rgba(204,218,241,.68)!important;border-color:#91acd7!important}.rv2-kpi-navy .rv2-kpi-icon,.rv2-kpi-purple .rv2-kpi-icon{background:#284f96!important}
+.rv2-kpi-lime{background:rgba(222,235,190,.72)!important;border-color:#b8d277!important}.rv2-kpi-lime .rv2-kpi-icon{background:#739b13!important}
+.rv2-kpi-cyan{background:rgba(190,226,239,.72)!important;border-color:#79bdd7!important}.rv2-kpi-cyan .rv2-kpi-icon{background:#1389b0!important}
+.rv2-kpi-orange{background:rgba(255,220,180,.72)!important;border-color:#f4b46b!important}.rv2-kpi-orange .rv2-kpi-icon{background:#ee7100!important}
+.rv2-kpi-red{background:rgba(247,204,207,.72)!important;border-color:#e9979e!important}.rv2-kpi-red .rv2-kpi-icon{background:#d93648!important}
+
+.rv2-analytics-grid,.rv2-lower-grid,.rv2-bottom-grid{gap:10px!important;margin-bottom:10px!important}
+.rv2-chart-card,.rv2-info-card{border-radius:11px!important;padding:12px 14px!important;border-color:#e0e7e4!important;box-shadow:0 4px 14px rgba(15,23,42,.045)!important}
+.rv2-chart-card h2,.rv2-info-card h2{font-size:11px!important;font-weight:620!important}
+.rv2-chart-sales svg{height:132px!important}.rv2-donut{width:142px!important;height:142px!important}.rv2-donut-wrap{grid-template-columns:145px minmax(0,1fr)!important}
+
+/* Uniform compact KPI cards on non-dashboard pages. No purple. */
+.rv2-content .summary-grid,.rv2-content .entity-summary,.rv2-content .payroll-rc5-summary,.rv2-content .sales-summary-row,.rv2-content [class*="kpi-grid"]{gap:10px!important}
+.rv2-content .summary-card,.rv2-content .entity-summary-card,.rv2-content .payroll-modern-card,.rv2-content [class*="metric-card"]{min-height:92px!important;border-radius:11px!important;padding:12px 14px!important;box-shadow:0 4px 14px rgba(15,23,42,.05)!important}
+.rv2-content .tone-purple,.rv2-content .summary-card.purple,.rv2-content [class*="purple"]{background:#dbe9f6!important;border-color:#9ebbd5!important;color:#17385a!important}
+
+/* Approved compact upload bar: short, aligned, warm cream/teal, orange action. */
+.rv2-upload-bar{max-width:920px!important;min-height:54px!important;height:54px!important;padding:7px 10px!important;border-radius:10px!important;background:#fff6df!important;border:1px solid #efd596!important;box-shadow:0 4px 12px rgba(15,23,42,.04)!important;display:flex!important;align-items:center!important;gap:10px!important}
+.rv2-upload-bar>*{margin:0!important;align-self:center!important}
+.rv2-upload-bar .rv2-upload-icon{color:#d66a00!important;background:#ffedd2!important}
+.rv2-upload-bar .rv2-upload-label{color:#17213a!important;font-size:11px!important;font-weight:620!important}
+.rv2-upload-bar input[type=file]::file-selector-button{height:34px!important;border:1px solid #f97316!important;border-radius:8px!important;background:#fff!important;color:#d95d00!important;font-weight:550!important}
+
+@media(max-width:1180px){.rv2-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:900px){.rv2-shell{grid-template-columns:1fr!important}.rv2-sidebar{width:220px!important}}
+
+/* Final upload-bar alignment and no-purple palette. */
+.rv2-upload-bar .rv2-upload-main{display:flex!important;align-items:center!important;gap:10px!important;min-width:0!important;flex:1 1 auto!important}
+.rv2-upload-bar .rv2-upload-label{display:inline-flex!important;align-items:center!important;gap:7px!important;min-width:150px!important;color:#17213a!important;font-size:11px!important;font-weight:620!important;white-space:nowrap!important}
+.rv2-upload-bar .rv2-upload-label svg{color:#d66a00!important}
+.rv2-upload-bar .rv2-upload-picker{height:34px!important;min-height:34px!important;padding:0 13px!important;border:1px solid #f97316!important;border-radius:8px!important;background:#fff!important;color:#d95d00!important;font-size:10.5px!important;font-weight:580!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
+.rv2-upload-bar .rv2-upload-picker input{position:absolute!important;inset:0!important;opacity:0!important;cursor:pointer!important}
+.rv2-upload-bar .rv2-upload-filename{min-width:0!important;max-width:270px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#64748b!important;font-size:10.5px!important}
+.rv2-upload-bar .rv2-upload-action{margin-left:auto!important;display:flex!important;align-items:center!important}
+.rv2-upload-bar .rv2-upload-action button{height:34px!important;border-radius:8px!important;background:#f97316!important;border-color:#f97316!important;color:#fff!important;font-size:10.5px!important;font-weight:600!important;padding:0 15px!important}
+
+.rv2-stat-card{min-height:86px!important;padding:12px 14px!important;border-radius:10px!important;box-shadow:0 4px 12px rgba(15,23,42,.05)!important}
+.rv2-stat-card strong{font-size:19px!important;font-weight:650!important;margin-top:7px!important}
+.rv2-stat-label{font-size:10px!important;font-weight:620!important}
+.rv2-stat-card.tone-purple{background:#dbe9f6!important;border-color:#9ebbd5!important}.rv2-stat-card.tone-purple .rv2-stat-label span{background:#c8dcf0!important;color:#1d5d8f!important}
+.rv2-stat-card.tone-green{background:#d9eee1!important;border-color:#9bc9aa!important}.rv2-stat-card.tone-green .rv2-stat-label span{background:#c3e5cf!important;color:#087f43!important}
+.rv2-stat-card.tone-orange{background:#f9e2c4!important;border-color:#edb873!important}.rv2-stat-card.tone-orange .rv2-stat-label span{background:#f5d4a8!important;color:#c55d00!important}
+.rv2-stat-card.tone-blue{background:#dce9f8!important;border-color:#9dbce2!important}.rv2-stat-card.tone-blue .rv2-stat-label span{background:#c9dcf4!important;color:#175ba7!important}
+.rv2-stat-card.tone-pink{background:#f2dfe0!important;border-color:#dba8ad!important}.rv2-stat-card.tone-pink .rv2-stat-label span{background:#ebcdd0!important;color:#a82d3d!important}
+.rv2-stat-card.tone-slate{background:#e2e8ec!important;border-color:#b7c3cc!important}.rv2-stat-card.tone-slate .rv2-stat-label span{background:#d2dce3!important;color:#405268!important}
