@@ -84,16 +84,16 @@ export default function AppShellV2({ active, setActive, children }) {
       </aside>
 
       <div className="rv2-main">
-        <header className="rv2-topbar">
+        <header className={`rv2-topbar ${active === 'dashboard' ? '' : 'rv2-section-topbar'}`}>
           <button className="rv2-menu" type="button" aria-label="Toggle navigation" onClick={() => setMobileOpen(value => !value)}><Icon name="menu" size={20} /></button>
-          <div className="rv2-heading-block"><h1>{title}</h1><p>{subtitles[active] || 'Restaurant management workspace'}</p></div>
+          <div className="rv2-heading-block"><div className="rv2-heading-title"><span className="rv2-heading-icon"><Icon name={active} size={18} /></span><h1>{title}</h1></div><p>{subtitles[active] || 'Restaurant management workspace'}</p></div>
           <div className="rv2-top-actions">
             <div className={`rv2-cloud ${cloudStatus.status || 'saved'}`}><span />{cloudLabel}</div>
             <button className="rv2-icon-button" type="button" aria-label="Notifications"><Icon name="bell" size={19} /><b>3</b></button>
             <div className="rv2-profile"><span className="rv2-avatar">JP</span><span><strong>Jatin Patel</strong><small>Admin</small></span><b>⌄</b></div>
           </div>
         </header>
-        <main className="rv2-content">{children}</main>
+        <main className={`rv2-content rv2-page-${active}`}>{children}</main>
       </div>
     </div>
   )
