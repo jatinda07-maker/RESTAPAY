@@ -871,7 +871,7 @@ export default function Payroll({ data, setData }) {
         <label>Period Start<input type="date" value={groupPeriodStart} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPeriodStart(e.target.value)} /></label>
         <label>Period End<input type="date" value={groupPeriodEnd} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPeriodEnd(e.target.value)} /></label>
         <label>Pay Date<input type="date" value={groupPayDate} onClick={openDatePicker} onFocus={openDatePicker} onChange={e => setGroupPayDate(e.target.value)} /></label>
-        <label>Search Employee<input value={groupEmployeeSearch} onChange={e => setGroupEmployeeSearch(e.target.value)} placeholder="Kitchen employee name" /></label>
+        <label className="payroll-group-search-field">Search Employee<input value={groupEmployeeSearch} onChange={e => setGroupEmployeeSearch(e.target.value)} placeholder="Kitchen employee name" /></label>
       </div>
       <div className="payroll-group-addbar">
         <div><b>Add employee to this payroll group</b><small>Include any active employee in this weekly batch without changing their permanent job type.</small></div>

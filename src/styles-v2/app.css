@@ -1020,3 +1020,113 @@
   .payroll-rc5-group-modal .payroll-rc5-group-toolbar{grid-template-columns:1fr 1fr!important}
   .payroll-rc5-group-modal .payroll-group-addbar{grid-template-columns:1fr!important}
 }
+
+
+/* Approved Group Payroll modal - 2026-08-03 */
+.payroll-rc5-overlay{
+  padding:12px!important;
+  background:rgba(15,23,42,.48)!important;
+  backdrop-filter:blur(5px)!important;
+}
+.payroll-rc5-group-modal{
+  width:min(1220px,calc(100vw - 28px))!important;
+  height:min(770px,calc(100vh - 28px))!important;
+  max-height:calc(100vh - 28px)!important;
+  border-radius:22px!important;
+  overflow:hidden!important;
+  box-shadow:0 28px 70px rgba(15,23,42,.28)!important;
+  background:#fff!important;
+}
+.payroll-rc5-group-modal>header{
+  min-height:118px!important;
+  padding:24px 28px!important;
+  border-bottom:1px solid #e7edf4!important;
+  background:#fff!important;
+}
+.payroll-rc5-group-modal .payroll-modal-icon{
+  width:70px!important;height:70px!important;flex-basis:70px!important;
+  border-radius:16px!important;background:#fff4eb!important;color:#f97316!important;
+}
+.payroll-rc5-group-modal .payroll-group-eyebrow{
+  margin-bottom:5px!important;font-size:12px!important;letter-spacing:.12em!important;
+}
+.payroll-rc5-group-modal .payroll-modal-title h2{
+  margin:0!important;font-size:28px!important;line-height:1.15!important;color:#111827!important;
+}
+.payroll-rc5-group-modal .payroll-modal-title p{
+  margin:8px 0 0!important;font-size:13px!important;color:#64748b!important;
+}
+.payroll-rc5-group-modal .payroll-modal-close{
+  width:54px!important;height:54px!important;flex-basis:54px!important;border-radius:14px!important;
+}
+.payroll-rc5-group-modal .payroll-rc5-group-toolbar{
+  display:grid!important;
+  grid-template-columns:minmax(380px,1.7fr) repeat(3,minmax(190px,.8fr))!important;
+  gap:16px!important;
+  padding:22px 28px 10px!important;
+  align-items:end!important;
+}
+.payroll-rc5-group-modal .payroll-rc5-group-toolbar label{
+  display:grid!important;gap:7px!important;font-size:12px!important;font-weight:700!important;color:#475569!important;
+}
+.payroll-rc5-group-modal .payroll-rc5-group-toolbar input,
+.payroll-rc5-group-modal .payroll-rc5-group-toolbar select{
+  height:48px!important;min-height:48px!important;border-radius:10px!important;
+  border:1px solid #d7e0eb!important;background:#fff!important;padding:0 14px!important;font-size:13px!important;
+}
+.payroll-rc5-group-modal .payroll-group-manager-row{
+  grid-template-columns:minmax(0,1fr) 48px 48px 48px!important;gap:8px!important;
+}
+.payroll-rc5-group-modal .group-action{
+  width:48px!important;height:48px!important;border-radius:10px!important;
+  background:#fff!important;border:1px solid #d7e0eb!important;color:#334155!important;box-shadow:none!important;
+}
+.payroll-rc5-group-modal .group-action.create{color:#111827!important;border-color:#94a3b8!important}
+.payroll-rc5-group-modal .group-action.edit{color:#64748b!important}
+.payroll-rc5-group-modal .group-action.delete{color:#ef4444!important}
+.payroll-rc5-group-modal .payroll-group-search-field{
+  grid-column:1 / span 2!important;
+  max-width:520px!important;
+}
+.payroll-rc5-group-modal .payroll-group-addbar{
+  display:grid!important;grid-template-columns:minmax(340px,.9fr) minmax(420px,1.3fr) auto!important;
+  gap:14px!important;margin:8px 28px 0!important;padding:14px!important;
+  border:1px solid #e3e9f1!important;border-radius:12px!important;background:#fafbfc!important;
+}
+.payroll-rc5-group-modal .payroll-group-addbar>div{display:grid!important;gap:3px!important}
+.payroll-rc5-group-modal .payroll-group-addbar b{font-size:14px!important;color:#172033!important}
+.payroll-rc5-group-modal .payroll-group-addbar small{font-size:11px!important;color:#64748b!important;line-height:1.35!important}
+.payroll-rc5-group-modal .payroll-group-addbar select,
+.payroll-rc5-group-modal .payroll-group-add-button{height:42px!important;min-height:42px!important;border-radius:9px!important}
+.payroll-rc5-group-modal .payroll-group-add-button{padding:0 16px!important;background:#f97316!important;border-color:#f97316!important;color:#fff!important}
+.payroll-rc5-group-modal .payroll-group-add-button:disabled{background:#eef2f7!important;border-color:#eef2f7!important;color:#9aa4b2!important;opacity:1!important}
+.payroll-rc5-group-modal .payroll-group-selection-summary{
+  margin:10px 28px 0!important;min-height:40px!important;padding:7px 12px!important;border-radius:9px!important;
+  border:1px solid #e5eaf1!important;background:#fff!important;font-size:11px!important;
+}
+.payroll-rc5-group-modal .payroll-group-selection-summary>span b{font-size:17px!important;color:#111827!important}
+.payroll-rc5-group-modal .payroll-rc5-table-wrap{
+  flex:1 1 auto!important;min-height:190px!important;margin:12px 28px 0!important;
+  border:1px solid #e2e8f0!important;border-radius:12px!important;overflow:auto!important;
+}
+.payroll-rc5-group-modal .payroll-rc5-table th{
+  position:sticky!important;top:0!important;z-index:2!important;background:#f7f4fb!important;
+}
+.payroll-rc5-group-modal>footer{
+  padding:14px 28px!important;min-height:72px!important;background:#fff!important;
+}
+.payroll-rc5-group-modal>footer .btn{height:42px!important;min-width:118px!important;border-radius:9px!important}
+.payroll-rc5-group-modal .payroll-group-create-button{background:#f97316!important;border-color:#f97316!important;color:#fff!important}
+.payroll-rc5-group-modal .payroll-group-create-button:hover{background:#ea580c!important;border-color:#ea580c!important}
+@media(max-width:1050px){
+  .payroll-rc5-group-modal .payroll-rc5-group-toolbar{grid-template-columns:1fr 1fr!important}
+  .payroll-rc5-group-modal .payroll-group-manager-field,.payroll-rc5-group-modal .payroll-group-search-field{grid-column:1/-1!important;max-width:none!important}
+  .payroll-rc5-group-modal .payroll-group-addbar{grid-template-columns:1fr!important}
+}
+@media(max-width:680px){
+  .payroll-rc5-group-modal{height:calc(100vh - 16px)!important;width:calc(100vw - 16px)!important}
+  .payroll-rc5-group-modal>header{padding:18px!important;min-height:auto!important}
+  .payroll-rc5-group-modal .payroll-rc5-group-toolbar{grid-template-columns:1fr!important;padding:16px 18px 8px!important}
+  .payroll-rc5-group-modal .payroll-group-manager-field,.payroll-rc5-group-modal .payroll-group-search-field{grid-column:auto!important}
+  .payroll-rc5-group-modal .payroll-group-addbar,.payroll-rc5-group-modal .payroll-group-selection-summary,.payroll-rc5-group-modal .payroll-rc5-table-wrap{margin-left:18px!important;margin-right:18px!important}
+}
