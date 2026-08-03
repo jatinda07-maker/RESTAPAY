@@ -1,60 +1,62 @@
-param(
-  [string]$Target = "$env:USERPROFILE\RESTAPAY-RC4-GIT"
-)
+$ErrorActionPreference = 'Stop'
 
-$ErrorActionPreference = "Stop"
-$Source = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$Backup = Join-Path $Target "backups\universal-ui-$Timestamp"
+$SourceRoot = $PSScriptRoot
+$TargetRoot = 'C:\Users\jatin\RESTAPAY-RC4-GIT'
 
-Write-Host "RESTAPAY Universal UI Rebuild" -ForegroundColor Cyan
-Write-Host "Source: $Source"
-Write-Host "Target: $Target"
-
-if (!(Test-Path (Join-Path $Target "package.json"))) {
-  throw "RESTAPAY project not found at $Target"
+if (-not (Test-Path $TargetRoot)) {
+    throw "RESTAPAY project was not found at $TargetRoot"
 }
 
-New-Item -ItemType Directory -Path $Backup -Force | Out-Null
-Copy-Item (Join-Path $Target "src") (Join-Path $Backup "src") -Recurse -Force
-Write-Host "Backup created: $Backup" -ForegroundColor Green
+$Stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$BackupRoot = Join-Path $TargetRoot "backups\universal-ui-$Stamp"
+$TargetSrc = Join-Path $TargetRoot 'src'
+$SourceSrc = Join-Path $SourceRoot 'src'
 
-# Replace the presentation source with the rebuilt source.
-Remove-Item (Join-Path $Target "src") -Recurse -Force
-Copy-Item (Join-Path $Source "src") (Join-Path $Target "src") -Recurse -Force
+Write-Host "Creating backup: $BackupRoot" -ForegroundColor Cyan
+New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
+Copy-Item $TargetSrc (Join-Path $BackupRoot 'src') -Recurse -Force
 
-Set-Location $Target
-Write-Host "Building..." -ForegroundColor Yellow
-npm run build
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "Build failed. Restoring source backup." -ForegroundColor Red
-  Remove-Item (Join-Path $Target "src") -Recurse -Force
-  Copy-Item (Join-Path $Backup "src") (Join-Path $Target "src") -Recurse -Force
-  exit 1
+try {
+    Write-Host 'Replacing source with the universal UI rebuild...' -ForegroundColor Cyan
+    Remove-Item $TargetSrc -Recurse -Force
+    Copy-Item $SourceSrc $TargetSrc -Recurse -Force
+
+    Write-Host 'Checking CSS architecture...' -ForegroundColor Cyan
+    $CssFiles = Get-ChildItem $TargetSrc -Recurse -Filter '*.css'
+    if ($CssFiles.Count -ne 1 -or $CssFiles[0].FullName -notlike '*\src\styles\universal.css') {
+        throw "Expected exactly one CSS file: src\styles\universal.css. Found $($CssFiles.Count)."
+    }
+
+    Set-Location $TargetRoot
+
+    Write-Host 'Building project...' -ForegroundColor Cyan
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+
+    git restore dist/index.html 2>$null
+    git add -A
+
+    $Changes = git status --porcelain
+    if (-not $Changes) {
+        Write-Host 'No source changes to commit.' -ForegroundColor Yellow
+        exit 0
+    }
+
+    git commit -m "Universal UI foundation: remove legacy CSS and restore approved navigation"
+    if ($LASTEXITCODE -ne 0) { throw 'Commit failed.' }
+
+    git pull --rebase origin main
+    if ($LASTEXITCODE -ne 0) { throw 'Pull/rebase failed. Resolve the conflict before pushing.' }
+
+    git push origin main
+    if ($LASTEXITCODE -ne 0) { throw 'Push failed.' }
+
+    Write-Host 'Universal UI rebuild built and pushed successfully.' -ForegroundColor Green
 }
-
-# Avoid committing generated output when tracked.
-git restore dist/index.html 2>$null
-
-git add -A
-git status --short
-
-git diff --cached --quiet
-if ($LASTEXITCODE -eq 0) {
-  Write-Host "No source changes to commit." -ForegroundColor Yellow
-  exit 0
+catch {
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    Write-Host 'Restoring the source backup...' -ForegroundColor Yellow
+    if (Test-Path $TargetSrc) { Remove-Item $TargetSrc -Recurse -Force }
+    Copy-Item (Join-Path $BackupRoot 'src') $TargetSrc -Recurse -Force
+    throw
 }
-
-git commit -m "Universal UI foundation and approved hybrid Dashboard"
-if ($LASTEXITCODE -ne 0) { exit 1 }
-
-git pull --rebase origin main
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "Rebase conflict detected. Resolve it before pushing." -ForegroundColor Red
-  exit 1
-}
-
-git push origin main
-if ($LASTEXITCODE -ne 0) { exit 1 }
-
-Write-Host "Build, commit, and push completed." -ForegroundColor Green

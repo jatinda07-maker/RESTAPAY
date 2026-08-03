@@ -34,11 +34,9 @@ const subtitles = {
 }
 
 export default function Layout({ active, setActive, children }) {
-  const [isHoveringSidebar, setIsHoveringSidebar] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const activeItem = navItems.find(([key]) => key === active)
   const title = activeItem?.[1] || 'RestaPay'
-  const sidebarOpen = isHoveringSidebar || mobileNavOpen
   const [cloudStatus, setCloudStatus] = useState(() => {
     try { return JSON.parse(localStorage.getItem('restapay_cloud_status') || '{}') } catch { return {} }
   })
@@ -56,7 +54,6 @@ export default function Layout({ active, setActive, children }) {
 
   function handleNavPress(key) {
     setActive(key)
-    setIsHoveringSidebar(false)
     setMobileNavOpen(false)
   }
 
@@ -79,13 +76,11 @@ export default function Layout({ active, setActive, children }) {
           : 'Cloud Saved'
 
   return (
-    <div className={`app-shell approved-ui is-collapsed ${sidebarOpen ? 'sidebar-open' : ''} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}>
+    <div className={`app-shell approved-ui ${mobileNavOpen ? 'mobile-nav-open' : ''}`}>
       <button type="button" className="mobile-nav-backdrop" aria-label="Close navigation" onClick={closeMobileNav} />
       <aside
         className="sidebar"
         aria-label="RestaPay navigation"
-        onMouseEnter={() => setIsHoveringSidebar(true)}
-        onMouseLeave={() => setIsHoveringSidebar(false)}
       >
         <button type="button" className="brand-row brand-home" onClick={() => handleNavPress('dashboard')} aria-label="Open Dashboard">
           <div className="brand-mark">R</div>

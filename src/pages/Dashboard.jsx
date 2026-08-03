@@ -790,68 +790,6 @@ export default function Dashboard({ data, setData, setActive }) {
         {visible.restaurantHealth && <MetricCard title="Restaurant Health" value={`${derived.healthScore}/100`} subtitle={`${healthLabel(derived.healthScore)} overall performance score`} icon="shield" tone="emerald" onClick={() => showDetail('health')} />}
       </div>
 
-      <section className="hybrid-summary-grid" aria-label="Executive summary">
-        <article className="hybrid-panel tone-green">
-          <header><span><Icon name="card" size={18} /> Cash Position</span></header>
-          <div className="hybrid-list">
-            <div><span>Cash Collected</span><b>{money(derived.cashSales)}</b></div>
-            <div><span>Cash Payroll</span><b>{money(derived.cashOperatingPayroll)}</b></div>
-            <div><span>Cash Vendors / Expenses</span><b>{money(derived.cashVendorSpend)}</b></div>
-            <div className="total"><span>Cash Remaining</span><b>{money(derived.cashRemaining)}</b></div>
-          </div>
-        </article>
-        <article className="hybrid-panel tone-blue">
-          <header><span><Icon name="trending" size={18} /> Profit Snapshot</span></header>
-          <div className="hybrid-list">
-            <div><span>Gross Sales</span><b>{money(derived.grossSales)}</b></div>
-            <div><span>Operating Profit</span><b>{money(derived.operatingProfit)}</b></div>
-            <div><span>Profit Margin</span><b>{pct(derived.profitMargin)}</b></div>
-            <div className="total"><span>Prime Cost</span><b>{pct(derived.primeCostPct)}</b></div>
-          </div>
-        </article>
-        <article className="hybrid-panel tone-purple">
-          <header><span><Icon name="pie" size={18} /> Cost Snapshot</span></header>
-          <div className="hybrid-list">
-            <div><span>Food Cost</span><b>{pct(derived.foodCostPct)}</b></div>
-            <div><span>Alcohol Cost</span><b>{derived.trueNetSales > 0 ? pct((derived.directAlcoholCost / derived.trueNetSales) * 100) : '0.0%'}</b></div>
-            <div><span>Labor Cost</span><b>{pct(derived.laborPct)}</b></div>
-            <div className="total"><span>Total Spending</span><b>{money(derived.totalSpend)}</b></div>
-          </div>
-        </article>
-        <article className="hybrid-panel tone-emerald">
-          <header><span><Icon name="shield" size={18} /> Restaurant Health</span><b>{derived.healthScore}/100</b></header>
-          <div className="health-meter"><span style={{ width: `${derived.healthScore}%` }} /></div>
-          <div className="hybrid-list compact">
-            <div><span>Toast Sales Rows</span><b>{derived.monthSales.length}</b></div>
-            <div><span>Invoices</span><b>{derived.monthInvoices.length}</b></div>
-            <div><span>Reconciliation</span><b className={derived.reconciliationOk ? 'good' : 'warn'}>{derived.reconciliationOk ? 'Balanced' : 'Review'}</b></div>
-          </div>
-        </article>
-      </section>
-
-      <section className="hybrid-operations-grid">
-        <article className="hybrid-wide-panel">
-          <header><span><Icon name="zap" size={18} /> Business Insights</span></header>
-          <ul className="insight-list">
-            <li className={derived.operatingProfit >= 0 ? 'good' : 'warn'}>{derived.operatingProfit >= 0 ? 'Operating profit is positive' : 'Operating profit needs attention'}: {money(derived.operatingProfit)}</li>
-            <li>Prime cost is {pct(derived.primeCostPct)} of sales.</li>
-            <li>Cash remaining is {money(derived.cashRemaining)}.</li>
-            <li>{derived.vendorRecent.length} recent vendor rows are included in this period.</li>
-          </ul>
-        </article>
-        <article className="hybrid-wide-panel">
-          <header><span><Icon name="check" size={18} /> Quick Actions</span></header>
-          <div className="quick-action-grid">
-            <button type="button" onClick={() => setActive('sales')}><Icon name="upload" />Import Toast</button>
-            <button type="button" onClick={() => setActive('invoices')}><Icon name="invoices" />Add Invoice</button>
-            <button type="button" onClick={() => setActive('expenses')}><Icon name="expenses" />Add Expense</button>
-            <button type="button" onClick={() => setActive('payroll')}><Icon name="payroll" />Run Payroll</button>
-            <button type="button" onClick={() => setActive('vendor-comparison')}><Icon name="compare" />Compare Vendors</button>
-            <button type="button" onClick={() => setActive('reports')}><Icon name="reports" />Reports</button>
-          </div>
-        </article>
-      </section>
-
       <DetailTable config={detailConfig[detailKey]} setActive={setActive} onClose={() => setDetail('')} />
     </div>
   )
