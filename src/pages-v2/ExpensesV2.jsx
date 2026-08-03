@@ -89,7 +89,7 @@ export default function ExpensesV2({ data, setData }) {
   ]
 
   return <div className="rv2-page rv2-entity-v2 rv2-expenses-v2"><div className="rv2-mock-page rv2-expenses-mock">
-    <div className="rv2-mock-action-row"><UploadBar label="Upload Expense" accept=".pdf,.png,.jpg,.jpeg,.csv,.xls,.xlsx" onChange={handleUpload}/><button className="rv2-orange-button" onClick={openAdd}><Icon name="plus" size={16}/> Add Expense</button></div>
+    <div className="rv2-mock-action-row"><UploadBar label="Upload Expense" accept=".pdf,.png,.jpg,.jpeg,.csv,.xls,.xlsx" onChange={handleUpload}/><button className="rv2-primary-button" onClick={openAdd}><Icon name="plus" size={16}/> Add Expense</button></div>
     {notice && <div className="rv2-inline-notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
     <div className="rv2-stat-grid rv2-stat-grid-five">{cards.map(([icon,label,value,tone]) => <div className={`rv2-stat-card tone-${tone}`} key={label}><div className="rv2-stat-label"><span><Icon name={icon} size={13}/></span>{label}</div><strong>{value}</strong></div>)}</div>
     <section className="rv2-data-panel">
@@ -103,6 +103,6 @@ export default function ExpensesV2({ data, setData }) {
       <label>Category<select value={form.category} onChange={e => setForm({...form,category:e.target.value})}>{categories.map(item => <option key={item}>{item}</option>)}</select></label><label>Payment Type<select value={form.payment_method} onChange={e => setForm({...form,payment_method:e.target.value})}>{paymentMethods.map(item => <option key={item}>{item}</option>)}</select></label>
       <label>Check Number<input value={form.check_number || ''} onChange={e => setForm({...form,check_number:e.target.value})} placeholder="Optional"/></label><label>Amount<input type="number" min="0" step="0.01" value={form.amount} onChange={e => setForm({...form,amount:e.target.value})} placeholder="0.00"/></label>
       <label className="span-2">Notes<textarea value={form.notes || ''} onChange={e => setForm({...form,notes:e.target.value})} placeholder="Additional notes"/></label>
-    </div><footer><button className="rv2-clear-button" type="button" onClick={closeModal}>Cancel</button><button className="rv2-orange-button" type="submit"><Icon name="save" size={16}/>{editingId ? 'Update Expense' : 'Save Expense'}</button></footer></form></section></div>}
+    </div><footer><button className="rv2-clear-button" type="button" onClick={closeModal}>Cancel</button><button className="rv2-primary-button" type="submit"><Icon name="save" size={16}/>{editingId ? 'Update Expense' : 'Save Expense'}</button></footer></form></section></div>}
   </div></div>
 }

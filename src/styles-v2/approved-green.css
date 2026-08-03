@@ -1,0 +1,111 @@
+:root{
+  --rv2-primary:#0f9f52;
+  --rv2-primary-strong:#08753c;
+  --rv2-primary-soft:rgba(15,159,82,.10);
+  --rv2-primary-soft-2:rgba(15,159,82,.16);
+  --rv2-orange:#0f9f52;
+  --rv2-bg:#f6f9f7;
+  --rv2-surface:#ffffff;
+  --rv2-border:#dce7e1;
+  --rv2-text:#12213d;
+  --rv2-muted:#63738b;
+  --rv2-shadow:0 5px 16px rgba(18,33,61,.055);
+  --rv2-radius:12px;
+}
+
+/* FINAL APPROVED GREEN UI LAYER — intentionally loaded last. */
+html,body,#root{background:var(--rv2-bg)}
+body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--rv2-text);font-weight:400}
+
+/* Sidebar */
+.rv2-shell{grid-template-columns:212px minmax(0,1fr)}
+.rv2-sidebar{background:#fff;border-right:1px solid #e1e9e4;padding:14px 10px;scrollbar-color:rgba(15,159,82,.38) transparent;scrollbar-width:thin}
+.rv2-sidebar::-webkit-scrollbar{width:7px}.rv2-sidebar::-webkit-scrollbar-thumb{background:rgba(15,159,82,.38);border-radius:999px}.rv2-sidebar::-webkit-scrollbar-track{background:transparent}
+.rv2-brand{padding:4px 8px 17px;gap:10px}.rv2-brand-mark{width:42px;height:42px;border-radius:11px;background:#0ba755;box-shadow:0 7px 16px rgba(15,159,82,.18);font-size:20px}
+.rv2-brand-copy{display:block}.rv2-brand-copy strong{font-size:19px;letter-spacing:-.035em;font-weight:650}.rv2-brand-copy strong::after{content:""}.rv2-brand-copy small{display:none}
+.rv2-nav{gap:0}.rv2-nav-group{padding:8px 0 10px;border-bottom:1px solid #e6ece8}.rv2-nav-section-label{padding:0 12px 7px;color:#53647c;font-size:9.5px;font-weight:650;letter-spacing:.08em}
+.rv2-nav-item{height:38px;border-radius:9px;color:#26334c;grid-template-columns:25px minmax(0,1fr);padding:0 10px;font-size:12.5px;font-weight:500;position:relative}
+.rv2-nav-item:hover{background:rgba(15,159,82,.055);color:#08753c}.rv2-nav-icon{color:#1d2a45}.rv2-nav-item.is-active{background:rgba(15,159,82,.11)!important;color:#078342!important;box-shadow:none!important}
+.rv2-nav-item.is-active::before{content:"";position:absolute;left:-6px;top:8px;bottom:8px;width:4px;border-radius:4px;background:#14b866}.rv2-nav-item.is-active .rv2-nav-icon{color:#0f9f52!important}
+.rv2-sidebar-bottom{display:none}
+
+/* Header */
+.rv2-topbar,.rv2-section-topbar{height:74px!important;background:#fff!important;border-bottom:1px solid #e3eae6!important;color:var(--rv2-text)!important;padding:0 24px!important;box-shadow:none!important}
+.rv2-heading-title{display:flex;align-items:center;gap:9px}.rv2-heading-icon{width:30px;height:30px;border-radius:8px;background:rgba(15,159,82,.10);color:#0f9f52;display:grid;place-items:center}
+.rv2-heading-block h1{font-size:24px!important;font-weight:650!important;letter-spacing:-.035em!important;color:#0f1d35!important}.rv2-heading-block p{font-size:11px!important;color:#5e6d84!important;margin-top:4px!important}
+.rv2-cloud{background:#f0fbf5!important;border-color:#bce8cf!important;color:#08753c!important}.rv2-cloud>span{background:#13b65f!important}
+.rv2-avatar{background:#e7f7ee!important;color:#08753c!important}.rv2-icon-button,.rv2-profile{background:#fff!important;border-color:#dce5e0!important;color:#15223a!important}
+
+/* Workspace and universal compact surfaces */
+.rv2-content{padding:16px 22px 24px!important;background:#f6f9f7!important}
+.rv2-content button,.rv2-content input,.rv2-content select,.rv2-content textarea{font-family:inherit}
+.rv2-mock-page,.rv2-page,.rv2-dashboard{max-width:1440px;margin:0 auto}
+.rv2-data-panel,.rv2-chart-card,.rv2-info-card,.rv2-form-modal,.rv2-ledger-modal,.rv2-filter-row,.rv2-tab-row,.rv2-compare-filter,.rv2-compare-summary>div{border-color:#dfe8e3!important;box-shadow:var(--rv2-shadow)!important}
+
+/* Buttons — remove orange globally */
+.rv2-orange-button,.rv2-primary-button,.rv2-form-modal footer button[type="submit"],.rv2-form-modal button[type="submit"],.payroll-rc5-primary,.btn.primary,.primary-button,.action-primary,
+.rv2-content .btn-orange,.rv2-content .button-orange,.rv2-content [class*="orange-button"]{background:#0f9f52!important;border-color:#0f9f52!important;color:#fff!important;box-shadow:0 5px 12px rgba(15,159,82,.18)!important}
+.rv2-orange-button:hover,.rv2-primary-button:hover,.rv2-form-modal button[type="submit"]:hover{background:#087f42!important;border-color:#087f42!important}
+.rv2-clear-button{background:#fff!important;border:1px solid #d9e4de!important;color:#314058!important}
+.rv2-clear-button:hover{border-color:#8fd0aa!important;background:#f2fbf6!important;color:#08753c!important}
+
+/* Upload bars: compact cream/mint approved version */
+.rv2-mock-action-row{display:grid!important;grid-template-columns:minmax(0,820px) auto!important;align-items:center!important;gap:14px!important;margin-bottom:14px!important}
+.rv2-upload-bar{width:100%!important;min-height:58px!important;height:58px!important;padding:7px 10px!important;border:1px solid #bfe2ce!important;border-radius:12px!important;background:#f1faf5!important;box-shadow:0 4px 12px rgba(15,159,82,.055)!important;display:flex!important;align-items:center!important;justify-content:space-between!important;overflow:hidden!important}
+.rv2-upload-main{display:grid!important;grid-template-columns:minmax(180px,auto) 126px minmax(120px,1fr)!important;align-items:center!important;gap:12px!important;min-width:0!important;width:100%!important}
+.rv2-upload-label{display:flex!important;align-items:center!important;gap:9px!important;font-size:13px!important;font-weight:600!important;color:#0b6f3c!important;white-space:nowrap!important}.rv2-upload-label svg{color:#0f9f52!important}
+.rv2-upload-picker{height:40px!important;border:1px solid #0f9f52!important;border-radius:9px!important;background:#fff!important;color:#08753c!important;display:grid!important;place-items:center!important;font-size:12px!important;font-weight:600!important;cursor:pointer!important}.rv2-upload-picker input{display:none!important}
+.rv2-upload-filename{font-size:11.5px!important;color:#69788c!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+.rv2-upload-action{margin-left:12px!important;padding-left:12px!important;border-left:1px solid #cde4d7!important}
+
+/* KPI cards — slightly darker translucent colors, compact, no gradients */
+.rv2-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;margin-bottom:12px!important}
+.rv2-kpi{min-height:90px!important;padding:12px!important;border-radius:11px!important;grid-template-columns:42px minmax(0,1fr) 14px!important;gap:10px!important;background:rgba(255,255,255,.86)!important;box-shadow:0 4px 13px rgba(18,33,61,.05)!important;backdrop-filter:blur(8px)}
+.rv2-kpi-blue{background:rgba(55,119,235,.14)!important;border-color:rgba(55,119,235,.30)!important}.rv2-kpi-green,.rv2-kpi-lime{background:rgba(24,166,87,.14)!important;border-color:rgba(24,166,87,.29)!important}.rv2-kpi-teal,.rv2-kpi-cyan{background:rgba(19,158,166,.14)!important;border-color:rgba(19,158,166,.29)!important}.rv2-kpi-purple{background:rgba(47,101,164,.13)!important;border-color:rgba(47,101,164,.28)!important}.rv2-kpi-orange{background:rgba(245,158,11,.15)!important;border-color:rgba(245,158,11,.31)!important}.rv2-kpi-red{background:rgba(226,60,72,.13)!important;border-color:rgba(226,60,72,.28)!important}
+.rv2-kpi-icon{width:40px!important;height:40px!important;border-radius:9px!important}.rv2-kpi-label{font-size:9.5px!important}.rv2-kpi-body strong{font-size:18px!important;font-weight:620!important}.rv2-kpi-body small{font-size:8.5px!important}.rv2-kpi-body em{font-size:8px!important}
+
+.rv2-stat-grid{gap:10px!important;margin-bottom:12px!important}.rv2-stat-card{min-height:88px!important;padding:12px 13px!important;border-radius:11px!important;box-shadow:0 4px 13px rgba(18,33,61,.045)!important}.rv2-stat-label{font-size:10px!important;font-weight:600!important}.rv2-stat-label>span{width:30px!important;height:30px!important;border-radius:8px!important}.rv2-stat-card>strong{font-size:21px!important;font-weight:620!important;margin-top:10px!important}
+.rv2-stat-card.tone-blue{background:rgba(55,119,235,.14)!important;border-color:rgba(55,119,235,.30)!important}.rv2-stat-card.tone-green{background:rgba(24,166,87,.14)!important;border-color:rgba(24,166,87,.29)!important}.rv2-stat-card.tone-teal,.rv2-stat-card.tone-cyan{background:rgba(19,158,166,.14)!important;border-color:rgba(19,158,166,.29)!important}.rv2-stat-card.tone-purple{background:rgba(47,101,164,.13)!important;border-color:rgba(47,101,164,.28)!important}.rv2-stat-card.tone-orange{background:rgba(245,158,11,.15)!important;border-color:rgba(245,158,11,.31)!important}.rv2-stat-card.tone-red{background:rgba(226,60,72,.13)!important;border-color:rgba(226,60,72,.28)!important}
+.rv2-stat-card.tone-purple .rv2-stat-label>span{background:rgba(47,101,164,.15)!important;color:#24558f!important}
+.rv2-stat-card.tone-orange .rv2-stat-label>span{background:rgba(245,158,11,.17)!important;color:#b66b00!important}
+
+/* Dashboard approved dense layout */
+.rv2-dashboard-toolbar{height:42px!important;margin-bottom:10px!important}.rv2-date-range,.rv2-filter-button{height:36px!important}
+.rv2-analytics-grid,.rv2-lower-grid{gap:10px!important;margin-bottom:10px!important}.rv2-chart-card,.rv2-info-card{border-radius:11px!important;padding:12px 14px!important}.rv2-chart-card h2,.rv2-info-card h2{font-size:11px!important}.rv2-chart-sales svg{height:132px!important}.rv2-donut-wrap{grid-template-columns:145px minmax(0,1fr)!important}.rv2-donut{width:138px!important;height:138px!important}.rv2-info-rows{gap:8px!important;margin-top:13px!important}
+
+/* Filters, tables and page cards */
+.rv2-filter-row{padding:10px!important;gap:9px!important;border-radius:11px!important;background:#fff!important}.rv2-filter-row input,.rv2-filter-row select,.rv2-search-control,.rv2-compare-filter select{height:38px!important;border-radius:8px!important;border-color:#d9e4de!important;font-size:11px!important}
+.rv2-data-panel{border-radius:11px!important;background:#fff!important;overflow:hidden!important}.rv2-mock-table th{background:#f4f8f6!important;color:#43516a!important;font-size:9px!important;font-weight:650!important;height:38px!important}.rv2-mock-table td{font-size:9.5px!important;height:42px!important;padding-top:8px!important;padding-bottom:8px!important}.rv2-table-footer{padding:9px 12px!important}.rv2-pagination button.is-active{background:#0f9f52!important;border-color:#0f9f52!important;color:#fff!important}
+.rv2-badge.status-active,.rv2-badge.status-paid{background:#e7f7ee!important;color:#08753c!important}.rv2-badge.status-open{background:#fff3d9!important;color:#9a5d00!important}
+.rv2-tab-row button.is-active{background:#e8f7ef!important;color:#08753c!important;border-color:#bfe2ce!important}
+
+/* Modals and popups */
+.rv2-modal-backdrop{background:rgba(18,33,61,.36)!important;backdrop-filter:blur(5px)!important}.rv2-form-modal,.rv2-ledger-modal{background:#fff!important;border:1px solid #dce7e1!important;border-radius:14px!important;box-shadow:0 22px 56px rgba(18,33,61,.20)!important}.rv2-form-modal>header,.rv2-ledger-modal>header{background:#f1faf5!important;border-bottom:1px solid #dce7e1!important}.rv2-modal-title>span,.rv2-ledger-icon{background:#dff4e8!important;color:#0f9f52!important}.rv2-form-modal input,.rv2-form-modal select,.rv2-form-modal textarea{border-color:#d8e4de!important;background:#fff!important}.rv2-form-modal input:focus,.rv2-form-modal select:focus,.rv2-form-modal textarea:focus{outline:2px solid rgba(15,159,82,.15)!important;border-color:#63bf8d!important}.rv2-form-modal footer{background:#fbfdfc!important;border-top:1px solid #e1e9e4!important}
+
+/* Payroll group approved scrollable list */
+.payroll-group-modal,.group-payroll-modal,.payroll-group-dialog{max-height:92vh!important;overflow:hidden!important}.payroll-group-modal .rv2-popup-scroll,.group-payroll-modal .rv2-popup-scroll,.payroll-group-dialog .rv2-popup-scroll,.payroll-group-selected-table,.payroll-selected-employees{max-height:330px!important;overflow-y:auto!important;overscroll-behavior:contain!important;scrollbar-color:rgba(15,159,82,.45) transparent!important;scrollbar-width:thin!important}
+.payroll-group-selected-table::-webkit-scrollbar,.payroll-selected-employees::-webkit-scrollbar{width:7px}.payroll-group-selected-table::-webkit-scrollbar-thumb,.payroll-selected-employees::-webkit-scrollbar-thumb{background:rgba(15,159,82,.45);border-radius:999px}
+
+/* Remove legacy orange visual remnants in active V2 workspace */
+.rv2-content [style*="#ff7"],.rv2-content [style*="#f973"],.rv2-content [style*="orange"]{--legacy-orange-replaced:#0f9f52}
+.rv2-content .tone-orange .rv2-stat-label>span,.rv2-content .tone-orange .payroll-modern-card-icon{color:#9a5d00!important}
+
+@media(max-width:1100px){.rv2-shell{grid-template-columns:198px minmax(0,1fr)}.rv2-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.rv2-stat-grid-five,.rv2-stat-grid-six{grid-template-columns:repeat(3,minmax(0,1fr))!important}.rv2-mock-action-row{grid-template-columns:1fr!important}}
+@media(max-width:760px){.rv2-shell{display:block}.rv2-sidebar{position:fixed;width:212px;transform:translateX(-100%)}.rv2-mobile-open .rv2-sidebar{transform:translateX(0)}.rv2-menu{display:grid;place-items:center}.rv2-content{padding:12px!important}.rv2-kpi-grid,.rv2-stat-grid-five,.rv2-stat-grid-six{grid-template-columns:1fr!important}.rv2-upload-main{grid-template-columns:1fr!important}.rv2-upload-bar{height:auto!important}.rv2-top-actions .rv2-profile{display:none}}
+
+/* Exact current Group Payroll DOM */
+.payroll-rc5-overlay{background:rgba(18,33,61,.36)!important;backdrop-filter:blur(5px)!important}
+.payroll-rc5-modal{background:#fff!important;border:1px solid #dce7e1!important;border-radius:14px!important;box-shadow:0 22px 56px rgba(18,33,61,.20)!important}
+.payroll-rc5-modal .payroll-group-eyebrow{color:#0f9f52!important}.payroll-modal-icon{background:#dff4e8!important;color:#0f9f52!important}
+.payroll-group-add-button,.payroll-group-create-button{background:#0f9f52!important;border-color:#0f9f52!important;color:#fff!important}
+.payroll-group-selection-summary{background:#f1faf5!important;border-color:#bfe2ce!important}
+.payroll-group-selection-summary button:last-child{border-color:#0f9f52!important;color:#08753c!important;background:#fff!important}
+.payroll-rc5-modal .payroll-rc5-table-wrap{display:block!important;max-height:330px!important;overflow-y:auto!important;overflow-x:auto!important;overscroll-behavior:contain!important;scrollbar-color:rgba(15,159,82,.45) transparent!important;scrollbar-width:thin!important;border:1px solid #dfe8e3!important;border-radius:10px!important}
+.payroll-rc5-modal .payroll-rc5-table-wrap::-webkit-scrollbar{width:7px;height:7px}.payroll-rc5-modal .payroll-rc5-table-wrap::-webkit-scrollbar-thumb{background:rgba(15,159,82,.45);border-radius:999px}
+.payroll-rc5-modal .payroll-rc5-table thead{position:sticky!important;top:0!important;z-index:2!important;background:#f4f8f6!important}
+
+/* Legacy pages hosted inside V2 shell: green actions and compact cards */
+.rv2-content .btn:not(.secondary):not(.danger),.rv2-content button.primary,.rv2-content .primary,.rv2-content .save-button,.rv2-content .apply-button,.rv2-content .export-button.primary{background:#0f9f52!important;border-color:#0f9f52!important;color:#fff!important}
+.rv2-content .card,.rv2-content .panel,.rv2-content .section-card,.rv2-content .entity-card{border-color:#dfe8e3!important;border-radius:11px!important;box-shadow:var(--rv2-shadow)!important}
+.rv2-content .summary-card,.rv2-content .metric-card{min-height:86px!important;border-radius:11px!important;padding:12px!important}
+.rv2-content .status-banner,.rv2-content .info-banner{background:#f1faf5!important;border-color:#bfe2ce!important;color:#135f39!important}

@@ -61,7 +61,7 @@ export default function AppShellV2({ active, setActive, children }) {
       <aside className="rv2-sidebar" aria-label="RestaPay navigation">
         <button className="rv2-brand" type="button" onClick={() => openPage('dashboard')}>
           <span className="rv2-brand-mark"><span>R</span></span>
-          <span className="rv2-brand-copy"><strong>RESTAPAY</strong><small>BACK OFFICE</small></span>
+          <span className="rv2-brand-copy"><strong>RestaPay</strong></span>
         </button>
 
         <nav className="rv2-nav">

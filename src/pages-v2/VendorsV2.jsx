@@ -82,7 +82,7 @@ export default function VendorsV2({ data, setData }) {
         <select value={category} onChange={e=>{setCategory(e.target.value);setPage(1)}}><option value="all">All Categories</option>{categories.map(c=><option key={c}>{c}</option>)}</select>
         <select value={status} onChange={e=>{setStatus(e.target.value);setPage(1)}}><option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
         <button className="rv2-clear-button" onClick={clearFilters}>Clear Filters</button>
-        <button className="rv2-orange-button rv2-filter-action" onClick={openAdd}><Icon name="plus" size={16}/> Add Vendor</button>
+        <button className="rv2-primary-button rv2-filter-action" onClick={openAdd}><Icon name="plus" size={16}/> Add Vendor</button>
       </div>
       <div className="rv2-table-scroll"><table className="rv2-mock-table"><thead><tr><th>Vendor</th><th>Category</th><th>Invoices</th><th>Total Spent</th><th>Last Invoice</th><th>Status</th><th>Actions</th></tr></thead><tbody>
         {visible.length?visible.map(v=><tr key={v.id}><td><strong>{v.name}</strong></td><td><span className="rv2-badge category-badge">{v.category||'Other'}</span></td><td>{v.invoice_count}</td><td>{money(v.total_spent)}</td><td>{v.last_invoice}</td><td><span className={`rv2-badge ${v.is_active===false?'status-inactive':'status-active'}`}>{v.is_active===false?'Inactive':'Active'}</span></td><td><div className="rv2-row-icon-actions"><button title="Edit vendor" onClick={()=>openEdit(v)}><Icon name="edit" size={15}/></button><button className="danger" title="Delete vendor" onClick={()=>deleteVendor(v)}><Icon name="trash" size={15}/></button></div></td></tr>):<tr><td colSpan="7" className="rv2-empty-row">No vendors match the selected filters.</td></tr>}
@@ -95,6 +95,6 @@ export default function VendorsV2({ data, setData }) {
       <label>Contact Person<input value={form.contact||''} onChange={e=>setForm({...form,contact:e.target.value})} placeholder="Contact name"/></label><label>Phone<input value={form.phone||''} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Phone number"/></label>
       <label className="span-2">Email<input type="email" value={form.email||''} onChange={e=>setForm({...form,email:e.target.value})} placeholder="email@example.com"/></label><label className="span-2">Notes<textarea value={form.notes||''} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Additional notes"/></label>
       <label className="rv2-check-field span-2"><input type="checkbox" checked={form.is_active!==false} onChange={e=>setForm({...form,is_active:e.target.checked})}/><span>Active vendor</span></label>
-    </div><footer><button className="rv2-clear-button" type="button" onClick={closeModal}>Cancel</button><button className="rv2-orange-button" type="submit"><Icon name="save" size={16}/>{editingId?'Update Vendor':'Save Vendor'}</button></footer></form></section></div>}
+    </div><footer><button className="rv2-clear-button" type="button" onClick={closeModal}>Cancel</button><button className="rv2-primary-button" type="submit"><Icon name="save" size={16}/>{editingId?'Update Vendor':'Save Vendor'}</button></footer></form></section></div>}
   </div>
 }

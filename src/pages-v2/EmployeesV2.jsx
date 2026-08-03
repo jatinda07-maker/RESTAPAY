@@ -102,7 +102,7 @@ export default function EmployeesV2({ data, setData }) {
   return <div className="rv2-mock-page rv2-employees-mock">
     <div className="rv2-mock-action-row">
       <UploadBar label="Upload Toast Labor" accept=".csv,.xls,.xlsx" onChange={handleLaborUpload} />
-      <button className="rv2-orange-button" type="button" onClick={openAdd}><Icon name="plus" size={17}/> Add Employee</button>
+      <button className="rv2-primary-button" type="button" onClick={openAdd}><Icon name="plus" size={17}/> Add Employee</button>
     </div>
 
     {notice && <div className="rv2-inline-notice" role="status">{notice}<button type="button" onClick={() => setNotice('')}>×</button></div>}
@@ -149,7 +149,7 @@ export default function EmployeesV2({ data, setData }) {
             <label className="span-2">Extra Pay Reason<input value={form.extra_reason} onChange={e=>setForm({...form,extra_reason:e.target.value})} placeholder="Optional reason"/></label>
             <label className="rv2-check-field span-2"><input type="checkbox" checked={form.is_active} onChange={e=>setForm({...form,is_active:e.target.checked})}/><span>Active employee</span></label>
           </div>
-          <footer><button className="rv2-clear-button" type="button" onClick={closeModal}>Cancel</button><button className="rv2-orange-button" type="submit"><Icon name="save" size={16}/>{editingId?'Update Employee':'Save Employee'}</button></footer>
+          <footer><button className="rv2-clear-button" type="button" onClick={closeModal}>Cancel</button><button className="rv2-primary-button" type="submit"><Icon name="save" size={16}/>{editingId?'Update Employee':'Save Employee'}</button></footer>
         </form>
       </section>
     </div>}
