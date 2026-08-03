@@ -771,7 +771,8 @@ export default function Payroll({ data, setData }) {
       <div className="payroll-rc5-head-actions">
         <button type="button" className="btn payroll-kitchen-button" onClick={openKitchenGroupPayroll}><Icon name="users" /> Kitchen Group Payroll</button>
         <button type="button" className="btn payroll-manual-button" onClick={() => { setShowGroupPayroll(false); setShowManual(true) }}><Icon name="plus" /> Manual Payroll</button>
-        <label className="btn primary payroll-upload-button"><Icon name="upload" /> Upload Toast Labor<input type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
+        <label className="btn payroll-upload-button"><Icon name="upload" /> <span>Upload Toast Labor</span><input type="file" accept=".csv,.xlsx,.xls" onChange={handleToastFile} /></label>
+        <button type="button" className="btn primary payroll-add-manual-button" onClick={() => { setShowGroupPayroll(false); setShowManual(true) }}><Icon name="plus" /> Add Manual Payroll</button>
       </div>
     </div>
 
@@ -841,7 +842,7 @@ export default function Payroll({ data, setData }) {
     <section className="payroll-rc5-card">
       <div className="payroll-rc5-card-head">
         <div><h2>Payroll History</h2><p>{filteredHistory.length} final paid entries in the selected range. Edit or delete any record directly.</p></div>
-        <div className="payroll-rc5-actions"><input value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Employee, check, method" /><button type="button" className="btn secondary" onClick={exportCsv}><Icon name="download" /> Export CSV</button></div>
+        <div className="payroll-rc5-actions payroll-history-tools"><label className="payroll-history-search"><Icon name="search" size={16} /><input value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Employee, check, method" /></label><button type="button" className="btn secondary" onClick={exportCsv}><Icon name="download" /> Export CSV</button></div>
       </div>
       <div className="payroll-rc5-table-wrap"><table className="payroll-rc5-table history"><thead><tr><th>Status</th><th>Employee</th><th>Date</th><th>Hours</th><th>Fixed Pay</th><th>Credit Card Tips</th><th>Withheld</th><th>Extra Pay</th><th>Reason</th><th>Final Tips</th><th>Method</th><th>Check #</th><th>Final Payroll</th><th></th></tr></thead><tbody>
         {filteredHistory.map(row => { const editable = editingId === row.id; return <tr key={row.id}>

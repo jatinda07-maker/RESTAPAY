@@ -252,3 +252,133 @@
   .payroll-rc5-summary.payroll-modern-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
 @media(max-width:640px){.payroll-rc5-summary.payroll-modern-summary{grid-template-columns:1fr!important}}
+
+/* ===== V2 Phase 6 exact approved Sales + Payroll alignment ===== */
+:root{--rv2-control-height:42px;--rv2-control-radius:10px}
+
+/* Universal upload appearance: compact outline shell with a 28px native chooser */
+.rv2-content label.file-action,
+.rv2-content .payroll-upload-button,
+.rv2-content label[class*="upload"]{
+  height:42px!important;min-height:42px!important;padding:0 13px!important;
+  border:1px solid #fd8a43!important;border-radius:10px!important;background:#fff!important;
+  color:#ea580c!important;box-shadow:0 4px 12px rgba(15,23,42,.025)!important;
+  display:flex!important;align-items:center!important;gap:10px!important;min-width:0!important;
+}
+.rv2-content label.file-action input[type="file"],
+.rv2-content .payroll-upload-button input[type="file"],
+.rv2-content label[class*="upload"] input[type="file"]{
+  flex:1 1 auto!important;min-width:0!important;width:auto!important;max-width:none!important;
+  color:#475569!important;font:400 11px/1 var(--rv2-font)!important;overflow:hidden!important;text-overflow:ellipsis!important;
+}
+.rv2-content label.file-action input[type="file"]::file-selector-button,
+.rv2-content .payroll-upload-button input[type="file"]::file-selector-button,
+.rv2-content label[class*="upload"] input[type="file"]::file-selector-button{
+  height:28px!important;padding:0 11px!important;margin:0 10px 0 0!important;border:1px solid #cbd5e1!important;
+  border-radius:7px!important;background:#fff!important;color:#0f172a!important;font:500 11px/1 var(--rv2-font)!important;
+}
+
+/* Sales: exact single-line tool row with aligned 42px controls and no clipping */
+.rv2-sales-page .sales-top-actions{
+  display:flex!important;align-items:center!important;gap:14px!important;width:100%!important;min-width:0!important;
+  overflow:visible!important;
+}
+.rv2-sales-page .sales-top-actions .file-action:first-child{flex:0 1 360px!important;max-width:390px!important}
+.rv2-sales-page .sales-top-actions .file-action:nth-child(2){flex:0 1 520px!important;max-width:560px!important}
+.rv2-sales-page .sales-top-actions>.btn:not(.file-action){
+  flex:0 0 auto!important;margin-left:auto!important;height:42px!important;min-height:42px!important;
+  padding:0 18px!important;border-radius:10px!important;white-space:nowrap!important;
+}
+.rv2-sales-page .sales-top-actions .file-action:nth-child(2),
+.rv2-sales-page .sales-top-actions>.btn.primary:not(.file-action){background:#f97316!important;border-color:#f97316!important;color:#fff!important}
+.rv2-sales-page .sales-top-actions .file-action:nth-child(2) input[type="file"]{color:#fff!important}
+.rv2-sales-page .sales-summary-row{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important}
+.rv2-sales-page .sales-history-card>header{min-height:70px!important;padding:14px 16px!important}
+.rv2-sales-page .sales-entry-filter-bar{
+  display:grid!important;grid-template-columns:minmax(320px,1.45fr) minmax(190px,.7fr) minmax(190px,.7fr) auto!important;
+  gap:12px!important;align-items:end!important;padding:12px 16px!important;overflow:visible!important;
+}
+.rv2-sales-page .sales-entry-filter-bar .search-box{
+  height:42px!important;min-height:42px!important;position:relative!important;display:flex!important;align-items:center!important;
+  padding:0 12px 0 40px!important;border:1px solid #dbe3ee!important;border-radius:10px!important;overflow:hidden!important;
+}
+.rv2-sales-page .sales-entry-filter-bar .search-box>svg{position:absolute!important;left:13px!important;top:50%!important;transform:translateY(-50%)!important;z-index:2!important}
+.rv2-sales-page .sales-entry-filter-bar .search-box input{height:40px!important;line-height:40px!important;padding:0!important;border:0!important;box-shadow:none!important;background:transparent!important}
+.rv2-sales-page .sales-entry-filter-bar label{display:grid!important;gap:5px!important;min-width:0!important}
+.rv2-sales-page .sales-entry-filter-bar label select{height:42px!important;min-height:42px!important;margin:0!important;width:100%!important}
+.rv2-sales-page .sales-entry-filter-bar>.filter-note{grid-column:1/-1!important;margin:0!important;justify-self:end!important;font-size:10px!important}
+
+/* Payroll: approved top action bar. Description remains above, controls never compete for width. */
+.payroll-rc5-head{display:block!important;margin:0!important}
+.payroll-rc5-head>div:first-child{margin-bottom:12px!important}
+.payroll-rc5-head>div:first-child p{font-size:12px!important;color:#64748b!important;margin:0!important}
+.payroll-rc5-head-actions{
+  display:grid!important;grid-template-columns:max-content max-content minmax(420px,1fr) max-content!important;
+  gap:14px!important;align-items:center!important;width:100%!important;min-width:0!important;
+}
+.payroll-rc5-head-actions .btn{height:42px!important;min-height:42px!important;border-radius:10px!important;padding:0 16px!important}
+.payroll-kitchen-button{border-color:#fdba74!important;background:#fffaf5!important;color:#c2410c!important}
+.payroll-manual-button{background:#fff!important;border-color:#dbe3ee!important;color:#0f172a!important}
+.payroll-upload-button{width:100%!important;justify-content:flex-start!important;min-width:0!important}
+.payroll-upload-button>span{flex:0 0 auto!important;font-weight:600!important}
+.payroll-add-manual-button{min-width:176px!important;background:#f97316!important;color:#fff!important;border-color:#f97316!important}
+
+/* Compact date toolbar and filter strip */
+.payroll-rc5-page>.date-controls{
+  grid-template-columns:minmax(220px,1.05fr) minmax(220px,1fr) 24px minmax(220px,1fr) 150px!important;
+  gap:12px!important;padding:13px 16px!important;
+}
+.payroll-rc5-filter-card>.payroll-rc5-actions{
+  grid-template-columns:minmax(360px,1.25fr) minmax(250px,.9fr) minmax(250px,.9fr) 132px!important;
+  gap:12px!important;align-items:end!important;
+}
+.payroll-rc5-filter-card>.payroll-rc5-actions>.btn{width:132px!important}
+
+/* Colorful summary cards exactly in one six-card row on standard desktop */
+.payroll-rc5-summary.payroll-modern-summary{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:12px!important}
+.payroll-rc5-summary.payroll-modern-summary>div{min-height:104px!important;padding:14px 15px!important}
+.payroll-modern-card.tone-blue{background:#f3e8ff!important;border-color:#e9d5ff!important}.payroll-modern-card.tone-blue .payroll-modern-card-icon{background:#ede9fe!important;color:#7c3aed!important}
+.payroll-modern-card.tone-slate{background:#eff6ff!important;border-color:#bfdbfe!important}.payroll-modern-card.tone-slate .payroll-modern-card-icon{background:#dbeafe!important;color:#2563eb!important}
+.payroll-modern-card.tone-purple{background:#ecfdf5!important;border-color:#bbf7d0!important}.payroll-modern-card.tone-purple .payroll-modern-card-icon{background:#d1fae5!important;color:#16a34a!important}
+.payroll-modern-card.tone-red{background:#fff7ed!important;border-color:#fed7aa!important}.payroll-modern-card.tone-red .payroll-modern-card-icon{background:#ffedd5!important;color:#f59e0b!important}
+.payroll-modern-card.tone-orange{background:#fff1f2!important;border-color:#fecdd3!important}.payroll-modern-card.tone-orange .payroll-modern-card-icon{background:#ffe4e6!important;color:#e11d48!important}
+.payroll-modern-card.tone-green{background:#ecfeff!important;border-color:#a5f3fc!important}.payroll-modern-card.tone-green .payroll-modern-card-icon{background:#cffafe!important;color:#0891b2!important}
+
+/* Payroll history title + controls remain on one horizontal line */
+.payroll-rc5-card-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;padding:13px 16px!important}
+.payroll-history-tools{display:flex!important;align-items:center!important;gap:10px!important;flex-wrap:nowrap!important;justify-content:flex-end!important}
+.payroll-history-search{position:relative!important;display:flex!important;align-items:center!important;width:360px!important;height:42px!important;margin:0!important}
+.payroll-history-search>svg{position:absolute!important;left:13px!important;top:50%!important;transform:translateY(-50%)!important;color:#64748b!important;z-index:2!important}
+.payroll-history-search input{width:100%!important;height:42px!important;margin:0!important;padding:0 12px 0 38px!important}
+.payroll-history-tools>.btn{height:42px!important;min-height:42px!important}
+.payroll-rc5-table-wrap{width:100%!important;overflow-x:auto!important;overflow-y:visible!important;scrollbar-width:thin!important;scrollbar-color:rgba(249,115,22,.18) transparent!important}
+.payroll-rc5-table-wrap::-webkit-scrollbar{height:7px!important}.payroll-rc5-table-wrap::-webkit-scrollbar-track{background:transparent!important}.payroll-rc5-table-wrap::-webkit-scrollbar-thumb{background:rgba(249,115,22,.18)!important;border-radius:999px!important}
+.payroll-rc5-table.history{min-width:1180px!important;table-layout:auto!important}
+.payroll-rc5-table.history th{padding:9px 8px!important;font-size:8.2px!important}
+.payroll-rc5-table.history td{padding:9px 8px!important;font-size:9.8px!important;line-height:1.25!important}
+.payroll-rc5-table.history td:nth-child(2){min-width:150px!important}.payroll-rc5-table.history td:nth-child(9){max-width:130px!important;white-space:normal!important}
+.payroll-rc5-table.history .payroll-rc5-money{font-size:10.5px!important}
+
+/* Light transparent orange navigation treatment */
+.rv2-nav-item:hover{background:rgba(249,115,22,.07)!important;color:#9a3412!important}
+.rv2-nav-item.is-active{background:rgba(249,115,22,.11)!important;color:#c2410c!important}
+.rv2-nav-item::before{width:4px!important}.rv2-nav-item.is-active::before{background:#ea580c!important}
+.rv2-sidebar::-webkit-scrollbar-thumb{background:rgba(249,115,22,.09)!important}.rv2-sidebar::-webkit-scrollbar-thumb:hover{background:rgba(249,115,22,.16)!important}
+
+@media(max-width:1450px){
+  .payroll-rc5-head-actions{grid-template-columns:max-content max-content minmax(330px,1fr) max-content!important}
+  .payroll-rc5-summary.payroll-modern-summary{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+@media(max-width:1180px){
+  .rv2-sales-page .sales-top-actions{display:grid!important;grid-template-columns:1fr 1fr!important}
+  .rv2-sales-page .sales-top-actions>.btn:not(.file-action){margin-left:0!important;width:100%!important}
+  .payroll-rc5-head-actions{grid-template-columns:1fr 1fr!important}
+  .payroll-rc5-head-actions>*{width:100%!important}
+  .payroll-rc5-filter-card>.payroll-rc5-actions{grid-template-columns:1fr 1fr!important}
+}
+@media(max-width:760px){
+  .rv2-sales-page .sales-top-actions,.payroll-rc5-head-actions{grid-template-columns:1fr!important}
+  .rv2-sales-page .sales-entry-filter-bar,.payroll-rc5-filter-card>.payroll-rc5-actions{grid-template-columns:1fr!important}
+  .payroll-rc5-summary.payroll-modern-summary{grid-template-columns:1fr 1fr!important}
+  .payroll-history-tools{width:100%!important;flex-wrap:wrap!important}.payroll-history-search{width:100%!important}
+}
