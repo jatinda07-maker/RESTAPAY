@@ -8,7 +8,8 @@ const navGroups = [
   { label: 'OVERVIEW', items: ['dashboard', 'sales'] },
   { label: 'PURCHASING', items: ['invoices', 'vendors', 'vendor-comparison', 'price-increase'] },
   { label: 'PEOPLE', items: ['employees', 'payroll'] },
-  { label: 'OPERATIONS', items: ['expenses', 'reports', 'import-center', 'toast-integration'] }
+  { label: 'OPERATIONS', items: ['expenses', 'reports', 'import-center', 'toast-integration'] },
+  { label: 'SYSTEM & SETUP', items: ['settings'] }
 ]
 
 const labels = {
@@ -76,21 +77,7 @@ export default function AppShellV2({ active, setActive, children }) {
               ))}
             </section>
           ))}
-          <section className="rv2-nav-group rv2-nav-settings-group">
-            <button className={`rv2-nav-item ${active === 'settings' ? 'is-active' : ''}`} type="button" onClick={() => openPage('settings')}>
-              <span className="rv2-nav-icon"><Icon name="settings" size={18} /></span><span>Settings</span>
-            </button>
-          </section>
         </nav>
-
-        <div className="rv2-sidebar-bottom">
-          <div className="rv2-account-label">ACCOUNT</div>
-          <button className="rv2-nav-item" type="button"><span className="rv2-nav-icon"><Icon name="employees" size={18} /></span><span>Profile</span></button>
-          <button className="rv2-nav-item" type="button"><span className="rv2-nav-icon"><Icon name="logout" size={18} /></span><span>Logout</span></button>
-          <button className="rv2-restaurant" type="button">
-            <span><small>Current Restaurant</small><strong>Jaybos Restaurant</strong></span><b>⌄</b>
-          </button>
-        </div>
       </aside>
 
       <div className="rv2-main">
