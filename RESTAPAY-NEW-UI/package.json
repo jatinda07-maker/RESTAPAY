@@ -1,0 +1,24 @@
+{
+  "name": "restapay-new-ui",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:core": "node scripts/test-core-engines.mjs",
+    "test:weekly-payroll": "node scripts/test-weekly-payroll.mjs",
+    "test:sales": "node scripts/test-sales-view.mjs",
+    "test:invoice": "node scripts/test-invoice-engine.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "vite": "latest",
+    "xlsx": "^0.18.5"
+  }
+}
