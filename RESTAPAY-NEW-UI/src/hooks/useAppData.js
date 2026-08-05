@@ -2,43 +2,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { summarizePayroll } from '../core/adapters/payrollAdapter.js'
 import { buildPriceHistory, comparePrices, normalizeInvoice } from '../core/engines/InvoiceEngine.js'
 
-const KEYS = {
-  sales: 'restapay.sales',
-  payroll: 'restapay-payroll',
-  invoices: 'restapay-invoices',
-  expenses: 'restapay-expenses',
-  vendors: 'restapay-vendors',
-  employees: 'restapay-employees',
-}
-
-const readArray = (key) => {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || '[]')
-    return Array.isArray(value) ? value : []
-  } catch {
-    return []
-  }
-}
+import { liveSnapshot, subscribeLiveData, initializeLiveData } from '../data/liveDataStore.js'
 
 const number = (value) => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 const categoryName = (row) => String(row.category || row.department || row.type || '').toLowerCase()
 const isAlcohol = (row) => /alcohol|beer|wine|liquor|margarita|cocktail|shot/.test(categoryName(row))
 const isFood = (row) => /food|meat|seafood|produce|dairy|dry goods|frozen/.test(categoryName(row)) && !isAlcohol(row)
 
-function snapshot() {
-  return Object.fromEntries(Object.entries(KEYS).map(([name, key]) => [name, readArray(key)]))
-}
+function snapshot(){ return liveSnapshot() }
 
 export function useAppData() {
   const [data, setData] = useState(snapshot)
   useEffect(() => {
-    const refresh = () => setData(snapshot())
-    window.addEventListener('restapay:data-change', refresh)
-    window.addEventListener('storage', refresh)
-    return () => {
-      window.removeEventListener('restapay:data-change', refresh)
-      window.removeEventListener('storage', refresh)
-    }
+    let active=true
+    const refresh=()=>active&&setData(snapshot())
+    initializeLiveData().then(refresh).catch(()=>{})
+    const unsub=subscribeLiveData(refresh)
+    return ()=>{active=false;unsub()}
   }, [])
 
   const metrics = useMemo(() => {
