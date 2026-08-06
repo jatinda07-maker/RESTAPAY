@@ -9,7 +9,7 @@ const categoryName = (row) => String(row.category || row.department || row.type 
 const isAlcohol = (row) => /alcohol|beer|wine|liquor|margarita|cocktail|shot/.test(categoryName(row))
 const isFood = (row) => /food|meat|seafood|produce|dairy|dry goods|frozen/.test(categoryName(row)) && !isAlcohol(row)
 
-function snapshot(){ return liveSnapshot() }
+function snapshot(){ const value=liveSnapshot()||{};return {sales:Array.isArray(value.sales)?value.sales.filter(Boolean):[],payroll:Array.isArray(value.payroll)?value.payroll.filter(Boolean):[],invoices:Array.isArray(value.invoices)?value.invoices.filter(Boolean):[],expenses:Array.isArray(value.expenses)?value.expenses.filter(Boolean):[],vendors:Array.isArray(value.vendors)?value.vendors.filter(Boolean):[],employees:Array.isArray(value.employees)?value.employees.filter(Boolean):[]} }
 
 export function useAppData() {
   const [data, setData] = useState(snapshot)

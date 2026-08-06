@@ -168,3 +168,5 @@ button { cursor: pointer; }
 .sidebar::-webkit-scrollbar-track{background:linear-gradient(180deg,rgba(237,251,243,.18),rgba(207,239,221,.42));border-radius:999px}
 .sidebar::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(53,181,109,.76),rgba(8,127,69,.64));border:1px solid rgba(255,255,255,.72);border-radius:999px;box-shadow:inset 0 1px 1px rgba(255,255,255,.55),0 1px 5px rgba(8,127,69,.2)}
 .sidebar::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,rgba(32,166,91,.9),rgba(5,105,56,.82))}
+
+.page-error-state{margin:24px;padding:48px 24px;text-align:center;display:grid;justify-items:center;gap:12px;color:#10264a}.page-error-state svg{color:#e55353}.page-error-state h2{margin:0}.page-error-state p{max-width:620px;color:#61769a}.page-error-actions{display:flex;gap:10px;margin-top:8px}.page-error-actions button{display:inline-flex;align-items:center;gap:8px}

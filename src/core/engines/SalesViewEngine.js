@@ -47,8 +47,8 @@ export function salePaymentLabel(row, tab = 'All Sales') {
 }
 
 export function salesViewRows(rows, { tab = 'All Sales', payment = 'All Payments', query = '', location = 'All Locations' } = {}) {
-  const normalizedQuery = query.trim().toLowerCase()
-  return rows.map(row => {
+  const normalizedQuery = String(query ?? '').trim().toLowerCase()
+  return (Array.isArray(rows) ? rows.filter(Boolean) : []).map(row => {
     const amount = salePaymentAmount(row, tab)
     return {
       ...row,

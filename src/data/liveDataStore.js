@@ -43,6 +43,28 @@ const configs = {
   }
 }
 
+const OPTIONAL_TABLE_KEYS = new Set(['restapay-bank-checks'])
+const isMissingTableError = error => error && (error.code === '42P01' || error.status === 404 || /does not exist|not found|schema cache/i.test(String(error.message || '')))
+const normalizeCollectionRows = (rows, key) => (Array.isArray(rows) ? rows : []).filter(Boolean).map(row => {
+  const normalized = { ...row }
+  if (key === 'restapay-employees') {
+    normalized.name = text(normalized.name || normalized.employee_name) || 'Unnamed employee'
+    normalized.job = text(normalized.job || normalized.job_type) || 'Kitchen'
+    normalized.type = text(normalized.type || normalized.employee_type) || 'Hourly'
+    normalized.method = text(normalized.method || normalized.pay_method) || 'Cash'
+    normalized.status = text(normalized.status) || 'Active'
+  }
+  if (key === 'restapay-vendors') {
+    normalized.name = text(normalized.name || normalized.vendor_name) || 'Unnamed vendor'
+    normalized.type = text(normalized.type || normalized.vendor_type) || 'Operating Expense'
+    normalized.category = text(normalized.category) || 'Other'
+    normalized.expenseType = text(normalized.expenseType || normalized.expense_type) || 'Other'
+    normalized.status = text(normalized.status) || 'Active'
+  }
+  if (key === 'restapay-bank-checks') normalized.status = text(normalized.status) || 'Pending'
+  return normalized
+})
+
 const cache = new Map(Object.keys(configs).map(k=>[k,[]]))
 const ready = new Map()
 const listeners = new Set()
@@ -81,8 +103,8 @@ export async function ensureLiveCollection(key){
     if(!isSupabaseReady) throw new Error('Supabase environment variables are missing.')
     let rows
     if(key==='restapay-invoices') rows=await loadInvoices()
-    else {const cfg=configs[key];const {data,error}=await supabase.from(cfg.table).select('*');if(error)throw error;rows=(data||[]).map(cfg.fromDb)}
-    cache.set(key,rows);emit(key);return rows
+    else {const cfg=configs[key];const {data,error}=await supabase.from(cfg.table).select('*');if(error){if(OPTIONAL_TABLE_KEYS.has(key)&&isMissingTableError(error)){console.warn(`Optional Supabase table ${cfg.table} is unavailable; using an empty collection.`);rows=[]}else throw error}else rows=(data||[]).map(cfg.fromDb)}
+    rows=normalizeCollectionRows(rows,key);cache.set(key,rows);emit(key);return rows
   })().catch(error=>{ready.delete(key);console.error(`Unable to load ${key}`,error);window.dispatchEvent(new CustomEvent('restapay:cloud-error',{detail:{key,message:error.message}}));throw error})
   ready.set(key,promise);return promise
 }

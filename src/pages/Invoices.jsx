@@ -4,7 +4,7 @@ import {ChevronDown,ChevronRight,FileInput,Filter,Pencil,Plus,Search,Sparkles,Tr
 import Modal from '../components/Modal'
 import DetailDrawer from '../components/DetailDrawer'
 import useCrudCollection from '../hooks/useCrudCollection'
-import {useFeedback} from '../components/AppFeedback'
+import {lower,searchableText} from '../lib/safe';import {useFeedback} from '../components/AppFeedback'
 import {calculateInvoice, normalizeInvoice} from '../core/engines/InvoiceEngine.js'
 import {useAppData} from '../hooks/useAppData'
 import {isSupabaseReady,supabase} from '../lib/supabase.js'
@@ -17,7 +17,7 @@ const categories=['Food','Meat','Seafood','Produce','Dairy','Dry Goods','Frozen'
 export default function Invoices(){
  const [rows,crud]=useCrudCollection('restapay-invoices',[]);const {vendors}=useAppData();const {notify}=useFeedback()
  const [query,setQuery]=useState(''),[category,setCategory]=useState('All Categories'),[status,setStatus]=useState('All Status'),[modal,setModal]=useState(false),[ai,setAi]=useState(false),[edit,setEdit]=useState(null),[form,setForm]=useState(blank),[drawer,setDrawer]=useState(null),[aiDraft,setAiDraft]=useState(null);const fileRef=useRef(null)
- const filtered=useMemo(()=>rows.filter(r=>(!query||Object.values(r).join(' ').toLowerCase().includes(query.toLowerCase()))&&(category==='All Categories'||r.category===category)&&(status==='All Status'||r.status===status)),[rows,query,category,status])
+ const safeRows=Array.isArray(rows)?rows.filter(Boolean):[];const filtered=useMemo(()=>safeRows.filter(r=>(!query||searchableText(r).includes(lower(query)))&&(category==='All Categories'||r.category===category)&&(status==='All Status'||r.status===status)),[safeRows,query,category,status])
  const vendorNames=useMemo(()=>[...new Set([...(vendors||[]).map(v=>v.name),...rows.map(r=>r.vendor)].filter(Boolean))].sort(),[vendors,rows])
  const open=(r=null)=>{setEdit(r?.id||null);setForm(r?normalizeInvoice(r):blank());setModal(true)}
  const updateLine=(id,field,value)=>setForm(f=>({...f,lines:f.lines.map(line=>{if(line.id!==id)return line;const next={...line,[field]:value};if(['quantity','unit_price'].includes(field)){next.line_total=((Number(next.quantity)||0)*(Number(next.unit_price)||0)).toFixed(2)}return next})}))
