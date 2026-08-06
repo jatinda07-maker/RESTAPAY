@@ -29,3 +29,6 @@ create table if not exists public.bank_checks (
 alter table public.bank_checks enable row level security;
 drop policy if exists "anon bank checks all" on public.bank_checks;
 create policy "anon bank checks all" on public.bank_checks for all to anon using (true) with check (true);
+
+-- Vendor branding used by the production UI.
+alter table if exists public.vendors add column if not exists logo_url text;

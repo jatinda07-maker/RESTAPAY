@@ -7,14 +7,16 @@ export default function usePersistentState(key, initialValue) {
   useEffect(()=>{
     if(!live) return
     let active=true
-    ensureLiveCollection(key).then(rows=>active&&setValue(rows)).catch(()=>{})
+    ensureLiveCollection(key).then(rows=>active&&setValue(rows)).catch(error=>{
+      if(active) setValue([])
+      console.error(`Unable to initialize ${key}`, error)
+    })
     return subscribeLiveData(()=>active&&setValue(getLiveCollection(key)))
   },[key,live])
   useEffect(()=>{if(live)return;try{localStorage.setItem(key,JSON.stringify(value));window.dispatchEvent(new CustomEvent('restapay:data-change',{detail:{key}}))}catch{}},[key,value,live])
   const update=useCallback((next)=>{
-    if(!live){setValue(next);return}
-    setValue(current=>typeof next==='function'?next(current):next)
-    replaceLiveCollection(key,next).catch(()=>{})
+    if(!live){setValue(next);return Promise.resolve()}
+    return replaceLiveCollection(key,next)
   },[key,live])
   return [value,update]
 }

@@ -15,6 +15,16 @@ function getPresetDates(preset) {
     const value = toInputDate(today)
     return { from: value, to: value }
   }
+  if (preset === 'yesterday') {
+    const d = new Date(today); d.setDate(d.getDate()-1); const value=toInputDate(d); return {from:value,to:value}
+  }
+  if (preset === 'last-week') {
+    const end = new Date(today); const weekday=end.getDay(); end.setDate(end.getDate()-(weekday===0?7:weekday));
+    const start=new Date(end); start.setDate(end.getDate()-6); return {from:toInputDate(start),to:toInputDate(end)}
+  }
+  if (preset === 'last-month') {
+    return {from:toInputDate(new Date(today.getFullYear(),today.getMonth()-1,1)),to:toInputDate(new Date(today.getFullYear(),today.getMonth(),0))}
+  }
   if (preset === 'week') {
     const start = new Date(today)
     const weekday = start.getDay()
@@ -62,8 +72,11 @@ export default function DateToolbar() {
         <CalendarDays size={16} />
         <select value={preset} onChange={handlePresetChange}>
           <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
           <option value="week">This Week</option>
+          <option value="last-week">Last Week</option>
           <option value="month">This Month</option>
+          <option value="last-month">Last Month</option>
           <option value="custom">Custom Range</option>
         </select>
         <ChevronDown size={14} aria-hidden="true" />
