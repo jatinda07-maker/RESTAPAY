@@ -32,7 +32,7 @@ export default function Sales() {
   const [form, setForm] = useState(blankSale)
   const [toastImportOpen, setToastImportOpen] = useState(false)
 
-  const filteredRows = useMemo(() => salesViewRows(rows, { tab, payment, query, location }), [rows, tab, payment, query, location])
+  const filteredRows = useMemo(() => salesViewRows(rows, { tab, payment, query, location }).sort((a,b)=>String(a.view_date||'').localeCompare(String(b.view_date||''))), [rows, tab, payment, query, location])
   const totals = useMemo(() => summarizeSales(rows), [rows])
   const currentTotal = useMemo(() => filteredRows.reduce((sum, row) => sum + Number(row.view_amount || 0), 0), [filteredRows])
 
