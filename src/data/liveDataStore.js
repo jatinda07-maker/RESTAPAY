@@ -6,6 +6,7 @@ const money = value => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 const text = value => String(value ?? '').trim()
 
 const configs = {
+  'restapay-invoices': { table: 'invoices' },
   'restapay-employees': {
     table: 'employees',
     fromDb: r => ({
