@@ -8,8 +8,16 @@ const text = value => String(value ?? '').trim()
 const configs = {
   'restapay-employees': {
     table: 'employees',
-    fromDb: r => ({ ...r, is_active: r.active !== false }),
-    toDb: r => ({ id:r.id||id(), name:text(r.name)||'Unnamed employee', employee_type:r.employee_type||r.type||'Regular', job_type:r.job_type||r.job||'Other', pay_type:r.pay_type||'Hourly', payroll_type:r.payroll_type||r.method||'Cash', default_check_number:text(r.default_check_number||r.check_number), base_pay:money(r.base_pay), extra_pay:money(r.extra_pay), extra_reason:text(r.extra_reason), active:r.is_active!==false&&r.active!==false, phone:text(r.phone), email:text(r.email), notes:text(r.notes), created_at:r.created_at||now(), updated_at:now() })
+    fromDb: r => ({
+      ...r,
+      job: r.job_type || r.job || 'Other',
+      type: r.employee_type || r.type || 'Regular',
+      method: r.payroll_type || r.method || 'Cash',
+      basePay: money(r.base_pay ?? r.basePay),
+      status: r.active === false ? 'Inactive' : 'Active',
+      is_active: r.active !== false
+    }),
+    toDb: r => ({ id:r.id||id(), name:text(r.name)||'Unnamed employee', employee_type:r.employee_type||r.type||'Regular', job_type:r.job_type||r.job||'Other', pay_type:r.pay_type||'Hourly', payroll_type:r.payroll_type||r.method||'Cash', default_check_number:text(r.default_check_number||r.check_number), base_pay:money(r.base_pay ?? r.basePay), extra_pay:money(r.extra_pay), extra_reason:text(r.extra_reason), active:r.status ? String(r.status).toLowerCase() !== 'inactive' : (r.is_active!==false&&r.active!==false), phone:text(r.phone), email:text(r.email), notes:text(r.notes), created_at:r.created_at||now(), updated_at:now() })
   },
   'restapay-vendors': {
     table: 'vendors',
