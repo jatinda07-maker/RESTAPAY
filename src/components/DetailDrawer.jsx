@@ -3,7 +3,7 @@ import { CheckCircle2, ChevronRight, Download, Expand, Minimize2, Printer, Save,
 import { useFeedback } from './AppFeedback'
 import { useNavigate } from 'react-router-dom'
 import { appMoney, appMoney2, appPercent, useAppData } from '../hooks/useAppData'
-import useGlobalDateRange, { presetDates } from '../hooks/useGlobalDateRange'
+import useGlobalDateRange, { presetDates, readDateRange } from '../hooks/useGlobalDateRange'
 
 
 const rowsTotal = (rows, field = 'amount') => rows.reduce((sum,row) => sum + (Number(row[field] ?? row.total ?? 0) || 0), 0)
@@ -29,6 +29,8 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
     'True Food Cost': ['Food purchases compared with food sales', [{title:'True Food Cost',rows:[['Food Purchases',`${metrics.foodInvoiceCount} invoices`,appMoney(metrics.foodCost)],['Food Sales','Matching sales',appMoney(metrics.foodSales)]],total:['True Food Cost',appPercent(metrics.foodCostPercent)]}]],
     'Alcohol Cost': ['Alcohol purchases compared with alcohol sales', [{title:'Alcohol Cost',rows:[['Alcohol Purchases',`${metrics.alcoholInvoiceCount} invoices`,appMoney(metrics.alcoholCost)],['Alcohol Sales','Matching sales',appMoney(metrics.alcoholSales)],['True Alcohol Cost','Purchases ÷ sales',appPercent(metrics.alcoholCostPercent)]],total:['Alcohol Cost',appMoney(metrics.alcoholCost)]}]],
     'True Alcohol Cost': ['Alcohol purchases compared with alcohol sales', [{title:'True Alcohol Cost',rows:[['Alcohol Purchases',`${metrics.alcoholInvoiceCount} invoices`,appMoney(metrics.alcoholCost)],['Alcohol Sales','Matching sales',appMoney(metrics.alcoholSales)]],total:['True Alcohol Cost',appPercent(metrics.alcoholCostPercent)]}]],
+    'Food Invoices': ['Food invoices in the selected period', [{title:'Food Invoices',rows:[['Food Purchases',`${metrics.foodInvoiceCount} invoices`,appMoney(metrics.foodCost)],['All Invoice Spend',`${invoices.length} invoices`,appMoney(metrics.invoiceTotal)]],total:['Food Invoice Total',appMoney(metrics.foodCost)]}]],
+    'Alcohol Invoices': ['Alcohol invoices in the selected period', [{title:'Alcohol Invoices',rows:[['Alcohol Purchases',`${metrics.alcoholInvoiceCount} invoices`,appMoney(metrics.alcoholCost)],['All Invoice Spend',`${invoices.length} invoices`,appMoney(metrics.invoiceTotal)]],total:['Alcohol Invoice Total',appMoney(metrics.alcoholCost)]}]],
     'Payroll Total': ['Payroll, tips and payment methods', [{title:'Payroll Summary',rows:[['Cash Payroll',`${payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='cash').length} entries`,appMoney(metrics.cashPayroll)],['Check Payroll',`${payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='check').length} entries`,appMoney(metrics.checkPayroll)],['Total Hours','Imported and manual labor',metrics.payrollHours.toFixed(1)]],total:['Payroll Total',appMoney(metrics.payrollTotal)]}]],
     'Cash Payroll': ['Cash payment employees', [{title:'Cash Payroll',rows:[['Cash Payroll','Current records',appMoney(metrics.cashPayroll)]],total:['Cash Payroll',appMoney(metrics.cashPayroll)]}]],
     'Check Payroll': ['Check payment employees', [{title:'Check Payroll',rows:[['Check Payroll','Current records',appMoney(metrics.checkPayroll)]],total:['Check Payroll',appMoney(metrics.checkPayroll)]}]],
@@ -74,15 +76,16 @@ export default function DetailDrawer({ title, onClose }) {
   const [selectedRow, setSelectedRow] = useState(null)
   const [notes, setNotes] = useState('')
   const { range: globalRange } = useGlobalDateRange()
-  const [drawerRange, setDrawerRange] = useState(globalRange)
-  const [draftRange, setDraftRange] = useState(globalRange)
+  const [drawerRange, setDrawerRange] = useState(() => readDateRange())
+  const [draftRange, setDraftRange] = useState(() => readDateRange())
   const appData = useAppData(drawerRange)
   const { metrics, sales, invoices, expenses, payroll, vendors, employees } = appData
   const content = useMemo(() => buildDrawerContent(title, appData), [title, appData])
 
   useEffect(() => {
     setActiveTab('Overview'); setExpanded(false); setSelectedRow(null)
-    setDrawerRange(globalRange); setDraftRange(globalRange)
+    const activeRange = readDateRange()
+    setDrawerRange(activeRange); setDraftRange(activeRange)
     if (title) setNotes(localStorage.getItem(`restapay.drawer.notes.${title}`) || '')
   }, [title, globalRange.from, globalRange.to, globalRange.preset])
 
@@ -115,16 +118,16 @@ export default function DetailDrawer({ title, onClose }) {
         <button type="button" className="drawer-icon-button" aria-label={expanded ? 'Restore size' : 'Expand'} onClick={() => setExpanded((value) => !value)}>{expanded ? <Minimize2 size={18}/> : <Expand size={18}/>}</button>
         <button type="button" className="drawer-icon-button" aria-label="Close" onClick={onClose}><X size={20}/></button>
       </div></header>
-      <div className="drawer-range drawer-range-controls">
-        <div className="drawer-range-current"><span>Date Range</span><strong>{formatRangeDate(drawerRange.from)} — {formatRangeDate(drawerRange.to)}</strong></div>
-        <div className="drawer-range-editor">
-          <select aria-label="Detail date range preset" value={draftRange.preset || 'custom'} onChange={event => handleDrawerPreset(event.target.value)}>
+      <div className="drawer-range drawer-range-controls" style={{display:'grid',gap:12}}>
+        <div className="drawer-range-current" style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:16,flexWrap:'wrap'}}><span>Date Range</span><strong>{formatRangeDate(drawerRange.from)} — {formatRangeDate(drawerRange.to)}</strong></div>
+        <div className="drawer-range-editor" style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',width:'100%'}}>
+          <select aria-label="Detail date range preset" value={draftRange.preset || 'custom'} onChange={event => handleDrawerPreset(event.target.value)} style={{minHeight:42,minWidth:150}}>
             <option value="today">Today</option><option value="yesterday">Yesterday</option><option value="week">This Week</option><option value="last-week">Last Week</option><option value="month">This Month</option><option value="last-month">Last Month</option><option value="quarter">This Quarter</option><option value="last-quarter">Last Quarter</option><option value="year">This Year</option><option value="last-year">Last Year</option><option value="custom">Custom Range</option>
           </select>
-          <input aria-label="Detail range from" type="date" value={draftRange.from || ''} onChange={event => setDraftRange({...draftRange,preset:'custom',from:event.target.value})}/>
+          <input aria-label="Detail range from" type="date" value={draftRange.from || ''} onChange={event => setDraftRange({...draftRange,preset:'custom',from:event.target.value})} style={{minHeight:42}}/>
           <span>—</span>
-          <input aria-label="Detail range to" type="date" value={draftRange.to || ''} onChange={event => setDraftRange({...draftRange,preset:'custom',to:event.target.value})}/>
-          <button type="button" onClick={applyDrawerRange}>Apply</button>
+          <input aria-label="Detail range to" type="date" value={draftRange.to || ''} onChange={event => setDraftRange({...draftRange,preset:'custom',to:event.target.value})} style={{minHeight:42}}/>
+          <button type="button" onClick={applyDrawerRange} style={{minHeight:42,padding:'0 18px',fontWeight:700}}>Apply</button>
         </div>
       </div>
       <nav className="drawer-tabs" aria-label="Detail sections">{['Overview','By Category','Entries','Notes'].map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} type="button" onClick={() => { setActiveTab(tab); setSelectedRow(null) }}>{tab}</button>)}</nav>
