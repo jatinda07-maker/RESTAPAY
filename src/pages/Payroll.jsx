@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Banknote, CalendarRange, ChefHat, ChevronDown, ChevronRight, Clock3, Copy,
-  Edit2, Eye, FileUp, Filter, Plus, Search, Trash2, Users, WalletCards
+  Edit2, Eye, FileUp, Filter, Plus, Save, Search, Trash2, Users, WalletCards
 } from 'lucide-react'
 import DateToolbar from '../components/DateToolbar'
 import DetailDrawer from '../components/DetailDrawer'
@@ -29,6 +29,7 @@ export default function Payroll(){
   const [paymentId,setPaymentId] = useState(null)
   const [paymentForm,setPaymentForm] = useState({payment_method:'Check',check_number:'',ach_reference:'',payment_date:new Date().toISOString().slice(0,10),payment_status:'Paid',notes:''})
   const [editingId,setEditingId] = useState(null)
+  const [savingPayroll,setSavingPayroll] = useState(false)
   const [importOpen,setImportOpen] = useState(false)
   const [kitchenOpen,setKitchenOpen] = useState(false)
   const [weekOpen,setWeekOpen] = useState(false)
@@ -103,7 +104,7 @@ export default function Payroll(){
     setManual(true)
   }
 
-  const saveManual = () => {
+  const saveManual = async () => {
     if (!manualForm.employee_name.trim()) return notify('Employee name is required.', 'error')
     const tips=Number(manualForm.credit_card_tips||0)
     const withheld = manualForm.tip_deduction === '' ? Math.round(tips*0.035*100)/100 : Number(manualForm.tip_deduction||0)
@@ -117,9 +118,13 @@ export default function Payroll(){
       extra_pay:Number(manualForm.extra_pay||0),
       total:Number(manualForm.regular_pay||0)+netTips+Number(manualForm.extra_pay||0)
     })
-    setSourceRows(prev => editingId ? prev.map(item => item.id===editingId ? record : item) : [record,...prev])
-    notify(editingId ? 'Payroll entry updated.' : 'Manual payroll entry added.')
-    setManual(false)
+    try {
+      await setSourceRows(prev => editingId ? prev.map(item => item.id===editingId ? record : item) : [record,...prev])
+      notify(editingId ? 'Payroll entry updated and saved to Supabase.' : 'Manual payroll entry saved to Supabase.')
+      setManual(false)
+    } catch (error) {
+      notify(`Payroll save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
+    }
   }
 
   const removeRow = raw => {
@@ -150,20 +155,24 @@ export default function Payroll(){
     setPaymentOpen(true)
   }
 
-  const savePayment = () => {
+  const savePayment = async () => {
     if (!paymentId) return
     if (paymentForm.payment_method === 'Check' && !paymentForm.check_number.trim()) return notify('Enter a check number.', 'error')
     if (paymentForm.payment_method === 'ACH' && !paymentForm.ach_reference.trim()) return notify('Enter an ACH reference.', 'error')
-    setSourceRows(prev => prev.map(row => row.id === paymentId ? {
+    try {
+      await setSourceRows(prev => prev.map(row => row.id === paymentId ? {
       ...row, method:paymentForm.payment_method, payment_method:paymentForm.payment_method,
       check_number:paymentForm.payment_method === 'Check' ? paymentForm.check_number : '',
       ach_reference:paymentForm.payment_method === 'ACH' ? paymentForm.ach_reference : '',
       payment_date:paymentForm.payment_date, payment_status:paymentForm.payment_status,
       payment_notes:paymentForm.notes, updated_at:new Date().toISOString()
-    } : row))
-    setPaymentOpen(false)
-    setActiveTab(paymentForm.payment_status === 'Paid' ? 'Payroll History' : 'Ready to Pay')
-    notify(paymentForm.payment_status === 'Paid' ? 'Payroll payment recorded.' : 'Payroll payment draft saved.')
+      } : row))
+      setPaymentOpen(false)
+      setActiveTab(paymentForm.payment_status === 'Paid' ? 'Payroll History' : 'Ready to Pay')
+      notify(paymentForm.payment_status === 'Paid' ? 'Payroll payment recorded in Supabase.' : 'Payroll payment draft saved to Supabase.')
+    } catch (error) {
+      notify(`Payroll payment save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
+    }
   }
 
 
@@ -224,7 +233,7 @@ export default function Payroll(){
 
   const weeklyPreview = useMemo(() => weeklyAllPreview.filter(row => selectedWeeklyEmployees.includes(row.employee_name)), [weeklyAllPreview, selectedWeeklyEmployees])
 
-  const createWeeklyPayroll = () => {
+  const createWeeklyPayroll = async () => {
     if (!isMondayToSunday(weekStart, weekEnd)) return notify('Select a Monday through Sunday payroll range.', 'error')
     let weeklyRows
     try { weeklyRows = buildWeeklyPayroll(weeklySourceRows, { start:weekStart, end:weekEnd }).filter(row => selectedWeeklyEmployees.includes(row.employee_name)) }
@@ -232,16 +241,37 @@ export default function Payroll(){
     if (!weeklyAllPreview.length) return notify('No daily payroll entries were found in this week.', 'error')
     if (!weeklyRows.length) return notify('Select at least one employee for weekly payroll.', 'error')
     const sourceIds = new Set(weeklyRows.flatMap(row => row.source_ids || []))
-    setSourceRows(previous => {
+    try {
+      setSavingPayroll(true)
+      await setSourceRows(previous => {
       const withoutExistingWeek = previous.filter(row => !(row.weekly_rollup && row.payroll_week_end === weekEnd))
       const marked = withoutExistingWeek.map(row => sourceIds.has(row.id)
         ? { ...row, payroll_status:'rolled-up', included_in_weekly_end:weekEnd }
         : row)
       return [...weeklyRows.map(row => normalizePayrollRecord({...row,payment_status:'Draft',payment_date:'',check_number:'',ach_reference:''}, { source:'weekly-rollup', method:'Check' })), ...marked]
-    })
-    setWeekOpen(false)
-    setActiveTab('Ready to Pay')
-    notify(`${weeklyRows.length} employee payroll records created for week ending ${weekEnd}. Review and record Check, Cash, or ACH payment.`)
+      })
+      setWeekOpen(false)
+      setActiveTab('Ready to Pay')
+      notify(`${weeklyRows.length} employee payroll records created and saved to Supabase for week ending ${weekEnd}.`)
+    } catch (error) {
+      notify(`Weekly payroll save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
+    } finally {
+      setSavingPayroll(false)
+    }
+  }
+
+
+  const saveReadyPayroll = async () => {
+    if (!readyRows.length) return notify('There is no weekly payroll waiting to be saved.', 'error')
+    try {
+      setSavingPayroll(true)
+      await setSourceRows(sourceRows)
+      notify(`${readyRows.length} ready-to-pay payroll records saved to Supabase.`)
+    } catch (error) {
+      notify(`Payroll save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
+    } finally {
+      setSavingPayroll(false)
+    }
   }
 
   const addKitchen = () => {
@@ -292,7 +322,7 @@ export default function Payroll(){
         {groups.length===0 ? <div className="records-empty">No payroll groups created.</div> : groups.map(group=><div className="payroll-group-row" key={group.id}><span><strong>{group.name}</strong><small>{group.type} · {group.employees.length} employees</small></span><div className="row-actions"><button title="Edit group" onClick={()=>{setGroupType(group.type);setSelectedEmployees(group.employees);setKitchenOpen(true)}}><Edit2 size={14}/></button><button className="danger" title="Delete group" onClick={()=>deleteGroup(group.id)}><Trash2 size={14}/></button></div></div>)}
       </div>}
       {activeTab==='Imported Labor' && <div className="payroll-tab-panel"><div><strong>Imported Daily Labor</strong><small>Daily Toast source entries used to build weekly payroll. These stay separate for audit.</small></div><button className="soft-action soft-blue" onClick={()=>setImportOpen(true)}><FileUp size={16}/>Import More Labor</button></div>}
-      {activeTab==='Ready to Pay' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll Ready to Pay</strong><small>Created weekly payroll awaiting Check, Cash, or ACH payment.</small></div><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div>}
+      {activeTab==='Ready to Pay' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll Ready to Pay</strong><small>Created weekly payroll saved in Supabase and awaiting Check, Cash, or ACH payment.</small></div><div className="records-actions"><button className="soft-action soft-green" disabled={!readyRows.length || savingPayroll} onClick={saveReadyPayroll}><Save size={16}/>{savingPayroll?'Saving...':'Save Payroll'}</button><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div></div>}
       {activeTab==='Payroll History' && <div className="payroll-tab-panel"><div><strong>Paid Payroll History</strong><small>Completed weekly payroll payments and full audit details.</small></div></div>}
       {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Kitchen, busser, dishwasher, prep cook, and related employees</small></div><button className="soft-action soft-green" onClick={()=>setKitchenOpen(true)}><ChefHat size={16}/>Open Kitchen Group</button></div>}
       {activeTab==='Manual Labor' && <div className="payroll-tab-panel"><div><strong>Manual Labor Entries</strong><small>Add, edit, duplicate, or delete manually entered payroll.</small></div><button className="soft-action soft-purple" onClick={openAdd}><Plus size={16}/>Add Manual Labor</button></div>}
@@ -366,7 +396,7 @@ export default function Payroll(){
       </div>
     </Modal>
 
-    <Modal open={weekOpen} title="Build Weekly Payroll" subtitle="Select a Monday through Sunday range. One payroll row per employee will be dated on Sunday." onClose={() => setWeekOpen(false)} footer={<><button className="secondary-action" onClick={()=>setWeekOpen(false)}>Cancel</button><button className="primary-button" onClick={createWeeklyPayroll}>Create Weekly Payroll</button></>}>
+    <Modal open={weekOpen} title="Build Weekly Payroll" subtitle="Select a Monday through Sunday range. One payroll row per employee will be dated on Sunday." onClose={() => setWeekOpen(false)} footer={<><button className="secondary-action" onClick={()=>setWeekOpen(false)}>Cancel</button><button className="primary-button" disabled={savingPayroll} onClick={createWeeklyPayroll}>{savingPayroll?'Saving Payroll...':'Create & Save Weekly Payroll'}</button></>}>
       <div className="form-grid weekly-payroll-form">
         <label>Week Starts Monday<input type="date" value={weekStart} onChange={e=>{const start=e.target.value;setWeekStart(start);setWeekEnd(endOfPayrollWeek(start))}}/></label>
         <label>Week Ends Sunday<input type="date" value={weekEnd} onChange={e=>setWeekEnd(e.target.value)}/></label>
