@@ -12,8 +12,9 @@ const isFood = (row) => /food|meat|seafood|produce|dairy|dry goods|frozen/.test(
 
 function snapshot(){ const value=liveSnapshot()||{};return {sales:Array.isArray(value.sales)?value.sales.filter(Boolean):[],payroll:Array.isArray(value.payroll)?value.payroll.filter(Boolean):[],invoices:Array.isArray(value.invoices)?value.invoices.filter(Boolean):[],expenses:Array.isArray(value.expenses)?value.expenses.filter(Boolean):[],vendors:Array.isArray(value.vendors)?value.vendors.filter(Boolean):[],employees:Array.isArray(value.employees)?value.employees.filter(Boolean):[]} }
 
-export function useAppData() {
-  const { range } = useGlobalDateRange()
+export function useAppData(overrideRange = null) {
+  const { range: globalRange } = useGlobalDateRange()
+  const range = overrideRange?.from && overrideRange?.to ? overrideRange : globalRange
   const [data, setData] = useState(snapshot)
   useEffect(() => {
     let active=true

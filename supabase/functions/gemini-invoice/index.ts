@@ -116,6 +116,10 @@ Deno.serve(async request => {
       }, 400)
     }
 
+    if (payload?.healthCheck === true) {
+      return jsonResponse({ ok: true, service: 'gemini-invoice', configured: true, models: clean(Deno.env.get('GEMINI_MODEL')) || DEFAULT_MODELS[0] })
+    }
+
     const fileName = clean(payload?.fileName) || 'invoice'
     const mimeType = inferMimeType(fileName, clean(payload?.mimeType))
     const data = clean(payload?.data).replace(/^data:[^;]+;base64,/, '')

@@ -3,10 +3,12 @@ import { CheckCircle2, ChevronRight, Download, Expand, Minimize2, Printer, Save,
 import { useFeedback } from './AppFeedback'
 import { useNavigate } from 'react-router-dom'
 import { appMoney, appMoney2, appPercent, useAppData } from '../hooks/useAppData'
+import useGlobalDateRange, { presetDates } from '../hooks/useGlobalDateRange'
 
 
 const rowsTotal = (rows, field = 'amount') => rows.reduce((sum,row) => sum + (Number(row[field] ?? row.total ?? 0) || 0), 0)
 const salesCategory = (rows, pattern) => rows.filter(row => pattern.test(String(row.category || row.department || ''))).reduce((sum,row)=>sum+(Number(row.amount||0)||0),0)
+const formatRangeDate = value => { if (!value) return '—'; const [y,m,d] = String(value).split('-').map(Number); const date = y&&m&&d ? new Date(y,m-1,d) : new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}) }
 
 function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll, vendors, employees }) {
   const tone = /cost|expense|alcohol/i.test(title || '') ? 'orange' : /profit|cash|food/i.test(title || '') ? 'green' : /vendor|payroll|labor|employee/i.test(title || '') ? 'purple' : 'blue'
@@ -71,14 +73,18 @@ export default function DetailDrawer({ title, onClose }) {
   const [expanded, setExpanded] = useState(false)
   const [selectedRow, setSelectedRow] = useState(null)
   const [notes, setNotes] = useState('')
-  const appData = useAppData()
+  const { range: globalRange } = useGlobalDateRange()
+  const [drawerRange, setDrawerRange] = useState(globalRange)
+  const [draftRange, setDraftRange] = useState(globalRange)
+  const appData = useAppData(drawerRange)
   const { metrics, sales, invoices, expenses, payroll, vendors, employees } = appData
   const content = useMemo(() => buildDrawerContent(title, appData), [title, appData])
 
   useEffect(() => {
     setActiveTab('Overview'); setExpanded(false); setSelectedRow(null)
+    setDrawerRange(globalRange); setDraftRange(globalRange)
     if (title) setNotes(localStorage.getItem(`restapay.drawer.notes.${title}`) || '')
-  }, [title])
+  }, [title, globalRange.from, globalRange.to, globalRange.preset])
 
   const categoryRows = useMemo(() => content.sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row }))), [content])
   const recentEntries = useMemo(() => buildRecentEntries(title, { sales, invoices, expenses, payroll, vendors, employees }), [title, sales, invoices, expenses, payroll, vendors, employees])
@@ -93,6 +99,15 @@ export default function DetailDrawer({ title, onClose }) {
     notify(`${title} details exported.`)
   }
   const saveNotes = () => { localStorage.setItem(`restapay.drawer.notes.${title}`, notes); notify(`${title} notes saved locally.`) }
+  const handleDrawerPreset = (preset) => {
+    const dates = presetDates(preset)
+    setDraftRange(dates || { ...draftRange, preset:'custom' })
+  }
+  const applyDrawerRange = () => {
+    if (!draftRange.from || !draftRange.to) return notify('Choose both From and To dates.', 'error')
+    if (draftRange.from > draftRange.to) return notify('From date cannot be after To date.', 'error')
+    setDrawerRange({ ...draftRange })
+  }
 
   return <div className="drawer-layer" role="presentation" onMouseDown={onClose}>
     <aside className={`detail-drawer drawer-${content.tone} ${expanded ? 'drawer-expanded' : ''}`} role="dialog" aria-modal="true" aria-label={`${title} details`} onMouseDown={(event) => event.stopPropagation()}>
@@ -100,7 +115,18 @@ export default function DetailDrawer({ title, onClose }) {
         <button type="button" className="drawer-icon-button" aria-label={expanded ? 'Restore size' : 'Expand'} onClick={() => setExpanded((value) => !value)}>{expanded ? <Minimize2 size={18}/> : <Expand size={18}/>}</button>
         <button type="button" className="drawer-icon-button" aria-label="Close" onClick={onClose}><X size={20}/></button>
       </div></header>
-      <div className="drawer-range"><span>Date Range</span><strong>Aug 01, 2026 — Aug 04, 2026</strong></div>
+      <div className="drawer-range drawer-range-controls">
+        <div className="drawer-range-current"><span>Date Range</span><strong>{formatRangeDate(drawerRange.from)} — {formatRangeDate(drawerRange.to)}</strong></div>
+        <div className="drawer-range-editor">
+          <select aria-label="Detail date range preset" value={draftRange.preset || 'custom'} onChange={event => handleDrawerPreset(event.target.value)}>
+            <option value="today">Today</option><option value="yesterday">Yesterday</option><option value="week">This Week</option><option value="last-week">Last Week</option><option value="month">This Month</option><option value="last-month">Last Month</option><option value="quarter">This Quarter</option><option value="last-quarter">Last Quarter</option><option value="year">This Year</option><option value="last-year">Last Year</option><option value="custom">Custom Range</option>
+          </select>
+          <input aria-label="Detail range from" type="date" value={draftRange.from || ''} onChange={event => setDraftRange({...draftRange,preset:'custom',from:event.target.value})}/>
+          <span>—</span>
+          <input aria-label="Detail range to" type="date" value={draftRange.to || ''} onChange={event => setDraftRange({...draftRange,preset:'custom',to:event.target.value})}/>
+          <button type="button" onClick={applyDrawerRange}>Apply</button>
+        </div>
+      </div>
       <nav className="drawer-tabs" aria-label="Detail sections">{['Overview','By Category','Entries','Notes'].map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} type="button" onClick={() => { setActiveTab(tab); setSelectedRow(null) }}>{tab}</button>)}</nav>
 
       <div className="drawer-scroll">

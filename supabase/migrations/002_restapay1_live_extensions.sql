@@ -33,3 +33,7 @@ alter table if exists public.vendors add column if not exists website_domain tex
 alter table if exists public.vendors add column if not exists logo_url text;
 alter table if exists public.vendors add column if not exists logo_source text;
 alter table if exists public.vendors add column if not exists logo_verified boolean default false;
+
+alter table if exists public.invoices add column if not exists duplicate_override boolean default false;
+alter table if exists public.invoices add column if not exists duplicate_match_id text;
+alter table if exists public.invoices add column if not exists duplicate_match_reason text;

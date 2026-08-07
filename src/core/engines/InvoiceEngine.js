@@ -6,6 +6,66 @@ const text = value => String(value ?? '').trim()
 export const ALCOHOL_CATEGORIES = ['Beer','Wine','Liquor','Margaritas','Cocktails & Shots','Draft Beer','Bottled Beer','Alcohol']
 export const FOOD_CATEGORIES = ['Food','Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Bakery']
 
+const normalizeLooseText = value => text(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+const centsEqual = (a, b, tolerance = 0.01) => Math.abs(n(a) - n(b)) <= tolerance
+const dayDistance = (a, b) => {
+  const da = new Date(`${a || ''}T00:00:00`)
+  const db = new Date(`${b || ''}T00:00:00`)
+  if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return Infinity
+  return Math.abs(Math.round((da - db) / 86400000))
+}
+const lineKeys = invoice => new Set((invoice.lines || invoice.items || [])
+  .map(line => normalizeLooseText(line.item_number || line.description || line.item_name || line.name))
+  .filter(Boolean))
+const lineSimilarity = (a, b) => {
+  const left = lineKeys(a), right = lineKeys(b)
+  if (!left.size || !right.size) return 0
+  let shared = 0
+  left.forEach(key => { if (right.has(key)) shared += 1 })
+  return shared / Math.max(left.size, right.size)
+}
+
+export function findDuplicateInvoices(candidate = {}, invoices = [], options = {}) {
+  const normalized = normalizeInvoice(candidate)
+  const vendorKey = normalizeVendorName(normalized.vendor)
+  if (!vendorKey) return []
+  const currentId = options.excludeId == null ? null : String(options.excludeId)
+  const invoiceNumber = normalizeLooseText(normalized.number)
+  return (Array.isArray(invoices) ? invoices : []).filter(Boolean).flatMap(existing => {
+    if (currentId && String(existing.id) === currentId) return []
+    const row = normalizeInvoice(existing)
+    if (normalizeVendorName(row.vendor) !== vendorKey) return []
+    const existingNumber = normalizeLooseText(row.number)
+    const sameNumber = Boolean(invoiceNumber && existingNumber && invoiceNumber === existingNumber)
+    const sameDate = Boolean(normalized.date && row.date && normalized.date === row.date)
+    const sameTotal = centsEqual(normalized.total, row.total)
+    const dateGap = dayDistance(normalized.date, row.date)
+    const similarity = lineSimilarity(normalized, row)
+    let severity = null
+    const reasons = []
+    let score = 0
+
+    if (sameNumber) { severity = 'exact'; reasons.push('same vendor and invoice number'); score += 100 }
+    if (sameDate && sameTotal) { severity = 'exact'; reasons.push('same vendor, date and total'); score += 90 }
+    if (!severity && sameDate && similarity >= 0.6) { severity = 'possible'; reasons.push('same vendor/date with similar line items'); score += 65 }
+    if (!severity && sameTotal && dateGap <= 7) { severity = 'possible'; reasons.push(`same vendor and total within ${dateGap} day${dateGap === 1 ? '' : 's'}`); score += 55 }
+    if (!severity && similarity >= 0.8 && dateGap <= 14) { severity = 'possible'; reasons.push('highly similar line items in a nearby date'); score += 45 }
+    if (!severity) return []
+
+    return [{
+      id: existing.id,
+      severity,
+      score,
+      reasons,
+      vendor: row.vendor,
+      number: row.number,
+      date: row.date,
+      total: row.total,
+      line_similarity: Number((similarity * 100).toFixed(0)),
+    }]
+  }).sort((a, b) => (b.severity === 'exact') - (a.severity === 'exact') || b.score - a.score)
+}
+
 export function normalizeInvoiceLine(line = {}, index = 0) {
   const enriched = enrichInvoiceItem({
     ...line,
