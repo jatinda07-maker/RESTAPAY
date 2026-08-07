@@ -12,9 +12,11 @@ export default function usePersistentState(key, initialValue) {
   },[key,live])
   useEffect(()=>{if(live)return;try{localStorage.setItem(key,JSON.stringify(value));window.dispatchEvent(new CustomEvent('restapay:data-change',{detail:{key}}))}catch{}},[key,value,live])
   const update=useCallback((next)=>{
-    if(!live){setValue(next);return}
-    setValue(current=>typeof next==='function'?next(current):next)
-    replaceLiveCollection(key,next).catch(()=>{})
+    if(!live){setValue(next);return Promise.resolve()}
+    const current=getLiveCollection(key)
+    const resolved=typeof next==='function'?next(current):next
+    setValue(resolved)
+    return replaceLiveCollection(key,resolved)
   },[key,live])
   return [value,update]
 }
