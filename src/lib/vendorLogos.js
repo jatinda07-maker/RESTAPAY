@@ -13,6 +13,7 @@ const DOMAIN_MAP = {
   'coca cola': 'coca-cola.com',
   'coca-cola': 'coca-cola.com',
   'pepsi': 'pepsi.com',
+  'pepsico': 'pepsico.com',
   'spire gas': 'spireenergy.com',
   'spire': 'spireenergy.com',
   'valley bank': 'valley.com',
@@ -23,15 +24,13 @@ const DOMAIN_MAP = {
   'sparklight': 'sparklight.com',
   'adams budweiser': 'anheuser-busch.com',
   'budweiser': 'budweiser.com',
+  'alabama abc board': 'alabcboard.gov',
+  'abc board': 'alabcboard.gov',
   'sba loan': 'sba.gov'
 }
 
 export const normalizeVendorName = value => String(value ?? '')
-  .trim()
-  .toLowerCase()
-  .replace(/&/g, ' and ')
-  .replace(/[^a-z0-9]+/g, ' ')
-  .trim()
+  .trim().toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim()
 
 export function vendorInitials(name) {
   const words = String(name ?? '').trim().split(/\s+/).filter(Boolean)
@@ -49,14 +48,19 @@ export function findVendorDomain(name, website = '') {
   return partial?.[1] || ''
 }
 
+export function vendorLogoUrl(domain) {
+  const safe = String(domain || '').trim().replace(/^www\./i, '')
+  return safe ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(safe)}&sz=128` : ''
+}
+
 export function buildVendorLogoMatch(vendor) {
   const domain = findVendorDomain(vendor?.name, vendor?.website || vendor?.website_domain)
   if (!domain) return null
   return {
     website: vendor?.website || `https://${domain}`,
     website_domain: domain,
-    logo_url: `https://logo.clearbit.com/${domain}`,
-    logo_source: 'clearbit-domain',
-    logo_verified: false
+    logo_url: vendorLogoUrl(domain),
+    logo_source: 'google-favicon-domain',
+    logo_verified: true
   }
 }

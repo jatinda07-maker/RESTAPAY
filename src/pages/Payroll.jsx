@@ -39,7 +39,11 @@ export default function Payroll(){
   const [activeTab,setActiveTab] = useState('Imported Labor')
   const [groupType,setGroupType] = useState('Kitchen')
   const [selectedEmployees,setSelectedEmployees] = useState([])
+  const [groupName,setGroupName] = useState('Kitchen Payroll')
+  const [editingGroupId,setEditingGroupId] = useState(null)
+  const [selectedRowIds,setSelectedRowIds] = useState([])
   const [sourceRows,setSourceRows] = usePersistentState('restapay-payroll', [])
+  const [employees] = usePersistentState('restapay-employees', [])
   const [groups,setGroups] = usePersistentState('restapay-payroll-groups', [])
   const [manualForm,setManualForm] = useState(emptyForm)
   const { notify } = useFeedback()
@@ -71,6 +75,12 @@ export default function Payroll(){
     (!query || Object.values(r).join(' ').toLowerCase().includes(query.toLowerCase())) &&
     (method === 'All Methods' || r.method === method)
   ), [tabRows, query, method])
+
+  const activeEmployees = useMemo(() => (Array.isArray(employees) ? employees : []).filter(employee => employee && employee.id && employee.status !== 'Inactive' && employee.active !== false && employee.is_active !== false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))), [employees])
+  const filteredRowIds = useMemo(() => filtered.map(row => row.id).filter(Boolean), [filtered])
+  const allVisibleSelected = filteredRowIds.length > 0 && filteredRowIds.every(id => selectedRowIds.includes(id))
+  const toggleSelectedRow = id => setSelectedRowIds(ids => ids.includes(id) ? ids.filter(value => value !== id) : [...ids,id])
+  const toggleAllVisible = () => setSelectedRowIds(ids => allVisibleSelected ? ids.filter(id => !filteredRowIds.includes(id)) : [...new Set([...ids,...filteredRowIds])])
 
   const importPayroll = ({ rows: importedRows }) => {
     const normalized = normalizePayrollRecords(importedRows, { source:'toast', method:'Check' })
@@ -274,11 +284,52 @@ export default function Payroll(){
     }
   }
 
-  const addKitchen = () => {
-    const group={id:crypto.randomUUID?.() || String(Date.now()),name:`${groupType} Payroll`,type:groupType,employees:selectedEmployees}
-    setGroups(prev=>[group,...prev])
-    notify(`${groupType} payroll group saved for ${selectedEmployees.length} employees.`)
-    setKitchenOpen(false)
+  const openGroupBuilder = (group=null) => {
+    if (group) {
+      setEditingGroupId(group.id)
+      setGroupType(group.type || group.group_type || 'Kitchen')
+      setGroupName(group.name || `${group.type || 'Kitchen'} Payroll`)
+      const memberIds = Array.isArray(group.memberIds) ? group.memberIds : Array.isArray(group.member_ids) ? group.member_ids : []
+      const legacyNames = Array.isArray(group.employees) ? group.employees : []
+      setSelectedEmployees(memberIds.length ? memberIds : activeEmployees.filter(employee => legacyNames.includes(employee.name)).map(employee => employee.id))
+    } else {
+      setEditingGroupId(null)
+      setGroupType('Kitchen')
+      setGroupName('Kitchen Payroll')
+      setSelectedEmployees([])
+    }
+    setKitchenOpen(true)
+  }
+
+  const addKitchen = async () => {
+    if (!groupName.trim()) return notify('Payroll group name is required.', 'error')
+    if (!selectedEmployees.length) return notify('Select at least one saved employee.', 'error')
+    const group={id:editingGroupId || crypto.randomUUID?.() || String(Date.now()),name:groupName.trim(),type:groupType,memberIds:selectedEmployees}
+    try {
+      await setGroups(prev=>editingGroupId ? prev.map(item=>item.id===editingGroupId?{...item,...group}:item) : [group,...prev])
+      notify(`${groupName.trim()} saved with ${selectedEmployees.length} employee${selectedEmployees.length===1?'':'s'}.`)
+      setKitchenOpen(false)
+    } catch (error) {
+      notify(error?.message || 'Payroll group could not be saved.', 'error')
+    }
+  }
+
+  const bulkDeleteRows = async () => {
+    if (!selectedRowIds.length) return
+    const count=selectedRowIds.length
+    if (!window.confirm(`Delete ${count} selected payroll entr${count===1?'y':'ies'}?`)) return
+    const selectedSet=new Set(selectedRowIds)
+    try {
+      await setSourceRows(prev => {
+        const selected = prev.filter(item => selectedSet.has(item.id))
+        const restoreIds = new Set(selected.flatMap(item => item.weekly_rollup ? (item.source_ids || []) : []))
+        return prev.filter(item => !selectedSet.has(item.id)).map(item => restoreIds.has(item.id) ? {...item,payroll_status:'',included_in_weekly_end:''} : item)
+      })
+      setSelectedRowIds([])
+      notify(`${count} payroll entr${count===1?'y':'ies'} deleted from Supabase.`)
+    } catch (error) {
+      notify(error?.message || 'Selected payroll entries could not be deleted.', 'error')
+    }
   }
 
   const deleteGroup = id => {
@@ -306,7 +357,7 @@ export default function Payroll(){
         <div className="records-actions payroll-action-grid">
           <button className="soft-action soft-blue" onClick={() => setImportOpen(true)}><FileUp size={17}/>Import Payroll</button>
           <button className="soft-action soft-purple" onClick={openAdd}><Plus size={17}/>Manual Payroll</button>
-          <button className="soft-action soft-green" onClick={() => setKitchenOpen(true)}><ChefHat size={17}/>Kitchen Payroll</button>
+          <button className="soft-action soft-green" onClick={() => openGroupBuilder()}><ChefHat size={17}/>Kitchen Payroll</button>
           <button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={17}/>Build Weekly Payroll</button>
         </div>
       </header>
@@ -318,17 +369,18 @@ export default function Payroll(){
       </div>
 
       {activeTab==='Payroll Groups' && <div className="payroll-groups-list">
-        <div className="payroll-tab-panel"><div><strong>Saved Payroll Groups</strong><small>Create reusable groups for Kitchen, Busser, Dishwasher, or any custom role.</small></div><button className="soft-action soft-green" onClick={()=>setKitchenOpen(true)}><Plus size={16}/>Create Payroll Group</button></div>
-        {groups.length===0 ? <div className="records-empty">No payroll groups created.</div> : groups.map(group=><div className="payroll-group-row" key={group.id}><span><strong>{group.name}</strong><small>{group.type} · {group.employees.length} employees</small></span><div className="row-actions"><button title="Edit group" onClick={()=>{setGroupType(group.type);setSelectedEmployees(group.employees);setKitchenOpen(true)}}><Edit2 size={14}/></button><button className="danger" title="Delete group" onClick={()=>deleteGroup(group.id)}><Trash2 size={14}/></button></div></div>)}
+        <div className="payroll-tab-panel"><div><strong>Saved Payroll Groups</strong><small>Create reusable groups for Kitchen, Busser, Dishwasher, or any custom role.</small></div><button className="soft-action soft-green" onClick={()=>openGroupBuilder()}><Plus size={16}/>Create Payroll Group</button></div>
+        {groups.length===0 ? <div className="records-empty">No payroll groups created.</div> : groups.map(group=>{const count=(group.memberIds||group.member_ids||group.employees||[]).length;return <div className="payroll-group-row" key={group.id}><span><strong>{group.name}</strong><small>{group.type} · {count} employee{count===1?'':'s'}</small></span><div className="row-actions"><button title="Edit group" onClick={()=>openGroupBuilder(group)}><Edit2 size={14}/></button><button className="danger" title="Delete group" onClick={()=>deleteGroup(group.id)}><Trash2 size={14}/></button></div></div>})}
       </div>}
       {activeTab==='Imported Labor' && <div className="payroll-tab-panel"><div><strong>Imported Daily Labor</strong><small>Daily Toast source entries used to build weekly payroll. These stay separate for audit.</small></div><button className="soft-action soft-blue" onClick={()=>setImportOpen(true)}><FileUp size={16}/>Import More Labor</button></div>}
       {activeTab==='Ready to Pay' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll Ready to Pay</strong><small>Created weekly payroll saved in Supabase and awaiting Check, Cash, or ACH payment.</small></div><div className="records-actions"><button className="soft-action soft-green" disabled={!readyRows.length || savingPayroll} onClick={saveReadyPayroll}><Save size={16}/>{savingPayroll?'Saving...':'Save Payroll'}</button><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div></div>}
       {activeTab==='Payroll History' && <div className="payroll-tab-panel"><div><strong>Paid Payroll History</strong><small>Completed weekly payroll payments and full audit details.</small></div></div>}
-      {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Kitchen, busser, dishwasher, prep cook, and related employees</small></div><button className="soft-action soft-green" onClick={()=>setKitchenOpen(true)}><ChefHat size={16}/>Open Kitchen Group</button></div>}
+      {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Kitchen, busser, dishwasher, prep cook, and related employees</small></div><button className="soft-action soft-green" onClick={()=>openGroupBuilder()}><ChefHat size={16}/>Open Kitchen Group</button></div>}
       {activeTab==='Manual Labor' && <div className="payroll-tab-panel"><div><strong>Manual Labor Entries</strong><small>Add, edit, duplicate, or delete manually entered payroll.</small></div><button className="soft-action soft-purple" onClick={openAdd}><Plus size={16}/>Add Manual Labor</button></div>}
 
       {activeTab!=='Payroll Groups' && <>
         <div className="records-filterbar payroll-filterbar">
+          {selectedRowIds.length>0 && <button className="secondary-action danger-action bulk-delete-button" onClick={bulkDeleteRows}><Trash2 size={15}/>Delete Selected ({selectedRowIds.length})</button>}
           <label className="records-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search employee or date..."/></label>
           <label className="records-select"><Filter size={16}/><select value={method} onChange={e=>setMethod(e.target.value)}><option>All Methods</option><option>Cash</option><option>Check</option><option>ACH</option></select><ChevronDown size={14}/></label>
         </div>
@@ -336,13 +388,13 @@ export default function Payroll(){
         <div className="records-table-wrap payroll-table-wrap">
           <table className="records-table aligned-table payroll-table payroll-table-compact">
             <thead><tr>
-              <th>Date</th><th>Employee</th><th>Job</th><th className="numeric">Hours</th>
+              <th className="select-column"><input type="checkbox" aria-label="Select all visible payroll rows" checked={allVisibleSelected} onChange={toggleAllVisible}/></th><th>Date</th><th>Employee</th><th>Job</th><th className="numeric">Hours</th>
               <th className="numeric">Base Pay</th><th className="numeric">Tips</th>
               <th className="numeric">Withheld</th><th className="numeric">Net Tips</th>
               <th className="numeric">Final Pay</th><th className="centered">Method</th><th className="centered">Actions</th>
             </tr></thead>
-            <tbody>{filtered.length===0 ? <tr><td colSpan="11" className="records-empty-cell">No payroll records.</td></tr> : filtered.map(r => <tr key={r.id || `${r.date}-${r.employee}`}>
-              <td>{r.date}</td><td><strong>{r.employee}</strong></td><td>{r.job}</td>
+            <tbody>{filtered.length===0 ? <tr><td colSpan="12" className="records-empty-cell">No payroll records.</td></tr> : filtered.map(r => <tr key={r.id || `${r.date}-${r.employee}`} className={selectedRowIds.includes(r.id)?'row-selected':''}>
+              <td className="select-column"><input type="checkbox" aria-label={`Select ${r.employee} payroll`} checked={selectedRowIds.includes(r.id)} onChange={()=>toggleSelectedRow(r.id)}/></td><td>{r.date}</td><td><strong>{r.employee}</strong></td><td>{r.job}</td>
               <td className="numeric">{r.hours}</td><td className="numeric">{r.basePay}</td>
               <td className="numeric">{r.originalTips}</td><td className="numeric withholding-value">{r.withheld}</td>
               <td className="numeric tips-after-value">{r.tipsAfter}</td><td className="numeric final-pay-value">{r.finalPay}</td>
@@ -427,11 +479,11 @@ export default function Payroll(){
 
     <Modal open={kitchenOpen} title="Kitchen Payroll Group" subtitle="Select existing employees and save a reusable payroll group" onClose={() => setKitchenOpen(false)} footer={<><button className="secondary-action" onClick={()=>setKitchenOpen(false)}>Cancel</button><button className="primary-button" onClick={addKitchen}>Save Payroll Group</button></>}>
       <div className="form-grid payroll-group-form">
-        <label>Group Name<input defaultValue={`${groupType} Payroll`}/></label>
-        <label>Payroll Group Type<select value={groupType} onChange={e=>setGroupType(e.target.value)}><option>Kitchen</option><option>Busser</option><option>Dishwasher</option><option>Prep Cook</option><option>Custom</option></select></label>
+        <label>Group Name<input value={groupName} onChange={e=>setGroupName(e.target.value)} /></label>
+        <label>Payroll Group Type<select value={groupType} onChange={e=>{setGroupType(e.target.value);if(!editingGroupId)setGroupName(`${e.target.value} Payroll`)}}><option>Kitchen</option><option>Busser</option><option>Dishwasher</option><option>Prep Cook</option><option>Custom</option></select></label>
       </div>
       <div className="employee-group-picker"><div className="employee-group-head"><strong>Select Existing Employees</strong><small>Choose employees to include in this reusable payroll group.</small></div>
-        {['Maria Lopez','Diana Smith','James Carter','Kevin Wilson','Alicia Brown'].map(name=><label key={name}><input type="checkbox" checked={selectedEmployees.includes(name)} onChange={e=>setSelectedEmployees(prev=>e.target.checked?[...prev,name]:prev.filter(x=>x!==name))}/><span><strong>{name}</strong><small>{name==='Maria Lopez'||name==='Diana Smith'?'Kitchen':'Other role'}</small></span></label>)}
+        {activeEmployees.length===0 ? <div className="records-empty">No active employees found in Supabase. Add employees first.</div> : activeEmployees.map(employee=><label key={employee.id}><input type="checkbox" checked={selectedEmployees.includes(employee.id)} onChange={e=>setSelectedEmployees(prev=>e.target.checked?[...new Set([...prev,employee.id])]:prev.filter(id=>id!==employee.id))}/><span><strong>{employee.name}</strong><small>{employee.job||employee.job_type||'Employee'}{Number(employee.basePay||employee.base_pay||0)>0?` · $${Number(employee.basePay||employee.base_pay).toFixed(2)} base pay`:''}</small></span></label>)}
       </div>
     </Modal>
 

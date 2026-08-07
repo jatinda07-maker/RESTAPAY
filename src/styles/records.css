@@ -293,3 +293,12 @@
 .records-table tbody tr.row-selected td{background:#eef9f2!important}
 .danger-action{border-color:#f2c4c8!important;color:#c62828!important;background:#fff7f7!important}
 .danger-action:hover{border-color:#dc3545!important;background:#fff0f1!important}
+
+/* Phase 3C.4 shared bulk actions */
+.records-table th.select-column,.records-table td.select-column,.sales-table th.select-column,.sales-table td.select-column{width:42px!important;min-width:42px!important;max-width:42px!important;text-align:center!important;padding-left:8px!important;padding-right:6px!important}
+.sales-table th.select-column input,.sales-table td.select-column input{width:15px;height:15px;accent-color:#087f45;cursor:pointer}
+.sales-table tbody tr.row-selected td{background:#eef9f2!important}
+.bulk-delete-button{flex:0 0 auto}
+.payroll-table.payroll-table-compact th:nth-child(1),.payroll-table.payroll-table-compact td:nth-child(1){width:4%!important;text-align:center!important}
+.payroll-table.payroll-table-compact th:nth-child(2){width:8%}.payroll-table.payroll-table-compact th:nth-child(3){width:13%}.payroll-table.payroll-table-compact th:nth-child(4){width:9%}.payroll-table.payroll-table-compact th:nth-child(5){width:6%}.payroll-table.payroll-table-compact th:nth-child(6){width:8%}.payroll-table.payroll-table-compact th:nth-child(7){width:8%}.payroll-table.payroll-table-compact th:nth-child(8){width:8%}.payroll-table.payroll-table-compact th:nth-child(9){width:8%}.payroll-table.payroll-table-compact th:nth-child(10){width:9%}.payroll-table.payroll-table-compact th:nth-child(11){width:8%}.payroll-table.payroll-table-compact th:nth-child(12){width:11%}
+.employee-group-picker>.records-empty{padding:18px;text-align:center;color:#60789f}

@@ -83,11 +83,26 @@ export const getLiveCollection = key => cache.get(key) || []
 export const subscribeLiveData = fn => { listeners.add(fn); return ()=>listeners.delete(fn) }
 
 async function loadInvoices(){
-  const [{data:invoices,error:e1},{data:items,error:e2}] = await Promise.all([supabase.from('invoices').select('*').order('invoice_date',{ascending:false}),supabase.from('invoice_items').select('*')])
-  if(e1) throw e1; if(e2) throw e2
+  const [{data:invoices,error:e1},{data:items,error:e2},{data:vendors,error:e3}] = await Promise.all([
+    supabase.from('invoices').select('*').order('invoice_date',{ascending:false}),
+    supabase.from('invoice_items').select('*'),
+    supabase.from('vendors').select('id,name')
+  ])
+  if(e1) throw e1
+  if(e2) console.warn('Invoice headers loaded but invoice items could not be read.', e2)
+  if(e3) console.warn('Invoice vendor names could not be joined.', e3)
+  const vendorNames = new Map((vendors||[]).map(v=>[String(v.id),v.name]))
   const byInvoice = new Map()
-  ;(items||[]).forEach(item=>{const list=byInvoice.get(item.invoice_id)||[];list.push({...item,description:item.description||item.item_name,quantity:money(item.quantity),unit_price:money(item.unit_price),line_total:money(item.line_total)});byInvoice.set(item.invoice_id,list)})
-  return (invoices||[]).map(r=>({...r,date:r.invoice_date,vendor:r.vendor_name,number:r.invoice_number,payment_type:r.payment_type,total:money(r.total),lines:byInvoice.get(r.id)||[]}))
+  ;(items||[]).forEach(item=>{const list=byInvoice.get(String(item.invoice_id))||[];list.push({...item,description:item.description||item.item_name||item.name,quantity:money(item.quantity??item.qty),unit_price:money(item.unit_price??item.price??item.cost),line_total:money(item.line_total??item.total??item.amount)});byInvoice.set(String(item.invoice_id),list)})
+  return (invoices||[]).map(r=>({
+    ...r,
+    date:r.invoice_date||r.date||r.created_at?.slice?.(0,10)||'',
+    vendor:r.vendor_name||vendorNames.get(String(r.vendor_id))||r.vendor||'Unassigned vendor',
+    number:r.invoice_number||r.number||r.reference||String(r.id||'').slice(0,8),
+    payment_type:r.payment_type||r.method||'Check',
+    total:money(r.total??r.amount??r.invoice_total),
+    lines:byInvoice.get(String(r.id))||[]
+  }))
 }
 async function saveInvoices(rows){
   const invoiceRows=(rows||[]).map(r=>({id:r.id||id(),vendor_id:r.vendor_id||null,vendor_name:text(r.vendor||r.vendor_name),invoice_number:text(r.number||r.invoice_number),invoice_date:r.date||r.invoice_date||new Date().toISOString().slice(0,10),due_date:r.due_date||null,category:r.category||'Other',payment_type:r.payment_type||'Check',check_number:text(r.check_number),invoice_type:r.invoice_type||'Regular Invoice',subtotal:money(r.subtotal),tax:money(r.tax),total:money(r.total||r.amount),status:r.status||'Due',source_file:text(r.source_file),notes:text(r.notes),created_at:r.created_at||now(),updated_at:now()}))
