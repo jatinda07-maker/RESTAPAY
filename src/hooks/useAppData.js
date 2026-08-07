@@ -3,6 +3,7 @@ import { summarizePayroll } from '../core/adapters/payrollAdapter.js'
 import { buildPriceHistory, comparePrices, normalizeInvoice } from '../core/engines/InvoiceEngine.js'
 
 import { liveSnapshot, subscribeLiveData, initializeLiveData } from '../data/liveDataStore.js'
+import useGlobalDateRange, { inDateRange } from './useGlobalDateRange.js'
 
 const number = (value) => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 const categoryName = (row) => String(row.category || row.department || row.type || '').toLowerCase()
@@ -12,6 +13,7 @@ const isFood = (row) => /food|meat|seafood|produce|dairy|dry goods|frozen/.test(
 function snapshot(){ const value=liveSnapshot()||{};return {sales:Array.isArray(value.sales)?value.sales.filter(Boolean):[],payroll:Array.isArray(value.payroll)?value.payroll.filter(Boolean):[],invoices:Array.isArray(value.invoices)?value.invoices.filter(Boolean):[],expenses:Array.isArray(value.expenses)?value.expenses.filter(Boolean):[],vendors:Array.isArray(value.vendors)?value.vendors.filter(Boolean):[],employees:Array.isArray(value.employees)?value.employees.filter(Boolean):[]} }
 
 export function useAppData() {
+  const { range } = useGlobalDateRange()
   const [data, setData] = useState(snapshot)
   useEffect(() => {
     let active=true
@@ -21,17 +23,25 @@ export function useAppData() {
     return ()=>{active=false;unsub()}
   }, [])
 
-  const metrics = useMemo(() => {
-    const salesTotal = data.sales.reduce((sum, row) => sum + number(row.net_sales ?? row.amount ?? row.sales), 0)
-    const foodSales = data.sales.reduce((sum, row) => sum + number(row.food_sales ?? (isFood(row) ? (row.amount ?? row.net_sales ?? row.sales) : 0)), 0)
-    const alcoholSales = data.sales.reduce((sum, row) => sum + number(row.alcohol_sales ?? (isAlcohol(row) ? (row.amount ?? row.net_sales ?? row.sales) : 0)), 0)
-    const explicitOtherSales = data.sales.reduce((sum, row) => sum + number(row.other_sales), 0)
-    const otherSales = explicitOtherSales || Math.max(0, salesTotal - foodSales - alcoholSales)
-    const tips = data.sales.reduce((sum, row) => sum + number(row.tips_collected ?? row.tips), 0)
-    const cashSales = data.sales.reduce((sum, row) => sum + number(row.cash_sales ?? (String(row.payment || row.payment_type || '').toLowerCase() === 'cash' ? (row.amount ?? row.net_sales ?? row.sales) : 0)), 0)
-    const creditSales = data.sales.reduce((sum, row) => sum + number(row.credit_sales ?? (/credit|card/.test(String(row.payment || row.payment_type || '').toLowerCase()) ? (row.amount ?? row.net_sales ?? row.sales) : 0)), 0)
+  const scoped = useMemo(() => ({
+    ...data,
+    sales: data.sales.filter(row => inDateRange(row, range, ['view_date','sales_date','date'])),
+    payroll: data.payroll.filter(row => inDateRange(row, range, ['pay_date','payroll_date','date'])),
+    invoices: data.invoices.filter(row => inDateRange(row, range, ['invoice_date','date'])),
+    expenses: data.expenses.filter(row => inDateRange(row, range, ['expense_date','date'])),
+  }), [data, range])
 
-    const normalizedInvoices = data.invoices.map(normalizeInvoice)
+  const metrics = useMemo(() => {
+    const salesTotal = scoped.sales.reduce((sum, row) => sum + number(row.net_sales ?? row.amount ?? row.sales), 0)
+    const foodSales = scoped.sales.reduce((sum, row) => sum + number(row.food_sales ?? (isFood(row) ? (row.amount ?? row.net_sales ?? row.sales) : 0)), 0)
+    const alcoholSales = scoped.sales.reduce((sum, row) => sum + number(row.alcohol_sales ?? (isAlcohol(row) ? (row.amount ?? row.net_sales ?? row.sales) : 0)), 0)
+    const explicitOtherSales = scoped.sales.reduce((sum, row) => sum + number(row.other_sales), 0)
+    const otherSales = explicitOtherSales || Math.max(0, salesTotal - foodSales - alcoholSales)
+    const tips = scoped.sales.reduce((sum, row) => sum + number(row.tips_collected ?? row.tips), 0)
+    const cashSales = scoped.sales.reduce((sum, row) => sum + number(row.cash_sales ?? (String(row.payment || row.payment_type || '').toLowerCase() === 'cash' ? (row.amount ?? row.net_sales ?? row.sales) : 0)), 0)
+    const creditSales = scoped.sales.reduce((sum, row) => sum + number(row.credit_sales ?? (/credit|card/.test(String(row.payment || row.payment_type || '').toLowerCase()) ? (row.amount ?? row.net_sales ?? row.sales) : 0)), 0)
+
+    const normalizedInvoices = scoped.invoices.map(normalizeInvoice)
     const lineTotals = normalizedInvoices.flatMap(invoice => (invoice.lines || []).map(line => ({...line, invoice, category: line.category || invoice.category})))
     const foodInvoices = normalizedInvoices.filter(isFood)
     const alcoholInvoices = normalizedInvoices.filter(isAlcohol)
@@ -40,10 +50,10 @@ export function useAppData() {
     const foodCost = lineTotals.length ? foodLineCost : foodInvoices.reduce((sum, row) => sum + number(row.amount ?? row.total), 0)
     const alcoholCost = lineTotals.length ? alcoholLineCost : alcoholInvoices.reduce((sum, row) => sum + number(row.amount ?? row.total), 0)
     const invoiceTotal = normalizedInvoices.reduce((sum, row) => sum + number(row.amount ?? row.total), 0)
-    const expenseTotal = data.expenses.reduce((sum, row) => sum + number(row.amount ?? row.total), 0)
-    const cashExpenses = data.expenses.filter(row => String(row.method || row.payment_type || '').toLowerCase() === 'cash')
+    const expenseTotal = scoped.expenses.reduce((sum, row) => sum + number(row.amount ?? row.total), 0)
+    const cashExpenses = scoped.expenses.filter(row => String(row.method || row.payment_type || '').toLowerCase() === 'cash')
       .reduce((sum, row) => sum + number(row.amount ?? row.total), 0)
-    const payroll = summarizePayroll(data.payroll)
+    const payroll = summarizePayroll(scoped.payroll)
     const cashRemaining = cashSales - payroll.cash - cashExpenses
     const cogs = foodCost + alcoholCost
     const primeCostAmount = cogs + payroll.total
@@ -70,9 +80,9 @@ export function useAppData() {
       operatingMargin: percent(operatingProfit, salesTotal), topVendors,
       foodInvoiceCount: foodInvoices.length, alcoholInvoiceCount: alcoholInvoices.length, priceHistory, priceComparisons, normalizedInvoices,
     }
-  }, [data])
+  }, [scoped])
 
-  return { ...data, metrics }
+  return { ...scoped, metrics, dateRange: range }
 }
 
 export const appMoney = (value) => new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', maximumFractionDigits:0 }).format(number(value))

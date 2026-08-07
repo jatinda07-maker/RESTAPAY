@@ -10,7 +10,8 @@
     "test:core": "node scripts/test-core-engines.mjs",
     "test:weekly-payroll": "node scripts/test-weekly-payroll.mjs",
     "test:sales": "node scripts/test-sales-view.mjs",
-    "test:invoice": "node scripts/test-invoice-engine.mjs"
+    "test:invoice": "node scripts/test-invoice-engine.mjs",
+    "test:ui": "node scripts/test-ui-functionality.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

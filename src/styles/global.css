@@ -170,3 +170,6 @@ button { cursor: pointer; }
 .sidebar::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,rgba(32,166,91,.9),rgba(5,105,56,.82))}
 
 .page-error-state{margin:24px;padding:48px 24px;text-align:center;display:grid;justify-items:center;gap:12px;color:#10264a}.page-error-state svg{color:#e55353}.page-error-state h2{margin:0}.page-error-state p{max-width:620px;color:#61769a}.page-error-actions{display:flex;gap:10px;margin-top:8px}.page-error-actions button{display:inline-flex;align-items:center;gap:8px}
+
+.save-pill-error { border-color:#fecaca; background:#fff1f2; color:#b91c1c; }
+.save-pill-error .status-dot { background:#dc2626; }

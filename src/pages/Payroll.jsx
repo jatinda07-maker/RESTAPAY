@@ -12,6 +12,7 @@ import { normalizePayrollRecord, normalizePayrollRecords } from '../core/adapter
 import { buildWeeklyPayroll, endOfPayrollWeek, isMondayToSunday, startOfPayrollWeek } from '../core/engines/WeeklyPayrollEngine.js'
 import usePersistentState from '../hooks/usePersistentState'
 import { useFeedback } from '../components/AppFeedback'
+import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
 
 const emptyForm = {
   employee_name:'', pay_date:new Date().toISOString().slice(0,10), job_type:'Kitchen', hours:'', regular_pay:'',
@@ -47,11 +48,14 @@ export default function Payroll(){
   const [groups,setGroups] = usePersistentState('restapay-payroll-groups', [])
   const [manualForm,setManualForm] = useState(emptyForm)
   const { notify } = useFeedback()
+  const { range } = useGlobalDateRange()
+  const scopedSourceRows = useMemo(() => (Array.isArray(sourceRows)?sourceRows:[]).filter(row => inDateRange(row, range, ['pay_date','payroll_date','date'])), [sourceRows, range])
+  const safeGroups = Array.isArray(groups) ? groups.filter(Boolean) : []
 
-  const importedRows = useMemo(() => sourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast'), [sourceRows])
-  const manualRows = useMemo(() => sourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() !== 'toast'), [sourceRows])
-  const readyRows = useMemo(() => sourceRows.filter(row => row.weekly_rollup && String(row.payment_status || 'Draft').toLowerCase() !== 'paid'), [sourceRows])
-  const paidRows = useMemo(() => sourceRows.filter(row => row.weekly_rollup && String(row.payment_status || '').toLowerCase() === 'paid'), [sourceRows])
+  const importedRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast'), [scopedSourceRows])
+  const manualRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() !== 'toast'), [scopedSourceRows])
+  const readyRows = useMemo(() => scopedSourceRows.filter(row => row.weekly_rollup && String(row.payment_status || 'Draft').toLowerCase() !== 'paid'), [scopedSourceRows])
+  const paidRows = useMemo(() => scopedSourceRows.filter(row => row.weekly_rollup && String(row.payment_status || '').toLowerCase() === 'paid'), [scopedSourceRows])
   const payableRows = useMemo(() => [...readyRows, ...paidRows, ...manualRows], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
   const payrollSummary = useMemo(() => summarizePayroll(payableRows), [payableRows])
@@ -370,7 +374,7 @@ export default function Payroll(){
 
       {activeTab==='Payroll Groups' && <div className="payroll-groups-list">
         <div className="payroll-tab-panel"><div><strong>Saved Payroll Groups</strong><small>Create reusable groups for Kitchen, Busser, Dishwasher, or any custom role.</small></div><button className="soft-action soft-green" onClick={()=>openGroupBuilder()}><Plus size={16}/>Create Payroll Group</button></div>
-        {groups.length===0 ? <div className="records-empty">No payroll groups created.</div> : groups.map(group=>{const count=(group.memberIds||group.member_ids||group.employees||[]).length;return <div className="payroll-group-row" key={group.id}><span><strong>{group.name}</strong><small>{group.type} · {count} employee{count===1?'':'s'}</small></span><div className="row-actions"><button title="Edit group" onClick={()=>openGroupBuilder(group)}><Edit2 size={14}/></button><button className="danger" title="Delete group" onClick={()=>deleteGroup(group.id)}><Trash2 size={14}/></button></div></div>})}
+        {safeGroups.length===0 ? <div className="records-empty">No payroll groups created.</div> : safeGroups.map(group=>{const count=(group.memberIds||group.member_ids||group.employees||[]).length;return <div className="payroll-group-row" key={group.id}><span><strong>{group.name}</strong><small>{group.type} · {count} employee{count===1?'':'s'}</small></span><div className="row-actions"><button title="Edit group" onClick={()=>openGroupBuilder(group)}><Edit2 size={14}/></button><button className="danger" title="Delete group" onClick={()=>deleteGroup(group.id)}><Trash2 size={14}/></button></div></div>})}
       </div>}
       {activeTab==='Imported Labor' && <div className="payroll-tab-panel"><div><strong>Imported Daily Labor</strong><small>Daily Toast source entries used to build weekly payroll. These stay separate for audit.</small></div><button className="soft-action soft-blue" onClick={()=>setImportOpen(true)}><FileUp size={16}/>Import More Labor</button></div>}
       {activeTab==='Ready to Pay' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll Ready to Pay</strong><small>Created weekly payroll saved in Supabase and awaiting Check, Cash, or ACH payment.</small></div><div className="records-actions"><button className="soft-action soft-green" disabled={!readyRows.length || savingPayroll} onClick={saveReadyPayroll}><Save size={16}/>{savingPayroll?'Saving...':'Save Payroll'}</button><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div></div>}

@@ -1,5 +1,7 @@
 import { Bell, ChevronDown } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useFeedback } from './AppFeedback'
 
 const pageMeta = {
   '/dashboard': ['Dashboard', 'Executive overview of your restaurant business'],
@@ -21,26 +23,27 @@ const pageMeta = {
 
 export default function Topbar() {
   const { pathname } = useLocation()
+  const { notify } = useFeedback()
+  const [saveState,setSaveState] = useState('Live')
   const [title, subtitle] = pageMeta[pathname] || ['RestaPay', 'Restaurant business management']
+
+  useEffect(()=>{
+    const saved=()=>{setSaveState('Saved');window.setTimeout(()=>setSaveState('Live'),1800)}
+    const failed=()=>setSaveState('Save Failed')
+    window.addEventListener('restapay:cloud-status',saved)
+    window.addEventListener('restapay:cloud-error',failed)
+    return()=>{window.removeEventListener('restapay:cloud-status',saved);window.removeEventListener('restapay:cloud-error',failed)}
+  },[])
 
   return (
     <header className="topbar">
-      <div className="topbar-page-title">
-        <h1>{title}</h1>
-        <p>{subtitle}</p>
-      </div>
+      <div className="topbar-page-title"><h1>{title}</h1><p>{subtitle}</p></div>
       <div className="topbar-actions">
-        <div className="save-pill"><span className="status-dot" />Not Saved</div>
-        <button className="icon-button notification-button" type="button" aria-label="Notifications">
+        <div className={`save-pill ${saveState==='Save Failed'?'save-pill-error':''}`}><span className="status-dot" />{saveState}</div>
+        <button className="icon-button notification-button" type="button" aria-label="Notifications" onClick={()=>notify(saveState==='Save Failed'?'A recent Supabase save failed. Check the latest page error and retry.':'No unread system alerts. Live save and import errors will appear here as they occur.',saveState==='Save Failed'?'error':'info')}>
           <Bell size={19} />
-          <span className="notification-badge">3</span>
         </button>
-        <div className="avatar">JP</div>
-        <div className="user-copy">
-          <strong>Jatin Patel</strong>
-          <span>Admin</span>
-        </div>
-        <ChevronDown size={16} />
+        <div className="avatar">JP</div><div className="user-copy"><strong>Jatin Patel</strong><span>Admin</span></div><ChevronDown size={16} />
       </div>
     </header>
   )

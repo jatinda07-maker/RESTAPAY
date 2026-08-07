@@ -1,31 +1,7 @@
 import { CalendarDays, ChevronDown } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
-
-function toInputDate(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function getPresetDates(preset) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  if (preset === 'today') {
-    const value = toInputDate(today)
-    return { from: value, to: value }
-  }
-  if (preset === 'week') {
-    const start = new Date(today)
-    const weekday = start.getDay()
-    start.setDate(start.getDate() + (weekday === 0 ? -6 : 1 - weekday))
-    return { from: toInputDate(start), to: toInputDate(today) }
-  }
-  if (preset === 'month') {
-    return { from: toInputDate(new Date(today.getFullYear(), today.getMonth(), 1)), to: toInputDate(today) }
-  }
-  return null
-}
+import { useEffect, useRef, useState } from 'react'
+import useGlobalDateRange, { presetDates } from '../hooks/useGlobalDateRange'
+import { useFeedback } from './AppFeedback'
 
 function openPicker(ref) {
   if (!ref.current) return
@@ -34,26 +10,37 @@ function openPicker(ref) {
 }
 
 export default function DateToolbar() {
-  const initialDates = useMemo(() => getPresetDates('month'), [])
-  const [preset, setPreset] = useState('month')
-  const [fromDate, setFromDate] = useState(initialDates.from)
-  const [toDate, setToDate] = useState(initialDates.to)
+  const { range, apply } = useGlobalDateRange()
+  const { notify } = useFeedback()
+  const [preset, setPreset] = useState(range.preset || 'custom')
+  const [fromDate, setFromDate] = useState(range.from)
+  const [toDate, setToDate] = useState(range.to)
   const fromRef = useRef(null)
   const toRef = useRef(null)
+
+  useEffect(() => {
+    setPreset(range.preset || 'custom')
+    setFromDate(range.from)
+    setToDate(range.to)
+  }, [range.preset, range.from, range.to])
 
   function handlePresetChange(event) {
     const nextPreset = event.target.value
     setPreset(nextPreset)
-    const dates = getPresetDates(nextPreset)
-    if (dates) {
-      setFromDate(dates.from)
-      setToDate(dates.to)
-    }
+    const dates = presetDates(nextPreset)
+    if (dates) { setFromDate(dates.from); setToDate(dates.to) }
   }
 
   function handleManualChange(setter, value) {
     setter(value)
     setPreset('custom')
+  }
+
+  function handleApply() {
+    if (!fromDate || !toDate) return notify('Choose both From and To dates.', 'error')
+    if (fromDate > toDate) return notify('From date cannot be after To date.', 'error')
+    apply({ preset, from: fromDate, to: toDate })
+    notify(`Date range applied: ${fromDate} through ${toDate}.`, 'success')
   }
 
   return (
@@ -62,8 +49,15 @@ export default function DateToolbar() {
         <CalendarDays size={16} />
         <select value={preset} onChange={handlePresetChange}>
           <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
           <option value="week">This Week</option>
+          <option value="last-week">Last Week</option>
           <option value="month">This Month</option>
+          <option value="last-month">Last Month</option>
+          <option value="quarter">This Quarter</option>
+          <option value="last-quarter">Last Quarter</option>
+          <option value="year">This Year</option>
+          <option value="last-year">Last Year</option>
           <option value="custom">Custom Range</option>
         </select>
         <ChevronDown size={14} aria-hidden="true" />
@@ -72,16 +66,16 @@ export default function DateToolbar() {
       <div className="compact-date-range">
         <button type="button" className="compact-date-field" onClick={() => openPicker(fromRef)}>
           <span>From</span>
-          <input ref={fromRef} type="date" value={fromDate} onClick={(event) => event.stopPropagation()} onChange={(event) => handleManualChange(setFromDate, event.target.value)} />
+          <input ref={fromRef} type="date" value={fromDate} onClick={event => event.stopPropagation()} onChange={event => handleManualChange(setFromDate, event.target.value)} />
         </button>
         <span className="date-range-divider">—</span>
         <button type="button" className="compact-date-field" onClick={() => openPicker(toRef)}>
           <span>To</span>
-          <input ref={toRef} type="date" value={toDate} onClick={(event) => event.stopPropagation()} onChange={(event) => handleManualChange(setToDate, event.target.value)} />
+          <input ref={toRef} type="date" value={toDate} onClick={event => event.stopPropagation()} onChange={event => handleManualChange(setToDate, event.target.value)} />
         </button>
       </div>
 
-      <button className="primary-button compact-apply" type="button">Apply</button>
+      <button className="primary-button compact-apply" type="button" onClick={handleApply}>Apply</button>
     </section>
   )
 }
