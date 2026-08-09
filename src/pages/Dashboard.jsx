@@ -20,7 +20,7 @@ export default function Dashboard() {
     [ShoppingCart,'Cash Sales',appMoney(metrics.cashSales),'Actual cash sales/payments','blue'],
     [BriefcaseBusiness,'Cash Collected',appMoney(metrics.cashSales),'Total cash sales/payments','green'],
     [TrendingUp,'Operating Profit',appMoney(metrics.operatingProfit),`${appPercent(metrics.operatingMargin)} margin`,'purple'],
-    [BriefcaseBusiness,'Cash Remaining',appMoney(metrics.cashRemaining),'Cash minus cash payroll & expenses','teal'],
+    [BriefcaseBusiness,'Cash Remaining',appMoney(metrics.cashRemaining),'Cash minus cash payroll, expenses & cash invoices','teal'],
     [Boxes,'True Food Cost',appMoney(metrics.foodCost),'Actual food invoice totals','amber'],
     [GlassWater,'True Alcohol Cost',appMoney(metrics.alcoholCost),'Beer • liquor • wine','orange'],
     [BadgeDollarSign,'Business Expenses',appMoney(metrics.expenseTotal),'Operating expenses','red'],

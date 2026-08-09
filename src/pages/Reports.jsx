@@ -21,7 +21,7 @@ import { appMoney, appMoney2, useAppData } from '../hooks/useAppData'
 
 const reportTypes = [
   'Cash Sales', 'Credit Sales', 'Other Sales', 'Food Sales', 'Alcohol Sales', 'Sales Tax', 'Tips Original', 'Tips After Withholding',
-  'Cash Payroll', 'Check Payroll', 'Extra Pay', 'Vendor Cash Spend', 'Vendor Check Spend', 'Business Expenses', 'Remaining Cash', 'Weekly P&L',
+  'Cash Payroll', 'Check Payroll', 'Extra Pay', 'Vendor Cash Spend', 'Vendor Check Spend', 'Business Expenses', 'Remaining Cash', 'Period P&L',
 ]
 
 const money = value => `$${Number(value).toFixed(2)}`
@@ -38,25 +38,26 @@ export default function Reports() {
     ['Vendor & Expense Summary','Invoices and expenses grouped by category',activeRangeLabel,'vendor-expense'],
   ]
   const cards = [
-    { title: 'Weekly P&L', value: appMoney(metrics.operatingProfit), meta: 'Operating profit', tone: 'green', icon: FileBarChart },
+    { title: 'Period P&L', value: appMoney(metrics.operatingProfit), meta: 'Operating profit', tone: 'green', icon: FileBarChart },
     { title: 'Sales Report', value: appMoney(metrics.salesTotal), meta: `${sales.length} sales entries`, tone: 'blue', icon: ReceiptText },
     { title: 'Payroll Report', value: appMoney(metrics.payrollTotal), meta: `${metrics.payrollHours.toFixed(1)} labor hours`, tone: 'purple', icon: WalletCards },
     { title: 'Expense Report', value: appMoney(metrics.expenseTotal), meta: `${expenses.length} expense entries`, tone: 'orange', icon: FileSpreadsheet },
   ]
   const weeklyReportSections = [
-    { title:'Weekly Sales Summary', total:metrics.salesTotal, headers:['Metric','Amount'], rows:[['Gross Sales',appMoney2(metrics.salesTotal)],['Net Sales',appMoney2(metrics.salesTotal)],['Cash Sales',appMoney2(metrics.cashSales)],['Credit Sales',appMoney2(metrics.creditSales)],['Tips',appMoney2(metrics.tips)]] },
+    { title:'Sales Summary', total:metrics.salesTotal, headers:['Metric','Amount'], rows:[['Gross Sales',appMoney2(metrics.salesTotal)],['Net Sales',appMoney2(metrics.salesTotal)],['Cash Sales',appMoney2(metrics.cashSales)],['Credit Sales',appMoney2(metrics.creditSales)],['Tips',appMoney2(metrics.tips)]] },
     { title:'Cash Payment Employees', total:metrics.cashPayroll, headers:['Date','Employee','Pay','Extra Pay','Reason','Total'], rows:payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='cash').map(r=>[r.pay_date||r.date||'',r.employee_name||r.employee||'',appMoney2(r.regular_pay||r.base_pay||0),appMoney2(r.extra_pay||0),r.extra_reason||'',appMoney2((Number(r.regular_pay||r.base_pay||0)+Number(r.extra_pay||0)))]) },
     { title:'Employees With Tips', total:payroll.reduce((s,r)=>s+(Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||0)),0), headers:['Date','Employee','Original Tips','Withheld','Tips After Withholding','Extra Pay','Reason','Total'], rows:payroll.filter(r=>Number(r.credit_card_tips||r.tips||0)>0).map(r=>{const tips=Number(r.credit_card_tips||r.tips||0),withheld=Number(r.tip_deduction||0),extra=Number(r.extra_pay||0);return [r.pay_date||r.date||'',r.employee_name||r.employee||'',appMoney2(tips),appMoney2(withheld),appMoney2(tips-withheld),appMoney2(extra),r.extra_reason||'',appMoney2(tips-withheld+extra)]}) },
     { title:'Vendor Payments / Spending Detail', total:metrics.invoiceTotal+metrics.expenseTotal, headers:['Date','Vendor / Payee','Category','Payment Type','Details','Amount'], rows:[...invoices.map(r=>[r.date||r.invoice_date||'',r.vendor||'',r.category||'',r.payment_type||'',r.number||r.invoice_number||'',appMoney2(r.amount??r.total)]),...expenses.map(r=>[r.date||'',r.vendor||'',r.type||r.category||'',r.method||'',r.notes||'',appMoney2(r.amount??r.total)])] },
-    { title:'Cash Balance Summary', total:metrics.cashRemaining, headers:['Metric','Amount'], rows:[['Cash Sales',appMoney2(metrics.cashSales)],['Cash Employee Payments',appMoney2(metrics.cashPayroll)],['Cash Vendor Expenses',appMoney2(metrics.cashExpenses)],['Remaining Cash Balance',appMoney2(metrics.cashRemaining)]] },
-    { title:'Weekly Profit / Loss Analysis', total:metrics.operatingProfit, headers:['Metric','Amount'], rows:[['Net Sales',appMoney2(metrics.salesTotal)],['Employee Payroll Total',appMoney2(metrics.payrollTotal)],['Vendor / Invoice Spending',appMoney2(metrics.invoiceTotal)],['Manual Expenses Included',appMoney2(metrics.expenseTotal)],['Estimated Profit / Loss',appMoney2(metrics.operatingProfit)]] },
+    { title:'Cash Balance Summary', total:metrics.cashRemaining, headers:['Metric','Amount'], rows:[['Cash Sales',appMoney2(metrics.cashSales)],['Cash Employee Payments',appMoney2(metrics.cashPayroll)],['Cash Vendor Invoices',appMoney2(metrics.cashInvoiceSpend)],['Cash Operating Expenses',appMoney2(metrics.cashExpenses)],['Remaining Cash Balance',appMoney2(metrics.cashRemaining)]] },
+    { title:'Period Profit / Loss Analysis', total:metrics.operatingProfit, headers:['Metric','Amount'], rows:[['Net Sales',appMoney2(metrics.salesTotal)],['Food + Alcohol COGS',appMoney2(metrics.cogs)],['Employee Payroll Total',appMoney2(metrics.payrollTotal)],['Operating Expenses',appMoney2(metrics.expenseTotal)],['Operating Profit / Loss',appMoney2(metrics.operatingProfit)]] },
+    { title:'Reconciliation Check', total:0, headers:['Check','Variance'], rows:[['Sales category equation',appMoney2(metrics.reconciliation.salesCategoryVariance)],['Cash balance equation',appMoney2(metrics.reconciliation.cashEquationVariance)],['Operating profit equation',appMoney2(metrics.reconciliation.profitEquationVariance)],['Status',metrics.reconciliation.balanced?'Balanced':'Review required']] },
   ]
   const [drawer, setDrawer] = useState(null)
   const [builderOpen, setBuilderOpen] = useState(false)
   const [weeklyOpen, setWeeklyOpen] = useState(false)
   const [showEmpty, setShowEmpty] = useState(true)
-  const [selected, setSelected] = useState(['Cash Sales', 'Cash Payroll', 'Vendor Cash Spend', 'Remaining Cash', 'Weekly P&L'])
-  const [reportName, setReportName] = useState('Weekly Custom Report')
+  const [selected, setSelected] = useState(['Cash Sales', 'Cash Payroll', 'Vendor Cash Spend', 'Remaining Cash', 'Period P&L'])
+  const [reportName, setReportName] = useState('Custom Restaurant Report')
 
   const available = useMemo(() => reportTypes.filter(type => !selected.includes(type)), [selected])
   const visibleWeeklySections = weeklyReportSections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)

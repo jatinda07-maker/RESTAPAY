@@ -13,7 +13,8 @@
     "test:invoice": "node scripts/test-invoice-engine.mjs",
     "test:ui": "node scripts/test-ui-functionality.mjs",
     "test:invoice-duplicates": "node scripts/test-invoice-duplicates.mjs",
-    "test:live-release": "node scripts/test-live-release.mjs"
+    "test:live-release": "node scripts/test-live-release.mjs",
+    "test:financial-reconciliation": "node scripts/test-financial-reconciliation.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
