@@ -103,6 +103,51 @@ export function buildWeeklyPayroll(rows = [], { start, end, paymentMethod = 'Che
   }))
 }
 
+
+export function buildKitchenWeeklyPayroll(employees = [], { start, end, selectedEmployeeIds = [], groupId = null, groupName = 'Kitchen Payroll' } = {}) {
+  if (!isMondayToSunday(start, end)) {
+    throw new Error('Kitchen payroll range must run Monday through Sunday.')
+  }
+  const selected = new Set((selectedEmployeeIds || []).map(String))
+  return (employees || [])
+    .filter(employee => employee && employee.id && (!selected.size || selected.has(String(employee.id))))
+    .map((employee, index) => {
+      const basePay = money(employee.basePay ?? employee.base_pay ?? 0)
+      const extraPay = money(employee.extra_pay ?? 0)
+      return {
+        id: `kitchen-weekly-${end}-${employee.id}-${index}`,
+        employee_id: employee.id,
+        employee_name: employee.name || employee.employee_name || 'Unknown employee',
+        job_type: employee.job || employee.job_type || 'Kitchen',
+        pay_type: employee.pay_type || employee.type || employee.employee_type || 'Hourly',
+        pay_date: end,
+        payroll_date: end,
+        payroll_week_start: start,
+        payroll_week_end: end,
+        week_start: start,
+        week_end: end,
+        hours: 0,
+        regular_pay: basePay,
+        credit_card_tips: 0,
+        tip_deduction: 0,
+        tips_withheld: 0,
+        tips_after_withheld: 0,
+        extra_pay: extraPay,
+        extra_reason: employee.extra_reason || '',
+        total: money(basePay + extraPay),
+        total_pay: money(basePay + extraPay),
+        payment_method: employee.method || employee.payroll_type || 'Cash',
+        method: employee.method || employee.payroll_type || 'Cash',
+        group_id: groupId,
+        group_name: groupName,
+        source: 'kitchen-weekly',
+        weekly_rollup: true,
+        source_ids: [],
+        notes: `Kitchen weekly payroll ${start} through ${end}`,
+      }
+    })
+}
+
 export function activePayrollRows(rows = []) {
   return rows.filter(row => row.payroll_status !== 'rolled-up')
 }
