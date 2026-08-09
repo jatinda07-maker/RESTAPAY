@@ -7,6 +7,7 @@ import ToastReportImport from '../components/ToastReportImport'
 import usePersistentState from '../hooks/usePersistentState'
 import { useFeedback } from '../components/AppFeedback'
 import { SALES_TABS, salesViewRows, summarizeSales } from '../core/engines/SalesViewEngine.js'
+import { reloadLiveCollection } from '../data/liveDataStore.js'
 import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
 
 const blankSale = { date: '', category: 'Food', payment: 'Cash', amount: '', tips: '', source: 'Manual Entry', location: 'Jaybos Restaurant' }
@@ -33,7 +34,7 @@ export default function Sales() {
   const [form, setForm] = useState(blankSale)
   const [toastImportOpen, setToastImportOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
-  const { range } = useGlobalDateRange()
+  const { range, apply } = useGlobalDateRange()
   const scopedRows = useMemo(() => (Array.isArray(rows)?rows:[]).filter(row => inDateRange(row, range, ['business_date','view_date','sales_date','date'])), [rows, range])
 
   const filteredRows = useMemo(() => salesViewRows(scopedRows, { tab, payment, query, location }).sort((a,b)=>String(a.view_date||'').localeCompare(String(b.view_date||''))), [scopedRows, tab, payment, query, location])
@@ -122,7 +123,7 @@ export default function Sales() {
     const a = document.createElement('a'); a.href = url; a.download = `restapay-sales-${tab.toLowerCase().replaceAll(' ', '-')}.csv`; a.click(); URL.revokeObjectURL(url)
     notify(`${tab} CSV exported.`)
   }
-  const importSales = ({ rows: importedRows }) => {
+  const importSales = async ({ rows: importedRows }) => {
     const normalized = importedRows.map((row, index) => ({
       ...row,
       id: row.id || `toast-sale-${Date.now()}-${index}`,
@@ -135,13 +136,30 @@ export default function Sales() {
       source: 'Toast POS',
       location: row.location || 'Jaybos Restaurant',
     })).filter(row => Number(row.amount) || Number(row.tips) || Number(row.cash_sales) || Number(row.credit_sales) || Number(row.other_payments))
-    if (!normalized.length) return notify('No recognizable Toast sales rows were found.', 'error')
+    if (!normalized.length) throw new Error('No recognizable Toast sales rows were found.')
+
     const sourceFile = normalized[0]?.source_file
-    setRows(items => {
+    await setRows(items => {
       const withoutSameFile = sourceFile ? items.filter(item => item.source_file !== sourceFile) : items
       return [...normalized, ...withoutSameFile]
     })
-    notify(`${normalized.length} Toast daily sales records imported with payment and department breakdowns.`)
+
+    // Read the collection back from Supabase before reporting success. This prevents
+    // the import modal from closing on an optimistic/local-only update.
+    const savedRows = await reloadLiveCollection('restapay.sales')
+    const savedForFile = sourceFile ? savedRows.filter(item => item.source_file === sourceFile) : savedRows
+    if (sourceFile && savedForFile.length !== normalized.length) {
+      throw new Error(`Supabase saved ${savedForFile.length} of ${normalized.length} rows for this Toast file.`)
+    }
+
+    const dates = normalized.map(row => row.business_date).filter(Boolean).sort()
+    if (dates.length) apply({ preset:'custom', from:dates[0], to:dates[dates.length - 1] })
+    setTab('All Sales')
+    setPayment('All Payments')
+    setLocation('All Locations')
+    setQuery('')
+    notify(`${normalized.length} Toast daily sales records saved to Supabase and loaded into Sales.`)
+    return { savedCount: normalized.length, from: dates[0], to: dates[dates.length - 1] }
   }
 
   const amountHeading = tab === 'All Sales' ? 'Net Sales' : tab === 'Tips' ? 'Tips Amount' : `${tab} Amount`

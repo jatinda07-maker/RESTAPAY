@@ -57,6 +57,7 @@ export default function ToastReportImport({ open, type = 'sales', onClose, onImp
   const [details, setDetails] = useState(null)
   const [stage, setStage] = useState('choose')
   const [busy, setBusy] = useState(false)
+  const [previewPage, setPreviewPage] = useState(0)
 
   const isSales = type === 'sales'
   const title = isSales ? 'Import Toast Sales Report' : 'Import Toast Payroll Report'
@@ -64,17 +65,36 @@ export default function ToastReportImport({ open, type = 'sales', onClose, onImp
     ? 'Upload the Toast Sales Summary and review sales, payments, categories, and tips before import'
     : 'Upload the Toast Labor Summary and review employees, hours, tips, and withholding before import'
 
+  const salesReview = useMemo(() => {
+    if (!isSales || !rows.length) return null
+    const p = details?.payments || {}
+    const c = details?.categories || {}
+    const sum = field => Math.round(rows.reduce((total,row)=>total+num(row[field]),0)*100)/100
+    const dates = rows.map(row=>String(row.business_date||row.date||'')).filter(Boolean).sort()
+    const expected = {
+      net: Math.round(((c.foodTotal||0)+(c.alcoholTotal||0)+(c.otherTotal||0)+(c.excludedTotal||0))*100)/100,
+      cash: Math.round(Number(p.cash||0)*100)/100,
+      credit: Math.round(Number(p.credit||0)*100)/100,
+      tips: Math.round(Number(p.tips||0)*100)/100,
+      food: Math.round(Number(c.foodTotal||0)*100)/100,
+      alcohol: Math.round(Number(c.alcoholTotal||0)*100)/100,
+    }
+    const parsed = { net:sum('net_sales'), cash:sum('cash_sales'), credit:sum('credit_sales'), tips:sum('tips_collected'), food:sum('food_sales'), alcohol:sum('alcohol_sales') }
+    const checks = Object.keys(expected).map(key=>({key,source:expected[key],parsed:parsed[key],ok:Math.abs(expected[key]-parsed[key])<0.011}))
+    return { from:dates[0]||'', to:dates[dates.length-1]||'', expected, parsed, checks, ok:checks.every(item=>item.ok) }
+  }, [rows,isSales,details])
+
   const summary = useMemo(() => {
     if (isSales) {
-      const p = details?.payments || {}
-      const c = details?.categories || {}
+      const review = salesReview
       return [
         { label:'Daily rows', value:rows.length },
-        { label:'Net sales', value:money((c.foodTotal || 0) + (c.alcoholTotal || 0) + (c.otherTotal || 0) + (c.excludedTotal || 0)) },
-        { label:'Cash', value:money(p.cash) },
-        { label:'Credit', value:money(p.credit) },
-        { label:'Tips', value:money(p.tips) },
-        { label:'Food / Alcohol', value:`${money(c.foodTotal)} / ${money(c.alcoholTotal)}` },
+        { label:'Date range', value:review?.from && review?.to ? `${review.from} → ${review.to}` : '—' },
+        { label:'Net sales', value:money(review?.parsed.net) },
+        { label:'Cash', value:money(review?.parsed.cash) },
+        { label:'Credit', value:money(review?.parsed.credit) },
+        { label:'Tips', value:money(review?.parsed.tips) },
+        { label:'Food / Alcohol', value:`${money(review?.parsed.food)} / ${money(review?.parsed.alcohol)}` },
       ]
     }
     const d = details || laborImportDiagnostics(rows)
@@ -86,15 +106,15 @@ export default function ToastReportImport({ open, type = 'sales', onClose, onImp
       { label:'Withheld', value:money(d.totalWithheld ?? rows.reduce((s,r) => s + Number(r.tip_deduction || 0), 0)) },
       { label:'Net tips', value:money(rows.reduce((s,r) => s + Number(r.tips || 0), 0)) },
     ]
-  }, [rows, isSales, details])
+  }, [rows, isSales, details, salesReview])
 
-  const reset = () => { setFile(null); setRows([]); setDetails(null); setStage('choose'); setBusy(false) }
+  const reset = () => { setFile(null); setRows([]); setDetails(null); setStage('choose'); setBusy(false); setPreviewPage(0) }
   const close = () => { reset(); onClose?.() }
 
   const chooseFile = async event => {
     const selected = event.target.files?.[0]
     if (!selected) return
-    setBusy(true); setFile(selected); setRows([]); setDetails(null); setStage('choose')
+    setBusy(true); setFile(selected); setRows([]); setDetails(null); setStage('choose'); setPreviewPage(0)
     try {
       const workbook = workbookFromArrayBuffer(await selected.arrayBuffer())
       if (isSales) {
@@ -120,8 +140,9 @@ export default function ToastReportImport({ open, type = 'sales', onClose, onImp
     if (!rows.length) return notify('No parsed records are available to import.', 'error')
     setBusy(true)
     try {
-      await onImport?.({ file, rows, type, details })
-      notify(`${file.name} imported in safe local mode.`)
+      const result = await onImport?.({ file, rows, type, details })
+      const suffix = result?.savedCount ? ` ${result.savedCount} records verified.` : ''
+      notify(`${file.name} imported to live RestaPay data.${suffix}`)
       close()
     } catch (error) {
       notify(error?.message || 'Import failed.', 'error')
@@ -137,7 +158,7 @@ export default function ToastReportImport({ open, type = 'sales', onClose, onImp
     <button className="secondary-action" onClick={close}>Cancel</button>
   </> : <>
     <button className="secondary-action" onClick={reset}><RefreshCw size={16}/>Choose Another</button>
-    <button className="primary-button" disabled={busy || !rows.length} onClick={commit}><CheckCircle2 size={16}/>{busy ? 'Importing...' : `Import ${isSales ? 'Sales' : 'Payroll'}`}</button>
+    <button className="primary-button" disabled={busy || !rows.length || (isSales && salesReview && !salesReview.ok)} onClick={commit}><CheckCircle2 size={16}/>{busy ? 'Importing...' : `Import ${isSales ? 'Sales' : 'Payroll'}`}</button>
   </>}>
     {stage === 'choose' ? <>
       <label className="ai-dropzone toast-report-dropzone">
@@ -146,13 +167,15 @@ export default function ToastReportImport({ open, type = 'sales', onClose, onImp
         <span>CSV, XLSX, and XLS are parsed by the migrated Toast engine before import.</span>
         <input type="file" accept=".csv,.xlsx,.xls" disabled={busy} onChange={chooseFile}/>
       </label>
-      <div className="import-review-note"><AlertTriangle size={18}/><span>Safe local mode is active. This import will not update or delete your previous Supabase data.</span></div>
+      <div className="import-review-note"><AlertTriangle size={18}/><span>Review before importing. RestaPay will save these records to live Supabase data and verify the write before reporting success.</span></div>
     </> : <div className="toast-import-review">
       <div className="toast-import-summary">{summary.map(item => <div key={item.label}><small>{item.label}</small><strong>{item.value}</strong></div>)}</div>
-      <div className="toast-import-validation"><CheckCircle2 size={18}/><span>Toast engine validation passed. Review the parsed records below before importing.</span></div>
+      <div className="toast-import-validation"><CheckCircle2 size={18}/><span>{isSales && salesReview ? `Reconciliation ${salesReview.ok ? 'passed' : 'needs review'} for ${rows.length} rows (${salesReview.from} through ${salesReview.to}).` : 'Toast engine validation passed. Review the parsed records below before importing.'}</span></div>
+      {isSales && salesReview && <div className="toast-import-summary">{salesReview.checks.map(item => <div key={item.key}><small>{item.key.replaceAll('_',' ')}</small><strong>{money(item.parsed)}</strong><span style={{fontSize:12}}>{item.ok ? '✓ matches source' : `Source ${money(item.source)}`}</span></div>)}</div>}
+      {isSales && <p className="toast-import-more">Daily Net Sales come directly from Toast. This Sales Summary workbook provides report-level Food, Alcohol, Cash, Credit and Tips totals, so those fields are allocated across days and reconcile exactly to the report total.</p>}
       <div className="toast-import-preview"><table><thead><tr>{previewColumns.map(header => <th key={header}>{header.replaceAll('_',' ')}</th>)}</tr></thead>
-        <tbody>{rows.slice(0,6).map((row,index) => <tr key={row.id || index}>{previewColumns.map(header => <td key={header}>{String(row[header] ?? '')}</td>)}</tr>)}</tbody></table></div>
-      {rows.length > 6 && <p className="toast-import-more">Showing 6 of {rows.length} parsed rows.</p>}
+        <tbody>{rows.slice(previewPage*10,previewPage*10+10).map((row,index) => <tr key={row.id || index}>{previewColumns.map(header => <td key={header}>{String(row[header] ?? '')}</td>)}</tr>)}</tbody></table></div>
+      <div className="toast-import-more" style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}><span>Showing {rows.length ? previewPage*10+1 : 0}–{Math.min(rows.length,previewPage*10+10)} of {rows.length} parsed rows.</span><span style={{display:'flex',gap:8}}><button type="button" className="secondary-action" disabled={previewPage===0} onClick={()=>setPreviewPage(page=>Math.max(0,page-1))}>Previous</button><button type="button" className="secondary-action" disabled={(previewPage+1)*10>=rows.length} onClick={()=>setPreviewPage(page=>page+1)}>Next</button></span></div>
     </div>}
   </Modal>
 }

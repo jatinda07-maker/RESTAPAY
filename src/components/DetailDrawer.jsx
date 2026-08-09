@@ -17,6 +17,13 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
   const costRows = [['Food Cost',`${metrics.foodInvoiceCount} invoices`,appMoney(metrics.foodCost)],['Alcohol Cost',`${metrics.alcoholInvoiceCount} invoices`,appMoney(metrics.alcoholCost)],['Labor Cost',`${payroll.length} payroll records`,appMoney(metrics.payrollTotal)]]
   const map = {
     'Net Sales': ['Sales by category and payment type', [{title:'Sales by Category',rows:salesRows,total:['Net Sales',appMoney(metrics.salesTotal)]},{title:'Payment Types',rows:paymentRows,total:['Payments',appMoney(metrics.salesTotal)]}]],
+    'Cash Flow': ['Cash collected less cash payroll and cash expenses', [{title:'Cash Flow',rows:[['Cash Collected',`${sales.filter(r=>Number(r.cash_sales||0)!==0).length} sales days`,appMoney(metrics.cashSales)],['Cash Payroll',`${payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='cash').length} payroll entries`,appMoney(-metrics.cashPayroll)],['Cash Expenses',`${expenses.filter(r=>String(r.payment_type||r.method).toLowerCase()==='cash').length} expense entries`,appMoney(-metrics.cashExpenses)]],total:['Cash Remaining',appMoney(metrics.cashRemaining)]}]],
+    'Cash Collected': ['Cash sales for the selected period', [{title:'Cash Collected',rows:[['Cash Sales',`${sales.filter(r=>Number(r.cash_sales||0)!==0).length} daily records`,appMoney(metrics.cashSales)]],total:['Cash Collected',appMoney(metrics.cashSales)]}]],
+    'Cash Remaining': ['Cash collected less cash payroll and expenses', [{title:'Cash Remaining',rows:[['Cash Collected','Sales cash receipts',appMoney(metrics.cashSales)],['Cash Payroll','Cash payroll payments',appMoney(-metrics.cashPayroll)],['Cash Expenses','Cash operating expenses',appMoney(-metrics.cashExpenses)]],total:['Cash Remaining',appMoney(metrics.cashRemaining)]}]],
+    'Prime Cost': ['Food, alcohol and payroll compared with sales', [{title:'Prime Cost',rows:[['Food Cost',`${metrics.foodInvoiceCount} invoices`,appMoney(metrics.foodCost)],['Alcohol Cost',`${metrics.alcoholInvoiceCount} invoices`,appMoney(metrics.alcoholCost)],['Payroll',`${payroll.length} records`,appMoney(metrics.payrollTotal)]],total:['Prime Cost',appMoney(metrics.primeCostAmount)]}]],
+    'Labor Mix': ['Payroll compared with sales', [{title:'Labor Mix',rows:[['Payroll',`${payroll.length} records`,appMoney(metrics.payrollTotal)],['Net Sales',`${sales.length} sales days`,appMoney(metrics.salesTotal)]],total:['Labor Mix',appPercent(metrics.laborMixPercent)]}]],
+    'Operating Profit': ['Sales less food, alcohol, payroll and expenses', [{title:'Operating Profit',rows:[['Net Sales',`${sales.length} sales days`,appMoney(metrics.salesTotal)],['Cost of Goods','Food and alcohol',appMoney(-metrics.cogs)],['Payroll',`${payroll.length} records`,appMoney(-metrics.payrollTotal)],['Expenses',`${expenses.length} records`,appMoney(-metrics.expenseTotal)]],total:['Operating Profit',appMoney(metrics.operatingProfit)]}]],
+    'Business Expenses': ['Operating expenses in the selected period', [{title:'Business Expenses',rows:[['All Expenses',`${expenses.length} records`,appMoney(metrics.expenseTotal)],['Cash Expenses','Cash payments',appMoney(metrics.cashExpenses)]],total:['Business Expenses',appMoney(metrics.expenseTotal)]}]],
     'Cash Sales': ['Actual cash sales and payments', [{title:'Cash Activity',rows:[['Cash Sales',`${sales.filter(r=>String(r.payment||'').toLowerCase()==='cash').length} entries`,appMoney(metrics.cashSales)]],total:['Cash Sales',appMoney(metrics.cashSales)]}]],
     'Credit Sales': ['Card and debit activity', [{title:'Credit Activity',rows:[['Credit Sales',`${sales.filter(r=>/credit|card/i.test(String(r.payment||''))).length} entries`,appMoney(metrics.creditSales)]],total:['Credit Sales',appMoney(metrics.creditSales)]}]],
     'Other Sales': ['Other payment activity', [{title:'Other Activity',rows:[['Other Sales','Delivery and other',appMoney(metrics.otherSales)]],total:['Other Sales',appMoney(metrics.otherSales)]}]],
@@ -40,13 +47,12 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
   }
   const selected = map[title]
   if (selected) return { tone, subtitle:selected[0], sections:selected[1] }
-  const countMap = { vendors:vendors.length, employees:employees.length, invoices:invoices.length, expenses:expenses.length, payroll:payroll.length, sales:sales.length }
-  return { tone, subtitle:'Selected period details', sections:[{title:'Summary',rows:[['Current Total','Calculated from current records',appMoney(0)],['Entries','Included records',String(Math.max(...Object.values(countMap),0))],['Status','Ready for review','Current']],total:['Selected Total',appMoney(0)]}] }
+  return { tone, subtitle:'Selected period details', sections:[{title:'Summary',rows:[['Current Total','No calculation is configured for this KPI',appMoney(0)],['Entries','No related live collection is configured','0'],['Status','No live detail mapping','Review']],total:['Selected Total',appMoney(0)]}] }
 }
 
 function buildRecentEntries(title, collections) {
   let rows = []
-  if (/sale/i.test(title || '')) rows = collections.sales.map(r=>[r.date||'—',`${r.category||'Sale'} · ${r.payment||'Other'}`,appMoney2(r.amount)])
+  if (/sale|cash collected|cash flow|cash remaining|operating profit|prime cost|labor mix/i.test(title || '')) rows = collections.sales.map(r=>[r.business_date||r.date||'—',`${r.category||'Sales'} · ${r.source||'Toast POS'}`,appMoney2(r.net_sales??r.amount)])
   else if (/invoice|cost|vendor/i.test(title || '')) rows = collections.invoices.map(r=>[r.date||r.invoice_date||'—',`${r.vendor||'Vendor'} · ${r.number||r.invoice_number||'Invoice'}`,appMoney2(r.amount??r.total)])
   else if (/expense/i.test(title || '')) rows = collections.expenses.map(r=>[r.date||'—',`${r.vendor||'Vendor'} · ${r.type||r.category||'Expense'}`,appMoney2(r.amount??r.total)])
   else if (/payroll|labor/i.test(title || '')) rows = collections.payroll.map(r=>[r.pay_date||r.date||'—',`${r.employee_name||r.employee||'Employee'} · ${r.payment_method||r.method||'Method'}`,appMoney2((Number(r.regular_pay||r.base_pay||0)+Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||0)+Number(r.extra_pay||0)))])
@@ -54,7 +60,7 @@ function buildRecentEntries(title, collections) {
 }
 
 const routeMap = {
-  'Net Sales':'/sales','Cash Sales':'/sales','Credit Sales':'/sales','Other Sales':'/sales','Tips Earned':'/sales','Sales Summary':'/sales',
+  'Net Sales':'/sales','Cash Sales':'/sales','Credit Sales':'/sales','Other Sales':'/sales','Tips Earned':'/sales','Sales Summary':'/sales','Cash Flow':'/sales','Cash Collected':'/sales','Cash Remaining':'/sales','Prime Cost':'/food-alcohol-cost','Labor Mix':'/payroll','Operating Profit':'/reports','Business Expenses':'/expenses',
   'Cost Breakdown':'/food-alcohol-cost','Food Cost':'/food-alcohol-cost','Alcohol Cost':'/food-alcohol-cost','True Food Cost':'/food-alcohol-cost','True Alcohol Cost':'/food-alcohol-cost',
   'Food Invoices':'/invoices','Alcohol Invoices':'/invoices','Invoice Total':'/invoices','Open Balance':'/invoices',
   'Vendor Spend':'/vendors','Total Vendors':'/vendors','Inventory Vendors':'/vendors','Expense Vendors':'/vendors',

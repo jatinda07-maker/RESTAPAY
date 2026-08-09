@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { summarizePayroll } from '../core/adapters/payrollAdapter.js'
 import { buildPriceHistory, comparePrices, normalizeInvoice } from '../core/engines/InvoiceEngine.js'
 
-import { liveSnapshot, subscribeLiveData, initializeLiveData } from '../data/liveDataStore.js'
+import { liveSnapshot, subscribeLiveData, initializeLiveData, reloadLiveCollection } from '../data/liveDataStore.js'
 import useGlobalDateRange, { inDateRange } from './useGlobalDateRange.js'
 
 const number = (value) => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
@@ -19,9 +19,19 @@ export function useAppData(overrideRange = null) {
   useEffect(() => {
     let active=true
     const refresh=()=>active&&setData(snapshot())
-    initializeLiveData().then(refresh).catch(()=>{})
+    const liveKeys=['restapay.sales','restapay-payroll','restapay-invoices','restapay-expenses','restapay-vendors','restapay-employees']
+    const refreshFromCloud=async()=>{
+      await initializeLiveData().catch(()=>{})
+      await Promise.allSettled(liveKeys.map(key=>reloadLiveCollection(key)))
+      refresh()
+    }
+    refreshFromCloud()
+    const onFocus=()=>refreshFromCloud()
+    const onVisibility=()=>{ if(document.visibilityState==='visible') refreshFromCloud() }
+    window.addEventListener('focus',onFocus)
+    document.addEventListener('visibilitychange',onVisibility)
     const unsub=subscribeLiveData(refresh)
-    return ()=>{active=false;unsub()}
+    return ()=>{active=false;unsub();window.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onVisibility)}
   }, [])
 
   const scoped = useMemo(() => ({
