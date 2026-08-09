@@ -299,6 +299,12 @@
 .sales-table th.select-column input,.sales-table td.select-column input{width:15px;height:15px;accent-color:#087f45;cursor:pointer}
 .sales-table tbody tr.row-selected td{background:#eef9f2!important}
 .bulk-delete-button{flex:0 0 auto}
+.payroll-bulk-actions{display:flex;align-items:center;gap:8px;flex:1 1 100%;padding:8px 10px;border:1px solid #dce7e2;border-radius:10px;background:#f7fbf8}
+.payroll-bulk-actions>strong{white-space:nowrap;color:#173e2a;font-size:13px}
+.payroll-bulk-select{min-width:170px}
+.payroll-bulk-select select{min-width:150px}
+.bulk-apply-button{flex:0 0 auto}
+.bulk-apply-button:disabled{opacity:.5;cursor:not-allowed}
 .payroll-table.payroll-table-compact th:nth-child(1),.payroll-table.payroll-table-compact td:nth-child(1){width:4%!important;text-align:center!important}
 .payroll-table.payroll-table-compact th:nth-child(2){width:8%}.payroll-table.payroll-table-compact th:nth-child(3){width:13%}.payroll-table.payroll-table-compact th:nth-child(4){width:9%}.payroll-table.payroll-table-compact th:nth-child(5){width:6%}.payroll-table.payroll-table-compact th:nth-child(6){width:8%}.payroll-table.payroll-table-compact th:nth-child(7){width:8%}.payroll-table.payroll-table-compact th:nth-child(8){width:8%}.payroll-table.payroll-table-compact th:nth-child(9){width:8%}.payroll-table.payroll-table-compact th:nth-child(10){width:9%}.payroll-table.payroll-table-compact th:nth-child(11){width:8%}.payroll-table.payroll-table-compact th:nth-child(12){width:11%}
 .employee-group-picker>.records-empty{padding:18px;text-align:center;color:#60789f}

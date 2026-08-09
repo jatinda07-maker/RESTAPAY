@@ -14,7 +14,9 @@
     "test:ui": "node scripts/test-ui-functionality.mjs",
     "test:invoice-duplicates": "node scripts/test-invoice-duplicates.mjs",
     "test:live-release": "node scripts/test-live-release.mjs",
-    "test:financial-reconciliation": "node scripts/test-financial-reconciliation.mjs"
+    "test:financial-reconciliation": "node scripts/test-financial-reconciliation.mjs",
+    "test:kitchen-weekly-payroll": "node scripts/test-kitchen-weekly-payroll.mjs",
+    "test:payroll-bulk-actions": "node scripts/test-payroll-bulk-actions.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

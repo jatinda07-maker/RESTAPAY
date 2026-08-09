@@ -9,7 +9,7 @@ import Modal from '../components/Modal'
 import ToastReportImport from '../components/ToastReportImport'
 import { formatMoney, summarizePayroll, toPayrollViewRow } from '../core/adapters/payrollAdapter.js'
 import { normalizePayrollRecord, normalizePayrollRecords } from '../core/adapters/payrollSchemaAdapter.js'
-import { buildWeeklyPayroll, endOfPayrollWeek, isMondayToSunday, startOfPayrollWeek } from '../core/engines/WeeklyPayrollEngine.js'
+import { buildKitchenWeeklyPayroll, buildWeeklyPayroll, endOfPayrollWeek, isMondayToSunday, startOfPayrollWeek } from '../core/engines/WeeklyPayrollEngine.js'
 import usePersistentState from '../hooks/usePersistentState'
 import { useFeedback } from '../components/AppFeedback'
 import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
@@ -33,6 +33,12 @@ export default function Payroll(){
   const [savingPayroll,setSavingPayroll] = useState(false)
   const [importOpen,setImportOpen] = useState(false)
   const [kitchenOpen,setKitchenOpen] = useState(false)
+  const [kitchenWeekOpen,setKitchenWeekOpen] = useState(false)
+  const [kitchenWeekStart,setKitchenWeekStart] = useState(() => startOfPayrollWeek(new Date().toISOString().slice(0,10)))
+  const [kitchenWeekEnd,setKitchenWeekEnd] = useState(() => endOfPayrollWeek(new Date().toISOString().slice(0,10)))
+  const [kitchenWeekGroupId,setKitchenWeekGroupId] = useState('')
+  const [selectedKitchenEmployeeIds,setSelectedKitchenEmployeeIds] = useState([])
+  const [savingKitchenPayroll,setSavingKitchenPayroll] = useState(false)
   const [weekOpen,setWeekOpen] = useState(false)
   const [weekStart,setWeekStart] = useState(() => startOfPayrollWeek(new Date().toISOString().slice(0,10)))
   const [weekEnd,setWeekEnd] = useState(() => endOfPayrollWeek(new Date().toISOString().slice(0,10)))
@@ -43,6 +49,7 @@ export default function Payroll(){
   const [groupName,setGroupName] = useState('Kitchen Payroll')
   const [editingGroupId,setEditingGroupId] = useState(null)
   const [selectedRowIds,setSelectedRowIds] = useState([])
+  const [bulkAction,setBulkAction] = useState('')
   const [sourceRows,setSourceRows] = usePersistentState('restapay-payroll', [])
   const [employees] = usePersistentState('restapay-employees', [])
   const [groups,setGroups] = usePersistentState('restapay-payroll-groups', [])
@@ -81,6 +88,13 @@ export default function Payroll(){
   ), [tabRows, query, method])
 
   const activeEmployees = useMemo(() => (Array.isArray(employees) ? employees : []).filter(employee => employee && employee.id && employee.status !== 'Inactive' && employee.active !== false && employee.is_active !== false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))), [employees])
+  const kitchenGroups = useMemo(() => safeGroups.filter(group => /kitchen|cook|prep|dishwasher|busser/i.test(String(group.type || group.group_type || group.name || ''))), [safeGroups])
+  const selectedKitchenGroup = useMemo(() => kitchenGroups.find(group => String(group.id) === String(kitchenWeekGroupId)) || null, [kitchenGroups, kitchenWeekGroupId])
+  const kitchenEligibleEmployees = useMemo(() => {
+    const memberIds = new Set((selectedKitchenGroup?.memberIds || selectedKitchenGroup?.member_ids || []).map(String))
+    if (memberIds.size) return activeEmployees.filter(employee => memberIds.has(String(employee.id)))
+    return activeEmployees.filter(employee => /kitchen|cook|chef|prep|dishwasher|busser/i.test(String(employee.job || employee.job_type || '')))
+  }, [activeEmployees, selectedKitchenGroup])
   const filteredRowIds = useMemo(() => filtered.map(row => row.id).filter(Boolean), [filtered])
   const allVisibleSelected = filteredRowIds.length > 0 && filteredRowIds.every(id => selectedRowIds.includes(id))
   const toggleSelectedRow = id => setSelectedRowIds(ids => ids.includes(id) ? ids.filter(value => value !== id) : [...ids,id])
@@ -190,6 +204,85 @@ export default function Payroll(){
   }
 
 
+  const openKitchenWeeklyBuilder = () => {
+    const defaultGroup = kitchenGroups[0] || null
+    const start = isMondayToSunday(range?.from, range?.to) ? range.from : startOfPayrollWeek(range?.to || new Date().toISOString().slice(0,10))
+    const end = isMondayToSunday(range?.from, range?.to) ? range.to : endOfPayrollWeek(start)
+    setKitchenWeekStart(start)
+    setKitchenWeekEnd(end)
+    setKitchenWeekGroupId(defaultGroup?.id || '')
+    const memberIds = new Set((defaultGroup?.memberIds || defaultGroup?.member_ids || []).map(String))
+    const eligible = memberIds.size
+      ? activeEmployees.filter(employee => memberIds.has(String(employee.id)))
+      : activeEmployees.filter(employee => /kitchen|cook|chef|prep|dishwasher|busser/i.test(String(employee.job || employee.job_type || '')))
+    setSelectedKitchenEmployeeIds(eligible.map(employee => employee.id))
+    setKitchenWeekOpen(true)
+  }
+
+  useEffect(() => {
+    if (!kitchenWeekOpen) return
+    const validIds = kitchenEligibleEmployees.map(employee => employee.id)
+    setSelectedKitchenEmployeeIds(previous => {
+      const stillValid = previous.filter(id => validIds.includes(id))
+      return stillValid.length ? stillValid : validIds
+    })
+  }, [kitchenWeekOpen, kitchenWeekGroupId, kitchenEligibleEmployees.map(employee => employee.id).join('|')])
+
+  const kitchenWeeklyPreview = useMemo(() => {
+    if (!isMondayToSunday(kitchenWeekStart, kitchenWeekEnd)) return []
+    try {
+      return buildKitchenWeeklyPayroll(kitchenEligibleEmployees, {
+        start:kitchenWeekStart,
+        end:kitchenWeekEnd,
+        selectedEmployeeIds:selectedKitchenEmployeeIds,
+        groupId:selectedKitchenGroup?.id || null,
+        groupName:selectedKitchenGroup?.name || 'Kitchen Payroll'
+      })
+    } catch { return [] }
+  }, [kitchenEligibleEmployees, kitchenWeekStart, kitchenWeekEnd, selectedKitchenEmployeeIds, selectedKitchenGroup])
+
+  const createKitchenWeeklyPayroll = async () => {
+    if (!isMondayToSunday(kitchenWeekStart, kitchenWeekEnd)) return notify('Select a Monday through Sunday kitchen payroll range.', 'error')
+    if (!selectedKitchenEmployeeIds.length) return notify('Select at least one kitchen employee.', 'error')
+    let weeklyRows
+    try {
+      weeklyRows = buildKitchenWeeklyPayroll(kitchenEligibleEmployees, {
+        start:kitchenWeekStart,
+        end:kitchenWeekEnd,
+        selectedEmployeeIds:selectedKitchenEmployeeIds,
+        groupId:selectedKitchenGroup?.id || null,
+        groupName:selectedKitchenGroup?.name || 'Kitchen Payroll'
+      })
+    } catch (error) { return notify(error.message, 'error') }
+    if (!weeklyRows.length) return notify('No active kitchen employees were found for this payroll.', 'error')
+    try {
+      setSavingKitchenPayroll(true)
+      await setSourceRows(previous => {
+        const kitchenSelectedIdsSet = new Set(selectedKitchenEmployeeIds.map(String))
+        const withoutExistingKitchenWeek = previous.filter(row => !(
+          row.weekly_rollup &&
+          String(row.source || '').toLowerCase() === 'kitchen-weekly' &&
+          (row.payroll_week_end || row.week_end) === kitchenWeekEnd &&
+          kitchenSelectedIdsSet.has(String(row.employee_id || ''))
+        ))
+        const normalized = weeklyRows.map(row => normalizePayrollRecord({
+          ...row,
+          payment_status:'Draft', payment_date:'', check_number:'', ach_reference:'',
+          week_start:kitchenWeekStart, week_end:kitchenWeekEnd,
+          payroll_week_start:kitchenWeekStart, payroll_week_end:kitchenWeekEnd
+        }, { source:'kitchen-weekly', method:row.method || 'Cash' }))
+        return [...normalized, ...withoutExistingKitchenWeek]
+      })
+      setKitchenWeekOpen(false)
+      setActiveTab('Ready to Pay')
+      notify(`${weeklyRows.length} kitchen payroll records created and saved to Supabase for week ending ${kitchenWeekEnd}.`)
+    } catch (error) {
+      notify(`Kitchen payroll save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
+    } finally {
+      setSavingKitchenPayroll(false)
+    }
+  }
+
   const availablePayrollWeeks = useMemo(() => {
     const weeks = new Map()
     sourceRows.forEach(row => {
@@ -258,7 +351,7 @@ export default function Payroll(){
     try {
       setSavingPayroll(true)
       await setSourceRows(previous => {
-      const withoutExistingWeek = previous.filter(row => !(row.weekly_rollup && row.payroll_week_end === weekEnd))
+      const withoutExistingWeek = previous.filter(row => !(row.weekly_rollup && String(row.source || '').toLowerCase() !== 'kitchen-weekly' && (row.payroll_week_end || row.week_end) === weekEnd))
       const marked = withoutExistingWeek.map(row => sourceIds.has(row.id)
         ? { ...row, payroll_status:'rolled-up', included_in_weekly_end:weekEnd }
         : row)
@@ -318,6 +411,29 @@ export default function Payroll(){
     }
   }
 
+  const applyBulkAction = async () => {
+    if (!selectedRowIds.length || !bulkAction) return
+    const count=selectedRowIds.length
+    if (!window.confirm(`Change ${count} selected payroll entr${count===1?'y':'ies'} to ${bulkAction}?`)) return
+    const selectedSet=new Set(selectedRowIds)
+    const changedAt=new Date().toISOString()
+    const paymentDate=changedAt.slice(0,10)
+    try {
+      await setSourceRows(prev => prev.map(row => selectedSet.has(row.id) ? {
+        ...row,
+        payment_status:bulkAction,
+        ...(bulkAction === 'Paid' ? {payment_date:row.payment_date || paymentDate} : {}),
+        updated_at:changedAt
+      } : row))
+      setSelectedRowIds([])
+      setBulkAction('')
+      if (bulkAction === 'Paid') setActiveTab('Payroll History')
+      notify(`${count} payroll entr${count===1?'y':'ies'} changed to ${bulkAction}.`)
+    } catch (error) {
+      notify(error?.message || 'Selected payroll statuses could not be updated.', 'error')
+    }
+  }
+
   const bulkDeleteRows = async () => {
     if (!selectedRowIds.length) return
     const count=selectedRowIds.length
@@ -361,7 +477,7 @@ export default function Payroll(){
         <div className="records-actions payroll-action-grid">
           <button className="soft-action soft-blue" onClick={() => setImportOpen(true)}><FileUp size={17}/>Import Payroll</button>
           <button className="soft-action soft-purple" onClick={openAdd}><Plus size={17}/>Manual Payroll</button>
-          <button className="soft-action soft-green" onClick={() => openGroupBuilder()}><ChefHat size={17}/>Kitchen Payroll</button>
+          <button className="soft-action soft-green" onClick={openKitchenWeeklyBuilder}><ChefHat size={17}/>Build Kitchen Payroll</button>
           <button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={17}/>Build Weekly Payroll</button>
         </div>
       </header>
@@ -379,12 +495,17 @@ export default function Payroll(){
       {activeTab==='Imported Labor' && <div className="payroll-tab-panel"><div><strong>Imported Daily Labor</strong><small>Daily Toast source entries used to build weekly payroll. These stay separate for audit.</small></div><button className="soft-action soft-blue" onClick={()=>setImportOpen(true)}><FileUp size={16}/>Import More Labor</button></div>}
       {activeTab==='Ready to Pay' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll Ready to Pay</strong><small>Created weekly payroll saved in Supabase and awaiting Check, Cash, or ACH payment.</small></div><div className="records-actions"><button className="soft-action soft-green" disabled={!readyRows.length || savingPayroll} onClick={saveReadyPayroll}><Save size={16}/>{savingPayroll?'Saving...':'Save Payroll'}</button><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div></div>}
       {activeTab==='Payroll History' && <div className="payroll-tab-panel"><div><strong>Paid Payroll History</strong><small>Completed weekly payroll payments and full audit details.</small></div></div>}
-      {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Kitchen, busser, dishwasher, prep cook, and related employees</small></div><button className="soft-action soft-green" onClick={()=>openGroupBuilder()}><ChefHat size={16}/>Open Kitchen Group</button></div>}
+      {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Create Monday–Sunday weekly payroll from saved employee base pay, then pay by Cash, Check, or ACH.</small></div><div className="records-actions"><button className="soft-action soft-green" onClick={openKitchenWeeklyBuilder}><CalendarRange size={16}/>Build Weekly Kitchen Payroll</button><button className="soft-action soft-purple" onClick={()=>openGroupBuilder()}><ChefHat size={16}/>Manage Kitchen Group</button></div></div>}
       {activeTab==='Manual Labor' && <div className="payroll-tab-panel"><div><strong>Manual Labor Entries</strong><small>Add, edit, duplicate, or delete manually entered payroll.</small></div><button className="soft-action soft-purple" onClick={openAdd}><Plus size={16}/>Add Manual Labor</button></div>}
 
       {activeTab!=='Payroll Groups' && <>
         <div className="records-filterbar payroll-filterbar">
-          {selectedRowIds.length>0 && <button className="secondary-action danger-action bulk-delete-button" onClick={bulkDeleteRows}><Trash2 size={15}/>Delete Selected ({selectedRowIds.length})</button>}
+          {selectedRowIds.length>0 && <div className="payroll-bulk-actions">
+            <strong>{selectedRowIds.length} selected</strong>
+            <label className="records-select payroll-bulk-select"><select aria-label="Bulk payroll action" value={bulkAction} onChange={e=>setBulkAction(e.target.value)}><option value="">Change Action</option><option>Draft</option><option>Approved</option><option>Paid</option><option>Void</option></select><ChevronDown size={14}/></label>
+            <button className="secondary-action bulk-apply-button" disabled={!bulkAction} onClick={applyBulkAction}>Apply</button>
+            <button className="secondary-action danger-action bulk-delete-button" onClick={bulkDeleteRows}><Trash2 size={15}/>Delete Selected</button>
+          </div>}
           <label className="records-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search employee or date..."/></label>
           <label className="records-select"><Filter size={16}/><select value={method} onChange={e=>setMethod(e.target.value)}><option>All Methods</option><option>Cash</option><option>Check</option><option>ACH</option></select><ChevronDown size={14}/></label>
         </div>
@@ -478,6 +599,29 @@ export default function Payroll(){
       <div className="weekly-preview">
         <div className="weekly-preview-head"><strong>Weekly Payroll Preview</strong><span>{weeklyPreview.length} selected</span></div>
         {weeklyAllPreview.length>0 && weeklyPreview.length===0 ? <div className="records-empty">Select at least one employee.</div> : weeklyPreview.map(row=><div className="weekly-preview-row" key={row.id}><span><strong>{row.employee_name}</strong><small>{row.job_type || 'Employee'} · pay date {row.pay_date}</small></span><span>{Number(row.hours||0).toFixed(1)} hrs</span><b>{formatMoney(Number(row.regular_pay||0)+Number(row.credit_card_tips||0)-Number(row.tip_deduction||0)+Number(row.extra_pay||0))}</b></div>)}
+      </div>
+    </Modal>
+
+
+    <Modal open={kitchenWeekOpen} title="Build Weekly Kitchen Payroll" subtitle="Choose a Monday through Sunday range and create one Sunday payroll row for each selected kitchen employee." onClose={() => setKitchenWeekOpen(false)} footer={<><button className="secondary-action" onClick={()=>setKitchenWeekOpen(false)}>Cancel</button><button className="primary-button" disabled={savingKitchenPayroll} onClick={createKitchenWeeklyPayroll}>{savingKitchenPayroll?'Saving Kitchen Payroll...':'Create & Save Kitchen Payroll'}</button></>}>
+      <div className="form-grid weekly-payroll-form">
+        <label>Week Starts Monday<input type="date" value={kitchenWeekStart} onChange={e=>{const start=e.target.value;setKitchenWeekStart(start);setKitchenWeekEnd(endOfPayrollWeek(start))}}/></label>
+        <label>Week Ends Sunday<input type="date" value={kitchenWeekEnd} onChange={e=>setKitchenWeekEnd(e.target.value)}/></label>
+        <label className="form-span-2">Kitchen Payroll Group<select value={kitchenWeekGroupId} onChange={e=>setKitchenWeekGroupId(e.target.value)}><option value="">All Active Kitchen Staff</option>{kitchenGroups.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+      </div>
+      <div className={`weekly-range-status ${isMondayToSunday(kitchenWeekStart,kitchenWeekEnd)?'valid':'invalid'}`}>{isMondayToSunday(kitchenWeekStart,kitchenWeekEnd)?`Valid kitchen payroll week: ${kitchenWeekStart} through ${kitchenWeekEnd}`:'Range must be exactly Monday through Sunday.'}</div>
+      <div className="weekly-employee-picker">
+        <div className="weekly-employee-picker-head">
+          <div><strong>Select Kitchen Employees</strong><small>Base pay and default payment method come from each saved employee profile.</small></div>
+          <div className="weekly-picker-actions"><button type="button" onClick={()=>setSelectedKitchenEmployeeIds(kitchenEligibleEmployees.map(employee=>employee.id))}>Select All</button><button type="button" onClick={()=>setSelectedKitchenEmployeeIds([])}>Clear All</button></div>
+        </div>
+        {kitchenEligibleEmployees.length===0 ? <div className="records-empty"><strong>No active kitchen employees found.</strong><span>Add kitchen employees or create a Kitchen payroll group first.</span></div> : <div className="weekly-employee-list">
+          {kitchenEligibleEmployees.map(employee=><label key={employee.id} className="weekly-employee-option"><input type="checkbox" checked={selectedKitchenEmployeeIds.includes(employee.id)} onChange={event=>setSelectedKitchenEmployeeIds(previous=>event.target.checked?[...new Set([...previous,employee.id])]:previous.filter(id=>id!==employee.id))}/><span><strong>{employee.name}</strong><small>{employee.job||employee.job_type||'Kitchen'} · {employee.method||employee.payroll_type||'Cash'}</small></span><b>{formatMoney(Number(employee.basePay ?? employee.base_pay ?? 0)+Number(employee.extra_pay||0))}</b></label>)}
+        </div>}
+      </div>
+      <div className="weekly-preview">
+        <div className="weekly-preview-head"><strong>Kitchen Payroll Preview</strong><span>{kitchenWeeklyPreview.length} selected</span></div>
+        {kitchenWeeklyPreview.length===0 ? <div className="records-empty">Select at least one kitchen employee.</div> : kitchenWeeklyPreview.map(row=><div className="weekly-preview-row" key={row.id}><span><strong>{row.employee_name}</strong><small>{row.job_type || 'Kitchen'} · pay date {row.pay_date} · {row.payment_method}</small></span><span>Base pay</span><b>{formatMoney(Number(row.total||0))}</b></div>)}
       </div>
     </Modal>
 
