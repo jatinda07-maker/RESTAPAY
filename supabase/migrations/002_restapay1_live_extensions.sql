@@ -37,3 +37,12 @@ alter table if exists public.vendors add column if not exists logo_verified bool
 alter table if exists public.invoices add column if not exists duplicate_override boolean default false;
 alter table if exists public.invoices add column if not exists duplicate_match_id text;
 alter table if exists public.invoices add column if not exists duplicate_match_reason text;
+
+-- Phase 3D vendor-logo persistence. Public read; writes are performed by the vendor-logo Edge Function/service role.
+insert into storage.buckets (id, name, public)
+values ('vendor-logos', 'vendor-logos', true)
+on conflict (id) do update set public = excluded.public;
+
+drop policy if exists "public vendor logo read" on storage.objects;
+create policy "public vendor logo read" on storage.objects
+for select to public using (bucket_id = 'vendor-logos');

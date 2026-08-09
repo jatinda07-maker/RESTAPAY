@@ -6,20 +6,13 @@ import useCrudCollection from '../hooks/useCrudCollection'
 import { useFeedback } from '../components/AppFeedback'
 import {initials,lower,searchableText,safeStatus} from '../lib/safe'
 
-const seed=[
-{id:'e1',name:'Maria Lopez',job:'Kitchen',type:'Hourly',method:'Cash',basePay:'18.00',status:'Active'},
-{id:'e2',name:'James Carter',job:'Waiter',type:'Tip',method:'Check',basePay:'2.13',status:'Active'},
-{id:'e3',name:'Alicia Brown',job:'Manager',type:'Salary',method:'Check',basePay:'1250/wk',status:'Active'},
-{id:'e4',name:'Kevin Wilson',job:'Bartender',type:'Tip',method:'Check',basePay:'5.00',status:'Active'},
-{id:'e5',name:'Diana Smith',job:'Kitchen',type:'Hourly',method:'Cash',basePay:'17.50',status:'Inactive'},
-]
 const blank={name:'',job:'Kitchen',type:'Hourly',method:'Cash',basePay:'',status:'Active'}
 export default function Employees(){
  const [rows,crud]=useCrudCollection('restapay-employees',[]); const {notify}=useFeedback()
  const [query,setQuery]=useState(''),[job,setJob]=useState('All Jobs'),[drawer,setDrawer]=useState(null),[modal,setModal]=useState(false),[editing,setEditing]=useState(null),[form,setForm]=useState(blank),[selectedIds,setSelectedIds]=useState([])
  const safeRows=Array.isArray(rows)?rows.filter(Boolean):[];const filtered=useMemo(()=>safeRows.filter(r=>(!query||searchableText(r).includes(lower(query)))&&(job==='All Jobs'||r.job===job)).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true,sensitivity:'base'})),[safeRows,query,job])
  const openAdd=()=>{setEditing(null);setForm(blank);setModal(true)}; const openEdit=(r)=>{setEditing(r.id);setForm({...r});setModal(true)}
- const save=()=>{if(!form.name.trim())return notify('Employee name is required.','error'); editing?crud.update(editing,form):crud.add(form);notify(editing?'Employee updated.':'Employee added.');setModal(false)}
+ const save=async()=>{if(!form.name.trim())return notify('Employee name is required.','error');try{if(editing)await crud.update(editing,form);else await crud.add(form);notify(editing?'Employee updated in Supabase.':'Employee added to Supabase.');setModal(false)}catch(error){notify(error?.message||'Employee could not be saved.','error')}}
  const del=async(r)=>{if(confirm(`Delete ${r.name}?`)){try{await crud.remove(r.id);setSelectedIds(ids=>ids.filter(id=>id!==r.id));notify('Employee deleted.')}catch(error){notify(error?.message||'Employee could not be deleted.','error')}}}
  const visibleIds=filtered.map(r=>r.id),allVisibleSelected=visibleIds.length>0&&visibleIds.every(id=>selectedIds.includes(id));const toggle=id=>setSelectedIds(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);const toggleAll=()=>setSelectedIds(ids=>allVisibleSelected?ids.filter(id=>!visibleIds.includes(id)):[...new Set([...ids,...visibleIds])]);const bulkDelete=async()=>{const count=selectedIds.length;if(!count||!confirm(`Delete ${count} selected employee${count===1?'':'s'}?`))return;try{await Promise.all(selectedIds.map(id=>crud.remove(id)));setSelectedIds([]);notify(`${count} employee${count===1?'':'s'} deleted.`)}catch(error){notify(error?.message||'Selected employees could not be deleted.','error')}}
  const cards=[['Total Employees',safeRows.length,'All employee profiles','blue'],['Kitchen Staff',safeRows.filter(r=>r.job==='Kitchen').length,'Kitchen employees','green'],['Front of House',safeRows.filter(r=>['Waiter','Bartender','Busser'].includes(r.job)).length,'Service staff','purple'],['Active Employees',safeRows.filter(r=>safeStatus(r.status)==='Active').length,'Currently active','orange']]

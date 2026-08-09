@@ -19,110 +19,24 @@ import DetailDrawer from '../components/DetailDrawer'
 import Modal from '../components/Modal'
 import { appMoney, appMoney2, useAppData } from '../hooks/useAppData'
 
-const cards = [
-  { title: 'Weekly P&L', value: '$32,310', meta: 'Operating profit', tone: 'green', icon: FileBarChart },
-  { title: 'Sales Report', value: '$104,342', meta: '24 sales entries', tone: 'blue', icon: ReceiptText },
-  { title: 'Payroll Report', value: '$18,110', meta: '486.5 labor hours', tone: 'purple', icon: WalletCards },
-  { title: 'Expense Report', value: '$12,780', meta: '18 expense entries', tone: 'orange', icon: FileSpreadsheet },
-]
-
 const reportTypes = [
   'Cash Sales', 'Credit Sales', 'Other Sales', 'Food Sales', 'Alcohol Sales', 'Sales Tax', 'Tips Original', 'Tips After Withholding',
   'Cash Payroll', 'Check Payroll', 'Extra Pay', 'Vendor Cash Spend', 'Vendor Check Spend', 'Business Expenses', 'Remaining Cash', 'Weekly P&L',
 ]
 
-const reports = [
-  ['Custom Weekly Restaurant Report', 'Sales, payroll, tips, vendor spending, cash balance and weekly P&L', 'Aug 01–Aug 04, 2026', 'weekly-custom'],
-  ['Sales by Department', 'Food, beer, wine, liquor and other sales', 'Aug 01–Aug 04, 2026', 'sales-department'],
-  ['Payroll Detail', 'Hours, tips, withholding, extra pay and payment method', 'Aug 01–Aug 04, 2026', 'payroll-detail'],
-  ['Vendor & Expense Summary', 'Invoices and expenses grouped by category', 'Aug 01–Aug 04, 2026', 'vendor-expense'],
-]
-
 const money = value => `$${Number(value).toFixed(2)}`
-
-const weeklyReportSections = [
-  {
-    title: 'Weekly Sales Summary',
-    total: 7664.10,
-    headers: ['Metric', 'Amount'],
-    rows: [
-      ['Gross Sales', money(7664.10)],
-      ['Net Sales', money(7664.10)],
-      ['Cash Sales', money(1469.27)],
-      ['Credit Sales', money(6742.44)],
-      ['Gift Card Sales', money(7.75)],
-      ['Tips', money(1230.57)],
-      ['Refunds', money(0)],
-      ['Discounts', money(0)],
-    ],
-  },
-  {
-    title: 'Cash Payment Employees',
-    total: 0,
-    headers: ['Date', 'Employee', 'Pay', 'Extra Pay', 'Reason', 'Total'],
-    rows: [],
-  },
-  {
-    title: 'Employees With Tips',
-    total: 0,
-    headers: ['Date', 'Employee', 'Original Tips', 'Withheld', 'Tips After Withholding', 'Extra Pay', 'Reason', 'Total'],
-    rows: [['Subtotals', '', money(0), money(0), money(0), '', '', money(0)]],
-  },
-  {
-    title: 'Vendor Payments / Spending Detail',
-    total: 0,
-    headers: ['Date', 'Vendor / Payee', 'Category', 'Payment Type', 'Details', 'Amount'],
-    rows: [],
-  },
-  {
-    title: 'Vendor Cash Expenses',
-    total: 0,
-    headers: ['Date', 'Vendor / Payee', 'Category', 'Note', 'Amount'],
-    rows: [],
-  },
-  {
-    title: 'Vendor Check Expenses',
-    total: 0,
-    headers: ['Date', 'Vendor / Payee', 'Category', 'Note', 'Amount'],
-    rows: [],
-  },
-  {
-    title: 'Cash Balance Summary',
-    total: 1469.27,
-    headers: ['Metric', 'Amount'],
-    rows: [
-      ['Cash Sales', money(1469.27)],
-      ['Cash Employee Payments', money(0)],
-      ['Cash Vendor Expenses', money(0)],
-      ['Total Cash Spending', money(0)],
-      ['Remaining Cash Balance', money(1469.27)],
-    ],
-  },
-  {
-    title: 'Weekly Spending Summary By Category',
-    total: 0,
-    headers: ['Category', 'Cash', 'Check', 'Credit', 'ACH', 'Other', 'Total'],
-    rows: ['Food', 'Beverage', 'Beer', 'Liquor', 'Supplies', 'Utilities', 'Maintenance', 'Insurance', 'Accounting Fees', 'Loans', 'Cash Expenses', 'Restaurant Expenses', 'Other']
-      .map(category => [category, money(0), money(0), money(0), money(0), money(0), money(0)]),
-  },
-  {
-    title: 'Weekly Profit / Loss Analysis',
-    total: 7664.10,
-    headers: ['Metric', 'Amount'],
-    rows: [
-      ['Net Sales', money(7664.10)],
-      ['Employee Payroll Total', money(0)],
-      ['Vendor / Invoice / Expense Spending', money(0)],
-      ['Manual Expenses Included', money(0)],
-      ['Total Weekly Spending', money(0)],
-      ['Estimated Profit / Loss', money(7664.10)],
-    ],
-  },
-]
 
 export default function Reports() {
   const { notify } = useFeedback()
-  const { metrics, sales, payroll, invoices, expenses } = useAppData()
+  const { metrics, sales, payroll, invoices, expenses, dateRange } = useAppData()
+  const formatDate = value => { if(!value)return '—'; const d=new Date(`${value}T00:00:00`); return Number.isNaN(d.getTime())?value:d.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}) }
+  const activeRangeLabel = `${formatDate(dateRange?.from)}–${formatDate(dateRange?.to)}`
+  const reports = [
+    ['Custom Restaurant Report','Sales, payroll, tips, vendor spending, cash balance and P&L',activeRangeLabel,'weekly-custom'],
+    ['Sales by Department','Food, alcohol and other live sales',activeRangeLabel,'sales-department'],
+    ['Payroll Detail','Hours, tips, withholding, extra pay and payment method',activeRangeLabel,'payroll-detail'],
+    ['Vendor & Expense Summary','Invoices and expenses grouped by category',activeRangeLabel,'vendor-expense'],
+  ]
   const cards = [
     { title: 'Weekly P&L', value: appMoney(metrics.operatingProfit), meta: 'Operating profit', tone: 'green', icon: FileBarChart },
     { title: 'Sales Report', value: appMoney(metrics.salesTotal), meta: `${sales.length} sales entries`, tone: 'blue', icon: ReceiptText },
@@ -205,8 +119,8 @@ export default function Reports() {
 
     <Modal
       open={weeklyOpen}
-      title="Custom Weekly Restaurant Report"
-      subtitle="2026-08-01 to 2026-08-04"
+      title="Custom Restaurant Report"
+      subtitle={activeRangeLabel}
       onClose={() => setWeeklyOpen(false)}
       size="lg"
       footer={<>
@@ -219,7 +133,7 @@ export default function Reports() {
     >
       <div className="weekly-report-preview">
         <div className="weekly-report-summary">
-          <div><small>Report Period</small><strong>Aug 01–Aug 04, 2026</strong></div>
+          <div><small>Report Period</small><strong>{activeRangeLabel}</strong></div>
           <div><small>Net Sales</small><strong>{appMoney2(metrics.salesTotal)}</strong></div>
           <div><small>Remaining Cash</small><strong>{appMoney2(metrics.cashRemaining)}</strong></div>
           <div><small>Estimated Profit / Loss</small><strong>{appMoney2(metrics.operatingProfit)}</strong></div>
@@ -267,7 +181,7 @@ export default function Reports() {
           <div className="order-actions"><button disabled={index === 0} onClick={() => move(index, -1)}>Up</button><button disabled={index === selected.length - 1} onClick={() => move(index, 1)}>Down</button><button className="danger-icon" onClick={() => setSelected(prev => prev.filter(item => item !== type))}><Trash2 size={15} /></button></div>
         </div>)}
       </div>
-      <div className="builder-note">The saved order will be used for PDF, Excel, print, and the final calculation engine when connected.</div>
+      <div className="builder-note">The saved order is used for the live report preview and export workflow.</div>
     </Modal>
 
     <DetailDrawer title={drawer} onClose={() => setDrawer(null)} />
