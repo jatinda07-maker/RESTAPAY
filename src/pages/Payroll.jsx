@@ -67,7 +67,7 @@ export default function Payroll(){
     if (status === 'paid' || status === 'void') return false
     return Boolean(row.weekly_rollup) || ['ready','ready to pay','approved','pending'].includes(status)
   }), [scopedSourceRows])
-  const paidRows = useMemo(() => allSourceRows.filter(row => String(row.payment_status || '').toLowerCase() === 'paid' && inDateRange(row, range, ['payment_date','paid_date','pay_date','payroll_date','date'])), [allSourceRows, range])
+  const paidRows = useMemo(() => allSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid'), [allSourceRows])
   const payableRows = useMemo(() => [...new Map([...readyRows, ...paidRows, ...manualRows].map(row => [row.id, row])).values()], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
   const payrollSummary = useMemo(() => summarizePayroll(payableRows), [payableRows])
@@ -142,6 +142,9 @@ export default function Payroll(){
     const tips=Number(manualForm.credit_card_tips||0)
     const withheld = manualForm.tip_deduction === '' ? Math.round(tips*0.035*100)/100 : Number(manualForm.tip_deduction||0)
     const netTips = manualForm.tips_after_withholding === '' ? Math.round((tips-withheld)*100)/100 : Number(manualForm.tips_after_withholding||0)
+    const manualStatus=String(manualForm.payment_status || 'Draft').trim()
+    const paidNow=manualStatus.toLowerCase() === 'paid'
+    const changedAt=new Date().toISOString()
     const record=normalizePayrollRecord({
       ...manualForm,
       id: editingId || crypto.randomUUID?.() || String(Date.now()),
@@ -149,7 +152,15 @@ export default function Payroll(){
       hours:Number(manualForm.hours||0), regular_pay:Number(manualForm.regular_pay||0),
       credit_card_tips:tips, tip_deduction:withheld, tips_after_withheld:netTips,
       extra_pay:Number(manualForm.extra_pay||0),
-      total:Number(manualForm.regular_pay||0)+netTips+Number(manualForm.extra_pay||0)
+      total:Number(manualForm.regular_pay||0)+netTips+Number(manualForm.extra_pay||0),
+      payment_status:manualStatus,
+      ...(paidNow ? {
+        payment_date:manualForm.payment_date || changedAt.slice(0,10),
+        paid_history:true,
+        paid_at:manualForm.paid_at || changedAt,
+        status_updated_at:changedAt,
+        status_updated_via:'manual-save'
+      } : {})
     })
     try {
       await setSourceRows(prev => editingId ? prev.map(item => item.id===editingId ? record : item) : [record,...prev])
