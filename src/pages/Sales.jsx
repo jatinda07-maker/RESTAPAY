@@ -92,7 +92,28 @@ export default function Sales() {
     }
     try {
       if (editingId) await setRows(items => items.map(item => item.id === editingId ? { ...item, ...normalized, id: editingId } : item))
-      else await setRows(items => [{ ...normalized, id: `manual-sale-${Date.now()}` }, ...items])
+      else await setRows(items => {
+        const existingIndex=items.findIndex(item=>String(item.business_date||item.date||'')===businessDate)
+        if(existingIndex<0) return [{ ...normalized, id: `manual-sale-${Date.now()}` }, ...items]
+        const existing=items[existingIndex]||{}
+        const merged={
+          ...existing,
+          business_date:businessDate,date:businessDate,
+          gross_sales:Number(existing.gross_sales??existing.net_sales??existing.amount??0)+amount,
+          net_sales:Number(existing.net_sales??existing.amount??0)+amount,
+          amount:Number(existing.net_sales??existing.amount??0)+amount,
+          tips:Number(existing.tips??existing.tips_collected??0)+tips,
+          tips_collected:Number(existing.tips_collected??existing.tips??0)+tips,
+          food_sales:Number(existing.food_sales||0)+(form.category==='Food'?amount:0),
+          alcohol_sales:Number(existing.alcohol_sales||0)+(form.category==='Alcohol'?amount:0),
+          other_sales:Number(existing.other_sales||0)+(form.category==='Other'?amount:0),
+          cash_sales:Number(existing.cash_sales||0)+(form.payment==='Cash'?amount:0),
+          credit_sales:Number(existing.credit_sales||0)+(form.payment==='Credit'?amount:0),
+          source_file:existing.source_file||form.source_file||'',
+          import_note:[existing.import_note,`Manual ${form.category} ${form.payment}: $${amount.toFixed(2)}`].filter(Boolean).join(' | ')
+        }
+        return items.map((item,index)=>index===existingIndex?merged:item)
+      })
       setModalOpen(false)
       notify(editingId ? 'Sale updated.' : 'Sale added.')
     } catch(error) { notify(error?.message || 'Sale could not be saved.', 'error') }

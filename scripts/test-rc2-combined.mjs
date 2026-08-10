@@ -48,7 +48,7 @@ assert.match(foodAlcoholSource, /cost-amount-link/)
 assert.match(foodAlcoholSource, /cost-detail-drawer/)
 assert.match(costCss, /cost-compare-alcohol>header/)
 assert.match(costCss, /cost-table th\{background:#dfe9e5/)
-assert.match(globalCss, /increase record\/data text only/)
+assert.doesNotMatch(globalCss, /increase record\/data text only/)
 assert.match(payrollSource, /latestKitchenWeekEnd/)
 
 assert.match(expenseSource, /<option>ACH<\/option>/)

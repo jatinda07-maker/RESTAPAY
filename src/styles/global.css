@@ -173,8 +173,3 @@ button { cursor: pointer; }
 
 .save-pill-error { border-color:#fecaca; background:#fff1f2; color:#b91c1c; }
 .save-pill-error .status-dot { background:#dc2626; }
-
-/* RC2.5 readability: increase record/data text only. Navigation, titles, labels, buttons and inputs remain unchanged. */
-.page-canvas table tbody td,.page-canvas table tfoot td{font-size:calc(1em + 2px)}
-.page-canvas .records-table tbody td,.page-canvas .records-table tfoot td{font-size:calc(1em + 2px)}
-.page-canvas .cost-compare-card dd,.page-canvas .cost-detail-entry strong,.page-canvas .cost-detail-entry b{font-size:calc(1em + 2px)}

@@ -14,13 +14,13 @@ import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
 const today=()=>new Date().toISOString().slice(0,10)
 const emptyLine=()=>({id:crypto.randomUUID?.()||`line-${Date.now()}`,item_number:'',description:'',category:'Food',quantity:1,package_size:'',unit_price:'',line_total:''})
 const blank=()=>({date:today(),due_date:'',vendor:'',vendor_id:null,number:'',category:'Food',payment_type:'Check',check_number:'',status:'Due',manual_amount:'',tax:'',discount:'',notes:'',source_file:'',lines:[emptyLine()]})
-const categories=['Food','Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Beer','Wine','Liquor','Margaritas','Cocktails & Shots','Supplies','Maintenance','Utilities','Other']
+const alpha=(a,b)=>String(a||'').localeCompare(String(b||''),undefined,{sensitivity:'base'});const categories=['Food','Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Beer','Wine','Liquor','Margaritas','Cocktails & Shots','Supplies','Maintenance','Utilities','Other'].sort(alpha)
 
 export default function Invoices(){
  const [rows,crud]=useCrudCollection('restapay-invoices',[]);const {vendors}=useAppData();const {notify}=useFeedback()
  const [query,setQuery]=useState(''),[category,setCategory]=useState('All Categories'),[status,setStatus]=useState('All Status'),[modal,setModal]=useState(false),[ai,setAi]=useState(false),[edit,setEdit]=useState(null),[form,setForm]=useState(blank),[drawer,setDrawer]=useState(null),[aiDraft,setAiDraft]=useState(null),[selectedIds,setSelectedIds]=useState([]),[duplicateReview,setDuplicateReview]=useState(null);const fileRef=useRef(null);const {range}=useGlobalDateRange()
  const safeRows=Array.isArray(rows)?rows.filter(Boolean):[];const scopedRows=useMemo(()=>safeRows.filter(r=>inDateRange(r,range,['invoice_date','date'])),[safeRows,range]);const filtered=useMemo(()=>scopedRows.filter(r=>(!query||searchableText(r).includes(lower(query)))&&(category==='All Categories'||r.category===category)&&(status==='All Status'||r.status===status)).sort((a,b)=>String(a.date||a.invoice_date||'').localeCompare(String(b.date||b.invoice_date||''))),[scopedRows,query,category,status])
- const vendorNames=useMemo(()=>[...new Set([...(vendors||[]).map(v=>v.name),...rows.map(r=>r.vendor)].filter(Boolean))].sort(),[vendors,rows])
+ const vendorNames=useMemo(()=>[...new Set([...(vendors||[]).map(v=>v.name),...rows.map(r=>r.vendor)].filter(Boolean))].sort(alpha),[vendors,rows])
  const open=(r=null)=>{
   setEdit(r?.id||null);setDuplicateReview(null)
   if(r){
