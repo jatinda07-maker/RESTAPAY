@@ -17,3 +17,32 @@
 
 /* RC2.1: Food and Alcohol must be comparable on one screen using full allocated true cost. */
 .cost-compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:16px 16px 8px}.cost-compare-card{border:1px solid #dfe9e5;border-radius:14px;background:#fff;overflow:hidden}.cost-compare-card>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #e8efec}.cost-compare-name{display:flex;align-items:center;gap:10px}.cost-compare-name>span{width:38px;height:38px;border-radius:10px;display:grid;place-items:center}.cost-compare-food .cost-compare-name>span{background:#ecf9f1;color:#078545}.cost-compare-alcohol .cost-compare-name>span{background:#fff4ea;color:#d96512}.cost-compare-name h3{margin:0;font-size:15px}.cost-compare-name small{display:block;margin-top:3px;color:var(--ink-500);font-size:9px}.cost-compare-card>header>strong{font-size:17px}.cost-compare-food>header>strong{color:#078545}.cost-compare-alcohol>header>strong{color:#d96512}.cost-compare-card dl{margin:0;padding:4px 16px 12px}.cost-compare-card dl>div{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:39px;border-bottom:1px solid #edf2f0}.cost-compare-card dt{font-size:10px;color:var(--ink-700)}.cost-compare-card dt small{margin-left:5px;padding:2px 5px;border-radius:5px;background:#f1f6f4;color:#526579;font-size:8px}.cost-compare-card dd{margin:0;font-size:11px;font-weight:700;white-space:nowrap}.cost-compare-card .cost-compare-total{margin-top:4px;border-top:1px solid #dce8e3;border-bottom:1px solid #dce8e3}.cost-compare-total dt,.cost-compare-total dd{font-size:12px;font-weight:800}.cost-compare-food .cost-compare-total{color:#078545}.cost-compare-alcohol .cost-compare-total{color:#d96512}.cost-allocation-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;padding:8px 16px 16px}.cost-allocation-strip span{display:flex;flex-direction:column;gap:3px;padding:8px;border:1px solid #e2ebe7;border-radius:9px;background:#f9fcfa;color:#5c6f80;font-size:8px;text-align:center}.cost-allocation-strip b{color:var(--ink-800);font-size:9px}.cost-breakdown-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:0 16px 16px}.cost-breakdown-grid .cost-table{min-width:650px}.cost-breakdown-grid .cost-table-card{min-width:0;overflow:hidden}@media(max-width:1180px){.cost-allocation-strip{grid-template-columns:repeat(4,minmax(0,1fr))}.cost-breakdown-grid{grid-template-columns:1fr}}@media(max-width:760px){.cost-compare-grid{grid-template-columns:1fr}.cost-allocation-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* RC2.5 visual acceptance: clearer spacing, distinct department colors, darker table headers and drill-down amounts. */
+.cost-page{padding-top:10px}
+.cost-workspace{margin-top:10px}
+.cost-compare-grid{padding-top:24px}
+.cost-compare-food{border-color:#b9dfca;box-shadow:0 8px 22px rgba(8,127,69,.06)}
+.cost-compare-alcohol{border-color:#d7c9ef;box-shadow:0 8px 22px rgba(91,54,148,.06)}
+.cost-compare-food>header{background:linear-gradient(180deg,#eaf7ef,#f5fbf7);border-bottom-color:#cce7d7}
+.cost-compare-alcohol>header{background:linear-gradient(180deg,#f1ebf9,#faf7fd);border-bottom-color:#dfd4ef}
+.cost-compare-alcohol .cost-compare-name>span{background:#eee7f7;color:#68439b}
+.cost-compare-alcohol>header>strong,.cost-compare-alcohol .cost-compare-total{color:#68439b}
+.cost-table th{background:#dfe9e5;color:#20394d;font-weight:800;letter-spacing:.015em}
+.cost-breakdown-food .cost-section-title{background:#edf7f1;border-bottom-color:#cfe5d7}
+.cost-breakdown-alcohol .cost-section-title{background:#f2edf8;border-bottom-color:#ded2ee}
+.cost-breakdown-food .cost-section-title>svg{color:#087f45}
+.cost-breakdown-alcohol .cost-section-title>svg{color:#68439b}
+.cost-amount-link{border:0;background:transparent;padding:0;color:inherit;font:inherit;font-weight:800;text-decoration:underline;text-decoration-color:rgba(8,127,69,.28);text-underline-offset:3px;cursor:pointer}
+.cost-compare-alcohol .cost-amount-link,.cost-breakdown-alcohol .cost-amount-link{text-decoration-color:rgba(104,67,155,.35)}
+.cost-amount-link:hover{color:#087f45;text-decoration-color:currentColor}
+.cost-compare-alcohol .cost-amount-link:hover,.cost-breakdown-alcohol .cost-amount-link:hover{color:#68439b}
+.cost-data-value{font-weight:800}
+.cost-detail-layer{position:fixed;inset:0;z-index:130;background:rgba(12,29,45,.32);display:flex;justify-content:flex-end;backdrop-filter:blur(2px)}
+.cost-detail-drawer{width:min(520px,94vw);height:100%;background:#fff;box-shadow:-18px 0 44px rgba(14,35,51,.2);display:flex;flex-direction:column}
+.cost-detail-drawer>header{display:flex;justify-content:space-between;gap:16px;padding:24px 22px 18px;border-bottom:1px solid #dce7e2;background:#f7faf9}
+.cost-detail-drawer>header span{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#087f45}
+.cost-detail-drawer>header h2{margin:5px 0 0;font-size:21px}.cost-detail-drawer>header p{margin:5px 0 0;color:var(--ink-500);font-size:12px}
+.cost-detail-drawer>header button{width:38px;height:38px;border:1px solid #dce7e2;border-radius:10px;background:#fff;display:grid;place-items:center}
+.cost-detail-total{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;background:#f0f7f3;border-bottom:1px solid #dce7e2}.cost-detail-total span{font-size:12px;color:var(--ink-600)}.cost-detail-total strong{font-size:20px;color:#087f45}
+.cost-detail-scroll{overflow:auto;padding:6px 22px 24px}.cost-detail-entry{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 0;border-bottom:1px solid #e7eeeb}.cost-detail-entry span{min-width:0;display:flex;flex-direction:column;gap:4px}.cost-detail-entry strong{font-size:14px}.cost-detail-entry small{font-size:12px;color:var(--ink-500)}.cost-detail-entry b{font-size:15px;white-space:nowrap}.cost-detail-empty{padding:34px 0;text-align:center;color:var(--ink-500);font-size:13px}

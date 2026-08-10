@@ -19,9 +19,11 @@ export function salePaymentAmount(row, type) {
   const payment = String(row.payment || row.payment_type || '').toLowerCase()
   if (type === 'Cash') return n(row.cash_sales ?? (payment === 'cash' ? row.amount : 0))
   if (type === 'Credit') return n(row.credit_sales ?? (/credit|card|debit/.test(payment) ? row.amount : 0))
+  if (type === 'Check') return payment === 'check' ? n(row.amount ?? row.net_sales) : 0
+  if (type === 'ACH') return payment === 'ach' ? n(row.amount ?? row.net_sales) : 0
   if (type === 'Other') {
     const explicit = n(row.other_payments) + n(row.gift_card_sales) + n(row.delivery_orders)
-    return explicit || (/other|gift|delivery|doordash|house/.test(payment) ? n(row.amount) : 0)
+    return explicit || (/other|gift|delivery|doordash|house|check|ach/.test(payment) ? n(row.amount) : 0)
   }
   if (type === 'Tips') return saleTips(row)
   return saleNet(row)
@@ -40,6 +42,8 @@ export function saleCategoryLabel(row) {
 
 export function salePaymentLabel(row, tab = 'All Sales') {
   if (tab !== 'All Sales') return tab === 'Tips' ? 'Tips' : tab
+  const explicitPayment = String(row.payment || row.payment_type || '').trim()
+  if (/^(check|ach)$/i.test(explicitPayment)) return explicitPayment.toUpperCase() === 'ACH' ? 'ACH' : 'Check'
   const components = ['Cash', 'Credit', 'Other'].filter(type => salePaymentAmount(row, type) > 0)
   if (components.length > 1) return 'Mixed'
   if (components.length === 1) return components[0]

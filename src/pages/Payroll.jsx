@@ -14,6 +14,14 @@ import usePersistentState from '../hooks/usePersistentState'
 import { useFeedback } from '../components/AppFeedback'
 import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
 
+const addDays = (value, days) => {
+  if (!value) return ''
+  const [y,m,d] = String(value).split('-').map(Number)
+  const date = new Date(Date.UTC(y,m-1,d))
+  date.setUTCDate(date.getUTCDate()+days)
+  return date.toISOString().slice(0,10)
+}
+
 const emptyForm = {
   employee_name:'', pay_date:new Date().toISOString().slice(0,10), job_type:'Kitchen', hours:'', regular_pay:'',
   credit_card_tips:'', tip_deduction:'', tips_after_withholding:'', extra_pay:'', extra_reason:'',
@@ -102,6 +110,7 @@ export default function Payroll(){
 
   const activeEmployees = useMemo(() => (Array.isArray(employees) ? employees : []).filter(employee => employee && employee.id && employee.status !== 'Inactive' && employee.active !== false && employee.is_active !== false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))), [employees])
   const kitchenGroups = useMemo(() => safeGroups.filter(group => /kitchen|cook|prep|dishwasher|busser/i.test(String(group.type || group.group_type || group.name || ''))), [safeGroups])
+  const latestKitchenWeekEnd = useMemo(() => allSourceRows.filter(row => row.weekly_rollup && String(row.source || '').toLowerCase() === 'kitchen-weekly').map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date).filter(Boolean).sort().at(-1) || '', [allSourceRows])
   const selectedKitchenGroup = useMemo(() => kitchenGroups.find(group => String(group.id) === String(kitchenWeekGroupId)) || null, [kitchenGroups, kitchenWeekGroupId])
   const kitchenEligibleEmployees = useMemo(() => {
     const memberIds = new Set((selectedKitchenGroup?.memberIds || selectedKitchenGroup?.member_ids || []).map(String))
@@ -242,8 +251,9 @@ export default function Payroll(){
 
   const openKitchenWeeklyBuilder = () => {
     const defaultGroup = kitchenGroups[0] || null
-    const start = isMondayToSunday(range?.from, range?.to) ? range.from : startOfPayrollWeek(range?.to || new Date().toISOString().slice(0,10))
-    const end = isMondayToSunday(range?.from, range?.to) ? range.to : endOfPayrollWeek(start)
+    const inheritedStart = latestKitchenWeekEnd ? addDays(latestKitchenWeekEnd, 1) : ''
+    const start = inheritedStart || (isMondayToSunday(range?.from, range?.to) ? range.from : startOfPayrollWeek(range?.to || new Date().toISOString().slice(0,10)))
+    const end = endOfPayrollWeek(start)
     setKitchenWeekStart(start)
     setKitchenWeekEnd(end)
     setKitchenWeekGroupId(defaultGroup?.id || '')
@@ -583,7 +593,7 @@ export default function Payroll(){
       {activeTab==='Imported Labor' && <div className="payroll-tab-panel"><div><strong>Imported Daily Labor</strong><small>Daily Toast source entries used to build weekly payroll. These stay separate for audit.</small></div><button className="soft-action soft-blue" onClick={()=>setImportOpen(true)}><FileUp size={16}/>Import More Labor</button></div>}
       {activeTab==='Ready to Pay' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll Ready to Pay</strong><small>Created weekly payroll saved in Supabase and awaiting Check, Cash, or ACH payment.</small></div><div className="records-actions"><button className="soft-action soft-green" disabled={!readyRows.length || savingPayroll} onClick={saveReadyPayroll}><Save size={16}/>{savingPayroll?'Saving...':'Save Payroll'}</button><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div></div>}
       {activeTab==='Payroll History' && <div className="payroll-tab-panel"><div><strong>Paid Payroll History</strong><small>Completed weekly payroll payments and full audit details.</small></div></div>}
-      {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Create Monday–Sunday weekly payroll from saved employee base pay, then pay by Cash, Check, or ACH.</small></div><div className="records-actions"><button className="soft-action soft-green" onClick={openKitchenWeeklyBuilder}><CalendarRange size={16}/>Build Weekly Kitchen Payroll</button><button className="soft-action soft-purple" onClick={()=>openGroupBuilder()}><ChefHat size={16}/>Manage Kitchen Group</button></div></div>}
+      {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Create Monday–Sunday weekly payroll from saved employee base pay, then pay by Cash, Check, or ACH.</small></div><div className="records-actions"><button className="soft-action soft-green" onClick={openKitchenWeeklyBuilder}><CalendarRange size={16}/>{latestKitchenWeekEnd?'Build Another Kitchen Week':'Build Weekly Kitchen Payroll'}</button><button className="soft-action soft-purple" onClick={()=>openGroupBuilder()}><ChefHat size={16}/>Manage Kitchen Group</button></div></div>}
       {activeTab==='Manual Labor' && <div className="payroll-tab-panel"><div><strong>Manual Labor Entries</strong><small>Add, edit, duplicate, or delete manually entered payroll.</small></div><button className="soft-action soft-purple" onClick={openAdd}><Plus size={16}/>Add Manual Labor</button></div>}
 
       {activeTab!=='Payroll Groups' && <>
