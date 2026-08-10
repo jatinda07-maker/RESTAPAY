@@ -55,14 +55,18 @@ export default function Payroll(){
   const [groups,setGroups] = usePersistentState('restapay-payroll-groups', [])
   const [manualForm,setManualForm] = useState(emptyForm)
   const { notify } = useFeedback()
-  const { range } = useGlobalDateRange()
+  const { range, apply: applyGlobalDateRange } = useGlobalDateRange()
   const allSourceRows = useMemo(() => Array.isArray(sourceRows) ? sourceRows.filter(Boolean) : [], [sourceRows])
   const scopedSourceRows = useMemo(() => allSourceRows.filter(row => inDateRange(row, range, ['pay_date','payroll_date','date'])), [allSourceRows, range])
   const safeGroups = Array.isArray(groups) ? groups.filter(Boolean) : []
 
   const importedRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast'), [scopedSourceRows])
   const manualRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() !== 'toast'), [scopedSourceRows])
-  const readyRows = useMemo(() => scopedSourceRows.filter(row => row.weekly_rollup && String(row.payment_status || 'Draft').toLowerCase() !== 'paid'), [scopedSourceRows])
+  const readyRows = useMemo(() => scopedSourceRows.filter(row => {
+    const status=String(row.payment_status || 'Draft').trim().toLowerCase()
+    if (status === 'paid' || status === 'void') return false
+    return Boolean(row.weekly_rollup) || ['ready','ready to pay','approved','pending'].includes(status)
+  }), [scopedSourceRows])
   const paidRows = useMemo(() => allSourceRows.filter(row => String(row.payment_status || '').toLowerCase() === 'paid' && inDateRange(row, range, ['payment_date','paid_date','pay_date','payroll_date','date'])), [allSourceRows, range])
   const payableRows = useMemo(() => [...new Map([...readyRows, ...paidRows, ...manualRows].map(row => [row.id, row])).values()], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
@@ -149,6 +153,16 @@ export default function Payroll(){
     })
     try {
       await setSourceRows(prev => editingId ? prev.map(item => item.id===editingId ? record : item) : [record,...prev])
+      const status=String(record.payment_status || 'Draft').trim().toLowerCase()
+      const savedDate=record.payroll_date || record.pay_date
+      if (savedDate && !inDateRange(record, range, ['pay_date','payroll_date','date'])) {
+        applyGlobalDateRange({
+          preset:'custom',
+          from:range?.from && range.from < savedDate ? range.from : savedDate,
+          to:range?.to && range.to > savedDate ? range.to : savedDate
+        })
+      }
+      setActiveTab(status === 'paid' ? 'Payroll History' : ['ready','ready to pay','approved','pending'].includes(status) ? 'Ready to Pay' : 'Manual Labor')
       notify(editingId ? 'Payroll entry updated and saved to Supabase.' : 'Manual payroll entry saved to Supabase.')
       setManual(false)
     } catch (error) {
@@ -526,7 +540,7 @@ export default function Payroll(){
         <div className="records-filterbar payroll-filterbar">
           {selectedRowIds.length>0 && <div className="payroll-bulk-actions">
             <strong>{selectedRowIds.length} selected</strong>
-            <label className="records-select payroll-bulk-select"><select aria-label="Bulk payroll action" value={bulkAction} onChange={e=>setBulkAction(e.target.value)}><option value="">Change Action</option><option>Draft</option><option>Approved</option><option>Paid</option><option>Void</option></select><ChevronDown size={14}/></label>
+            <label className="records-select payroll-bulk-select"><select aria-label="Bulk payroll action" value={bulkAction} onChange={e=>setBulkAction(e.target.value)}><option value="">Change Action</option><option>Draft</option><option>Ready to Pay</option><option>Approved</option><option>Paid</option><option>Void</option></select><ChevronDown size={14}/></label>
             <button className="secondary-action bulk-apply-button" disabled={!bulkAction} onClick={applyBulkAction}>Apply</button>
             <button className="secondary-action danger-action bulk-delete-button" onClick={bulkDeleteRows}><Trash2 size={15}/>Delete Selected</button>
           </div>}
@@ -575,7 +589,7 @@ export default function Payroll(){
         <label>Extra Pay<input type="number" value={manualForm.extra_pay} onChange={e=>setManualForm({...manualForm,extra_pay:e.target.value})} placeholder="0.00"/></label>
         <label>Extra Pay Reason<input value={manualForm.extra_reason||''} onChange={e=>setManualForm({...manualForm,extra_reason:e.target.value})} placeholder="Optional reason"/></label>
         <label>Payment Method<select value={manualForm.payment_method} onChange={e=>setManualForm({...manualForm,payment_method:e.target.value})}><option>Cash</option><option>Check</option><option>ACH</option></select></label>
-        <label>Payment Status<select value={manualForm.payment_status||'Draft'} onChange={e=>setManualForm({...manualForm,payment_status:e.target.value})}><option>Draft</option><option>Approved</option><option>Paid</option><option>Void</option></select></label>
+        <label>Payment Status<select value={manualForm.payment_status||'Draft'} onChange={e=>setManualForm({...manualForm,payment_status:e.target.value})}><option>Draft</option><option>Ready to Pay</option><option>Approved</option><option>Paid</option><option>Void</option></select></label>
         <label>Payment Date<input type="date" value={manualForm.payment_date||''} onChange={e=>setManualForm({...manualForm,payment_date:e.target.value})}/></label>
         <label>Check Number<input value={manualForm.check_number||''} onChange={e=>setManualForm({...manualForm,check_number:e.target.value})} placeholder="For check payments"/></label>
         <label>ACH Reference<input value={manualForm.ach_reference||''} onChange={e=>setManualForm({...manualForm,ach_reference:e.target.value})} placeholder="For ACH payments"/></label>
