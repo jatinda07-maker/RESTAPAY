@@ -16,7 +16,8 @@
     "test:live-release": "node scripts/test-live-release.mjs",
     "test:financial-reconciliation": "node scripts/test-financial-reconciliation.mjs",
     "test:kitchen-weekly-payroll": "node scripts/test-kitchen-weekly-payroll.mjs",
-    "test:payroll-bulk-actions": "node scripts/test-payroll-bulk-actions.mjs"
+    "test:payroll-bulk-actions": "node scripts/test-payroll-bulk-actions.mjs",
+    "test:rc2-combined": "node scripts/test-rc2-combined.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

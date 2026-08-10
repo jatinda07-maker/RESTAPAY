@@ -5,8 +5,9 @@ const DEFAULT_RULES = {
   supplies: { food: 50, alcohol: 50 },
   cleaningSupplies: { food: 50, alcohol: 50 },
   cintas: { food: 50, alcohol: 50 },
-  utilities: { food: 50, alcohol: 50 },
-  insurance: { food: 50, alcohol: 50 }
+  utilities: { food: 70, alcohol: 30 },
+  insurance: { food: 50, alcohol: 50 },
+  otherShared: { food: 50, alcohol: 50 }
 }
 
 export function num(value) {
@@ -88,6 +89,7 @@ export function classifySpend(row = {}) {
   if (/insurance/.test(text)) return { bucket: 'shared', rule: 'insurance', label: 'Insurance' }
   if (invoiceCostSource && /food|meat|produce|grocery|chicken|beef|fish|shrimp|cheese|tortilla|rice|bean|us foods/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food Purchases' }
   if (invoiceCostSource && /beverage|soda|coke|sprite|tea|lemonade|buffalo rock|mixer/.test(text)) return { bucket: 'food', rule: 'foodPurchases', label: 'Food / Non-alcohol Beverage Purchases' }
+  if (/other|misc|overhead|admin|administrative|general operating|shared service/.test(text)) return { bucket: 'shared', rule: 'otherShared', label: 'Other Shared Cost' }
   return { bucket: 'other', rule: 'other', label: 'Other' }
 }
 

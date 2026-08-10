@@ -56,14 +56,15 @@ export default function Payroll(){
   const [manualForm,setManualForm] = useState(emptyForm)
   const { notify } = useFeedback()
   const { range } = useGlobalDateRange()
-  const scopedSourceRows = useMemo(() => (Array.isArray(sourceRows)?sourceRows:[]).filter(row => inDateRange(row, range, ['pay_date','payroll_date','date'])), [sourceRows, range])
+  const allSourceRows = useMemo(() => Array.isArray(sourceRows) ? sourceRows.filter(Boolean) : [], [sourceRows])
+  const scopedSourceRows = useMemo(() => allSourceRows.filter(row => inDateRange(row, range, ['pay_date','payroll_date','date'])), [allSourceRows, range])
   const safeGroups = Array.isArray(groups) ? groups.filter(Boolean) : []
 
   const importedRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast'), [scopedSourceRows])
   const manualRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() !== 'toast'), [scopedSourceRows])
   const readyRows = useMemo(() => scopedSourceRows.filter(row => row.weekly_rollup && String(row.payment_status || 'Draft').toLowerCase() !== 'paid'), [scopedSourceRows])
-  const paidRows = useMemo(() => scopedSourceRows.filter(row => row.weekly_rollup && String(row.payment_status || '').toLowerCase() === 'paid'), [scopedSourceRows])
-  const payableRows = useMemo(() => [...readyRows, ...paidRows, ...manualRows], [readyRows, paidRows, manualRows])
+  const paidRows = useMemo(() => allSourceRows.filter(row => String(row.payment_status || '').toLowerCase() === 'paid' && inDateRange(row, range, ['payment_date','paid_date','pay_date','payroll_date','date'])), [allSourceRows, range])
+  const payableRows = useMemo(() => [...new Map([...readyRows, ...paidRows, ...manualRows].map(row => [row.id, row])).values()], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
   const payrollSummary = useMemo(() => summarizePayroll(payableRows), [payableRows])
   const cards = useMemo(() => [
@@ -193,7 +194,9 @@ export default function Payroll(){
       check_number:paymentForm.payment_method === 'Check' ? paymentForm.check_number : '',
       ach_reference:paymentForm.payment_method === 'ACH' ? paymentForm.ach_reference : '',
       payment_date:paymentForm.payment_date, payment_status:paymentForm.payment_status,
-      payment_notes:paymentForm.notes, updated_at:new Date().toISOString()
+      payment_notes:paymentForm.notes, paid_history:paymentForm.payment_status === 'Paid',
+      paid_at:paymentForm.payment_status === 'Paid' ? (row.paid_at || new Date().toISOString()) : row.paid_at,
+      status_updated_at:new Date().toISOString(), status_updated_via:'single-payment', updated_at:new Date().toISOString()
       } : row))
       setPaymentOpen(false)
       setActiveTab(paymentForm.payment_status === 'Paid' ? 'Payroll History' : 'Ready to Pay')
@@ -368,12 +371,33 @@ export default function Payroll(){
   }
 
 
+  const prepareNextPayrollWeek = (baseRows = readyRows) => {
+    const weekEnds = baseRows.map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date).filter(Boolean).sort()
+    const lastEnd = weekEnds.at(-1)
+    if (!lastEnd) return false
+    const startDate = new Date(`${lastEnd}T12:00:00`)
+    if (Number.isNaN(startDate.getTime())) return false
+    startDate.setDate(startDate.getDate() + 1)
+    const endDate = new Date(startDate)
+    endDate.setDate(endDate.getDate() + 6)
+    const nextStart = startDate.toISOString().slice(0,10)
+    const nextEnd = endDate.toISOString().slice(0,10)
+    const duplicate = allSourceRows.some(row => row.weekly_rollup && (row.payroll_week_end || row.week_end) === nextEnd && String(row.source || '').toLowerCase() !== 'kitchen-weekly')
+    setWeekStart(nextStart)
+    setWeekEnd(nextEnd)
+    setSelectedWeeklyEmployees([])
+    if (!duplicate) setWeekOpen(true)
+    return !duplicate
+  }
+
   const saveReadyPayroll = async () => {
     if (!readyRows.length) return notify('There is no weekly payroll waiting to be saved.', 'error')
     try {
       setSavingPayroll(true)
+      const rowsBeingSaved = [...readyRows]
       await setSourceRows(sourceRows)
-      notify(`${readyRows.length} ready-to-pay payroll records saved to Supabase.`)
+      const prepared = prepareNextPayrollWeek(rowsBeingSaved)
+      notify(prepared ? `${readyRows.length} ready-to-pay payroll records saved. Next payroll week prepared automatically.` : `${readyRows.length} ready-to-pay payroll records saved to Supabase.`)
     } catch (error) {
       notify(`Payroll save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
     } finally {
@@ -422,8 +446,8 @@ export default function Payroll(){
       await setSourceRows(prev => prev.map(row => selectedSet.has(row.id) ? {
         ...row,
         payment_status:bulkAction,
-        ...(bulkAction === 'Paid' ? {payment_date:row.payment_date || paymentDate} : {}),
-        updated_at:changedAt
+        ...(bulkAction === 'Paid' ? {payment_date:row.payment_date || paymentDate, paid_history:true, paid_at:row.paid_at || changedAt} : {}),
+        status_updated_at:changedAt, status_updated_via:'bulk-action', updated_at:changedAt
       } : row))
       setSelectedRowIds([])
       setBulkAction('')
