@@ -69,7 +69,6 @@ export function buildWeeklyPayroll(rows = [], { start, end, paymentMethod = 'Che
     current.hours += number(row.hours || row.regular_hours)
     current.regular_pay += number(row.regular_pay ?? row.base_pay ?? row.gross_pay)
     current.credit_card_tips += number(row.credit_card_tips ?? row.original_tips ?? row.total_tips)
-    current.tip_deduction += number(row.tip_deduction ?? row.tips_withheld)
     current.extra_pay += number(row.extra_pay)
     if (row.id) current.source_ids.push(row.id)
     if (row.source_file) current.source_files.add(row.source_file)
@@ -89,9 +88,9 @@ export function buildWeeklyPayroll(rows = [], { start, end, paymentMethod = 'Che
     hours: money(entry.hours),
     regular_pay: money(entry.regular_pay),
     credit_card_tips: money(entry.credit_card_tips),
-    tip_deduction: money(entry.tip_deduction || entry.credit_card_tips * 0.035),
-    tips_withheld: money(entry.tip_deduction || entry.credit_card_tips * 0.035),
-    tips_after_withheld: money(entry.credit_card_tips - (entry.tip_deduction || entry.credit_card_tips * 0.035)),
+    tip_deduction: money(entry.credit_card_tips * 0.035),
+    tips_withheld: money(entry.credit_card_tips * 0.035),
+    tips_after_withheld: money(entry.credit_card_tips - money(entry.credit_card_tips * 0.035)),
     extra_pay: money(entry.extra_pay),
     payment_method: entry.payment_method || paymentMethod,
     method: entry.payment_method || paymentMethod,

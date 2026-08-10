@@ -167,13 +167,8 @@ function expandSummaryRowsByPeriod(rows, reportPeriod, tipRate) {
     const regularPay = allocateAcrossDates(row.regular_pay, dates, 2)
     const grossPay = allocateAcrossDates(row.gross_pay, dates, 2)
     const totalTips = allocateAcrossDates(row.total_tips, dates, 2)
-    const explicitDeduction = row.has_explicit_withholding
-      ? allocateAcrossDates(row.tip_deduction, dates, 2)
-      : null
     return dates.map((date, index) => {
-      const deduction = explicitDeduction
-        ? explicitDeduction[index]
-        : round2(totalTips[index] * tipRate / 100)
+      const deduction = round2(totalTips[index] * tipRate / 100)
       return {
         ...row,
         pay_date: date,
@@ -276,8 +271,10 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const totalTips = round2(hasCreditTipsColumn ? creditTips : num(explicitTotalTips))
     const explicitNetTips = find(row, ALIASES.netTips)
     const explicitWithheld = find(row, ALIASES.withheld)
-    const withheld = round2(explicitWithheld !== '' ? num(explicitWithheld) : explicitNetTips !== '' ? Math.max(totalTips - num(explicitNetTips), 0) : totalTips * tipRate / 100)
-    const netTips = round2(explicitNetTips !== '' ? num(explicitNetTips) : Math.max(totalTips - withheld, 0))
+    // RESTAPAY policy: withholding is always an exact percentage of gross non-cash tips.
+    // Toast's exported withheld/net columns are retained only as source evidence and never override this calculation.
+    const withheld = round2(totalTips * tipRate / 100)
+    const netTips = round2(Math.max(totalTips - withheld, 0))
     if (!hours && !pay && !totalTips && !netTips) return null
 
     return {
@@ -301,7 +298,9 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
       total_tips: totalTips,
       tips: netTips,
       tip_deduction: withheld,
-      has_explicit_withholding: explicitWithheld !== '' || explicitNetTips !== '',
+      has_explicit_withholding: false,
+      source_tips_withheld: explicitWithheld === '' ? null : round2(num(explicitWithheld)),
+      source_net_tips: explicitNetTips === '' ? null : round2(num(explicitNetTips)),
       check_number: text(find(row, ALIASES.checkNumber)),
       source_sheet: sheetName,
       source_sheet_rank: sheetRank,
@@ -332,9 +331,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
         continue
       }
       const combinedTips = round2(current.total_tips + row.total_tips)
-      const combinedDeduction = current.has_explicit_withholding || row.has_explicit_withholding
-        ? round2(current.tip_deduction + row.tip_deduction)
-        : round2(combinedTips * tipRate / 100)
+      const combinedDeduction = round2(combinedTips * tipRate / 100)
       grouped.set(key, {
         ...current,
         job_type: current.job_type || row.job_type,
@@ -384,11 +381,7 @@ export function parseToastLaborRows(XLSX, workbook, options = {}) {
     const tipSource = supplements.find(item => item.total_tips || item.has_explicit_withholding)
     const regularPay = row.regular_pay || paySource?.regular_pay || paySource?.gross_pay || 0
     const totalTips = row.total_tips || tipSource?.total_tips || 0
-    const deduction = row.total_tips
-      ? row.tip_deduction
-      : tipSource
-        ? tipSource.tip_deduction
-        : round2(totalTips * tipRate / 100)
+    const deduction = round2(totalTips * tipRate / 100)
     return {
       ...row,
       regular_pay: round2(regularPay),

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Banknote, CalendarRange, ChefHat, ChevronDown, ChevronRight, Clock3, Copy,
+  Banknote, CalendarRange, ChefHat, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy,
   Edit2, Eye, FileUp, Filter, Plus, Save, Search, Trash2, Users, WalletCards
 } from 'lucide-react'
 import DateToolbar from '../components/DateToolbar'
@@ -50,6 +50,8 @@ export default function Payroll(){
   const [editingGroupId,setEditingGroupId] = useState(null)
   const [selectedRowIds,setSelectedRowIds] = useState([])
   const [bulkAction,setBulkAction] = useState('')
+  const [page,setPage] = useState(1)
+  const [pageSize,setPageSize] = useState(25)
   const [sourceRows,setSourceRows] = usePersistentState('restapay-payroll', [])
   const [employees] = usePersistentState('restapay-employees', [])
   const [groups,setGroups] = usePersistentState('restapay-payroll-groups', [])
@@ -91,6 +93,12 @@ export default function Payroll(){
     (!query || Object.values(r).join(' ').toLowerCase().includes(query.toLowerCase())) &&
     (method === 'All Methods' || r.method === method)
   ), [tabRows, query, method])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const pagedRows = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize])
+  useEffect(() => { setPage(1) }, [activeTab, query, method, pageSize])
+  useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
+  const manualTipWithheld = Math.round(Number(manualForm.credit_card_tips || 0) * 0.035 * 100) / 100
+  const manualNetTips = Math.round((Number(manualForm.credit_card_tips || 0) - manualTipWithheld) * 100) / 100
 
   const activeEmployees = useMemo(() => (Array.isArray(employees) ? employees : []).filter(employee => employee && employee.id && employee.status !== 'Inactive' && employee.active !== false && employee.is_active !== false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))), [employees])
   const kitchenGroups = useMemo(() => safeGroups.filter(group => /kitchen|cook|prep|dishwasher|busser/i.test(String(group.type || group.group_type || group.name || ''))), [safeGroups])
@@ -100,7 +108,7 @@ export default function Payroll(){
     if (memberIds.size) return activeEmployees.filter(employee => memberIds.has(String(employee.id)))
     return activeEmployees.filter(employee => /kitchen|cook|chef|prep|dishwasher|busser/i.test(String(employee.job || employee.job_type || '')))
   }, [activeEmployees, selectedKitchenGroup])
-  const filteredRowIds = useMemo(() => filtered.map(row => row.id).filter(Boolean), [filtered])
+  const filteredRowIds = useMemo(() => pagedRows.map(row => row.id).filter(Boolean), [pagedRows])
   const allVisibleSelected = filteredRowIds.length > 0 && filteredRowIds.every(id => selectedRowIds.includes(id))
   const toggleSelectedRow = id => setSelectedRowIds(ids => ids.includes(id) ? ids.filter(value => value !== id) : [...ids,id])
   const toggleAllVisible = () => setSelectedRowIds(ids => allVisibleSelected ? ids.filter(id => !filteredRowIds.includes(id)) : [...new Set([...ids,...filteredRowIds])])
@@ -140,8 +148,8 @@ export default function Payroll(){
   const saveManual = async () => {
     if (!manualForm.employee_name.trim()) return notify('Employee name is required.', 'error')
     const tips=Number(manualForm.credit_card_tips||0)
-    const withheld = manualForm.tip_deduction === '' ? Math.round(tips*0.035*100)/100 : Number(manualForm.tip_deduction||0)
-    const netTips = manualForm.tips_after_withholding === '' ? Math.round((tips-withheld)*100)/100 : Number(manualForm.tips_after_withholding||0)
+    const withheld = Math.round(tips * 0.035 * 100) / 100
+    const netTips = Math.round((tips - withheld) * 100) / 100
     const manualStatus=String(manualForm.payment_status || 'Draft').trim()
     const paidNow=manualStatus.toLowerCase() === 'paid'
     const changedAt=new Date().toISOString()
@@ -567,7 +575,7 @@ export default function Payroll(){
               <th className="numeric">Withheld</th><th className="numeric">Net Tips</th>
               <th className="numeric">Final Pay</th><th className="centered">Method</th><th className="centered">Actions</th>
             </tr></thead>
-            <tbody>{filtered.length===0 ? <tr><td colSpan="12" className="records-empty-cell">No payroll records.</td></tr> : filtered.map(r => <tr key={r.id || `${r.date}-${r.employee}`} className={selectedRowIds.includes(r.id)?'row-selected':''}>
+            <tbody>{filtered.length===0 ? <tr><td colSpan="12" className="records-empty-cell">No payroll records.</td></tr> : pagedRows.map(r => <tr key={r.id || `${r.date}-${r.employee}`} className={selectedRowIds.includes(r.id)?'row-selected':''}>
               <td className="select-column"><input type="checkbox" aria-label={`Select ${r.employee} payroll`} checked={selectedRowIds.includes(r.id)} onChange={()=>toggleSelectedRow(r.id)}/></td><td>{r.date}</td><td><strong>{r.employee}</strong></td><td>{r.job}</td>
               <td className="numeric">{r.hours}</td><td className="numeric">{r.basePay}</td>
               <td className="numeric">{r.originalTips}</td><td className="numeric withholding-value">{r.withheld}</td>
@@ -583,6 +591,15 @@ export default function Payroll(){
             </tr>)}</tbody>
           </table>
         </div>
+        {filtered.length>0 && <div className="records-pagination payroll-pagination">
+          <div className="records-pagination-summary">Showing {(page-1)*pageSize+1}-{Math.min(page*pageSize,filtered.length)} of {filtered.length}</div>
+          <div className="records-pagination-controls">
+            <label>Rows <select value={pageSize} onChange={e=>setPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></label>
+            <button type="button" className="secondary-action" disabled={page<=1} onClick={()=>setPage(value=>Math.max(1,value-1))}><ChevronLeft size={15}/>Previous</button>
+            <span>Page {page} of {totalPages}</span>
+            <button type="button" className="secondary-action" disabled={page>=totalPages} onClick={()=>setPage(value=>Math.min(totalPages,value+1))}>Next<ChevronRight size={15}/></button>
+          </div>
+        </div>}
       </>}
     </section>
 
@@ -595,8 +612,8 @@ export default function Payroll(){
         <label>Base Pay<input type="number" value={manualForm.regular_pay} onChange={e=>setManualForm({...manualForm,regular_pay:e.target.value})} placeholder="0.00"/></label>
         <label>Original Tips<input type="number" value={manualForm.credit_card_tips} onChange={e=>setManualForm({...manualForm,credit_card_tips:e.target.value})} placeholder="0.00"/></label>
         <label>Withholding Rate<input value="3.5%" readOnly/></label>
-        <label>Tips Withheld<input type="number" value={manualForm.tip_deduction ?? ''} onChange={e=>setManualForm({...manualForm,tip_deduction:e.target.value})} placeholder={(Number(manualForm.credit_card_tips||0)*0.035).toFixed(2)}/></label>
-        <label>Tips After Withholding<input type="number" value={manualForm.tips_after_withholding ?? ''} onChange={e=>setManualForm({...manualForm,tips_after_withholding:e.target.value})} placeholder={(Number(manualForm.credit_card_tips||0)*0.965).toFixed(2)}/></label>
+        <label>Tips Withheld<input type="number" value={manualTipWithheld.toFixed(2)} readOnly title="Exact 3.5% of Original Tips"/></label>
+        <label>Tips After Withholding<input type="number" value={manualNetTips.toFixed(2)} readOnly title="Original Tips minus exact 3.5% withholding"/></label>
         <label>Extra Pay<input type="number" value={manualForm.extra_pay} onChange={e=>setManualForm({...manualForm,extra_pay:e.target.value})} placeholder="0.00"/></label>
         <label>Extra Pay Reason<input value={manualForm.extra_reason||''} onChange={e=>setManualForm({...manualForm,extra_reason:e.target.value})} placeholder="Optional reason"/></label>
         <label>Payment Method<select value={manualForm.payment_method} onChange={e=>setManualForm({...manualForm,payment_method:e.target.value})}><option>Cash</option><option>Check</option><option>ACH</option></select></label>

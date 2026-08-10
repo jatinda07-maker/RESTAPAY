@@ -1,6 +1,9 @@
 import fs from 'node:fs'
 import assert from 'node:assert/strict'
 import { calculateDepartmentCosts, DEFAULT_ALLOCATION_RULES } from '../src/core/engines/DepartmentCostEngine.js'
+import { netTips, tipsWithheld } from '../src/core/engines/PayrollEngine.js'
+import { normalizePayrollRecord } from '../src/core/adapters/payrollSchemaAdapter.js'
+import { buildWeeklyPayroll } from '../src/core/engines/WeeklyPayrollEngine.js'
 
 const payrollSource = fs.readFileSync('src/pages/Payroll.jsx','utf8')
 const dashboardSource = fs.readFileSync('src/pages/Dashboard.jsx','utf8')
@@ -21,6 +24,11 @@ assert.match(settingsSource, /Cost Allocation/)
 assert.match(payrollSource, /\['ready','ready to pay','approved','pending'\]\.includes\(status\)/)
 assert.match(payrollSource, /setActiveTab\(status === 'paid' \? 'Payroll History'/)
 assert.match(payrollSource, /applyGlobalDateRange/)
+assert.match(payrollSource, /const \[page,setPage\] = useState\(1\)/)
+assert.match(payrollSource, /Page \{page\} of \{totalPages\}/)
+assert.match(payrollSource, /Previous/)
+assert.match(payrollSource, /Rows <select value=\{pageSize\}/)
+assert.match(payrollSource, /const withheld = Math\.round\(tips \* 0\.035 \* 100\) \/ 100/)
 assert.match(foodAlcoholSource, /cost-compare-grid/)
 assert.match(foodAlcoholSource, /Full allocated department economics/)
 assert.match(foodAlcoholSource, /Cleaning \/ Cintas \/ Utilities \/ Insurance \/ Other/)
@@ -28,6 +36,16 @@ assert.equal(DEFAULT_ALLOCATION_RULES.managerPayroll.food, 50)
 assert.equal(DEFAULT_ALLOCATION_RULES.managerPayroll.alcohol, 50)
 assert.equal(DEFAULT_ALLOCATION_RULES.utilities.food, 70)
 assert.equal(DEFAULT_ALLOCATION_RULES.utilities.alcohol, 30)
+
+
+assert.equal(tipsWithheld({original_tips:995.87,tips_withheld:1}), 34.86)
+assert.equal(netTips({original_tips:995.87,tips_after_withheld:1}), 961.01)
+const normalizedTipExample = normalizePayrollRecord({employee_name:'Tip Test',original_tips:995.87,tips_withheld:1,tips_after_withheld:994.87})
+assert.equal(normalizedTipExample.tips_withheld,34.86)
+assert.equal(normalizedTipExample.tips_after_withheld,961.01)
+const weeklyTipExample = buildWeeklyPayroll([{id:'tip-1',employee_name:'Tip Test',pay_date:'2026-08-03',original_tips:995.87,tips_withheld:1}],{start:'2026-08-03',end:'2026-08-09'})[0]
+assert.equal(weeklyTipExample.tips_withheld,34.86)
+assert.equal(weeklyTipExample.tips_after_withheld,961.01)
 
 const result = calculateDepartmentCosts({
   salesRows:[{date:'2026-08-01', net_sales:10000, food_sales:7000, alcohol_sales:3000}],
@@ -54,4 +72,4 @@ assert.equal(result.foodSupplies, 150)
 assert.equal(result.rules.utilities.food, 70)
 assert.ok(result.foodShared >= 110)
 assert.ok(result.alcoholShared >= 80)
-console.log('RC2 hotfix regression passed: saved payroll visibility, date-range reveal, paid history, allocations and side-by-side comparison are wired.')
+console.log('RC2.3 regression passed: exact 3.5% withholding, payroll pagination, saved payroll visibility, paid history and allocations are wired.')

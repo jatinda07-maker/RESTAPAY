@@ -13,25 +13,28 @@ const storedGrossTips = row => firstPresentAmount(row, ['credit_card_tips', 'ori
 const storedNetTips = row => firstPresentAmount(row, ['tips_after_withheld', 'tips_after_withholding', 'final_tips', 'net_tips', 'tips'])
 const storedWithheldTips = row => firstPresentAmount(row, ['tip_deduction', 'tips_withheld', 'tips_withholding', 'withheld_tips'])
 
+export const TIPS_WITHHOLDING_RATE = 0.035
+
 export const tipsWithheld = row => {
+  const gross = storedGrossTips(row)
+  if (gross !== null) return roundPayroll(Math.max(0, gross) * TIPS_WITHHOLDING_RATE)
+
   const explicit = storedWithheldTips(row)
   if (explicit !== null) return roundPayroll(Math.max(0, explicit))
 
-  const gross = storedGrossTips(row)
   const net = storedNetTips(row)
-  if (gross === null || net === null) return 0
-
-  return roundPayroll(Math.max(0, gross - net))
+  if (net === null) return 0
+  return 0
 }
 
 export const netTips = row => {
+  const gross = storedGrossTips(row)
+  if (gross !== null) return roundPayroll(Math.max(0, gross - tipsWithheld(row)))
+
   const stored = storedNetTips(row)
   if (stored !== null) return roundPayroll(Math.max(0, stored))
 
-  const gross = storedGrossTips(row)
-  if (gross === null) return 0
-
-  return roundPayroll(Math.max(0, gross - tipsWithheld(row)))
+  return 0
 }
 
 export const originalTips = row => {

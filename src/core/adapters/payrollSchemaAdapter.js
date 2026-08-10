@@ -10,8 +10,8 @@ const today = () => new Date().toISOString().slice(0, 10)
  */
 export function normalizePayrollRecord(row = {}, defaults = {}) {
   const originalTips = round2(row.original_tips ?? row.credit_card_tips ?? row.total_tips ?? 0)
-  const withheld = round2(row.tips_withheld ?? row.tip_deduction ?? row.tips_withholding ?? (originalTips * 0.035))
-  const netTips = round2(row.tips_after_withheld ?? row.tips_after_withholding ?? row.final_tips ?? row.tips ?? (originalTips - withheld))
+  const withheld = round2(originalTips * 0.035)
+  const netTips = round2(originalTips - withheld)
   const regularPay = round2(row.regular_pay ?? row.base_pay ?? row.gross_pay ?? 0)
   const extraPay = round2(row.extra_pay ?? 0)
   const total = round2(row.total ?? row.total_pay ?? row.amount ?? (regularPay + netTips + extraPay))
