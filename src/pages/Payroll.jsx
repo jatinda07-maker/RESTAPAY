@@ -310,6 +310,14 @@ export default function Payroll(){
         return [...normalized, ...withoutExistingKitchenWeek]
       })
       setKitchenWeekOpen(false)
+      const savedKitchenDate = kitchenWeekEnd
+      if (savedKitchenDate && !inDateRange({ pay_date:savedKitchenDate }, range, ['pay_date','payroll_date','date'])) {
+        applyGlobalDateRange({
+          preset:'custom',
+          from:range?.from && range.from < savedKitchenDate ? range.from : savedKitchenDate,
+          to:range?.to && range.to > savedKitchenDate ? range.to : savedKitchenDate
+        })
+      }
       setActiveTab('Ready to Pay')
       notify(`${weeklyRows.length} kitchen payroll records created and saved to Supabase for week ending ${kitchenWeekEnd}.`)
     } catch (error) {
@@ -343,11 +351,34 @@ export default function Payroll(){
     .map(row => String(row.employee_name || row.employee || '').trim())
     .filter(Boolean))].sort(), [sourceRows])
 
+  const nextWeekAfter = end => {
+    if (!end) return null
+    const endDate = new Date(`${end}T12:00:00Z`)
+    if (Number.isNaN(endDate.getTime())) return null
+    const startDate = new Date(endDate)
+    startDate.setUTCDate(startDate.getUTCDate() + 1)
+    const nextEndDate = new Date(startDate)
+    nextEndDate.setUTCDate(nextEndDate.getUTCDate() + 6)
+    return { start:startDate.toISOString().slice(0,10), end:nextEndDate.toISOString().slice(0,10) }
+  }
+
+  const latestSavedWeeklyEnd = useMemo(() => allSourceRows
+    .filter(row => row.weekly_rollup && String(row.source || '').toLowerCase() !== 'kitchen-weekly')
+    .map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date)
+    .filter(Boolean)
+    .sort()
+    .at(-1) || '', [allSourceRows])
+
   const openWeeklyBuilder = () => {
-    const latest = availablePayrollWeeks[0]
-    if (latest) {
-      setWeekStart(latest.start)
-      setWeekEnd(latest.end)
+    const latestSourceWeek = availablePayrollWeeks[0]
+    const baseEnd = latestSavedWeeklyEnd || latestSourceWeek?.end || ''
+    const next = nextWeekAfter(baseEnd)
+    if (next) {
+      setWeekStart(next.start)
+      setWeekEnd(next.end)
+    } else if (latestSourceWeek) {
+      setWeekStart(latestSourceWeek.start)
+      setWeekEnd(latestSourceWeek.end)
     }
     setSelectedWeeklyEmployees([])
     setWeekOpen(true)
@@ -405,16 +436,16 @@ export default function Payroll(){
 
 
   const prepareNextPayrollWeek = (baseRows = readyRows) => {
-    const weekEnds = baseRows.map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date).filter(Boolean).sort()
-    const lastEnd = weekEnds.at(-1)
-    if (!lastEnd) return false
-    const startDate = new Date(`${lastEnd}T12:00:00`)
-    if (Number.isNaN(startDate.getTime())) return false
-    startDate.setDate(startDate.getDate() + 1)
-    const endDate = new Date(startDate)
-    endDate.setDate(endDate.getDate() + 6)
-    const nextStart = startDate.toISOString().slice(0,10)
-    const nextEnd = endDate.toISOString().slice(0,10)
+    const weekEnds = baseRows
+      .filter(row => row.weekly_rollup && String(row.source || '').toLowerCase() !== 'kitchen-weekly')
+      .map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date)
+      .filter(Boolean)
+      .sort()
+    const lastEnd = weekEnds.at(-1) || latestSavedWeeklyEnd
+    const next = nextWeekAfter(lastEnd)
+    if (!next) return false
+    const nextStart = next.start
+    const nextEnd = next.end
     const duplicate = allSourceRows.some(row => row.weekly_rollup && (row.payroll_week_end || row.week_end) === nextEnd && String(row.source || '').toLowerCase() !== 'kitchen-weekly')
     setWeekStart(nextStart)
     setWeekEnd(nextEnd)
