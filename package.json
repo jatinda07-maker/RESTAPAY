@@ -20,7 +20,9 @@
     "test:rc2-combined": "node scripts/test-rc2-combined.mjs",
     "test:modal-entry": "node scripts/test-modal-entry-hotfix.mjs",
     "test:rc27": "node scripts/test-rc27-schema-sort.mjs",
-    "test:rc28": "node scripts/test-rc28-vendor-date.mjs"
+    "test:rc28": "node scripts/test-rc28-vendor-date.mjs",
+    "test:rc29": "node scripts/test-rc29-vendor-select-layout.mjs",
+    "test:rc210": "node scripts/test-rc210-payroll-employee-picker.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

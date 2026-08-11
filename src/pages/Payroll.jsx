@@ -11,6 +11,7 @@ import { formatMoney, summarizePayroll, toPayrollViewRow } from '../core/adapter
 import { normalizePayrollRecord, normalizePayrollRecords } from '../core/adapters/payrollSchemaAdapter.js'
 import { buildKitchenWeeklyPayroll, buildWeeklyPayroll, endOfPayrollWeek, isMondayToSunday, startOfPayrollWeek } from '../core/engines/WeeklyPayrollEngine.js'
 import usePersistentState from '../hooks/usePersistentState'
+import useCrudCollection from '../hooks/useCrudCollection'
 import { useFeedback } from '../components/AppFeedback'
 import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
 
@@ -23,7 +24,7 @@ const addDays = (value, days) => {
 }
 
 const emptyForm = {
-  employee_name:'', pay_date:new Date().toISOString().slice(0,10), job_type:'Kitchen', hours:'', regular_pay:'',
+  employee_id:'', employee_name:'', pay_date:new Date().toISOString().slice(0,10), job_type:'Kitchen', hours:'', regular_pay:'',
   credit_card_tips:'', tip_deduction:'', tips_after_withholding:'', extra_pay:'', extra_reason:'',
   payment_method:'Cash', check_number:'', ach_reference:'', payment_status:'Draft', payment_date:'',
   payroll_week_start:'', payroll_week_end:'', group_name:'', notes:''
@@ -61,9 +62,11 @@ export default function Payroll(){
   const [page,setPage] = useState(1)
   const [pageSize,setPageSize] = useState(25)
   const [sourceRows,setSourceRows] = usePersistentState('restapay-payroll', [])
-  const [employees] = usePersistentState('restapay-employees', [])
+  const [employees, employeeCrud] = useCrudCollection('restapay-employees', [])
   const [groups,setGroups] = usePersistentState('restapay-payroll-groups', [])
   const [manualForm,setManualForm] = useState(emptyForm)
+  const [employeeAddOpen,setEmployeeAddOpen] = useState(false)
+  const [employeeAddForm,setEmployeeAddForm] = useState({name:'',job:'Kitchen',type:'Hourly',method:'Cash',basePay:'',status:'Active'})
   const { notify } = useFeedback()
   const { range, apply: applyGlobalDateRange } = useGlobalDateRange()
   const allSourceRows = useMemo(() => Array.isArray(sourceRows) ? sourceRows.filter(Boolean) : [], [sourceRows])
@@ -137,11 +140,64 @@ export default function Payroll(){
     setManual(true)
   }
 
+  const selectManualEmployee = employeeId => {
+    const employee = activeEmployees.find(item => String(item.id) === String(employeeId))
+    if (!employee) {
+      setManualForm(previous => ({...previous, employee_id:'', employee_name:''}))
+      return
+    }
+    setManualForm(previous => ({
+      ...previous,
+      employee_id: employee.id,
+      employee_name: employee.name || '',
+      job_type: employee.job || employee.job_type || previous.job_type || 'Kitchen',
+      payment_method: employee.method || employee.payment_method || previous.payment_method || 'Cash'
+    }))
+  }
+
+  const openEmployeeAdd = () => {
+    setEmployeeAddForm({name:'',job:'Kitchen',type:'Hourly',method:'Cash',basePay:'',status:'Active'})
+    setManual(false)
+    setEmployeeAddOpen(true)
+  }
+
+  const saveEmployeeFromPayroll = async () => {
+    const name=String(employeeAddForm.name || '').trim()
+    if (!name) return notify('Employee name is required.', 'error')
+    const duplicate=activeEmployees.find(item => String(item.name || '').trim().toLowerCase() === name.toLowerCase())
+    if (duplicate) {
+      selectManualEmployee(duplicate.id)
+      setEmployeeAddOpen(false)
+      setManual(true)
+      return notify(`${duplicate.name} already exists and was selected.`, 'info')
+    }
+    const id=crypto.randomUUID?.() || `emp-${Date.now()}`
+    const record={...employeeAddForm,id,name,status:employeeAddForm.status || 'Active'}
+    try {
+      await employeeCrud.add(record)
+      setManualForm(previous => ({
+        ...previous,
+        employee_id:id,
+        employee_name:name,
+        job_type:record.job || previous.job_type || 'Kitchen',
+        payment_method:record.method || previous.payment_method || 'Cash'
+      }))
+      setEmployeeAddOpen(false)
+      setManual(true)
+      notify(`${name} added and selected for payroll.`)
+    } catch (error) {
+      notify(error?.message || 'Employee could not be saved.', 'error')
+    }
+  }
+
   const openEdit = raw => {
     setEditingId(raw.id)
+    const matchedEmployee = activeEmployees.find(item => String(item.id) === String(raw.employee_id || '')) || activeEmployees.find(item => String(item.name || '').trim().toLowerCase() === String(raw.employee_name || '').trim().toLowerCase())
     setManualForm({
       ...emptyForm,
       ...raw,
+      employee_id: raw.employee_id || matchedEmployee?.id || '',
+      employee_name: raw.employee_name || matchedEmployee?.name || '',
       hours:String(raw.hours ?? ''), regular_pay:String(raw.regular_pay ?? ''),
       credit_card_tips:String(raw.credit_card_tips ?? raw.original_tips ?? ''),
       tip_deduction:String(raw.tip_deduction ?? raw.tips_withheld ?? ''),
@@ -646,7 +702,7 @@ export default function Payroll(){
 
     <Modal open={manual} title={editingId ? 'Edit Payroll Entry' : 'Manual Payroll Entry'} subtitle="Hours, tips, withholding, extra pay, and payment details" onClose={() => setManual(false)} footer={<><button className="secondary-action" onClick={()=>setManual(false)}>Cancel</button><button className="primary-button" onClick={saveManual}>{editingId?'Save Changes':'Add to Payroll'}</button></>}>
       <div className="form-grid">
-        <label>Employee<input value={manualForm.employee_name} onChange={e=>setManualForm({...manualForm,employee_name:e.target.value})} placeholder="Employee name"/></label>
+        <label>Employee<div className="payroll-employee-select-row"><select value={manualForm.employee_id || ''} onChange={e=>selectManualEmployee(e.target.value)}><option value="">Select employee</option>{activeEmployees.map(employee=><option key={employee.id} value={employee.id}>{employee.name}{employee.job ? ` — ${employee.job}` : ''}</option>)}</select><button type="button" className="inline-add-button payroll-add-employee-button" title="Add employee" onClick={openEmployeeAdd}><Plus size={18}/></button></div></label>
         <label>Payroll Date<input type="date" value={manualForm.pay_date} onChange={e=>setManualForm({...manualForm,pay_date:e.target.value})}/></label>
         <label>Job Type<input value={manualForm.job_type} onChange={e=>setManualForm({...manualForm,job_type:e.target.value})}/></label>
         <label>Hours<input type="number" value={manualForm.hours} onChange={e=>setManualForm({...manualForm,hours:e.target.value})} placeholder="0.00"/></label>
@@ -666,6 +722,17 @@ export default function Payroll(){
         <label>Week End<input type="date" value={manualForm.payroll_week_end||''} onChange={e=>setManualForm({...manualForm,payroll_week_end:e.target.value})}/></label>
         <label>Payroll Group<input value={manualForm.group_name||''} onChange={e=>setManualForm({...manualForm,group_name:e.target.value})} placeholder="Optional group"/></label>
         <label className="form-span-2">Notes<input value={manualForm.notes||''} onChange={e=>setManualForm({...manualForm,notes:e.target.value})} placeholder="Optional notes"/></label>
+      </div>
+    </Modal>
+
+    <Modal open={employeeAddOpen} title="Add Employee" subtitle="Create an employee profile and use it immediately in payroll" onClose={()=>{setEmployeeAddOpen(false);setManual(true)}} footer={<><button className="secondary-action" onClick={()=>{setEmployeeAddOpen(false);setManual(true)}}>Cancel</button><button className="primary-button" onClick={saveEmployeeFromPayroll}>Save Employee</button></>}>
+      <div className="form-grid">
+        <label>Employee Name<input value={employeeAddForm.name} onChange={e=>setEmployeeAddForm({...employeeAddForm,name:e.target.value})} placeholder="Full name"/></label>
+        <label>Job Type<select value={employeeAddForm.job} onChange={e=>setEmployeeAddForm({...employeeAddForm,job:e.target.value})}><option>Kitchen</option><option>Waiter</option><option>Manager</option><option>Bartender</option><option>Busser</option><option>Dishwasher</option></select></label>
+        <label>Employee Type<select value={employeeAddForm.type} onChange={e=>setEmployeeAddForm({...employeeAddForm,type:e.target.value})}><option>Hourly</option><option>Tip</option><option>Salary</option></select></label>
+        <label>Payment Method<select value={employeeAddForm.method} onChange={e=>setEmployeeAddForm({...employeeAddForm,method:e.target.value})}><option>Cash</option><option>Check</option><option>ACH</option></select></label>
+        <label>Base Pay<input type="number" step="0.01" value={employeeAddForm.basePay} onChange={e=>setEmployeeAddForm({...employeeAddForm,basePay:e.target.value})} placeholder="0.00"/></label>
+        <label>Status<select value={employeeAddForm.status} onChange={e=>setEmployeeAddForm({...employeeAddForm,status:e.target.value})}><option>Active</option><option>Inactive</option></select></label>
       </div>
     </Modal>
 
