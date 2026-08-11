@@ -393,34 +393,43 @@
   box-shadow:0 0 0 3px rgba(20,147,90,.11);
 }
 
-/* RC2.11 filter chevrons + readability polish.
-   Only filter-bar dropdowns get the custom chevron treatment; regular form selects stay unchanged. */
+/* RC2.12 filter-only custom chevrons.
+   Force-hide the native browser arrow and render one consistent RESTAPAY chevron. */
 .records-filterbar .records-select{
   position:relative;
-  padding-right:8px;
+  padding-right:7px;
 }
 .records-filterbar .records-select select{
-  appearance:none;
-  -webkit-appearance:none;
-  padding-right:34px!important;
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  -moz-appearance:none!important;
+  background-image:none!important;
+  padding-right:38px!important;
   cursor:pointer;
 }
+.records-filterbar .records-select select::-ms-expand{display:none}
 .records-filterbar .records-select>svg:last-child{
-  width:22px;
-  height:22px;
+  width:24px;
+  height:24px;
   padding:5px;
-  margin-left:-30px;
-  flex:0 0 22px;
-  border-radius:7px;
-  background:#eef6ff;
-  color:#245f9e;
+  margin-left:-32px;
+  flex:0 0 24px;
+  border:1px solid #cfe4d8;
+  border-radius:8px;
+  background:linear-gradient(180deg,#ffffff 0%,#f2f9f5 100%);
+  color:#176b49;
   pointer-events:none;
-  stroke-width:2.2;
+  stroke-width:2.25;
+  box-shadow:0 1px 2px rgba(17,82,58,.06);
+  transition:background .15s ease,border-color .15s ease,color .15s ease,transform .15s ease;
 }
+.records-filterbar .records-select:hover>svg:last-child,
 .records-filterbar .records-select:focus-within>svg:last-child{
-  background:#dcecff;
-  color:#174a80;
+  background:#e8f6ee;
+  border-color:#9fceb5;
+  color:#0b7a49;
 }
+.records-filterbar .records-select:focus-within>svg:last-child{transform:translateY(1px)}
 
 /* Agreed project readability change: +1px to record/data rows only.
    Do not alter page titles, navigation, buttons, form labels, or form-control text. */

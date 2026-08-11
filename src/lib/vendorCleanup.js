@@ -52,7 +52,7 @@ export function dedupeVendorOptions(vendors = []) {
     const current = map.get(key)
     if (!current || (current.is_active === false && vendor.is_active !== false)) map.set(key, vendor)
   }
-  return [...map.values()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }))
+  return [...map.values()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' }))
 }
 
 export function findVendorDuplicateGroups(vendors = [], threshold = 0.9) {

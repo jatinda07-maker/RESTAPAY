@@ -656,12 +656,12 @@ export default function Payroll(){
         <div className="records-filterbar payroll-filterbar">
           {selectedRowIds.length>0 && <div className="payroll-bulk-actions">
             <strong>{selectedRowIds.length} selected</strong>
-            <label className="records-select payroll-bulk-select"><select aria-label="Bulk payroll action" value={bulkAction} onChange={e=>setBulkAction(e.target.value)}><option value="">Change Action</option><option>Draft</option><option>Ready to Pay</option><option>Approved</option><option>Paid</option><option>Void</option></select><ChevronDown size={14}/></label>
+            <label className="records-select payroll-bulk-select"><select aria-label="Bulk payroll action" value={bulkAction} onChange={e=>setBulkAction(e.target.value)}><option value="">Change Action</option><option>Approved</option><option>Draft</option><option>Paid</option><option>Ready to Pay</option><option>Void</option></select><ChevronDown size={14}/></label>
             <button className="secondary-action bulk-apply-button" disabled={!bulkAction} onClick={applyBulkAction}>Apply</button>
             <button className="secondary-action danger-action bulk-delete-button" onClick={bulkDeleteRows}><Trash2 size={15}/>Delete Selected</button>
           </div>}
           <label className="records-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search employee or date..."/></label>
-          <label className="records-select"><Filter size={16}/><select value={method} onChange={e=>setMethod(e.target.value)}><option>All Methods</option><option>Cash</option><option>Check</option><option>ACH</option></select><ChevronDown size={14}/></label>
+          <label className="records-select"><Filter size={16}/><select value={method} onChange={e=>setMethod(e.target.value)}><option>All Methods</option><option>ACH</option><option>Cash</option><option>Check</option></select><ChevronDown size={14}/></label>
         </div>
 
         <div className="records-table-wrap payroll-table-wrap">
