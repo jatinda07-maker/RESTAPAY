@@ -22,7 +22,8 @@
     "test:rc27": "node scripts/test-rc27-schema-sort.mjs",
     "test:rc28": "node scripts/test-rc28-vendor-date.mjs",
     "test:rc29": "node scripts/test-rc29-vendor-select-layout.mjs",
-    "test:rc210": "node scripts/test-rc210-payroll-employee-picker.mjs"
+    "test:rc210": "node scripts/test-rc210-payroll-employee-picker.mjs",
+    "test:rc211": "node scripts/test-rc211-filter-ui.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

@@ -282,3 +282,35 @@
 .detail-drawer.drawer-expanded{width:min(1040px,94vw)}
 .drawer-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:13px}.drawer-detail-grid>div{display:flex;flex-direction:column;gap:4px;padding:10px;border:1px solid #e5ece9;border-radius:9px;background:#f8fbfa}.drawer-detail-grid small{color:var(--ink-500);font-size:9px}.drawer-detail-grid strong{font-size:11px}.drawer-ready{display:inline-flex;align-items:center;gap:5px;color:#087f45}.drawer-inline-action{display:flex;align-items:center;justify-content:center;gap:7px;width:calc(100% - 26px);height:38px;margin:0 13px 13px;border:1px solid #bce8cd;border-radius:9px;background:#f2fbf6;color:#087f45;font-size:10px;font-weight:750}.drawer-notes textarea{width:calc(100% - 26px);min-height:180px;margin:13px;padding:12px;border:1px solid #dce7e2;border-radius:10px;resize:vertical;font:inherit;color:var(--ink-900)}
 .drawer-empty{padding:28px 18px;text-align:center;color:#6b7a90;font-weight:600}
+
+/* RC2.11 date/filter preset chevron and compact Apply action. */
+.compact-range-select{position:relative;padding-right:8px}
+.compact-range-select select{
+  appearance:none;
+  -webkit-appearance:none;
+  padding-right:34px!important;
+  cursor:pointer;
+}
+.compact-range-select>svg:last-child{
+  width:22px;
+  height:22px;
+  padding:5px;
+  margin-left:-30px;
+  flex:0 0 22px;
+  border-radius:7px;
+  background:#eef6ff;
+  color:#245f9e;
+  pointer-events:none;
+  stroke-width:2.2;
+}
+.compact-range-select:focus-within>svg:last-child{background:#dcecff;color:#174a80}
+.compact-apply{
+  height:34px;
+  min-width:68px;
+  padding:0 12px;
+  background:#fff3d6!important;
+  border-color:#e3b34d!important;
+  color:#825600!important;
+  box-shadow:none!important;
+}
+.compact-apply:hover{background:#ffe7ad!important;border-color:#cf9824!important}
