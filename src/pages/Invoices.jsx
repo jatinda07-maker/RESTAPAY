@@ -11,19 +11,20 @@ import {useAppData} from '../hooks/useAppData'
 import {isSupabaseReady,supabase} from '../lib/supabase.js'
 import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
 import { dedupeVendorOptions, normalizeVendorName } from '../lib/vendorCleanup'
+import usePersistentState from '../hooks/usePersistentState'
+import {DEFAULT_CATEGORIES,activeClassificationNames,normalizeClassificationList} from '../lib/classifications'
 
 const today=()=>new Date().toISOString().slice(0,10)
 const emptyLine=()=>({id:crypto.randomUUID?.()||`line-${Date.now()}`,item_number:'',description:'',category:'Food',quantity:1,package_size:'',unit_price:'',line_total:'',discount_percent:0,discount_amount:0})
 const blank=()=>({date:today(),due_date:'',vendor:'',vendor_id:null,number:'',category:'Food',payment_type:'Check',check_number:'',status:'Due',manual_amount:'',tax:'',discount:'',notes:'',source_file:'',lines:[emptyLine()]})
 const alpha=(a,b)=>String(a||'').localeCompare(String(b||''),undefined,{sensitivity:'base',numeric:true})
-const categories=['Food','Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Beer','Wine','Liquor','Margaritas','Cocktails & Shots','Supplies','Maintenance','Utilities','Other'].sort(alpha)
 const invoiceStatuses=['Draft','Approved','Due','Paid','Void']
 const bulkActions=['Draft','Approved','Paid','Unpaid','Void']
 const trackerStages={uploading:20,reading:45,extracting:70,duplicate:85,review:92,saved:100,error:0}
 const categoryTone=value=>{const key=lower(value);if(/food|meat|seafood|produce|dairy|dry|frozen/.test(key))return 'data-tone-green';if(/beer|alcohol|liquor/.test(key))return 'data-tone-amber';if(/wine|margarita|cocktail|beverage/.test(key))return 'data-tone-blue';if(/suppl|maintenance|utilit/.test(key))return 'data-tone-purple';return 'data-tone-slate'}
 const statusSlug=value=>lower(value||'Due').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')
 
-export default function Invoices(){
+export default function Invoices(){const [savedCategories]=usePersistentState('restapay-categories',normalizeClassificationList([],DEFAULT_CATEGORIES));const categories=activeClassificationNames(normalizeClassificationList(savedCategories,DEFAULT_CATEGORIES));
  const [rows,crud]=useCrudCollection('restapay-invoices',[]);const {vendors}=useAppData();const {notify}=useFeedback()
  const [query,setQuery]=useState(''),[category,setCategory]=useState('All Categories'),[status,setStatus]=useState('All Status'),[modal,setModal]=useState(false),[ai,setAi]=useState(false),[edit,setEdit]=useState(null),[form,setForm]=useState(blank),[drawer,setDrawer]=useState(null),[aiDraft,setAiDraft]=useState(null),[selectedIds,setSelectedIds]=useState([]),[duplicateReview,setDuplicateReview]=useState(null),[bulkAction,setBulkAction]=useState(''),[bulkPayOpen,setBulkPayOpen]=useState(false),[bulkPay,setBulkPay]=useState({payment_date:today(),payment_method:'Check',payment_reference:''}),[tracker,setTracker]=useState(null),[retryFile,setRetryFile]=useState(null)
  const fileRef=useRef(null);const {range}=useGlobalDateRange()

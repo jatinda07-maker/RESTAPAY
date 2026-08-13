@@ -173,3 +173,7 @@ button { cursor: pointer; }
 
 .save-pill-error { border-color:#fecaca; background:#fff1f2; color:#b91c1c; }
 .save-pill-error .status-dot { background:#dc2626; }
+
+/* RC3.2 top bar contrast refresh - right/content header only */
+.topbar{background:linear-gradient(100deg,#06152a 0%,#0b1f38 62%,#102b49 100%);border-bottom-color:#183b60;box-shadow:0 5px 18px rgba(5,19,36,.16)}
+.topbar-page-title h1{color:#fff}.topbar-page-title p{color:#b8c8db}.topbar .save-pill{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.16);color:#e9f5ef}.topbar .icon-button{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.16);color:#eef5ff}.topbar .avatar{background:#dff5e8;color:#087f45}.topbar .user-copy strong{color:#fff}.topbar .user-copy span{color:#b8c8db}.topbar>.topbar-actions>svg{color:#d6e3f0}

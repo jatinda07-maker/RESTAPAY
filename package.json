@@ -28,7 +28,8 @@
     "test:rc213": "node scripts/test-rc213-payroll-column-filters.mjs",
     "test:rc3": "node scripts/test-rc3-production-readiness.mjs",
     "test:rc3-invoice": "node scripts/test-rc3-invoice-workflow.mjs",
-    "test:rc31": "node scripts/test-rc31-right-panel-polish.mjs"
+    "test:rc31": "node scripts/test-rc31-right-panel-polish.mjs",
+    "test:rc32": "node scripts/test-rc32-classifications.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
