@@ -489,3 +489,60 @@
 .status-draft{background:#eef2ff;color:#4f46e5}.status-approved{background:#e8f7ef;color:#087f45}.status-void{background:#f1f5f9;color:#64748b}
 .invoice-upload-tracker{margin-top:14px;padding:12px;border:1px solid #dce7e2;border-radius:12px;background:#fbfdfc}.tracker-head,.tracker-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}.tracker-head span{display:flex;align-items:center;gap:8px;min-width:0}.tracker-head strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tracker-head b{font-size:12px}.tracker-bar{height:8px;margin:10px 0;border-radius:99px;background:#e7efeb;overflow:hidden}.tracker-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#0ea765,#087f45);transition:width .22s ease}.stage-error .tracker-bar i{background:#dc3545}.stage-error{border-color:#fecaca;background:#fff8f8}.stage-review{border-color:#bce8cd;background:#f7fcf9}.tracker-foot span{font-size:11px;color:var(--text-muted)}.tracker-foot .secondary-action{height:30px;padding:0 10px}.spin{animation:restapay-spin .9s linear infinite}@keyframes restapay-spin{to{transform:rotate(360deg)}}
 .invoice-reconcile-warning{display:flex;align-items:flex-start;gap:9px;margin-bottom:12px;padding:10px 12px;border:1px solid #f6c86b;border-radius:10px;background:#fff9eb;color:#8a5500}.invoice-reconcile-warning div{display:flex;flex-direction:column;gap:2px}.invoice-reconcile-warning small{font-size:10px;color:#96641a}.ai-review-summary{grid-template-columns:2fr 1fr 1fr 1fr}
+
+/* RC3.1 right-panel visual system: semantic color without changing the left navigation. */
+.page-canvas .records-table td,
+.page-canvas .sales-table td,
+.page-canvas .weekly-report-table td{
+  font-size:12.5px;
+}
+.page-canvas .records-table .numeric,
+.page-canvas .sales-table td:nth-last-child(n+1){font-variant-numeric:tabular-nums}
+
+/* Reusable semantic text colors for categories and classifications. */
+.data-tone-text{font-weight:650}
+.data-tone-green{color:#087f45}
+.data-tone-blue{color:#0b5fd7}
+.data-tone-amber{color:#a94d08}
+.data-tone-purple{color:#6b2bc5}
+.data-tone-slate{color:#3f5368}
+
+/* Status pills shared by invoices, payroll, employees, bank/checks and other record pages. */
+.status-badge{border:1px solid transparent;border-radius:7px;min-width:0;padding:5px 10px;font-size:10.5px;font-weight:700;letter-spacing:0}
+.status-paid{background:#edf4ff;border-color:#c9dcff;color:#0757d9}
+.status-approved,.status-active,.status-cleared,.status-completed{background:#eef9f2;border-color:#c7e8d2;color:#087f45}
+.status-draft,.status-pending{background:#f5f6f8;border-color:#dfe4e8;color:#44546a}
+.status-due,.status-unpaid,.status-unpaid-due{background:#fff5e9;border-color:#ffd5a9;color:#c45c08}
+.status-void,.status-voided,.status-cancelled,.status-inactive{background:#fff0f1;border-color:#ffc9ce;color:#c92a39}
+
+/* Compact semantic action buttons, used anywhere bulk/status actions are offered. */
+.page-canvas .secondary-action.action-draft{border-color:#d9dfe7;background:#f8f9fb;color:#37465a}
+.page-canvas .secondary-action.action-approve{border-color:#bee5ca;background:#f2fbf5;color:#087f45}
+.page-canvas .secondary-action.action-paid{border-color:#bfd5ff;background:#f1f6ff;color:#0757d9}
+.page-canvas .secondary-action.action-unpaid{border-color:#ffd0a2;background:#fff7ee;color:#c45c08}
+.page-canvas .secondary-action.action-void,
+.page-canvas .secondary-action.danger-action{border-color:#ffc4ca;background:#fff5f6;color:#d22436}
+.page-canvas .secondary-action.action-draft:hover{background:#eef1f5}
+.page-canvas .secondary-action.action-approve:hover{background:#e8f7ed}
+.page-canvas .secondary-action.action-paid:hover{background:#e7f0ff}
+.page-canvas .secondary-action.action-unpaid:hover{background:#ffedd9}
+.page-canvas .secondary-action.action-void:hover,
+.page-canvas .secondary-action.danger-action:hover{background:#ffe9eb}
+
+/* Invoice status filter boxes mirror the accepted right-panel mockup. */
+.invoice-status-tabs{display:flex;align-items:center;gap:9px;padding:11px 18px;border-bottom:1px solid #e7eeeb;background:#fff;overflow-x:auto}
+.invoice-status-tab{height:38px;display:inline-flex;align-items:center;gap:10px;padding:0 13px;border:1px solid #dce5e1;border-radius:9px;background:#fff;color:#263a53;font:inherit;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer;transition:.15s ease}
+.invoice-status-tab b{min-width:24px;padding:2px 7px;border:1px solid #dce5e1;border-radius:7px;background:#f7f9f8;font-size:10px;text-align:center}
+.invoice-status-tab:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(18,45,74,.07)}
+.invoice-status-tab.active{border-color:#93b8ff;background:#f5f8ff;color:#0757d9;box-shadow:0 0 0 2px rgba(37,99,235,.05)}
+.status-tab-approved{color:#087f45}.status-tab-approved b{background:#eef9f2;border-color:#c7e8d2;color:#087f45}
+.status-tab-paid{color:#0757d9}.status-tab-paid b{background:#edf4ff;border-color:#c9dcff;color:#0757d9}
+.status-tab-due{color:#c45c08}.status-tab-due b{background:#fff5e9;border-color:#ffd5a9;color:#c45c08}
+.status-tab-void{color:#c92a39}.status-tab-void b{background:#fff0f1;border-color:#ffc9ce;color:#c92a39}
+.status-tab-draft{color:#44546a}.status-tab-draft b{background:#f5f6f8;border-color:#dfe4e8;color:#44546a}
+
+.invoice-bulk-direct{flex-wrap:wrap;background:#fff;border-color:#e2e9e6;padding:7px 9px}
+.invoice-bulk-direct .secondary-action{height:34px;padding:0 11px;border-radius:8px;font-size:10.5px}
+.invoice-bulk-direct>strong{color:#0757d9;margin-right:2px}
+
+@media(max-width:1100px){.invoice-status-tabs{padding-inline:12px}.invoice-bulk-direct{max-width:100%;overflow-x:auto;flex-wrap:nowrap}}
