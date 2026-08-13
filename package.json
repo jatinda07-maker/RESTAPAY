@@ -24,7 +24,8 @@
     "test:rc29": "node scripts/test-rc29-vendor-select-layout.mjs",
     "test:rc210": "node scripts/test-rc210-payroll-employee-picker.mjs",
     "test:rc211": "node scripts/test-rc211-filter-ui.mjs",
-    "test:rc212": "node scripts/test-rc212-filter-sort-apply.mjs"
+    "test:rc212": "node scripts/test-rc212-filter-sort-apply.mjs",
+    "test:rc213": "node scripts/test-rc213-payroll-column-filters.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

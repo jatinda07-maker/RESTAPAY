@@ -447,3 +447,39 @@
   background:#ffedb8;
   border-color:#dda932;
 }
+
+/* RC2.13 payroll per-column filters */
+.payroll-table .payroll-column-filter-row th {
+  padding: 7px 8px 9px;
+  background: #f8fbfa;
+  border-top: 1px solid #e2ece8;
+}
+.payroll-table .payroll-column-filter-row input,
+.payroll-table .payroll-column-filter-row select {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #cedbd6;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #0b2b55;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 8px;
+  outline: none;
+  box-sizing: border-box;
+}
+.payroll-table .payroll-column-filter-row input:focus,
+.payroll-table .payroll-column-filter-row select:focus {
+  border-color: #79bda2;
+  box-shadow: 0 0 0 2px rgba(24, 159, 107, .09);
+}
+.payroll-table .payroll-column-filter-row select {
+  appearance: auto;
+}
+.payroll-clear-column-filters {
+  white-space: nowrap;
+  min-height: 34px;
+  padding: 6px 10px;
+}

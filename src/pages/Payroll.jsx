@@ -61,6 +61,7 @@ export default function Payroll(){
   const [bulkAction,setBulkAction] = useState('')
   const [page,setPage] = useState(1)
   const [pageSize,setPageSize] = useState(25)
+  const [columnFilters,setColumnFilters] = useState({date:'',employee:'',job:'',hours:'',basePay:'',tips:'',withheld:'',netTips:'',finalPay:'',method:'',status:''})
   const [sourceRows,setSourceRows] = usePersistentState('restapay-payroll', [])
   const [employees, employeeCrud] = useCrudCollection('restapay-employees', [])
   const [groups,setGroups] = usePersistentState('restapay-payroll-groups', [])
@@ -100,13 +101,23 @@ export default function Payroll(){
     return []
   }, [importedRows, readyRows, paidRows, manualRows, activeTab])
 
-  const filtered = useMemo(() => tabRows.filter(r =>
-    (!query || Object.values(r).join(' ').toLowerCase().includes(query.toLowerCase())) &&
-    (method === 'All Methods' || r.method === method)
-  ), [tabRows, query, method])
+  const filtered = useMemo(() => {
+    const contains = (value, needle) => !needle || String(value ?? '').toLowerCase().includes(String(needle).toLowerCase().trim())
+    const moneyText = value => String(value ?? '').replace(/[$,]/g,'')
+    return tabRows
+      .filter(r => (!query || Object.values(r).join(' ').toLowerCase().includes(query.toLowerCase())) && (method === 'All Methods' || r.method === method))
+      .filter(r => (!columnFilters.date || r.date === columnFilters.date) &&
+        contains(r.employee,columnFilters.employee) && contains(r.job,columnFilters.job) &&
+        contains(r.hours,columnFilters.hours) && contains(moneyText(r.basePay),columnFilters.basePay) &&
+        contains(moneyText(r.originalTips),columnFilters.tips) && contains(moneyText(r.withheld),columnFilters.withheld) &&
+        contains(moneyText(r.tipsAfter),columnFilters.netTips) && contains(moneyText(r.finalPay),columnFilters.finalPay) &&
+        (!columnFilters.method || r.method === columnFilters.method) &&
+        (!columnFilters.status || String(r.payment_status || '').toLowerCase() === columnFilters.status.toLowerCase()))
+      .sort((a,b) => String(a.date||'').localeCompare(String(b.date||'')) || String(a.employee||'').localeCompare(String(b.employee||''), undefined, {sensitivity:'base', numeric:true}))
+  }, [tabRows, query, method, columnFilters])
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pagedRows = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize])
-  useEffect(() => { setPage(1) }, [activeTab, query, method, pageSize])
+  useEffect(() => { setPage(1) }, [activeTab, query, method, pageSize, columnFilters])
   useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
   const manualTipWithheld = Math.round(Number(manualForm.credit_card_tips || 0) * 0.035 * 100) / 100
   const manualNetTips = Math.round((Number(manualForm.credit_card_tips || 0) - manualTipWithheld) * 100) / 100
@@ -662,16 +673,33 @@ export default function Payroll(){
           </div>}
           <label className="records-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search employee or date..."/></label>
           <label className="records-select"><Filter size={16}/><select value={method} onChange={e=>setMethod(e.target.value)}><option>All Methods</option><option>ACH</option><option>Cash</option><option>Check</option></select><ChevronDown size={14}/></label>
+          {Object.values(columnFilters).some(Boolean) && <button type="button" className="secondary-action payroll-clear-column-filters" onClick={()=>setColumnFilters({date:'',employee:'',job:'',hours:'',basePay:'',tips:'',withheld:'',netTips:'',finalPay:'',method:'',status:''})}>Clear Column Filters</button>}
         </div>
 
         <div className="records-table-wrap payroll-table-wrap">
           <table className="records-table aligned-table payroll-table payroll-table-compact">
-            <thead><tr>
-              <th className="select-column"><input type="checkbox" aria-label="Select all visible payroll rows" checked={allVisibleSelected} onChange={toggleAllVisible}/></th><th>Date</th><th>Employee</th><th>Job</th><th className="numeric">Hours</th>
-              <th className="numeric">Base Pay</th><th className="numeric">Tips</th>
-              <th className="numeric">Withheld</th><th className="numeric">Net Tips</th>
-              <th className="numeric">Final Pay</th><th className="centered">Method</th><th className="centered">Actions</th>
-            </tr></thead>
+            <thead>
+              <tr>
+                <th className="select-column"><input type="checkbox" aria-label="Select all visible payroll rows" checked={allVisibleSelected} onChange={toggleAllVisible}/></th><th>Date</th><th>Employee</th><th>Job</th><th className="numeric">Hours</th>
+                <th className="numeric">Base Pay</th><th className="numeric">Tips</th>
+                <th className="numeric">Withheld</th><th className="numeric">Net Tips</th>
+                <th className="numeric">Final Pay</th><th className="centered">Method</th><th className="centered">Actions</th>
+              </tr>
+              <tr className="payroll-column-filter-row">
+                <th className="select-column"></th>
+                <th><input aria-label="Filter payroll by date" type="date" value={columnFilters.date} onChange={e=>setColumnFilters({...columnFilters,date:e.target.value})}/></th>
+                <th><input aria-label="Filter payroll by employee" value={columnFilters.employee} onChange={e=>setColumnFilters({...columnFilters,employee:e.target.value})} placeholder="Filter..."/></th>
+                <th><input aria-label="Filter payroll by job" value={columnFilters.job} onChange={e=>setColumnFilters({...columnFilters,job:e.target.value})} placeholder="Filter..."/></th>
+                <th><input aria-label="Filter payroll by hours" inputMode="decimal" value={columnFilters.hours} onChange={e=>setColumnFilters({...columnFilters,hours:e.target.value})} placeholder="Hours"/></th>
+                <th><input aria-label="Filter payroll by base pay" inputMode="decimal" value={columnFilters.basePay} onChange={e=>setColumnFilters({...columnFilters,basePay:e.target.value})} placeholder="Amount"/></th>
+                <th><input aria-label="Filter payroll by tips" inputMode="decimal" value={columnFilters.tips} onChange={e=>setColumnFilters({...columnFilters,tips:e.target.value})} placeholder="Amount"/></th>
+                <th><input aria-label="Filter payroll by withheld" inputMode="decimal" value={columnFilters.withheld} onChange={e=>setColumnFilters({...columnFilters,withheld:e.target.value})} placeholder="Amount"/></th>
+                <th><input aria-label="Filter payroll by net tips" inputMode="decimal" value={columnFilters.netTips} onChange={e=>setColumnFilters({...columnFilters,netTips:e.target.value})} placeholder="Amount"/></th>
+                <th><input aria-label="Filter payroll by final pay" inputMode="decimal" value={columnFilters.finalPay} onChange={e=>setColumnFilters({...columnFilters,finalPay:e.target.value})} placeholder="Amount"/></th>
+                <th><select aria-label="Filter payroll by method" value={columnFilters.method} onChange={e=>setColumnFilters({...columnFilters,method:e.target.value})}><option value="">All</option><option>ACH</option><option>Cash</option><option>Check</option></select></th>
+                <th><select aria-label="Filter payroll by status" value={columnFilters.status} onChange={e=>setColumnFilters({...columnFilters,status:e.target.value})}><option value="">All</option><option value="draft">Draft</option><option value="ready to pay">Ready</option><option value="approved">Approved</option><option value="paid">Paid</option><option value="void">Void</option></select></th>
+              </tr>
+            </thead>
             <tbody>{filtered.length===0 ? <tr><td colSpan="12" className="records-empty-cell">No payroll records.</td></tr> : pagedRows.map(r => <tr key={r.id || `${r.date}-${r.employee}`} className={selectedRowIds.includes(r.id)?'row-selected':''}>
               <td className="select-column"><input type="checkbox" aria-label={`Select ${r.employee} payroll`} checked={selectedRowIds.includes(r.id)} onChange={()=>toggleSelectedRow(r.id)}/></td><td>{r.date}</td><td><strong>{r.employee}</strong></td><td>{r.job}</td>
               <td className="numeric">{r.hours}</td><td className="numeric">{r.basePay}</td>
