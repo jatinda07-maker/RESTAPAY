@@ -74,14 +74,24 @@ export default function Payroll(){
   const scopedSourceRows = useMemo(() => allSourceRows.filter(row => inDateRange(row, range, ['pay_date','payroll_date','date'])), [allSourceRows, range])
   const safeGroups = Array.isArray(groups) ? groups.filter(Boolean) : []
 
-  const importedRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast'), [scopedSourceRows])
-  const manualRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() !== 'toast'), [scopedSourceRows])
+  const employeeById = useMemo(() => new Map((Array.isArray(employees) ? employees : []).filter(Boolean).map(employee => [String(employee.id || ''), employee])), [employees])
+  const employeeByName = useMemo(() => new Map((Array.isArray(employees) ? employees : []).filter(Boolean).map(employee => [String(employee.name || employee.employee_name || '').trim().toLowerCase(), employee])), [employees])
+  const resolveEmployeeJob = row => {
+    const direct = String(row?.job_type || row?.job || row?.job_title || row?.position || row?.duty || '').trim()
+    if (direct) return direct
+    const employee = employeeById.get(String(row?.employee_id || '')) || employeeByName.get(String(row?.employee_name || row?.employee || '').trim().toLowerCase())
+    return String(employee?.job || employee?.job_type || employee?.job_title || employee?.position || employee?.duty || 'Unassigned').trim() || 'Unassigned'
+  }
+  const enrichPayrollRow = row => ({ ...row, job_type: resolveEmployeeJob(row) })
+
+  const importedRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast').map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
+  const manualRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() !== 'toast').map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
   const readyRows = useMemo(() => scopedSourceRows.filter(row => {
     const status=String(row.payment_status || 'Draft').trim().toLowerCase()
     if (status === 'paid' || status === 'void') return false
     return Boolean(row.weekly_rollup) || ['ready','ready to pay','approved','pending'].includes(status)
-  }), [scopedSourceRows])
-  const paidRows = useMemo(() => allSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid'), [allSourceRows])
+  }).map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
+  const paidRows = useMemo(() => allSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid').map(enrichPayrollRow), [allSourceRows, employeeById, employeeByName])
   const payableRows = useMemo(() => [...new Map([...readyRows, ...paidRows, ...manualRows].map(row => [row.id, row])).values()], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
   const payrollSummary = useMemo(() => summarizePayroll(payableRows), [payableRows])
@@ -247,9 +257,13 @@ export default function Payroll(){
       } : {})
     })
     try {
-      await setSourceRows(prev => editingId ? prev.map(item => item.id===editingId ? record : item) : [record,...prev])
       const status=String(record.payment_status || 'Draft').trim().toLowerCase()
       const savedDate=record.payroll_date || record.pay_date
+      const persistPromise = setSourceRows(prev => editingId ? prev.map(item => item.id===editingId ? record : item) : [record,...prev])
+      setActiveTab(status === 'paid' ? 'Payroll History' : ['ready','ready to pay','approved','pending'].includes(status) ? 'Ready to Pay' : 'Manual Labor')
+      setManual(false)
+      notify(editingId ? 'Payroll entry updated. Syncing to Supabase…' : 'Manual payroll entry added. Syncing to Supabase…', 'info')
+      await persistPromise
       if (savedDate && !inDateRange(record, range, ['pay_date','payroll_date','date'])) {
         applyGlobalDateRange({
           preset:'custom',
@@ -257,9 +271,7 @@ export default function Payroll(){
           to:range?.to && range.to > savedDate ? range.to : savedDate
         })
       }
-      setActiveTab(status === 'paid' ? 'Payroll History' : ['ready','ready to pay','approved','pending'].includes(status) ? 'Ready to Pay' : 'Manual Labor')
       notify(editingId ? 'Payroll entry updated and saved to Supabase.' : 'Manual payroll entry saved to Supabase.')
-      setManual(false)
     } catch (error) {
       notify(`Payroll save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
     }
@@ -298,7 +310,8 @@ export default function Payroll(){
     if (paymentForm.payment_method === 'Check' && !paymentForm.check_number.trim()) return notify('Enter a check number.', 'error')
     if (paymentForm.payment_method === 'ACH' && !paymentForm.ach_reference.trim()) return notify('Enter an ACH reference.', 'error')
     try {
-      await setSourceRows(prev => prev.map(row => row.id === paymentId ? {
+      const targetTab = paymentForm.payment_status === 'Paid' ? 'Payroll History' : 'Ready to Pay'
+      const persistPromise = setSourceRows(prev => prev.map(row => row.id === paymentId ? {
       ...row, method:paymentForm.payment_method, payment_method:paymentForm.payment_method,
       check_number:paymentForm.payment_method === 'Check' ? paymentForm.check_number : '',
       ach_reference:paymentForm.payment_method === 'ACH' ? paymentForm.ach_reference : '',
@@ -308,7 +321,9 @@ export default function Payroll(){
       status_updated_at:new Date().toISOString(), status_updated_via:'single-payment', updated_at:new Date().toISOString()
       } : row))
       setPaymentOpen(false)
-      setActiveTab(paymentForm.payment_status === 'Paid' ? 'Payroll History' : 'Ready to Pay')
+      setActiveTab(targetTab)
+      notify(paymentForm.payment_status === 'Paid' ? 'Payroll marked Paid. Syncing to Supabase…' : 'Payroll payment updated. Syncing to Supabase…', 'info')
+      await persistPromise
       notify(paymentForm.payment_status === 'Paid' ? 'Payroll payment recorded in Supabase.' : 'Payroll payment draft saved to Supabase.')
     } catch (error) {
       notify(`Payroll payment save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
