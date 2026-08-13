@@ -100,6 +100,35 @@ export function calculateInvoice(lines = [], tax = 0, discount = 0) {
   return { lines: normalized, subtotal: Number(subtotal.toFixed(2)), tax: n(tax), discount: n(discount), total: Number(total.toFixed(2)) }
 }
 
+
+export function reconcileInvoiceExtraction({ lines = [], printedSubtotal = 0, printedNet = 0, printedTotal = 0, summaryDiscount = 0, tax = 0, charges = 0 } = {}) {
+  const normalized = lines.map(normalizeInvoiceLine)
+  const lineSubtotal = Number(normalized.reduce((sum, line) => sum + n(line.line_total), 0).toFixed(2))
+  const subtotal = Number(n(printedSubtotal).toFixed(2))
+  const net = Number(n(printedNet).toFixed(2))
+  const total = Number(n(printedTotal).toFixed(2))
+  const discount = Number(n(summaryDiscount).toFixed(2))
+  const tolerance = 0.02
+  const comparisons = [
+    subtotal ? ['line subtotal', lineSubtotal, subtotal] : null,
+    net && subtotal ? ['subtotal/net', subtotal, net] : null,
+    total && net ? ['net/final total', Number((net + n(tax) + n(charges)).toFixed(2)), total] : null,
+  ].filter(Boolean)
+  const mismatches = comparisons.filter(([,a,b]) => Math.abs(a - b) > tolerance).map(([label,a,b]) => `${label}: ${a.toFixed(2)} vs ${b.toFixed(2)}`)
+  return {
+    lines: normalized,
+    line_subtotal: lineSubtotal,
+    printed_subtotal: subtotal,
+    printed_net: net,
+    printed_total: total,
+    summary_discount: discount,
+    reconciled: mismatches.length === 0,
+    needs_review: mismatches.length > 0,
+    mismatches,
+    authoritative_total: total || net || subtotal || lineSubtotal,
+  }
+}
+
 export function normalizeInvoice(invoice = {}) {
   const calc = calculateInvoice(invoice.lines || invoice.items || [], invoice.tax, invoice.discount)
   const amount = n(invoice.total ?? invoice.amount) || calc.total
