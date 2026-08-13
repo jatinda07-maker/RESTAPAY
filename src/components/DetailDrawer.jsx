@@ -42,6 +42,10 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
     'Cash Payroll': ['Cash payment employees', [{title:'Cash Payroll',rows:[['Cash Payroll','Current records',appMoney(metrics.cashPayroll)]],total:['Cash Payroll',appMoney(metrics.cashPayroll)]}]],
     'Check Payroll': ['Check payment employees', [{title:'Check Payroll',rows:[['Check Payroll','Current records',appMoney(metrics.checkPayroll)]],total:['Check Payroll',appMoney(metrics.checkPayroll)]}]],
     'Total Expenses': ['Operating expense totals', [{title:'Expenses',rows:[['All Expenses',`${expenses.length} records`,appMoney(metrics.expenseTotal)],['Cash Expenses','Cash payments',appMoney(metrics.cashExpenses)]],total:['Total Expenses',appMoney(metrics.expenseTotal)]}]],
+    'Cash Expenses': ['Cash operating expenses in the selected period', [{title:'Cash Expenses',rows:[['Cash Expenses',`${expenses.filter(r=>String(r.payment_type||r.method).toLowerCase()==='cash').length} matching records`,appMoney(metrics.cashExpenses)]],total:['Cash Expenses',appMoney(metrics.cashExpenses)]}]],
+    'Check & ACH': ['Check and ACH operating expenses in the selected period', [{title:'Check & ACH',rows:[['Check & ACH',`${expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).length} matching records`,appMoney(expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]],total:['Check & ACH',appMoney(expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]}]],
+    'Credit Expenses': ['Credit/card operating expenses in the selected period', [{title:'Credit Expenses',rows:[['Credit Expenses',`${expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).length} matching records`,appMoney(expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]],total:['Credit Expenses',appMoney(expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]}]],
+    'Cash Vendor Invoices': ['Cash-paid vendor invoices in the selected period', [{title:'Cash Vendor Invoices',rows:[['Cash Vendor Invoices',`${invoices.filter(r=>String(r.payment_type||r.method).toLowerCase()==='cash').length} matching invoices`,appMoney(metrics.cashInvoiceSpend)]],total:['Cash Vendor Invoices',appMoney(metrics.cashInvoiceSpend)]}]],
     'Invoice Total': ['Invoice totals and status', [{title:'Invoices',rows:[['All Invoices',`${invoices.length} records`,appMoney(metrics.invoiceTotal)]],total:['Invoice Total',appMoney(metrics.invoiceTotal)]}]],
     'Active Employees': ['Current employee records', [{title:'Employees',rows:[['Active Employees',`${employees.filter(r=>r.status!=='Inactive').length} active`,'Current'],['Total Employees',`${employees.length} records`,String(employees.length)]],total:['Employee Count',String(employees.length)]}]],
   }
@@ -50,18 +54,76 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
   return { tone, subtitle:'Selected period details', sections:[{title:'Summary',rows:[['Current Total','No calculation is configured for this KPI',appMoney(0)],['Entries','No related live collection is configured','0'],['Status','No live detail mapping','Review']],total:['Selected Total',appMoney(0)]}] }
 }
 
-function buildRecentEntries(title, collections) {
+function payrollEntryValue(row = {}) {
+  const base = Number(row.regular_pay ?? row.base_pay ?? row.basePay ?? 0) || 0
+  const tips = Number(row.net_tips ?? row.tips_after_withholding ?? row.credit_card_tips ?? row.tips ?? 0) || 0
+  const extra = Number(row.extra_pay ?? 0) || 0
+  return base + tips + extra
+}
+
+function expenseMethod(row = {}) { return String(row.method || row.payment_type || '').trim().toLowerCase() }
+function invoiceMethod(row = {}) { return String(row.payment_type || row.method || '').trim().toLowerCase() }
+function payrollMethod(row = {}) { return String(row.payment_method || row.method || '').trim().toLowerCase() }
+function invoiceCategory(row = {}) { return String(row.category || row.invoice_category || '').trim().toLowerCase() }
+function salesCategoryText(row = {}) { return String(row.category || row.department || row.sales_department || '').trim().toLowerCase() }
+function vendorName(row = {}) { return String(row.vendor || row.vendor_name || row.name || '').trim() }
+
+function entryTriples(rows = [], kind = '') {
+  return rows.map((r) => {
+    if (kind === 'expense') return [r.date || r.expense_date || '—', `${r.vendor || 'Vendor'} · ${r.type || r.expense_type || r.category || 'Expense'} · ${r.method || r.payment_type || 'Method'}`, appMoney2(r.amount ?? r.total)]
+    if (kind === 'invoice') return [r.date || r.invoice_date || '—', `${vendorName(r) || 'Vendor'} · ${r.number || r.invoice_number || 'Invoice'} · ${r.category || 'Other'}`, appMoney2(r.amount ?? r.total)]
+    if (kind === 'payroll') return [r.pay_date || r.payroll_date || r.date || '—', `${r.employee_name || r.employee || 'Employee'} · ${r.job_type || r.job || 'Job'} · ${r.payment_method || r.method || 'Method'}`, appMoney2(payrollEntryValue(r))]
+    if (kind === 'employee') return [r.created_at ? String(r.created_at).slice(0,10) : '—', `${r.name || r.employee_name || 'Employee'} · ${r.job || r.job_type || 'Job'}`, r.status || 'Active']
+    if (kind === 'vendor') return [r.created_at ? String(r.created_at).slice(0,10) : '—', `${r.name || r.vendor_name || 'Vendor'} · ${r.category || 'Other'}`, r.status || (r.is_active === false ? 'Inactive' : 'Active')]
+    return [r.business_date || r.date || '—', `${r.category || r.department || 'Sales'} · ${r.source || 'Toast POS'}`, appMoney2(r.net_sales ?? r.amount ?? r.sales ?? 0)]
+  })
+}
+
+function buildRecentEntries(title, collections, explicitEntries = []) {
+  if (Array.isArray(explicitEntries) && explicitEntries.length) {
+    const sample = explicitEntries[0] || {}
+    const kind = ('employee_name' in sample || 'regular_pay' in sample || 'base_pay' in sample) ? 'payroll'
+      : ('invoice_number' in sample || 'invoice_date' in sample || 'line_total' in sample) ? 'invoice'
+      : ('expense_date' in sample || 'payment_type' in sample || 'expense_type' in sample) ? 'expense'
+      : ('business_date' in sample || 'net_sales' in sample || 'cash_sales' in sample) ? 'sales'
+      : ('vendor_type' in sample || 'expense_type' in sample) ? 'vendor' : 'sales'
+    return entryTriples(explicitEntries, kind)
+  }
+
+  const label = String(title || '').trim()
+  const lowerLabel = label.toLowerCase()
   let rows = []
-  const label = String(title || '')
-  if (/cash sales|cash collected/i.test(label)) rows = collections.sales.filter(r=>Number(r.cash_sales||0)!==0).map(r=>[r.business_date||r.date||'—',`${r.source||'Toast POS'} · Cash`,appMoney2(r.cash_sales)])
-  else if (/credit sales/i.test(label)) rows = collections.sales.filter(r=>Number(r.credit_sales||0)!==0).map(r=>[r.business_date||r.date||'—',`${r.source||'Toast POS'} · Credit`,appMoney2(r.credit_sales)])
-  else if (/food invoice|food cost|true food cost/i.test(label)) rows = collections.invoices.filter(r=>/food|meat|seafood|produce|dairy|dry goods|frozen|bakery/i.test(String(r.category||''))).map(r=>[r.date||r.invoice_date||'—',`${r.vendor||'Vendor'} · ${r.number||r.invoice_number||'Invoice'}`,appMoney2(r.amount??r.total)])
-  else if (/alcohol invoice|alcohol cost|true alcohol cost/i.test(label)) rows = collections.invoices.filter(r=>/alcohol|beer|wine|liquor|margarita|cocktail|shot/i.test(String(r.category||''))).map(r=>[r.date||r.invoice_date||'—',`${r.vendor||'Vendor'} · ${r.number||r.invoice_number||'Invoice'}`,appMoney2(r.amount??r.total)])
-  else if (/sale|cash flow|cash remaining|operating profit|prime cost|labor mix/i.test(label)) rows = collections.sales.map(r=>[r.business_date||r.date||'—',`${r.category||'Sales'} · ${r.source||'Toast POS'}`,appMoney2(r.net_sales??r.amount)])
-  else if (/invoice|cost|vendor/i.test(label)) rows = collections.invoices.map(r=>[r.date||r.invoice_date||'—',`${r.vendor||'Vendor'} · ${r.number||r.invoice_number||'Invoice'}`,appMoney2(r.amount??r.total)])
-  else if (/expense/i.test(label)) rows = collections.expenses.map(r=>[r.date||r.expense_date||'—',`${r.vendor||'Vendor'} · ${r.type||r.category||'Expense'}`,appMoney2(r.amount??r.total)])
-  else if (/payroll|labor/i.test(label)) rows = collections.payroll.map(r=>[r.pay_date||r.date||'—',`${r.employee_name||r.employee||'Employee'} · ${r.payment_method||r.method||'Method'}`,appMoney2((Number(r.regular_pay||r.base_pay||0)+Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||0)+Number(r.extra_pay||0)))])
-  return rows.slice(0,8)
+  let kind = 'sales'
+
+  if (lowerLabel === 'cash expenses') { rows = collections.expenses.filter(r => expenseMethod(r) === 'cash'); kind = 'expense' }
+  else if (/^(check\s*(?:&|\/|and)\s*ach|check \/ ach)$/i.test(label)) { rows = collections.expenses.filter(r => ['check','ach'].includes(expenseMethod(r))); kind = 'expense' }
+  else if (lowerLabel === 'credit expenses') { rows = collections.expenses.filter(r => /credit|card/.test(expenseMethod(r))); kind = 'expense' }
+  else if (/^(total expenses|business expenses|all expenses|expenses)$/i.test(label)) { rows = collections.expenses; kind = 'expense' }
+  else if (lowerLabel === 'cash vendor invoices') { rows = collections.invoices.filter(r => invoiceMethod(r) === 'cash'); kind = 'invoice' }
+  else if (/^(all invoices|invoice total)$/i.test(label)) { rows = collections.invoices; kind = 'invoice' }
+  else if (/food purchases|food invoices|food cost|true food cost/i.test(label)) { rows = collections.invoices.filter(r => /food|meat|seafood|produce|dairy|dry goods|frozen|bakery/.test(invoiceCategory(r))); kind = 'invoice' }
+  else if (/alcohol purchases|alcohol invoices|alcohol cost|true alcohol cost/i.test(label)) { rows = collections.invoices.filter(r => /alcohol|beer|wine|liquor|margarita|cocktail|shot/.test(invoiceCategory(r))); kind = 'invoice' }
+  else if (lowerLabel === 'cash payroll') { rows = collections.payroll.filter(r => payrollMethod(r) === 'cash'); kind = 'payroll' }
+  else if (lowerLabel === 'check payroll') { rows = collections.payroll.filter(r => payrollMethod(r) === 'check'); kind = 'payroll' }
+  else if (/^(payroll|payroll total|labor cost)$/i.test(label)) { rows = collections.payroll; kind = 'payroll' }
+  else if (/active employees/i.test(label)) { rows = collections.employees.filter(r => String(r.status || 'Active').toLowerCase() !== 'inactive'); kind = 'employee' }
+  else if (/total employees|employee count/i.test(label)) { rows = collections.employees; kind = 'employee' }
+  else if (/vendor spend|all vendors|total vendors/i.test(label)) { rows = collections.vendors; kind = 'vendor' }
+  else if (/cash sales|cash collected/i.test(label)) { rows = collections.sales.filter(r => Number(r.cash_sales || 0) !== 0); kind = 'sales' }
+  else if (/credit sales/i.test(label)) { rows = collections.sales.filter(r => Number(r.credit_sales || 0) !== 0); kind = 'sales' }
+  else if (/food sales/i.test(label)) { rows = collections.sales.filter(r => /food/.test(salesCategoryText(r))); kind = 'sales' }
+  else if (/alcohol sales/i.test(label)) { rows = collections.sales.filter(r => /alcohol|beer|wine|liquor|margarita|cocktail/.test(salesCategoryText(r))); kind = 'sales' }
+  else if (/tips/i.test(label)) { rows = collections.sales.filter(r => Number(r.tips_collected ?? r.tips ?? 0) !== 0).map(r => ({...r, net_sales:r.tips_collected ?? r.tips})); kind = 'sales' }
+  else if (/sale|cash flow|cash remaining|operating profit|prime cost|labor mix/i.test(label)) { rows = collections.sales; kind = 'sales' }
+  else if (/invoice|cost/i.test(label)) { rows = collections.invoices; kind = 'invoice' }
+  else if (/expense/i.test(label)) { rows = collections.expenses; kind = 'expense' }
+  else if (/payroll|labor/i.test(label)) { rows = collections.payroll; kind = 'payroll' }
+  else {
+    const vendorMatches = collections.invoices.filter(r => vendorName(r).toLowerCase() === lowerLabel)
+    if (vendorMatches.length) { rows = vendorMatches; kind = 'invoice' }
+  }
+
+  return entryTriples(rows, kind)
 }
 
 const routeMap = {
@@ -73,18 +135,19 @@ const routeMap = {
   'Items Increased':'/price-increase','Average Increase':'/price-increase','Largest Increase':'/price-increase','Items Decreased':'/price-increase',
   'Total Employees':'/employees','Active Employees':'/employees','Kitchen Staff':'/employees','Front of House':'/employees','Weekly Base Pay':'/employees',
   'Payroll Total':'/payroll','Cash Payroll':'/payroll','Check Payroll':'/payroll','Total Hours':'/payroll',
-  'Total Expenses':'/expenses','Cash Expenses':'/expenses','Check / ACH':'/expenses','Credit Expenses':'/expenses',
+  'Total Expenses':'/expenses','Cash Expenses':'/expenses','Check & ACH':'/expenses','Check / ACH':'/expenses','Credit Expenses':'/expenses',
   'Bank Activity':'/bank-checks','Cleared Payments':'/bank-checks','Pending Payments':'/bank-checks','Checks Issued':'/bank-checks',
   'Sales Imports':'/import-center','Labor Imports':'/import-center','Invoice Imports':'/import-center','Completed':'/import-center',
   'Connection Status':'/toast-integration','Last Sales Sync':'/toast-integration','Last Labor Sync':'/toast-integration','Pending Jobs':'/toast-integration',
 }
 
-export default function DetailDrawer({ title, onClose }) {
+export default function DetailDrawer({ title, entries = [], onClose }) {
   const navigate = useNavigate()
   const { notify } = useFeedback()
   const [activeTab, setActiveTab] = useState('Overview')
   const [expanded, setExpanded] = useState(false)
   const [selectedRow, setSelectedRow] = useState(null)
+  const [entryScope, setEntryScope] = useState('')
   const [notes, setNotes] = useState('')
   const { range: globalRange } = useGlobalDateRange()
   const [drawerRange, setDrawerRange] = useState(() => readDateRange())
@@ -94,17 +157,18 @@ export default function DetailDrawer({ title, onClose }) {
   const content = useMemo(() => buildDrawerContent(title, appData), [title, appData])
 
   useEffect(() => {
-    setActiveTab('Overview'); setExpanded(false); setSelectedRow(null)
+    setActiveTab('Overview'); setExpanded(false); setSelectedRow(null); setEntryScope('')
     const activeRange = readDateRange()
     setDrawerRange(activeRange); setDraftRange(activeRange)
     if (title) setNotes(localStorage.getItem(`restapay.drawer.notes.${title}`) || '')
   }, [title, globalRange.from, globalRange.to, globalRange.preset])
 
   const categoryRows = useMemo(() => content.sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row }))), [content])
-  const recentEntries = useMemo(() => buildRecentEntries(title, { sales, invoices, expenses, payroll, vendors, employees }), [title, sales, invoices, expenses, payroll, vendors, employees])
+  const recentEntries = useMemo(() => buildRecentEntries(entryScope || title, { sales, invoices, expenses, payroll, vendors, employees }, entries), [entryScope, title, entries, sales, invoices, expenses, payroll, vendors, employees])
   if (!title) return null
 
-  const openWorkspace = () => { const target = routeMap[title] || '/dashboard'; onClose?.(); navigate(target) }
+  const openWorkspace = () => { const target = routeMap[entryScope] || routeMap[title] || '/dashboard'; onClose?.(); navigate(target) }
+  const showMatchingEntries = (label) => { setSelectedRow(null); setEntryScope(label || title); setActiveTab('Entries'); setExpanded(true) }
   const exportDrawer = () => {
     const csv = [['Section','Item','Details','Value'], ...categoryRows.map(({section,row}) => [section,...row])]
       .map((line) => line.map((value) => `"${String(value).replaceAll('"','""')}"`).join(',')).join('\n')
@@ -141,16 +205,16 @@ export default function DetailDrawer({ title, onClose }) {
           <button type="button" onClick={applyDrawerRange} style={{minHeight:42,padding:'0 18px',fontWeight:700}}>Apply</button>
         </div>
       </div>
-      <nav className="drawer-tabs" aria-label="Detail sections">{['Overview','By Category','Entries','Notes'].map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} type="button" onClick={() => { setActiveTab(tab); setSelectedRow(null) }}>{tab}</button>)}</nav>
+      <nav className="drawer-tabs" aria-label="Detail sections">{['Overview','By Category','Entries','Notes'].map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} type="button" onClick={() => { setActiveTab(tab); setSelectedRow(null); if (tab !== 'Entries') setEntryScope('') }}>{tab}</button>)}</nav>
 
       <div className="drawer-scroll">
-        {activeTab === 'Overview' && <>{content.sections.map((section) => <section className="drawer-section" key={section.title}><h3>{section.title}</h3>{section.rows.map(([label,meta,value]) => <button className="drawer-row" type="button" key={`${section.title}-${label}`} onClick={() => setSelectedRow({ label, meta, value, section:section.title })}><span><strong>{label}</strong><small>{meta}</small></span><b>{value}</b><ChevronRight size={17}/></button>)}<div className="drawer-total"><strong>{section.total[0]}</strong><b>{section.total[1]}</b></div></section>)}
+        {activeTab === 'Overview' && <>{content.sections.map((section) => <section className="drawer-section" key={section.title}><h3>{section.title}</h3>{section.rows.map(([label,meta,value]) => <button className="drawer-row" type="button" key={`${section.title}-${label}`} onClick={() => showMatchingEntries(label)}><span><strong>{label}</strong><small>{meta}</small></span><b>{value}</b><ChevronRight size={17}/></button>)}<div className="drawer-total"><strong>{section.total[0]}</strong><b>{section.total[1]}</b></div></section>)}
           {selectedRow && <section className="drawer-section drawer-drilldown"><div className="drawer-section-heading"><h3>{selectedRow.label} Details</h3><button onClick={() => setSelectedRow(null)}>Close</button></div><div className="drawer-detail-grid"><div><small>Section</small><strong>{selectedRow.section}</strong></div><div><small>Current Value</small><strong>{selectedRow.value}</strong></div><div><small>Description</small><strong>{selectedRow.meta}</strong></div><div><small>Status</small><strong className="drawer-ready"><CheckCircle2 size={15}/>Ready</strong></div></div><button className="drawer-inline-action" onClick={openWorkspace}>Open related records<ChevronRight size={16}/></button></section>}
         </>}
 
-        {activeTab === 'By Category' && <section className="drawer-section"><h3>Category Breakdown</h3>{categoryRows.map(({section,row:[label,meta,value]}) => <button className="drawer-row" type="button" key={`${section}-${label}`} onClick={() => setSelectedRow({section,label,meta,value})}><span><strong>{label}</strong><small>{section} · {meta}</small></span><b>{value}</b><ChevronRight size={17}/></button>)}</section>}
+        {activeTab === 'By Category' && <section className="drawer-section"><h3>Category Breakdown</h3>{categoryRows.map(({section,row:[label,meta,value]}) => <button className="drawer-row" type="button" key={`${section}-${label}`} onClick={() => showMatchingEntries(label)}><span><strong>{label}</strong><small>{section} · {meta}</small></span><b>{value}</b><ChevronRight size={17}/></button>)}</section>}
 
-        {activeTab === 'Entries' && <section className="drawer-section"><div className="drawer-section-heading"><h3>Included Entries</h3><button type="button" onClick={openWorkspace}>View all</button></div>{recentEntries.length ? recentEntries.map(([date,meta,value], index) => <button className="drawer-row" type="button" key={`${date}-${index}`} onClick={openWorkspace}><span><strong>{date}</strong><small>{meta}</small></span><b>{value}</b><ChevronRight size={17}/></button>) : <div className="drawer-empty">No records for this section.</div>}</section>}
+        {activeTab === 'Entries' && <section className="drawer-section"><div className="drawer-section-heading"><div><h3>{entryScope || title} Entries</h3><small>{recentEntries.length} matching record{recentEntries.length === 1 ? '' : 's'} shown for the selected date range</small></div><button type="button" onClick={openWorkspace}>Open workspace</button></div>{recentEntries.length ? recentEntries.map(([date,meta,value], index) => <div className="drawer-row drawer-entry-row" key={`${date}-${meta}-${index}`}><span><strong>{date}</strong><small>{meta}</small></span><b>{value}</b></div>) : <div className="drawer-empty">No matching records for this total and date range.</div>}</section>}
 
         {activeTab === 'Notes' && <section className="drawer-section drawer-notes"><h3>Notes</h3><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={`Add notes for ${title}...`}/><button type="button" className="drawer-inline-action" onClick={saveNotes}><Save size={16}/>Save Notes</button></section>}
       </div>
