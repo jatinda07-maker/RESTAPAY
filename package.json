@@ -29,7 +29,8 @@
     "test:rc3": "node scripts/test-rc3-production-readiness.mjs",
     "test:rc3-invoice": "node scripts/test-rc3-invoice-workflow.mjs",
     "test:rc31": "node scripts/test-rc31-right-panel-polish.mjs",
-    "test:rc32": "node scripts/test-rc32-classifications.mjs"
+    "test:rc32": "node scripts/test-rc32-classifications.mjs",
+    "test:tip-pass-through": "node scripts/test-tip-pass-through.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

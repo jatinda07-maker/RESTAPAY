@@ -60,29 +60,33 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
     .reduce((sum, row) => sum + invoiceAmount(row), 0)
 
   const payrollTotal = n(payrollSummary.total)
+  const operatingLabor = payrollSummary.operatingLabor === undefined ? payrollTotal : n(payrollSummary.operatingLabor)
+  const tipsEarned = n(payrollSummary.tipsEarned)
+  const tipsWithheld = n(payrollSummary.tipsWithheld)
+  const netTipsPaid = n(payrollSummary.netTipsPaid)
   const cashPayroll = n(payrollSummary.cash)
   const checkPayroll = n(payrollSummary.check)
   const payrollHours = n(payrollSummary.hours)
   const cogs = invoiceSplit.food + invoiceSplit.alcohol
-  const primeCostAmount = cogs + payrollTotal
+  const primeCostAmount = cogs + operatingLabor
   const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend
-  const operatingProfit = salesTotal - cogs - payrollTotal - expenseTotal
+  const operatingProfit = salesTotal - cogs - operatingLabor - expenseTotal
   const percent = (value, base) => base > 0 ? (value / base) * 100 : 0
 
   const salesCategoryVariance = salesTotal - (foodSales + alcoholSales + otherSales)
   const cashEquationVariance = cashRemaining - (cashSales - cashPayroll - cashExpenses - cashInvoiceSpend)
-  const profitEquationVariance = operatingProfit - (salesTotal - cogs - payrollTotal - expenseTotal)
+  const profitEquationVariance = operatingProfit - (salesTotal - cogs - operatingLabor - expenseTotal)
 
   return {
     salesTotal, foodSales, alcoholSales, otherSales, tips, cashSales, creditSales,
     foodCost: invoiceSplit.food, alcoholCost: invoiceSplit.alcohol, uncategorizedInvoiceCost: invoiceSplit.uncategorized,
     invoiceTotal, expenseTotal, cashExpenses, cashInvoiceSpend,
-    payrollTotal, cashPayroll, checkPayroll, payrollHours,
+    payrollTotal, operatingLabor, tipsEarned, tipsWithheld, netTipsPaid, cashPayroll, checkPayroll, payrollHours,
     cashRemaining, cogs, primeCostAmount, operatingProfit,
     foodCostPercent: percent(invoiceSplit.food, foodSales),
     alcoholCostPercent: percent(invoiceSplit.alcohol, alcoholSales),
     primeCostPercent: percent(primeCostAmount, salesTotal),
-    laborMixPercent: percent(payrollTotal, salesTotal),
+    laborMixPercent: percent(operatingLabor, salesTotal),
     operatingMargin: percent(operatingProfit, salesTotal),
     foodInvoiceCount: invoiceSplit.foodInvoiceCount,
     alcoholInvoiceCount: invoiceSplit.alcoholInvoiceCount,

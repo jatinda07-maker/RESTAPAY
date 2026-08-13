@@ -35,10 +35,16 @@ export function toPayrollViewRow(raw = {}) {
 export function summarizePayroll(rows = []) {
   const normalized = rows.filter(row => row.payroll_status !== 'rolled-up').map(normalizePayrollAliases)
   const total = normalized.reduce((sum, row) => sum + payrollTotal(row), 0)
+  // Customer-owned tips are pass-through payments. Keep them in payroll/payment
+  // history, but exclude them from restaurant labor used by Prime Cost/P&L.
+  const tipsEarned = normalized.reduce((sum, row) => sum + originalTips(row), 0)
+  const tipsWithheldTotal = normalized.reduce((sum, row) => sum + tipsWithheld(row), 0)
+  const netTipsPaid = normalized.reduce((sum, row) => sum + netTips(row), 0)
+  const operatingLabor = normalized.reduce((sum, row) => sum + Math.max(0, payrollTotal(row) - netTips(row)), 0)
   const cash = normalized.filter(row => String(row.payment_method || row.method).toLowerCase() === 'cash')
     .reduce((sum, row) => sum + payrollTotal(row), 0)
   const check = normalized.filter(row => String(row.payment_method || row.method).toLowerCase() === 'check')
     .reduce((sum, row) => sum + payrollTotal(row), 0)
   const hours = normalized.reduce((sum, row) => sum + number(row.hours || row.regular_hours), 0)
-  return { total: roundPayroll(total), cash: roundPayroll(cash), check: roundPayroll(check), hours: roundPayroll(hours) }
+  return { total: roundPayroll(total), operatingLabor: roundPayroll(operatingLabor), tipsEarned: roundPayroll(tipsEarned), tipsWithheld: roundPayroll(tipsWithheldTotal), netTipsPaid: roundPayroll(netTipsPaid), cash: roundPayroll(cash), check: roundPayroll(check), hours: roundPayroll(hours) }
 }
