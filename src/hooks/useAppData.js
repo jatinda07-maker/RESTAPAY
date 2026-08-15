@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { summarizePayroll } from '../core/adapters/payrollAdapter.js'
 import { buildPriceHistory, comparePrices, normalizeInvoice } from '../core/engines/InvoiceEngine.js'
 import { buildFinancialMetrics } from '../core/engines/FinancialReconciliation.js'
+import { calculateDepartmentCosts, DEFAULT_ALLOCATION_RULES } from '../core/engines/DepartmentCostEngine.js'
 
 import { liveSnapshot, subscribeLiveData, initializeLiveData, reloadLiveCollection } from '../data/liveDataStore.js'
 import useGlobalDateRange, { inDateRange } from './useGlobalDateRange.js'
@@ -42,7 +43,7 @@ export function useAppData(overrideRange = null) {
 
   const metrics = useMemo(() => {
     const normalizedInvoices = scoped.invoices.map(normalizeInvoice)
-    const payrollSummary = summarizePayroll(scoped.payroll)
+    const payrollSummary = summarizePayroll(scoped.payroll, scoped.employees)
     const financial = buildFinancialMetrics({
       sales: scoped.sales,
       payrollSummary,
@@ -58,8 +59,17 @@ export function useAppData(overrideRange = null) {
     const topVendors = [...vendorSpend.entries()].sort((a,b) => b[1]-a[1]).slice(0,3)
     const priceHistory = buildPriceHistory(normalizedInvoices)
     const priceComparisons = comparePrices(priceHistory)
+    let costSettings = { departmentAllocations: DEFAULT_ALLOCATION_RULES }
+    try { const saved = JSON.parse(localStorage.getItem('restapay-cost-settings') || '{}'); costSettings = {...costSettings,...saved} } catch {}
+    const invoiceSpend = scoped.invoices.flatMap(invoice => {
+      const lines = Array.isArray(invoice.lines) ? invoice.lines : []
+      if (lines.length) return lines.map(line => ({...line,vendor:invoice.vendor||invoice.vendor_name,vendor_name:invoice.vendor||invoice.vendor_name,invoice_number:invoice.invoice_number||invoice.number,invoice_date:invoice.invoice_date||invoice.date,category:line.category||invoice.category,_source_table:'invoice_items'}))
+      return [{...invoice,amount:invoice.amount??invoice.total,_source_table:'invoices'}]
+    })
+    const expenseSpend = scoped.expenses.map(row=>({...row,_source_table:'expenses'}))
+    const departmentCosts = calculateDepartmentCosts({salesRows:scoped.sales,payrollRows:scoped.payroll,employees:scoped.employees,spendRows:[...invoiceSpend,...expenseSpend],settings:costSettings})
 
-    return { ...financial, topVendors, priceHistory, priceComparisons, normalizedInvoices }
+    return { ...financial, payrollSummary, departmentCosts, trueFoodCost:departmentCosts.trueFoodCost, trueAlcoholCost:departmentCosts.trueAlcoholCost, trueFoodCostPercent:departmentCosts.foodCostPercent, trueAlcoholCostPercent:departmentCosts.alcoholCostPercent, topVendors, priceHistory, priceComparisons, normalizedInvoices }
   }, [scoped])
 
   return { ...scoped, metrics, dateRange: range }

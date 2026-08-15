@@ -96,9 +96,9 @@ export function classifySpend(row = {}) {
 export function classifyPayroll(row = {}) {
   const text = payrollText(row)
   if (isTips(row)) return { bucket: 'excluded', rule: 'tips', label: 'Server Tips' }
-  // Assistant managers are regular operating payroll and are intentionally not split
-  // between Food and Alcohol. Only actual manager roles use the manager allocation rule.
-  if (/assistant manager|assistant mgr|asst\.? manager|asistente manager|assistant general manager/.test(text)) return { bucket: 'other', rule: 'otherPayroll', label: 'Assistant Manager Payroll' }
+  // Management payroll is allocated between Food and Alcohol using Settings.
+  // This keeps assistant/general managers out of direct operating-labor drilldowns.
+  if (/assistant manager|assistant mgr|asst\.? manager|asistente manager|assistant general manager/.test(text)) return { bucket: 'shared', rule: 'managerPayroll', label: 'Assistant Manager Payroll' }
   if (/bartender|barback|bar manager/.test(text)) return { bucket: 'alcohol', rule: 'bartenderPayroll', label: 'Bar Payroll' }
   if (/general manager|restaurant manager|store manager|\bmanager\b|management/.test(text)) return { bucket: 'shared', rule: 'managerPayroll', label: 'Manager Payroll' }
   if (/kitchen|cook|chef|prep|dishwasher|dish washer|line cook|food prep/.test(text)) return { bucket: 'food', rule: 'kitchenPayroll', label: 'Kitchen Payroll' }
