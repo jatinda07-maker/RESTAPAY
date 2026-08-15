@@ -221,6 +221,12 @@ export function comparePrices(history = []) {
       vendor: latest.vendor,
       best_vendor: best.vendor,
       best_price: n(best.unit_cost || best.case_price),
+      previous_row: previous,
+      current_row: latest,
+      comparison_rows: [
+        { ...previous, comparison_role: 'Previous' },
+        { ...latest, comparison_role: 'Current' },
+      ],
       history: sorted,
     }
   }).sort((a,b)=>b.change_percent-a.change_percent)

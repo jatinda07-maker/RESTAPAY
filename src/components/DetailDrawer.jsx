@@ -71,7 +71,15 @@ function vendorName(row = {}) { return String(row.vendor || row.vendor_name || r
 function entryTriples(rows = [], kind = '') {
   return rows.map((r) => {
     if (kind === 'expense') return [r.date || r.expense_date || '—', `${r.vendor || 'Vendor'} · ${r.type || r.expense_type || r.category || 'Expense'} · ${r.method || r.payment_type || 'Method'}`, appMoney2(r.amount ?? r.total)]
-    if (kind === 'invoice') return [r.date || r.invoice_date || '—', `${vendorName(r) || 'Vendor'} · ${r.invoice_number || r.number || 'Invoice'} · ${r.purchase_unit || r.sales_unit || r.unit || r.category || 'Other'}${r.package_size ? ` · ${r.package_size}` : ''}${r.effective_each_cost ? ` · ${appMoney2(r.effective_each_cost)}/bottle` : ''}`, appMoney2(r.unit_cost ?? r.line_total ?? r.amount ?? r.total)]
+    if (kind === 'invoice') {
+      const role = r.comparison_role ? `${r.comparison_role} · ` : ''
+      const purchaseUnit = r.purchase_unit || r.sales_unit || r.unit || 'Each'
+      const pack = Number(r.pack_count || 0) > 1 ? ` · ${r.pack_count}/case` : ''
+      const original = Number(r.case_price || 0) ? ` · original ${appMoney2(r.case_price)}/${purchaseUnit === 'case' ? 'case' : purchaseUnit}` : ''
+      const normalized = Number(r.effective_each_cost || r.normalized_unit_cost || r.unit_cost || 0)
+      const basis = r.comparison_basis === 'each' ? 'bottle/each' : (r.comparison_basis || r.normalized_unit || purchaseUnit)
+      return [r.date || r.invoice_date || '—', `${role}${vendorName(r) || 'Vendor'} · ${r.invoice_number || r.number || 'Invoice'} · ${purchaseUnit}${pack}${r.package_size ? ` · ${r.package_size}` : ''}${original} · basis ${basis}`, appMoney2(normalized || r.line_total || r.amount || r.total)]
+    }
     if (kind === 'payroll') return [r.pay_date || r.payroll_date || r.date || '—', `${r.employee_name || r.employee || 'Employee'} · ${r.job_type || r.job || 'Job'} · ${r.payment_method || r.method || 'Method'}`, appMoney2(payrollEntryValue(r))]
     if (kind === 'employee') return [r.created_at ? String(r.created_at).slice(0,10) : '—', `${r.name || r.employee_name || 'Employee'} · ${r.job || r.job_type || 'Job'}`, r.status || 'Active']
     if (kind === 'vendor') return [r.created_at ? String(r.created_at).slice(0,10) : '—', `${r.name || r.vendor_name || 'Vendor'} · ${r.category || 'Other'}`, r.status || (r.is_active === false ? 'Inactive' : 'Active')]
@@ -141,10 +149,10 @@ const routeMap = {
   'Connection Status':'/toast-integration','Last Sales Sync':'/toast-integration','Last Labor Sync':'/toast-integration','Pending Jobs':'/toast-integration',
 }
 
-export default function DetailDrawer({ title, entries = [], onClose }) {
+export default function DetailDrawer({ title, entries = [], initialTab = 'Overview', onClose }) {
   const navigate = useNavigate()
   const { notify } = useFeedback()
-  const [activeTab, setActiveTab] = useState('Overview')
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [expanded, setExpanded] = useState(false)
   const [selectedRow, setSelectedRow] = useState(null)
   const [entryScope, setEntryScope] = useState('')
@@ -157,11 +165,11 @@ export default function DetailDrawer({ title, entries = [], onClose }) {
   const content = useMemo(() => buildDrawerContent(title, appData), [title, appData])
 
   useEffect(() => {
-    setActiveTab('Overview'); setExpanded(false); setSelectedRow(null); setEntryScope('')
+    setActiveTab(initialTab); setExpanded(initialTab === 'Entries'); setSelectedRow(null); setEntryScope('')
     const activeRange = readDateRange()
     setDrawerRange(activeRange); setDraftRange(activeRange)
     if (title) setNotes(localStorage.getItem(`restapay.drawer.notes.${title}`) || '')
-  }, [title, globalRange.from, globalRange.to, globalRange.preset])
+  }, [title, initialTab, globalRange.from, globalRange.to, globalRange.preset])
 
   const categoryRows = useMemo(() => content.sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row }))), [content])
   const recentEntries = useMemo(() => buildRecentEntries(entryScope || title, { sales, invoices, expenses, payroll, vendors, employees }, entries), [entryScope, title, entries, sales, invoices, expenses, payroll, vendors, employees])
