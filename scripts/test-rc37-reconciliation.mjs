@@ -18,7 +18,7 @@ assert.equal(p.frontOfHousePayroll,0)
 assert.equal(p.netTipsPaid,482.5)
 const m=buildFinancialMetrics({sales:[{net_sales:5000}],payrollSummary:p,invoices:[{total:1000,category:'Food'}],expenses:[]})
 assert.equal(m.employerLabor,1300)
-assert.equal(m.primeCostAmount,2300)
+assert.equal(m.primeCostAmount,1800)
 assert.equal(m.operatingProfit,2700)
 
 const drawer=fs.readFileSync('src/components/DetailDrawer.jsx','utf8')

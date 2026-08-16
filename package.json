@@ -34,7 +34,8 @@
     "test:rc34": "node scripts/test-rc34-detail-drilldowns.mjs",
     "test:rc35": "node scripts/test-rc35-invoice-unit-ui.mjs",
     "test:rc351": "node scripts/test-rc351-price-detail.mjs",
-    "test:rc36": "node scripts/test-rc36-prime-cost-display.mjs"
+    "test:rc36": "node scripts/test-rc36-prime-cost-display.mjs",
+    "test:rc371": "node scripts/test-rc371-modal-entry-reconciliation.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

@@ -72,7 +72,9 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
   const payrollHours = n(payrollSummary.hours)
   const employerLabor = operatingLabor + managementPayroll + frontOfHousePayroll + reviewPayroll
   const cogs = invoiceSplit.food + invoiceSplit.alcohol
-  const primeCostAmount = cogs + employerLabor
+  // RESTAPAY Prime Cost uses direct COGS + BOH/kitchen operating labor.
+  // Management is allocated through Food/Alcohol department economics; FOH and tip pass-through stay separate.
+  const primeCostAmount = cogs + operatingLabor
   const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend
   const operatingProfit = salesTotal - cogs - employerLabor - expenseTotal
   const percent = (value, base) => base > 0 ? (value / base) * 100 : 0
@@ -90,7 +92,7 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
     foodCostPercent: percent(invoiceSplit.food, foodSales),
     alcoholCostPercent: percent(invoiceSplit.alcohol, alcoholSales),
     primeCostPercent: percent(primeCostAmount, salesTotal),
-    laborMixPercent: percent(employerLabor, salesTotal),
+    laborMixPercent: percent(operatingLabor, salesTotal),
     operatingMargin: percent(operatingProfit, salesTotal),
     foodInvoiceCount: invoiceSplit.foodInvoiceCount,
     alcoholInvoiceCount: invoiceSplit.alcoholInvoiceCount,
