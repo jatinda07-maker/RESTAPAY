@@ -4,6 +4,7 @@ const now = () => new Date().toISOString()
 const id = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
 const money = value => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 const text = value => String(value ?? '').trim()
+const normalizeJob = value => /^(server|waitress)$/i.test(text(value)) ? 'Waiter' : text(value)
 
 const configs = {
   'restapay-invoices': { table: 'invoices' },
@@ -11,14 +12,15 @@ const configs = {
     table: 'employees',
     fromDb: r => ({
       ...r,
-      job: r.job_type || r.job || 'Other',
+      job: normalizeJob(r.job_type || r.job || 'Other'),
+      job_type: normalizeJob(r.job_type || r.job || 'Other'),
       type: r.employee_type || r.type || 'Regular',
       method: r.payroll_type || r.method || 'Cash',
       basePay: money(r.base_pay ?? r.basePay),
       status: r.active === false ? 'Inactive' : 'Active',
       is_active: r.active !== false
     }),
-    toDb: r => ({ id:r.id||id(), name:text(r.name)||'Unnamed employee', employee_type:r.employee_type||r.type||'Regular', job_type:r.job_type||r.job||'Other', pay_type:r.pay_type||'Hourly', payroll_type:r.payroll_type||r.method||'Cash', default_check_number:text(r.default_check_number||r.check_number), base_pay:money(r.base_pay ?? r.basePay), extra_pay:money(r.extra_pay), extra_reason:text(r.extra_reason), active:r.status ? String(r.status).toLowerCase() !== 'inactive' : (r.is_active!==false&&r.active!==false), phone:text(r.phone), email:text(r.email), notes:text(r.notes), created_at:r.created_at||now(), updated_at:now() })
+    toDb: r => ({ id:r.id||id(), name:text(r.name)||'Unnamed employee', employee_type:r.employee_type||r.type||'Regular', job_type:normalizeJob(r.job_type||r.job||'Other'), pay_type:r.pay_type||'Hourly', payroll_type:r.payroll_type||r.method||'Cash', default_check_number:text(r.default_check_number||r.check_number), base_pay:money(r.base_pay ?? r.basePay), extra_pay:money(r.extra_pay), extra_reason:text(r.extra_reason), active:r.status ? String(r.status).toLowerCase() !== 'inactive' : (r.is_active!==false&&r.active!==false), phone:text(r.phone), email:text(r.email), notes:text(r.notes), created_at:r.created_at||now(), updated_at:now() })
   },
   'restapay-vendors': {
     table: 'vendors',
@@ -37,7 +39,7 @@ const configs = {
   },
   'restapay-payroll': {
     table:'payroll_entries',
-    fromDb:r=>({ ...r, employee:r.employee_name, date:r.payroll_date, base_pay:money(r.regular_pay), original_tips:money(r.original_tips ?? (money(r.tips_after_withheld)+money(r.tips_withheld))), tips_after_withholding:money(r.tips_after_withheld), payment_method:r.method||'Cash', final_pay:money(r.total), total_pay:money(r.total), week_start:r.week_start||'', week_end:r.week_end||'', payroll_week_start:r.week_start||'', payroll_week_end:r.week_end||'', payment_status:r.payment_status||'Ready' }),
+    fromDb:r=>({ ...r, employee:r.employee_name, job_type:normalizeJob(r.job_type||r.job||''), date:r.payroll_date, base_pay:money(r.regular_pay), original_tips:money(r.original_tips ?? (money(r.tips_after_withheld)+money(r.tips_withheld))), credit_card_tips:money(r.original_tips ?? (money(r.tips_after_withheld)+money(r.tips_withheld))), tip_deduction:money(r.tips_withheld), tips_withheld:money(r.tips_withheld), tips_after_withholding:money(r.tips_after_withheld), tips_after_withheld:money(r.tips_after_withheld), payment_method:r.method||'Cash', final_pay:money(r.total), total_pay:money(r.total), week_start:r.week_start||'', week_end:r.week_end||'', payroll_week_start:r.week_start||'', payroll_week_end:r.week_end||'', payment_status:r.payment_status||'Ready' }),
     toDb:r=>{ const grossTips=money(r.original_tips??r.credit_card_tips); const tipsWithheld=money(grossTips*0.035); const netTips=money(grossTips-tipsWithheld); return ({ id:r.id||id(), employee_id:r.employee_id||null, employee_name:text(r.employee_name||r.employee)||'Unknown employee', source:r.source||r.source_type||r.group_name||'Manual', pay_type:r.pay_type||'Hourly', method:r.payment_method||r.method||'Cash', check_number:text(r.check_number), payroll_date:r.payroll_date||r.date||new Date().toISOString().slice(0,10), hours:money(r.hours), regular_pay:money(r.regular_pay??r.base_pay), original_tips:grossTips, tips_after_withheld:netTips, tips_withheld:tipsWithheld, extra_pay:money(r.extra_pay), extra_reason:text(r.extra_reason), total:money(r.total_pay??r.final_pay??r.total), group_id:r.group_id||null, group_name:text(r.group_name), week_start:r.week_start||r.payroll_week_start||null, week_end:r.week_end||r.payroll_week_end||null, payment_status:r.payment_status||null, payment_date:r.payment_date||null, ach_reference:text(r.ach_reference), payment_notes:text(r.payment_notes||r.notes), source_ids:Array.isArray(r.source_ids)?r.source_ids:[], rolled_up:Boolean(r.rolled_up), weekly_rollup:Boolean(r.weekly_rollup), created_at:r.created_at||now(), updated_at:now() }) }
   },
   'restapay.sales': {
