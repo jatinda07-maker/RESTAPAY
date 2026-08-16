@@ -358,3 +358,12 @@
 .summary-row-excluded { margin:0 -16px; padding:0 16px; background:#fff2f2; }
 .summary-row-excluded strong, .summary-row-excluded > b { color:#b4232f; }
 .summary-row-excluded span { color:#9b5960; }
+
+
+/* RC3.7.2 cash withdrawal + reconciled drawer controls */
+.cash-withdrawal-section{background:rgba(15,118,110,.045);border:1px solid rgba(15,118,110,.16)}
+.cash-withdrawal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:10px 0 12px}
+.cash-withdrawal-grid label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#334155}
+.cash-withdrawal-grid input{min-height:44px;border:1px solid #cbd5e1;border-radius:12px;padding:0 12px;background:#fff;font:inherit;color:#0f172a;outline:none}
+.cash-withdrawal-grid input:focus{border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.10)}
+@media(max-width:760px){.cash-withdrawal-grid{grid-template-columns:1fr}}

@@ -3,8 +3,9 @@ import { CheckCircle2, ChevronRight, Download, Expand, Minimize2, Printer, Save,
 import { useFeedback } from './AppFeedback'
 import { useNavigate } from 'react-router-dom'
 import { appMoney, appMoney2, appPercent, useAppData } from '../hooks/useAppData'
-import useGlobalDateRange, { presetDates, readDateRange } from '../hooks/useGlobalDateRange'
+import useGlobalDateRange, { presetDates, readDateRange, inDateRange } from '../hooks/useGlobalDateRange'
 import { payrollCostClass } from '../core/adapters/payrollAdapter.js'
+import { replaceLiveCollection } from '../data/liveDataStore.js'
 
 
 const rowsTotal = (rows, field = 'amount') => rows.reduce((sum,row) => sum + (Number(row[field] ?? row.total ?? 0) || 0), 0)
@@ -20,18 +21,36 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
   const reviewRows = metrics.payrollSummary?.reviewRows || payroll.filter(row=>payrollCostClass(row)==='review')
   const salesRows = [['Food Sales','Food department',appMoney(dc.foodSales ?? metrics.foodSales)],['Alcohol Sales','Beer, wine and liquor',appMoney(dc.alcoholSales ?? metrics.alcoholSales)],['Other Sales','Other categories',appMoney(metrics.otherSales)]]
   const paymentRows = [['Cash Sales','Cash payments',appMoney(metrics.cashSales)],['Credit Sales','Card payments',appMoney(metrics.creditSales)],['Tips','Excluded from profit',appMoney(metrics.tips)]]
-  const expenseGroups = Object.values(expenses.reduce((acc,row)=>{const label=String(row.expense_type||row.type||row.category||'Other').trim()||'Other';const key=label.toLowerCase();if(!acc[key])acc[key]={label,count:0,total:0};acc[key].count+=1;acc[key].total+=Number(row.amount??row.total??0)||0;return acc},{})).sort((a,b)=>a.label.localeCompare(b.label)).map(g=>[g.label,`${g.count} record${g.count===1?'':'s'}`,appMoney(g.total)])
+  const operatingExpenseRows = expenses.filter(row=>!/cash withdrawal|owner withdrawal|cash draw/i.test(`${row.category||''} ${row.type||''} ${row.name||''} ${row.payment_type||''}`))
+  const expenseGroups = Object.values(operatingExpenseRows.reduce((acc,row)=>{const label=String(row.expense_type||row.type||row.category||'Other').trim()||'Other';const key=label.toLowerCase();if(!acc[key])acc[key]={label,count:0,total:0};acc[key].count+=1;acc[key].total+=Number(row.amount??row.total??0)||0;return acc},{})).sort((a,b)=>a.label.localeCompare(b.label)).map(g=>[g.label,`${g.count} record${g.count===1?'':'s'}`,appMoney(g.total)])
   const classifiedPayrollRows = [...operatingRows,...managementRows,...fohRows,...reviewRows]
   const jobGroups = Object.values(classifiedPayrollRows.reduce((acc,row)=>{const label=String(row.job_type||row.job||row.position||row.role||'Unassigned / Review').trim()||'Unassigned / Review';const key=label.toLowerCase();if(!acc[key])acc[key]={label,count:0,total:0};acc[key].count+=1;acc[key].total+=payrollEntryValue(row);return acc},{})).sort((a,b)=>a.label.localeCompare(b.label)).map(g=>[g.label,`${g.count} payroll record${g.count===1?'':'s'}`,appMoney(g.total)])
   const trueFoodRows = [['Direct Food Purchases',`${metrics.foodInvoiceCount} invoices`,appMoney(dc.directFoodCost ?? metrics.foodCost)],['Kitchen Payroll',`${dc.payrollDetails?.kitchen?.length||operatingRows.length} operating labor entries`,appMoney(dc.kitchenPayroll ?? metrics.operatingLabor)],['Manager Allocation',`${dc.payrollDetails?.manager?.length||managementRows.length} management entries`,appMoney(dc.managerFood||0)],['Supplies Allocation',`${dc.rules?.supplies?.food??0}% Food`,appMoney(dc.foodSupplies||0)],['Shared Costs','Cleaning · Cintas · Utilities · Insurance · Other',appMoney(dc.foodShared||0)],['Food Sales','Matching department sales',appMoney(dc.foodSales ?? metrics.foodSales)]]
+  const invoiceCategoryGroups = Object.values(invoices.reduce((acc,invoice)=>{
+    const lines=Array.isArray(invoice.lines)&&invoice.lines.length?invoice.lines:[invoice]
+    lines.forEach(line=>{
+      const label=String(line.category||invoice.category||'Other').trim()||'Other'
+      const key=label.toLowerCase()
+      if(!acc[key]) acc[key]={label,count:0,total:0}
+      acc[key].count+=1
+      acc[key].total+=Number(line.line_total??line.amount??line.total??invoice.amount??invoice.total??0)||0
+    })
+    return acc
+  },{})).sort((a,b)=>a.label.localeCompare(b.label)).map(g=>[g.label,`${g.count} line${g.count===1?'':'s'}`,appMoney(g.total)])
+  const vendorCategoryGroups = Object.values(vendors.reduce((acc,row)=>{const label=String(row.category||'Other').trim()||'Other';const key=label.toLowerCase();if(!acc[key])acc[key]={label,count:0};acc[key].count++;return acc},{})).sort((a,b)=>a.label.localeCompare(b.label)).map(g=>[g.label,`${g.count} vendor${g.count===1?'':'s'}`,String(g.count)])
+  const vendorExpenseGroups = Object.values(vendors.reduce((acc,row)=>{const label=String(row.expenseType||row.expense_type||'Other').trim()||'Other';const key=label.toLowerCase();if(!acc[key])acc[key]={label,count:0};acc[key].count++;return acc},{})).sort((a,b)=>a.label.localeCompare(b.label)).map(g=>[g.label,`${g.count} vendor${g.count===1?'':'s'}`,String(g.count)])
+  const priceRows = metrics.priceComparisons||[]
+  const priceIncreaseRows = priceRows.filter(r=>Number(r.change||0)>0)
+  const priceDecreaseRows = priceRows.filter(r=>Number(r.change||0)<0)
+  const priceImpact = priceIncreaseRows.reduce((sum,r)=>sum+(Number(r.change||0)||0),0)
   const trueAlcoholRows = [['Direct Alcohol Purchases',`${metrics.alcoholInvoiceCount} invoices`,appMoney(dc.directAlcoholCost ?? metrics.alcoholCost)],['Bar Payroll',`${dc.payrollDetails?.bar?.length||0} bar payroll entries`,appMoney(dc.barPayroll||0)],['Manager Allocation',`${dc.payrollDetails?.manager?.length||managementRows.length} management entries`,appMoney(dc.managerAlcohol||0)],['Supplies / Shared Allocation','Allocated shared operating costs',appMoney(dc.alcoholShared||0)],['Alcohol Sales','Matching department sales',appMoney(dc.alcoholSales ?? metrics.alcoholSales)]]
-  const primeRows = [['Direct Food Purchases',`${metrics.foodInvoiceCount} invoices`,appMoney(metrics.foodCost)],['Direct Alcohol Purchases',`${metrics.alcoholInvoiceCount} invoices`,appMoney(metrics.alcoholCost)],['Operating Labor',`${operatingRows.length} BOH/kitchen records`,appMoney(metrics.operatingLabor)],['Tip Pass-Through','EXCLUDED · employee-owned net tips',appMoney(metrics.netTipsPaid)]]
+  const primeRows = [['Direct Food Purchases',`${metrics.foodInvoiceCount} invoices`,appMoney(metrics.foodCost)],['Direct Alcohol Purchases',`${metrics.alcoholInvoiceCount} invoices`,appMoney(metrics.alcoholCost)],['Operating Labor',`${operatingRows.length} BOH/kitchen records`,appMoney(metrics.operatingLabor)],['Management Payroll',`${managementRows.length} management records · included once`,appMoney(metrics.managementPayroll||0)],['Tip Pass-Through','EXCLUDED · employee-owned net tips',appMoney(metrics.netTipsPaid)]]
   const costRows = [...primeRows,['Management Payroll',`${managementRows.length} records · allocated in department economics`,appMoney(metrics.managementPayroll||0)],['Front of House Wages',`${fohRows.length} records · excluded from Operating Labor`,appMoney(metrics.frontOfHousePayroll||0)],['Unmapped Payroll',`${reviewRows.length} records · review classification`,appMoney(metrics.reviewPayroll||0)]]
   const map = {
     'Net Sales': ['Sales by category and payment type', [{title:'Sales by Category',rows:salesRows,total:['Net Sales',appMoney(metrics.salesTotal)]},{title:'Payment Types',rows:paymentRows,total:['Payments',appMoney(metrics.salesTotal)]}]],
-    'Cash Flow': ['Cash collected less cash payroll, cash invoices and cash expenses', [{title:'Cash Flow',rows:[['Cash Collected',`${sales.filter(r=>Number(r.cash_sales||0)!==0).length} sales days`,appMoney(metrics.cashSales)],['Cash Payroll',`${payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='cash').length} payroll entries`,appMoney(-metrics.cashPayroll)],['Cash Vendor Invoices',`${invoices.filter(r=>String(r.payment_type||r.method).toLowerCase()==='cash').length} invoices`,appMoney(-metrics.cashInvoiceSpend)],['Cash Expenses',`${expenses.filter(r=>String(r.payment_type||r.method).toLowerCase()==='cash').length} expense entries`,appMoney(-metrics.cashExpenses)]],total:['Cash Remaining',appMoney(metrics.cashRemaining)]}]],
+    'Cash Flow': ['Cash collected less cash payroll, cash invoices and cash expenses', [{title:'Cash Flow',rows:[['Carry Forward','Prior-period cash balance',appMoney(metrics.cashCarryForward||0)],['Cash Collected',`${sales.filter(r=>Number(r.cash_sales||0)!==0).length} sales days`,appMoney(metrics.cashSales)],['Cash Payroll',`${payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='cash').length} payroll entries`,appMoney(-metrics.cashPayroll)],['Cash Vendor Invoices',`${invoices.filter(r=>String(r.payment_type||r.method).toLowerCase()==='cash').length} invoices`,appMoney(-metrics.cashInvoiceSpend)],['Cash Expenses',`${expenses.filter(r=>String(r.payment_type||r.method).toLowerCase()==='cash').length} expense entries`,appMoney(-metrics.cashExpenses)],['Cash Withdrawals',`${metrics.withdrawalRows?.length||0} withdrawals`,appMoney(-(metrics.cashWithdrawals||0))]],total:['Cash Remaining',appMoney(metrics.cashRemaining)]}]],
     'Cash Collected': ['Cash sales for the selected period', [{title:'Cash Collected',rows:[['Cash Sales',`${sales.filter(r=>Number(r.cash_sales||0)!==0).length} daily records`,appMoney(metrics.cashSales)]],total:['Cash Collected',appMoney(metrics.cashSales)]}]],
-    'Cash Remaining': ['Cash collected less cash payroll, cash invoices and expenses', [{title:'Cash Remaining',rows:[['Cash Collected','Sales cash receipts',appMoney(metrics.cashSales)],['Cash Payroll','Cash payroll payments',appMoney(-metrics.cashPayroll)],['Cash Vendor Invoices','Cash-paid vendor invoices',appMoney(-metrics.cashInvoiceSpend)],['Cash Expenses','Cash operating expenses',appMoney(-metrics.cashExpenses)]],total:['Cash Remaining',appMoney(metrics.cashRemaining)]}]],
+    'Cash Remaining': ['Cash collected less cash payroll, cash invoices and expenses', [{title:'Cash Remaining',rows:[['Carry Forward','Prior-period cash balance',appMoney(metrics.cashCarryForward||0)],['Cash Collected','Sales cash receipts',appMoney(metrics.cashSales)],['Cash Payroll','Cash payroll payments',appMoney(-metrics.cashPayroll)],['Cash Vendor Invoices','Cash-paid vendor invoices',appMoney(-metrics.cashInvoiceSpend)],['Cash Expenses','Cash operating expenses',appMoney(-metrics.cashExpenses)],['Cash Withdrawals','Recorded owner/operating cash withdrawals',appMoney(-(metrics.cashWithdrawals||0))]],total:['Cash Remaining',appMoney(metrics.cashRemaining)]}]],
     'Prime Cost': ['Direct food/alcohol purchases plus BOH operating labor; tips excluded', [{title:'Prime Cost',rows:primeRows,total:['Prime Cost',appMoney(metrics.primeCostAmount)]}]],
     'Labor Mix': ['BOH operating labor compared with sales; management, FOH and employee tips are shown separately', [{title:'Labor Mix',rows:[['Operating Labor',`${operatingRows.length} BOH/kitchen records`,appMoney(metrics.operatingLabor)],['Management Payroll',`${managementRows.length} records · allocated separately`,appMoney(metrics.managementPayroll||0)],['Front of House Payroll',`${fohRows.length} records · excluded from Operating Labor`,appMoney(metrics.frontOfHousePayroll||0)],['Unmapped Payroll',`${reviewRows.length} records · review classification`,appMoney(metrics.reviewPayroll||0)],['Tip Pass-Through','EXCLUDED · employee-owned net tips',appMoney(metrics.netTipsPaid)],['Net Sales',`${sales.length} sales days`,appMoney(metrics.salesTotal)]],total:['Operating Labor',appMoney(metrics.operatingLabor)]}]],
     'Operating Profit': ['Sales less food, alcohol, operating labor and expenses', [{title:'Operating Profit',rows:[['Net Sales',`${sales.length} sales days`,appMoney(metrics.salesTotal)],['Cost of Goods','Food and alcohol',appMoney(-metrics.cogs)],['Employer Labor Cost','BOH + management + FOH wages · employee tips excluded',appMoney(-(metrics.employerLabor||metrics.operatingLabor))],['Tip Pass-Through','Employee-owned net tips · not deducted',appMoney(metrics.netTipsPaid)],['Expenses',`${expenses.length} records`,appMoney(-metrics.expenseTotal)]],total:['Operating Profit',appMoney(metrics.operatingProfit)]}]],
@@ -44,6 +63,19 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
     'Cost Breakdown': ['Food, alcohol, labor and prime cost', [{title:'Current Period Costs',rows:costRows,total:['Prime Cost',appMoney(metrics.primeCostAmount)]}]],
     'Profit Summary': ['Income, deductions and operating profit', [{title:'Profit Detail',rows:[['Gross Sales','Before expenses',appMoney(metrics.salesTotal)],['Cost of Goods','Food and alcohol',appMoney(-metrics.cogs)],['Operating Labor & Expenses','Employee tips excluded',appMoney(-((metrics.employerLabor||metrics.operatingLabor)+metrics.expenseTotal))],['Tip Pass-Through','Employee-owned net tips · not deducted',appMoney(metrics.netTipsPaid)]],total:['Operating Profit',appMoney(metrics.operatingProfit)]}]],
     'Vendor Spend': ['Vendor invoice totals and recent activity', [{title:'Top Vendors',rows:(metrics.topVendors.length?metrics.topVendors:[['No vendor data',0]]).map(([name,value])=>[name,'Invoice spend',appMoney(value)]),total:['Vendor Total',appMoney(metrics.invoiceTotal)]}]],
+    'Total Vendors': ['All vendors with category and expense-type breakdowns', [{title:'Vendors by Category',rows:vendorCategoryGroups,total:['Total Vendors',String(vendors.length)]},{title:'Vendors by Expense Type',rows:vendorExpenseGroups,total:['Total Vendors',String(vendors.length)]}]],
+    'Invoice Total': ['Invoice spend broken down by line-item category', [{title:'Invoices by Category',rows:[['All Invoices',`${invoices.length} invoices`,appMoney(metrics.invoiceTotal)],...invoiceCategoryGroups],total:['Invoice Total',appMoney(metrics.invoiceTotal)]}]],
+    'Price Increases': ['Items whose normalized current cost is above the previous cost', [{title:'Price Increases',rows:priceIncreaseRows.map(r=>[r.item||'Item',`${r.vendor||'Vendor'} · ${r.comparison_basis||r.purchase_unit||'unit'}`,`${Number(r.change_percent||0).toFixed(1)}%`]),total:['Items Increased',String(priceIncreaseRows.length)]}]],
+    'Items Increased': ['Items whose normalized current cost is above the previous cost', [{title:'Price Increases',rows:priceIncreaseRows.map(r=>[r.item||'Item',`${r.vendor||'Vendor'} · ${r.comparison_basis||r.purchase_unit||'unit'}`,`${Number(r.change_percent||0).toFixed(1)}%`]),total:['Items Increased',String(priceIncreaseRows.length)]}]],
+    'Items Decreased': ['Items whose normalized current cost is below the previous cost', [{title:'Price Decreases',rows:priceDecreaseRows.map(r=>[r.item||'Item',`${r.vendor||'Vendor'} · ${r.comparison_basis||r.purchase_unit||'unit'}`,`${Number(r.change_percent||0).toFixed(1)}%`]),total:['Items Decreased',String(priceDecreaseRows.length)]}]],
+    'Largest Increase': ['Highest normalized item cost increase', [{title:'Largest Increase',rows:priceIncreaseRows.slice().sort((a,b)=>Number(b.change_percent||0)-Number(a.change_percent||0)).slice(0,10).map(r=>[r.item||'Item',r.vendor||'Vendor',`${Number(r.change_percent||0).toFixed(1)}%`]),total:['Largest Increase',priceIncreaseRows.length?`${Math.max(...priceIncreaseRows.map(r=>Number(r.change_percent||0))).toFixed(1)}%`:'0.0%']}]],
+    'Unit Impact': ['Sum of normalized unit-cost increases', [{title:'Unit Impact',rows:priceIncreaseRows.map(r=>[r.item||'Item',`${r.vendor||'Vendor'} · ${r.comparison_basis||r.purchase_unit||'unit'}`,appMoney2(r.change||0)]),total:['Unit Impact',appMoney2(priceImpact)]}]],
+    'Compared Items': ['All items with comparable price history', [{title:'Compared Items',rows:priceRows.map(r=>[r.item||'Item',`${r.vendor||'Vendor'} · ${r.best_vendor||'Best vendor'}`,appMoney2(r.current_price||0)]),total:['Compared Items',String(priceRows.length)]}]],
+    'Potential Savings': ['Potential normalized savings from best-vendor comparisons', [{title:'Potential Savings',rows:priceRows.filter(r=>Number(r.savings||r.potential_savings||0)>0).map(r=>[r.item||'Item',r.best_vendor||'Best vendor',appMoney2(r.savings||r.potential_savings||0)]),total:['Potential Savings',appMoney2(priceRows.reduce((sum,r)=>sum+(Number(r.savings||r.potential_savings||0)||0),0))]}]],
+    'Sales Report': ['Sales activity for the selected period', [{title:'Sales Report',rows:salesRows,total:['Net Sales',appMoney(metrics.salesTotal)]},{title:'Payment Types',rows:paymentRows,total:['Payments',appMoney(metrics.salesTotal)]}]],
+    'Payroll Report': ['Payroll activity for the selected period', [{title:'Payroll by Job Type',rows:jobGroups,total:['Payroll Total',appMoney(metrics.payrollTotal)]}]],
+    'Expense Report': ['Operating expenses for the selected period', [{title:'Expense Categories',rows:expenseGroups,total:['Expense Total',appMoney(metrics.expenseTotal)]}]],
+    'Period P&L': ['Period profit and loss using reconciled sales, COGS, labor and expenses', [{title:'Period P&L',rows:[['Net Sales',`${sales.length} sales days`,appMoney(metrics.salesTotal)],['COGS','Food + alcohol',appMoney(-metrics.cogs)],['Employer Labor','Tips excluded',appMoney(-(metrics.employerLabor||0))],['Operating Expenses',`${expenses.length} records`,appMoney(-metrics.expenseTotal)]],total:['Operating Profit',appMoney(metrics.operatingProfit)]}]],
     'Food Cost': ['Full allocated Food Department economics', [{title:'True Food Cost',rows:trueFoodRows,total:['True Food Cost',appMoney(dc.trueFoodCost ?? metrics.foodCost)]},{title:'Food Cost Rate',rows:[['Food Sales','Selected period',appMoney(dc.foodSales ?? metrics.foodSales)]],total:['Food Cost %',appPercent(dc.foodCostPercent ?? metrics.foodCostPercent)]}]],
     'True Food Cost': ['Full allocated Food Department economics', [{title:'True Food Cost',rows:trueFoodRows,total:['True Food Cost',appMoney(dc.trueFoodCost ?? metrics.foodCost)]}]],
     'Alcohol Cost': ['Full allocated Alcohol Department economics', [{title:'True Alcohol Cost',rows:trueAlcoholRows,total:['True Alcohol Cost',appMoney(dc.trueAlcoholCost ?? metrics.alcoholCost)]},{title:'Alcohol Cost Rate',rows:[['Alcohol Sales','Selected period',appMoney(dc.alcoholSales ?? metrics.alcoholSales)]],total:['Alcohol Cost %',appPercent(dc.alcoholCostPercent ?? metrics.alcoholCostPercent)]}]],
@@ -174,7 +206,7 @@ function buildRecentEntries(title, collections, explicitEntries = []) {
     return costTriples(set,'Manager Allocation')
   }
   if (/^prime cost$/i.test(label)) {
-    const labor = operatingPayroll.map(r=>({...r,_display_amount:employerPayrollAmount(r)})).filter(r=>r._display_amount>0)
+    const labor = [...operatingPayroll,...managementPayroll].map(r=>({...r,_display_amount:employerPayrollAmount(r)})).filter(r=>r._display_amount>0)
     return [...costTriples(foodDirect,'Direct Food Purchase'),...costTriples(alcoholDirect,'Direct Alcohol Purchase'),...entryTriples(labor,'payroll')].sort((a,b)=>String(b[0]).localeCompare(String(a[0])))
   }
   if (/^operating labor$/i.test(label)) { rows = operatingPayroll.map(r=>({...r,_display_amount:employerPayrollAmount(r)})).filter(r=>r._display_amount>0); kind='payroll' }
@@ -197,6 +229,11 @@ if (lowerLabel === 'cash expenses') { rows = collections.expenses.filter(r => ex
   else if (/active employees/i.test(label)) { rows = collections.employees.filter(r => String(r.status || 'Active').toLowerCase() !== 'inactive'); kind = 'employee' }
   else if (/total employees|employee count/i.test(label)) { rows = collections.employees; kind = 'employee' }
   else if (/vendor spend|all vendors|total vendors/i.test(label)) { rows = collections.vendors; kind = 'vendor' }
+  else if (/cash withdrawals?/i.test(label)) { rows = collections.expenses.filter(r=>/cash withdrawal|owner withdrawal|cash draw/i.test(`${r.category||''} ${r.type||''} ${r.name||''} ${r.payment_type||''}`)); kind='expense' }
+  else if (/price increases?|items increased/i.test(label)) return (metrics.priceComparisons||[]).filter(r=>Number(r.change||0)>0).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.vendor||'Vendor'}`,`${Number(r.change_percent||0).toFixed(1)}%`])
+  else if (/items decreased/i.test(label)) return (metrics.priceComparisons||[]).filter(r=>Number(r.change||0)<0).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.vendor||'Vendor'}`,`${Number(r.change_percent||0).toFixed(1)}%`])
+  else if (/compared items/i.test(label)) return (metrics.priceComparisons||[]).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.vendor||'Vendor'}`,appMoney2(r.current_price||0)])
+  else if (/unit impact|potential savings/i.test(label)) return (metrics.priceComparisons||[]).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.best_vendor||r.vendor||'Vendor'}`,appMoney2(r.change||r.savings||r.potential_savings||0)])
   else if (lowerLabel === 'total hours') { return allClassifiedPayroll.map(r=>[r.pay_date||r.payroll_date||r.date||'—',`${r.employee_name||r.employee||'Employee'} · ${r.job_type||r.job||'Job'}`,`${Number(r.hours||r.regular_hours||0).toFixed(1)} hrs`]) }
   else if (lowerLabel === 'food sales' && (dc.foodDepartmentRows||dc.foodSalesRows)) { return (dc.foodDepartmentRows?.length?dc.foodDepartmentRows:dc.foodSalesRows||[]).map(r=>[r.business_date||r.date||'Selected period',`${r.category||r.normalizedCategory||r.toastDepartment||'Food Sales'}`,appMoney2(r.salesAmount??r.amount??r.net_sales??0)]) }
   else if (lowerLabel === 'alcohol sales' && (dc.alcoholDepartmentRows||dc.alcoholSalesRows)) { return (dc.alcoholDepartmentRows?.length?dc.alcoholDepartmentRows:dc.alcoholSalesRows||[]).map(r=>[r.business_date||r.date||'Selected period',`${r.category||r.normalizedCategory||r.toastDepartment||'Alcohol Sales'}`,appMoney2(r.salesAmount??r.amount??r.net_sales??0)]) }
@@ -210,10 +247,14 @@ if (lowerLabel === 'cash expenses') { rows = collections.expenses.filter(r => ex
   else if (/expense/i.test(label)) { rows = collections.expenses; kind = 'expense' }
   else if (/payroll|labor/i.test(label)) { rows = collections.payroll; kind = 'payroll' }
   else {
+    const invoiceLineMatches = collections.invoices.flatMap(inv=>(Array.isArray(inv.lines)&&inv.lines.length?inv.lines:[inv]).filter(line=>String(line.category||inv.category||'').trim().toLowerCase()===lowerLabel).map(line=>({...line,vendor:inv.vendor||inv.vendor_name,invoice_number:inv.invoice_number||inv.number,invoice_date:inv.invoice_date||inv.date})))
+    const vendorCategoryMatches = collections.vendors.filter(r=>String(r.category||r.expenseType||r.expense_type||'').trim().toLowerCase()===lowerLabel)
     const expenseMatches = collections.expenses.filter(r => String(r.expense_type||r.type||r.category||'').trim().toLowerCase() === lowerLabel)
     const jobMatches = allClassifiedPayroll.filter(r => String(r.job_type||r.job||r.position||r.role||'').trim().toLowerCase() === lowerLabel)
     const vendorMatches = collections.invoices.filter(r => vendorName(r).toLowerCase() === lowerLabel)
-    if (expenseMatches.length) { rows = expenseMatches; kind = 'expense' }
+    if (invoiceLineMatches.length) { rows = invoiceLineMatches; kind = 'invoice' }
+    else if (vendorCategoryMatches.length) { rows = vendorCategoryMatches; kind = 'vendor' }
+    else if (expenseMatches.length) { rows = expenseMatches; kind = 'expense' }
     else if (jobMatches.length) { rows = jobMatches; kind = 'payroll' }
     else if (vendorMatches.length) { rows = vendorMatches; kind = 'invoice' }
   }
@@ -244,6 +285,8 @@ export default function DetailDrawer({ title, entries = [], initialTab = 'Overvi
   const [selectedRow, setSelectedRow] = useState(null)
   const [entryScope, setEntryScope] = useState('')
   const [notes, setNotes] = useState('')
+  const [withdrawal, setWithdrawal] = useState({date:new Date().toISOString().slice(0,10),amount:'',purpose:'',notes:''})
+  const [savingWithdrawal, setSavingWithdrawal] = useState(false)
   const { range: globalRange } = useGlobalDateRange()
   const [drawerRange, setDrawerRange] = useState(() => readDateRange())
   const [draftRange, setDraftRange] = useState(() => readDateRange())
@@ -263,7 +306,8 @@ export default function DetailDrawer({ title, entries = [], initialTab = 'Overvi
     const sections = preferred.length ? content.sections.filter(section=>preferred.includes(section.title)) : content.sections
     return sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row })))
   }, [content, title])
-  const recentEntries = useMemo(() => buildRecentEntries(entryScope || title, { sales, invoices, expenses, payroll, vendors, employees, metrics }, entries), [entryScope, title, entries, sales, invoices, expenses, payroll, vendors, employees, metrics])
+  const scopedExplicitEntries = useMemo(() => (Array.isArray(entries)?entries:[]).filter(row=>inDateRange(row,drawerRange,['effective_date','current_date','previous_date','invoice_date','expense_date','pay_date','payroll_date','business_date','date'])), [entries,drawerRange])
+  const recentEntries = useMemo(() => buildRecentEntries(entryScope || title, { sales, invoices, expenses, payroll, vendors, employees, metrics }, scopedExplicitEntries), [entryScope, title, scopedExplicitEntries, sales, invoices, expenses, payroll, vendors, employees, metrics])
   if (!title) return null
 
   const entryLabel = String(entryScope || '').includes(' > ') ? String(entryScope).split(' > ').slice(1).join(' > ') : (entryScope || title)
@@ -277,6 +321,18 @@ export default function DetailDrawer({ title, entries = [], initialTab = 'Overvi
     notify(`${title} details exported.`)
   }
   const saveNotes = () => { localStorage.setItem(`restapay.drawer.notes.${title}`, notes); notify(`${title} notes saved locally.`) }
+  const saveCashWithdrawal = async () => {
+    const amount = Number(withdrawal.amount||0)
+    if (!withdrawal.date || amount <= 0 || !withdrawal.purpose.trim()) return notify('Enter withdrawal date, amount and purpose.', 'error')
+    setSavingWithdrawal(true)
+    const row = {id:crypto.randomUUID?.()||`cash-withdrawal-${Date.now()}`,date:withdrawal.date,expense_date:withdrawal.date,name:`Cash Withdrawal - ${withdrawal.purpose.trim()}`,vendor:'Cash Drawer',type:'Cash Withdrawal',category:'Cash Withdrawal',expense_type:'Cash Withdrawal',payment_type:'Cash Withdrawal',method:'Cash Withdrawal',amount,notes:[withdrawal.purpose.trim(),withdrawal.notes.trim()].filter(Boolean).join(' · '),created_at:new Date().toISOString()}
+    try {
+      await replaceLiveCollection('restapay-expenses', current=>[...current,row])
+      setWithdrawal({date:new Date().toISOString().slice(0,10),amount:'',purpose:'',notes:''})
+      notify(`Cash withdrawal ${appMoney2(amount)} recorded.`)
+    } catch (error) { notify(error.message||'Cash withdrawal could not be saved.','error') }
+    finally { setSavingWithdrawal(false) }
+  }
   const handleDrawerPreset = (preset) => {
     const dates = presetDates(preset)
     setDraftRange(dates || { ...draftRange, preset:'custom' })
@@ -309,6 +365,7 @@ export default function DetailDrawer({ title, entries = [], initialTab = 'Overvi
 
       <div className="drawer-scroll">
         {activeTab === 'Overview' && <>{content.sections.map((section) => <section className="drawer-section" key={section.title}><h3>{section.title}</h3>{section.rows.map(([label,meta,value]) => <button className={`drawer-row ${/tip pass-through/i.test(label) ? 'drawer-row-excluded' : ''}`} type="button" key={`${section.title}-${label}`} onClick={() => showMatchingEntries(label)}><span><strong>{label}</strong><small>{meta}</small></span><b>{value}</b><ChevronRight size={17}/></button>)}<div className="drawer-total"><strong>{section.total[0]}</strong><b>{section.total[1]}</b></div></section>)}
+          {/cash remaining|cash flow/i.test(title) && <section className="drawer-section cash-withdrawal-section"><h3>Record Cash Withdrawal</h3><div className="cash-withdrawal-grid"><label>Date<input type="date" value={withdrawal.date} onChange={e=>setWithdrawal({...withdrawal,date:e.target.value})}/></label><label>Amount<input type="number" min="0" step="0.01" value={withdrawal.amount} onChange={e=>setWithdrawal({...withdrawal,amount:e.target.value})} placeholder="0.00"/></label><label>Purpose<input value={withdrawal.purpose} onChange={e=>setWithdrawal({...withdrawal,purpose:e.target.value})} placeholder="Deposit, petty cash, owner withdrawal..."/></label><label>Notes<input value={withdrawal.notes} onChange={e=>setWithdrawal({...withdrawal,notes:e.target.value})} placeholder="Optional notes"/></label></div><button className="drawer-inline-action" type="button" disabled={savingWithdrawal} onClick={saveCashWithdrawal}>{savingWithdrawal?'Saving...':'Record Withdrawal'}</button></section>}
           {selectedRow && <section className="drawer-section drawer-drilldown"><div className="drawer-section-heading"><h3>{selectedRow.label} Details</h3><button onClick={() => setSelectedRow(null)}>Close</button></div><div className="drawer-detail-grid"><div><small>Section</small><strong>{selectedRow.section}</strong></div><div><small>Current Value</small><strong>{selectedRow.value}</strong></div><div><small>Description</small><strong>{selectedRow.meta}</strong></div><div><small>Status</small><strong className="drawer-ready"><CheckCircle2 size={15}/>Ready</strong></div></div><button className="drawer-inline-action" onClick={openWorkspace}>Open related records<ChevronRight size={16}/></button></section>}
         </>}
 

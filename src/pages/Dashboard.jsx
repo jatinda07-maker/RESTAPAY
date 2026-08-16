@@ -26,8 +26,8 @@ export default function Dashboard() {
   },[sales,invoices,expenses,payroll,employees,costSettings])
   const kpis=[
     [WalletCards,'Cash Flow',appMoney(metrics.cashRemaining),`Cash collected ${appMoney(metrics.cashSales)}`,'green'],
-    [ChartPie,'Prime Cost',appPercent(metrics.primeCostPercent),'Food + alcohol + operating labor vs sales','blue'],
-    [UsersRound,'Labor Mix',appPercent(metrics.laborMixPercent),`BOH operating labor ${appMoney(metrics.operatingLabor)} · tips excluded`,'purple'],
+    [ChartPie,'Prime Cost',appPercent(metrics.primeCostPercent),'Food + alcohol + BOH + management labor vs sales','blue'],
+    [UsersRound,'Labor Mix',appPercent(metrics.laborMixPercent),`BOH + management ${appMoney((metrics.operatingLabor||0)+(metrics.managementPayroll||0))} · tips excluded`,'purple'],
     [Utensils,'Food Cost',appPercent(departmentCosts.foodCostPercent),`${appMoney(departmentCosts.trueFoodCost)} true department cost`,'orange'],
     [ShoppingCart,'Cash Sales',appMoney(metrics.cashSales),'Actual cash sales/payments','blue'],
     [BriefcaseBusiness,'Cash Collected',appMoney(metrics.cashSales),'Total cash sales/payments','green'],

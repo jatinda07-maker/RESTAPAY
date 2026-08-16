@@ -5,7 +5,7 @@ import { buildFinancialMetrics } from '../core/engines/FinancialReconciliation.j
 import { calculateDepartmentCosts, DEFAULT_ALLOCATION_RULES } from '../core/engines/DepartmentCostEngine.js'
 
 import { liveSnapshot, subscribeLiveData, initializeLiveData, reloadLiveCollection } from '../data/liveDataStore.js'
-import useGlobalDateRange, { inDateRange } from './useGlobalDateRange.js'
+import useGlobalDateRange, { inDateRange, normalizeRowDate } from './useGlobalDateRange.js'
 
 const number = (value) => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 
@@ -51,6 +51,23 @@ export function useAppData(overrideRange = null) {
       expenses: scoped.expenses,
     })
 
+    // Carry cash forward from every transaction before the selected range.
+    const beforeRange = (row, keys=[]) => {
+      const date = normalizeRowDate(row, keys)
+      return Boolean(date && range?.from && date < range.from)
+    }
+    const priorSales = data.sales.filter(row=>beforeRange(row,['view_date','sales_date','date']))
+    const priorPayroll = data.payroll.filter(row=>beforeRange(row,['pay_date','payroll_date','date']))
+    const priorInvoices = data.invoices.filter(row=>beforeRange(row,['invoice_date','date'])).map(normalizeInvoice)
+    const priorExpenses = data.expenses.filter(row=>beforeRange(row,['expense_date','date']))
+    const priorPayrollSummary = summarizePayroll(priorPayroll, data.employees)
+    const priorFinancial = buildFinancialMetrics({sales:priorSales,payrollSummary:priorPayrollSummary,invoices:priorInvoices,expenses:priorExpenses})
+    const cashCarryForward = priorFinancial.cashRemaining
+    const periodCashChange = financial.cashRemaining
+    financial.cashCarryForward = cashCarryForward
+    financial.periodCashChange = periodCashChange
+    financial.cashRemaining = cashCarryForward + periodCashChange
+
     const vendorSpend = new Map()
     normalizedInvoices.forEach(row => {
       const vendor = row.vendor || 'Unassigned'
@@ -66,11 +83,11 @@ export function useAppData(overrideRange = null) {
       if (lines.length) return lines.map(line => ({...line,vendor:invoice.vendor||invoice.vendor_name,vendor_name:invoice.vendor||invoice.vendor_name,invoice_number:invoice.invoice_number||invoice.number,invoice_date:invoice.invoice_date||invoice.date,category:line.category||invoice.category,_source_table:'invoice_items'}))
       return [{...invoice,amount:invoice.amount??invoice.total,_source_table:'invoices'}]
     })
-    const expenseSpend = scoped.expenses.map(row=>({...row,_source_table:'expenses'}))
+    const expenseSpend = scoped.expenses.filter(row=>!/cash withdrawal|owner withdrawal|cash draw/i.test(`${row.category||''} ${row.type||''} ${row.name||''} ${row.payment_type||''}`)).map(row=>({...row,_source_table:'expenses'}))
     const departmentCosts = calculateDepartmentCosts({salesRows:scoped.sales,payrollRows:scoped.payroll,employees:scoped.employees,spendRows:[...invoiceSpend,...expenseSpend],settings:costSettings})
 
     return { ...financial, payrollSummary, departmentCosts, trueFoodCost:departmentCosts.trueFoodCost, trueAlcoholCost:departmentCosts.trueAlcoholCost, trueFoodCostPercent:departmentCosts.foodCostPercent, trueAlcoholCostPercent:departmentCosts.alcoholCostPercent, topVendors, priceHistory, priceComparisons, normalizedInvoices }
-  }, [scoped])
+  }, [scoped, data, range])
 
   return { ...scoped, metrics, dateRange: range }
 }

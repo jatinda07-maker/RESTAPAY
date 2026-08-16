@@ -35,7 +35,7 @@ const metrics = buildFinancialMetrics({ sales:[{net_sales:5000}], payrollSummary
 assert.equal(metrics.operatingLabor, 800)
 assert.equal(metrics.frontOfHousePayroll, 0)
 assert.equal(metrics.managementPayroll, 600)
-assert.equal(metrics.primeCostAmount, 2200) // direct COGS 1400 + BOH operating labor 800
+assert.equal(metrics.primeCostAmount, 2800) // direct COGS 1400 + BOH 800 + management 600, tips excluded
 
 const drawer = fs.readFileSync('src/components/DetailDrawer.jsx','utf8')
 assert.match(drawer,/dc\.spendDetails\?\.food/)
