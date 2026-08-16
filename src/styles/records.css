@@ -555,3 +555,6 @@
 .main-content input:not([type='checkbox']):not([type='radio']),.main-content select,.main-content textarea,.content-area input:not([type='checkbox']):not([type='radio']),.content-area select,.content-area textarea{border-radius:12px}
 .app-modal .modal-body,.detail-drawer .drawer-scroll{font-size:13px}.app-modal .drawer-row,.app-modal td,.detail-drawer .drawer-row{font-size:13px}.records-table td,.sales-table td{font-size:12px}
 .drawer-range-editor select,.drawer-range-editor input{min-height:42px;border:1px solid #cfded7;border-radius:12px;background:#fff;padding:0 12px;font-size:13px}.drawer-range-editor button{min-height:42px;border:1px solid #0b8f55;border-radius:12px;background:#0b8f55;color:#fff;padding:0 18px;font-weight:750;box-shadow:0 3px 10px rgba(11,143,85,.12)}
+
+/* RC3.8.1 labor classification */
+.labor-classification-row{align-items:center}.labor-classification-row label{display:grid;gap:6px;min-width:210px;font-size:12px;font-weight:700;color:#44546a}.labor-classification-row select{min-height:42px;border:1px solid #ccd8e5;border-radius:12px;padding:0 38px 0 12px;background:#fff;font:inherit;color:#172033}.labor-classification-manager .classification-list{max-height:560px;overflow:auto}

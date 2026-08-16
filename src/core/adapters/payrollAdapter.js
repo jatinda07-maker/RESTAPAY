@@ -32,8 +32,13 @@ export function toPayrollViewRow(raw = {}) {
   }
 }
 
-const roleText = row => [row?.payroll_classification,row?.classification,row?.employee_type,row?.job_type,row?.job,row?.position,row?.role,row?.department,row?.group_name,row?.employee_name,row?.employee,row?.name].map(v=>String(v||'').toLowerCase()).join(' ')
+const roleText = row => [row?.labor_classification,row?.payroll_classification,row?.classification,row?.employee_type,row?.job_type,row?.job,row?.position,row?.role,row?.department,row?.group_name,row?.employee_name,row?.employee,row?.name].map(v=>String(v||'').toLowerCase()).join(' ')
 export function payrollCostClass(row = {}) {
+  const explicit = String(row?.labor_classification || '').trim().toLowerCase()
+  if (['foh','front of house','front-of-house'].includes(explicit)) return 'front-of-house'
+  if (['boh','kitchen','kitchen / boh','kitchen/boh','operating labor','operating-labor'].includes(explicit)) return 'operating-labor'
+  if (['manager','management'].includes(explicit)) return 'management'
+  if (['excluded','other','excluded / other','excluded/other'].includes(explicit)) return 'review'
   const t = roleText(row)
   if (/server|waiter|waitress|front house|foh|host|hostess|bartender|barback|tips? only|customer tip/.test(t)) return 'front-of-house'
   if (/assistant manager|assistant mgr|asst\.? manager|asistente manager|assistant general manager|general manager|restaurant manager|store manager|\bmanager\b|management/.test(t)) return 'management'

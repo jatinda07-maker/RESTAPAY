@@ -74,6 +74,11 @@ export default function Reports() {
     return next
   })
 
+  const escapeHtml=value=>String(value??'').replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]))
+  const printableHtml=(title='Restaurant Report',sections=visibleWeeklySections)=>`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#172033;margin:32px}h1{margin:0 0 4px}p{color:#667085;margin:0 0 24px}section{margin:0 0 28px;break-inside:avoid}h2{font-size:18px;border-bottom:2px solid #d9e2ec;padding-bottom:8px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}th{background:#f3f6f8}.num{text-align:right;font-weight:700}@media print{body{margin:16mm}.no-print{display:none}}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(activeRangeLabel)}</p>${sections.map(section=>`<section><h2>${escapeHtml(section.title)}</h2><table><thead><tr>${section.headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${section.rows.map(row=>`<tr>${row.map((cell,index)=>`<td class="${index===row.length-1?'num':''}">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></section>`).join('')}</body></html>`
+  const openPrintableReport=(title='Restaurant Report',asPdf=false)=>{const win=window.open('','_blank','noopener,noreferrer');if(!win)return notify('Allow pop-ups to print or save the report as PDF.','error');win.document.open();win.document.write(printableHtml(title));win.document.close();win.focus();setTimeout(()=>{win.print();if(asPdf)notify('In the print dialog choose “Save as PDF”.')},250)}
+  const exportReportCsv=(title='Restaurant Report',sections=visibleWeeklySections)=>{const rows=[[title],[activeRangeLabel],[],...sections.flatMap(section=>[[section.title],section.headers,...section.rows,[]])];const csv=rows.map(row=>row.map(value=>`"${String(value??'').replaceAll('\"','\"\"')}"`).join(',')).join('\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download=`${title.toLowerCase().replace(/[^a-z0-9]+/g,'-')}.csv`;a.click();URL.revokeObjectURL(url);notify('Report export downloaded.')}
+
   const openReport = key => {
     if (key === 'weekly-custom') return setWeeklyOpen(true)
     const titles={ 'sales-department':'Sales Report','payroll-detail':'Payroll Report','vendor-expense':'Expense Report' }
@@ -97,8 +102,8 @@ export default function Reports() {
       <header className="records-header">
         <div><h2>Reports</h2><p>Generate standard reports or arrange a custom report in your preferred order</p></div>
         <div className="records-actions">
-          <button className="secondary-action" onClick={()=>window.print()}><Printer size={17} />Print</button>
-          <button className="secondary-action" onClick={()=>notify("Report export prepared locally.")}><Download size={17} />Export</button>
+          <button className="secondary-action" onClick={()=>openPrintableReport('Restaurant Reports')}><Printer size={17} />Print</button>
+          <button className="secondary-action" onClick={()=>exportReportCsv('Restaurant Reports')}><Download size={17} />Export</button>
           <button className="primary-button" onClick={() => setBuilderOpen(true)}><Plus size={17} />Custom Report Builder</button>
         </div>
       </header>
@@ -110,8 +115,8 @@ export default function Reports() {
             <div><h3>{title}</h3><p>{desc}</p><small>{range}</small></div>
             <div className="report-actions">
               <button onClick={() => openReport(key)}><Eye size={14} />Preview</button>
-              <button onClick={()=>notify("PDF preview prepared.")}>PDF</button>
-              <button onClick={()=>notify("Excel export prepared.")}>Excel</button>
+              <button onClick={()=>openPrintableReport(title,true)}>PDF</button>
+              <button onClick={()=>exportReportCsv(title)}>Excel</button>
               <ChevronRight size={18} />
             </div>
           </article>
@@ -128,9 +133,9 @@ export default function Reports() {
       footer={<>
         <label className="show-empty-toggle"><input type="checkbox" checked={showEmpty} onChange={event => setShowEmpty(event.target.checked)} />Show empty sections</label>
         <span className="modal-footer-spacer" />
-        <button className="secondary-action" onClick={()=>window.print()}><Printer size={16} />Print</button>
-        <button className="secondary-action" onClick={()=>notify("PDF export prepared.")}><Download size={16} />PDF</button>
-        <button className="primary-button" onClick={()=>notify("Excel export prepared.")}><FileSpreadsheet size={16} />Excel</button>
+        <button className="secondary-action" onClick={()=>openPrintableReport('Custom Restaurant Report')}><Printer size={16} />Print</button>
+        <button className="secondary-action" onClick={()=>openPrintableReport('Custom Restaurant Report',true)}><Download size={16} />PDF</button>
+        <button className="primary-button" onClick={()=>exportReportCsv('Custom Restaurant Report')}><FileSpreadsheet size={16} />Excel</button>
       </>}
     >
       <div className="weekly-report-preview">

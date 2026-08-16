@@ -15,6 +15,7 @@ export function useAppData(overrideRange = null) {
   const { range: globalRange } = useGlobalDateRange()
   const range = overrideRange?.from && overrideRange?.to ? overrideRange : globalRange
   const [data, setData] = useState(snapshot)
+  const [laborClassificationVersion, setLaborClassificationVersion] = useState(0)
   useEffect(() => {
     let active=true
     const refresh=()=>active&&setData(snapshot())
@@ -29,8 +30,10 @@ export function useAppData(overrideRange = null) {
     const onVisibility=()=>{ if(document.visibilityState==='visible') refreshFromCloud() }
     window.addEventListener('focus',onFocus)
     document.addEventListener('visibilitychange',onVisibility)
+    const onLaborClassification=()=>setLaborClassificationVersion(value=>value+1)
+    window.addEventListener('restapay:labor-classification-change',onLaborClassification)
     const unsub=subscribeLiveData(refresh)
-    return ()=>{active=false;unsub();window.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onVisibility)}
+    return ()=>{active=false;unsub();window.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('restapay:labor-classification-change',onLaborClassification)}
   }, [])
 
   const scoped = useMemo(() => ({
@@ -44,7 +47,17 @@ export function useAppData(overrideRange = null) {
 
   const metrics = useMemo(() => {
     const normalizedInvoices = scoped.invoices.map(normalizeInvoice)
-    const payrollSummary = summarizePayroll(scoped.payroll, scoped.employees)
+    let laborMap = {}
+    try { laborMap = JSON.parse(localStorage.getItem('restapay-labor-classification') || '{}') || {} } catch {}
+    const employeeById = new Map((scoped.employees||[]).filter(e=>e?.id).map(e=>[String(e.id),e]))
+    const employeeByName = new Map((scoped.employees||[]).map(e=>[String(e.name||e.employee_name||'').trim().toLowerCase(),e]))
+    const classifiedPayroll = (scoped.payroll||[]).map(row=>{
+      const employee = employeeById.get(String(row.employee_id||'')) || employeeByName.get(String(row.employee_name||row.employee||'').trim().toLowerCase())
+      const job = String(row.job_type||row.job||row.position||row.role||employee?.job_type||employee?.job||employee?.position||employee?.role||'').trim()
+      const mapped = laborMap[job.toLowerCase()] || laborMap[job] || ''
+      return mapped ? {...row,labor_classification:mapped} : row
+    })
+    const payrollSummary = summarizePayroll(classifiedPayroll, scoped.employees)
     const financial = buildFinancialMetrics({
       sales: scoped.sales,
       payrollSummary,
@@ -93,10 +106,10 @@ export function useAppData(overrideRange = null) {
       return [{...invoice,amount:invoice.amount??invoice.total,_source_table:'invoices'}]
     })
     const expenseSpend = scoped.expenses.filter(row=>!/cash withdrawal|owner withdrawal|cash draw/i.test(`${row.category||''} ${row.type||''} ${row.name||''} ${row.payment_type||''}`)).map(row=>({...row,_source_table:'expenses'}))
-    const departmentCosts = calculateDepartmentCosts({salesRows:scoped.sales,payrollRows:scoped.payroll,employees:scoped.employees,spendRows:[...invoiceSpend,...expenseSpend],settings:costSettings})
+    const departmentCosts = calculateDepartmentCosts({salesRows:scoped.sales,payrollRows:classifiedPayroll,employees:scoped.employees,spendRows:[...invoiceSpend,...expenseSpend],settings:costSettings})
 
     return { ...financial, payrollSummary, departmentCosts, trueFoodCost:departmentCosts.trueFoodCost, trueAlcoholCost:departmentCosts.trueAlcoholCost, trueFoodCostPercent:departmentCosts.foodCostPercent, trueAlcoholCostPercent:departmentCosts.alcoholCostPercent, topVendors, priceHistory, priceComparisons, normalizedInvoices }
-  }, [scoped, data, range])
+  }, [scoped, data, range, laborClassificationVersion])
 
   return { ...scoped, metrics, dateRange: range }
 }

@@ -59,7 +59,7 @@ function isFinancialOrTransferSpend(row = {}) {
 }
 
 function payrollText(row = {}) {
-  return [row.payroll_classification, row.classification, row.employee_type, row.job_type, row.position, row.role, row.department, row.group_name, row.employee_name, row.name]
+  return [row.labor_classification, row.payroll_classification, row.classification, row.employee_type, row.job_type, row.position, row.role, row.department, row.group_name, row.employee_name, row.name]
     .map(value => String(value || '').toLowerCase()).join(' ')
 }
 
@@ -94,6 +94,11 @@ export function classifySpend(row = {}) {
 }
 
 export function classifyPayroll(row = {}) {
+  const explicit = String(row.labor_classification || '').trim().toLowerCase()
+  if (['management','manager'].includes(explicit)) return { bucket:'shared', rule:'managerPayroll', label:'Manager Payroll' }
+  if (['boh','kitchen','kitchen / boh','kitchen/boh','operating labor','operating-labor'].includes(explicit)) return { bucket:'food', rule:'kitchenPayroll', label:'Kitchen / BOH Payroll' }
+  if (['foh','front of house','front-of-house'].includes(explicit)) return { bucket:'other', rule:'otherPayroll', label:'Front of House Payroll' }
+  if (['excluded','other','excluded / other','excluded/other'].includes(explicit)) return { bucket:'other', rule:'otherPayroll', label:'Excluded / Other Payroll' }
   const text = payrollText(row)
   if (isTips(row)) return { bucket: 'excluded', rule: 'tips', label: 'Server Tips' }
   // Management payroll is allocated between Food and Alcohol using Settings.
@@ -101,7 +106,7 @@ export function classifyPayroll(row = {}) {
   if (/assistant manager|assistant mgr|asst\.? manager|asistente manager|assistant general manager/.test(text)) return { bucket: 'shared', rule: 'managerPayroll', label: 'Assistant Manager Payroll' }
   if (/bartender|barback|bar manager/.test(text)) return { bucket: 'alcohol', rule: 'bartenderPayroll', label: 'Bar Payroll' }
   if (/general manager|restaurant manager|store manager|\bmanager\b|management/.test(text)) return { bucket: 'shared', rule: 'managerPayroll', label: 'Manager Payroll' }
-  if (/kitchen|cook|chef|prep|dishwasher|dish washer|line cook|food prep/.test(text)) return { bucket: 'food', rule: 'kitchenPayroll', label: 'Kitchen Payroll' }
+  if (/kitchen|cook|chef|prep|dishwasher|dish washer|busser|bus boy|line cook|food prep/.test(text)) return { bucket: 'food', rule: 'kitchenPayroll', label: 'Kitchen Payroll' }
   return { bucket: 'other', rule: 'otherPayroll', label: 'Other Operating Payroll' }
 }
 

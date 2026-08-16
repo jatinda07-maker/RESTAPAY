@@ -37,7 +37,8 @@
     "test:rc36": "node scripts/test-rc36-prime-cost-display.mjs",
     "test:rc371": "node scripts/test-rc371-modal-entry-reconciliation.mjs",
     "test:rc372": "node scripts/test-rc372-kpi-date-cash-reconciliation.mjs",
-    "test:rc38": "node scripts/test-rc38-access-cash-approvals.mjs"
+    "test:rc38": "node scripts/test-rc38-access-cash-approvals.mjs",
+    "test:rc381": "node scripts/test-rc381-kpi-labor-reports.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
