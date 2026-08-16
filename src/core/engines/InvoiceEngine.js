@@ -159,12 +159,23 @@ export function normalizeInvoice(invoice = {}) {
   }
 }
 
+function normalizedItemIdentity(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\b\d+(?:\.\d+)?\s*(lb|lbs|oz|kg|g|gal|qt|pt|ml|l|ct|count|ea|each|pk|pack|case|cs)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(the|and|of|size|case|pack|each)\b/g, ' ')
+    .trim().replace(/\s+/g, ' ')
+}
+
 export function buildPriceHistory(invoices = []) {
   const history = []
   invoices.forEach(invoice => {
     const normalized = normalizeInvoice(invoice)
     normalized.lines.forEach(line => {
       if (!line.description) return
+      const normalizedCost = n(line.effective_each_cost || line.normalized_unit_cost || line.unit_price || line.case_price)
+      const comparableQuantity = n(line.total_measure) || (n(line.pack_count) > 1 ? n(line.pack_count) : 1)
       history.push({
         id: `${invoice.id}-${line.id}`,
         invoice_id: invoice.id,
@@ -174,12 +185,15 @@ export function buildPriceHistory(invoices = []) {
         vendor_key: normalized.vendor_key,
         item_number: line.item_number,
         item: line.description,
+        item_key: normalizedItemIdentity(line.description),
         category: line.category || normalized.category,
         package_size: line.package_size,
         quantity: line.quantity,
+        comparable_quantity: comparableQuantity,
         case_price: line.case_price || (line.quantity ? line.line_total / line.quantity : line.line_total),
-        unit_cost: line.effective_each_cost || line.normalized_unit_cost || line.unit_price,
+        unit_cost: normalizedCost,
         effective_each_cost: line.effective_each_cost || 0,
+        normalized_unit_cost: line.normalized_unit_cost || 0,
         purchase_unit: line.purchase_unit || 'each',
         pack_count: line.pack_count || 0,
         comparison_basis: line.comparison_basis || line.normalized_unit || line.purchase_unit || '',
@@ -193,34 +207,53 @@ export function buildPriceHistory(invoices = []) {
 export function comparePrices(history = []) {
   const groups = new Map()
   history.forEach(row => {
-    const key = `${String(row.item_number || '').toLowerCase()}|${String(row.item || '').toLowerCase()}|${String(row.comparison_basis || row.normalized_unit || '')}`
+    const identity = row.item_key || normalizedItemIdentity(row.item)
+    const basis = String(row.comparison_basis || row.normalized_unit || row.purchase_unit || '').toLowerCase()
+    if (!identity || !basis) return
+    const key = `${identity}|${basis}`
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key).push(row)
   })
   return [...groups.values()].map(rows => {
     const sorted = [...rows].sort((a,b)=>String(a.date).localeCompare(String(b.date)))
-    const first = sorted[0], latest = sorted[sorted.length-1]
-    const previous = sorted.length > 1 ? sorted[sorted.length-2] : first
-    const change = n(latest.unit_cost || latest.case_price) - n(previous.unit_cost || previous.case_price)
-    const base = n(previous.unit_cost || previous.case_price)
-    const changePercent = base ? change / base * 100 : 0
-    const best = [...sorted].sort((a,b)=>n(a.unit_cost||a.case_price)-n(b.unit_cost||b.case_price))[0]
+    const latest = sorted[sorted.length-1]
+    const previous = sorted.length > 1 ? sorted[sorted.length-2] : latest
+    const currentPrice = n(latest.unit_cost || latest.case_price)
+    const previousPrice = n(previous.unit_cost || previous.case_price)
+    const comparableRows = sorted.filter(r=>n(r.unit_cost || r.case_price)>0)
+    const best = [...comparableRows].sort((a,b)=>n(a.unit_cost||a.case_price)-n(b.unit_cost||b.case_price))[0] || latest
+    const high = [...comparableRows].sort((a,b)=>n(b.unit_cost||b.case_price)-n(a.unit_cost||a.case_price))[0] || latest
+    const vendorCount = new Set(comparableRows.map(r=>String(r.vendor_key||r.vendor||'').toLowerCase()).filter(Boolean)).size
+    const change = currentPrice - previousPrice
+    const changePercent = previousPrice ? change / previousPrice * 100 : 0
+    const savingsPerUnit = Math.max(0,currentPrice - n(best.unit_cost||best.case_price))
+    const comparableQuantity = Math.max(1,n(latest.comparable_quantity)||1)
+    const potentialSavings = savingsPerUnit * comparableQuantity
     return {
-      key: `${latest.item_number || latest.item}-${latest.normalized_unit || ''}`,
+      key: `${latest.item_key || latest.item}-${latest.comparison_basis || latest.normalized_unit || ''}`,
       item: latest.item,
+      item_key: latest.item_key,
       item_number: latest.item_number,
       category: latest.category,
       package_size: latest.package_size,
       purchase_unit: latest.purchase_unit,
       pack_count: latest.pack_count,
       comparison_basis: latest.comparison_basis || latest.normalized_unit || '',
-      previous_price: n(previous.unit_cost || previous.case_price),
-      current_price: n(latest.unit_cost || latest.case_price),
+      comparable_quantity: comparableQuantity,
+      previous_price: previousPrice,
+      current_price: currentPrice,
       change: Number(change.toFixed(4)),
       change_percent: Number(changePercent.toFixed(2)),
       vendor: latest.vendor,
       best_vendor: best.vendor,
       best_price: n(best.unit_cost || best.case_price),
+      highest_vendor: high.vendor,
+      highest_price: n(high.unit_cost || high.case_price),
+      vendor_count: vendorCount,
+      savings_per_unit: Number(savingsPerUnit.toFixed(4)),
+      savings: Number(potentialSavings.toFixed(2)),
+      potential_savings: Number(potentialSavings.toFixed(2)),
+      match_confidence: vendorCount > 1 ? 'High' : 'History only',
       previous_row: previous,
       current_row: latest,
       comparison_rows: [
