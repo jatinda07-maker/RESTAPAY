@@ -9,6 +9,6 @@ const checks=[
  ['profile admin switch',topbar.includes('Switch to Admin')&&topbar.includes('Lock Admin Mode')],
  ['pin rpc verify',access.includes("supabase.rpc('verify_admin_pin'")],
  ['server normalized to waiter',store.includes("/^(server|waitress)$/i")],
- ['pin hashed in postgres',migration.includes("crypt(new_pin,gen_salt('bf'))")]
+ ['pin hashed in postgres',migration.includes("crypt(new_pin,extensions.gen_salt('bf'))")||migration.includes("crypt(new_pin,gen_salt('bf'))")]
 ]
 let failed=0;for(const[c,ok]of checks){console.log(`${ok?'PASS':'FAIL'} ${c}`);if(!ok)failed++}if(failed)process.exit(1)
