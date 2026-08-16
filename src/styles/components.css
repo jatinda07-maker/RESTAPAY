@@ -367,3 +367,11 @@
 .cash-withdrawal-grid input{min-height:44px;border:1px solid #cbd5e1;border-radius:12px;padding:0 12px;background:#fff;font:inherit;color:#0f172a;outline:none}
 .cash-withdrawal-grid input:focus{border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.10)}
 @media(max-width:760px){.cash-withdrawal-grid{grid-template-columns:1fr}}
+
+/* RC3.8 access control, approval queue, and cash ledger */
+.invoice-approval-queue{margin-bottom:16px}
+.approval-list{display:grid;gap:10px;padding:4px 20px 20px}
+.approval-row{display:grid;grid-template-columns:minmax(260px,1.8fr) minmax(110px,.65fr) minmax(110px,.65fr) auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid #dbe4ee;border-radius:14px;background:#f8fbff}
+.approval-row>div{display:grid;gap:3px}.approval-row small{color:#64748b}.approval-actions{display:flex!important;grid-auto-flow:column;gap:8px}
+.security-settings{display:grid;gap:16px}.cash-ledger-actions,.cash-ledger-row-actions{display:flex;gap:8px;align-items:center}.cash-ledger-row{grid-template-columns:1fr auto auto!important}.cash-ledger-row-actions button{width:34px;height:34px;border:1px solid #dbe4ee;border-radius:10px;background:#fff;display:grid;place-items:center}.drawer-help{margin:-4px 0 12px;color:#64748b;font-size:.88rem}
+@media(max-width:900px){.approval-row{grid-template-columns:1fr 1fr}.approval-actions{grid-column:1/-1}}

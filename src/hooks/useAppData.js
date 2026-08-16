@@ -9,7 +9,7 @@ import useGlobalDateRange, { inDateRange, normalizeRowDate } from './useGlobalDa
 
 const number = (value) => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 
-function snapshot(){ const value=liveSnapshot()||{};return {sales:Array.isArray(value.sales)?value.sales.filter(Boolean):[],payroll:Array.isArray(value.payroll)?value.payroll.filter(Boolean):[],invoices:Array.isArray(value.invoices)?value.invoices.filter(Boolean):[],expenses:Array.isArray(value.expenses)?value.expenses.filter(Boolean):[],vendors:Array.isArray(value.vendors)?value.vendors.filter(Boolean):[],employees:Array.isArray(value.employees)?value.employees.filter(Boolean):[]} }
+function snapshot(){ const value=liveSnapshot()||{};return {sales:Array.isArray(value.sales)?value.sales.filter(Boolean):[],payroll:Array.isArray(value.payroll)?value.payroll.filter(Boolean):[],invoices:Array.isArray(value.invoices)?value.invoices.filter(Boolean):[],expenses:Array.isArray(value.expenses)?value.expenses.filter(Boolean):[],vendors:Array.isArray(value.vendors)?value.vendors.filter(Boolean):[],employees:Array.isArray(value.employees)?value.employees.filter(Boolean):[],invoiceApprovals:Array.isArray(value.invoiceApprovals)?value.invoiceApprovals.filter(Boolean):[],cashLedger:Array.isArray(value.cashLedger)?value.cashLedger.filter(Boolean):[]} }
 
 export function useAppData(overrideRange = null) {
   const { range: globalRange } = useGlobalDateRange()
@@ -18,7 +18,7 @@ export function useAppData(overrideRange = null) {
   useEffect(() => {
     let active=true
     const refresh=()=>active&&setData(snapshot())
-    const liveKeys=['restapay.sales','restapay-payroll','restapay-invoices','restapay-expenses','restapay-vendors','restapay-employees']
+    const liveKeys=['restapay.sales','restapay-payroll','restapay-invoices','restapay-expenses','restapay-vendors','restapay-employees','restapay-invoice-approvals','restapay-cash-ledger']
     const refreshFromCloud=async()=>{
       await initializeLiveData().catch(()=>{})
       await Promise.allSettled(liveKeys.map(key=>reloadLiveCollection(key)))
@@ -39,6 +39,7 @@ export function useAppData(overrideRange = null) {
     payroll: data.payroll.filter(row => inDateRange(row, range, ['pay_date','payroll_date','date'])),
     invoices: data.invoices.filter(row => inDateRange(row, range, ['invoice_date','date'])),
     expenses: data.expenses.filter(row => inDateRange(row, range, ['expense_date','date'])),
+    cashLedger: data.cashLedger.filter(row => inDateRange(row, range, ['entry_date','date'])),
   }), [data, range])
 
   const metrics = useMemo(() => {
@@ -62,10 +63,18 @@ export function useAppData(overrideRange = null) {
     const priorExpenses = data.expenses.filter(row=>beforeRange(row,['expense_date','date']))
     const priorPayrollSummary = summarizePayroll(priorPayroll, data.employees)
     const priorFinancial = buildFinancialMetrics({sales:priorSales,payrollSummary:priorPayrollSummary,invoices:priorInvoices,expenses:priorExpenses})
-    const cashCarryForward = priorFinancial.cashRemaining
-    const periodCashChange = financial.cashRemaining
+    const priorCashLedger = data.cashLedger.filter(row=>beforeRange(row,['entry_date','date']))
+    const priorLedgerEffect = priorCashLedger.reduce((sum,row)=>sum + (String(row.entry_type||row.type).toLowerCase()==='withdrawal' ? -Math.abs(number(row.amount)) : number(row.amount)),0)
+    const periodLedgerEffect = scoped.cashLedger.reduce((sum,row)=>sum + (String(row.entry_type||row.type).toLowerCase()==='withdrawal' ? -Math.abs(number(row.amount)) : number(row.amount)),0)
+    const cashCarryForward = priorFinancial.cashRemaining + priorLedgerEffect
+    const periodCashChange = financial.cashRemaining + periodLedgerEffect
     financial.cashCarryForward = cashCarryForward
     financial.periodCashChange = periodCashChange
+    financial.cashLedgerRows = scoped.cashLedger
+    financial.cashWithdrawalRows = scoped.cashLedger.filter(row=>String(row.entry_type||row.type).toLowerCase()==='withdrawal')
+    financial.cashAdjustmentRows = scoped.cashLedger.filter(row=>String(row.entry_type||row.type).toLowerCase()==='adjustment')
+    financial.cashWithdrawals = financial.cashWithdrawalRows.reduce((sum,row)=>sum+Math.abs(number(row.amount)),0)
+    financial.cashAdjustments = financial.cashAdjustmentRows.reduce((sum,row)=>sum+number(row.amount),0)
     financial.cashRemaining = cashCarryForward + periodCashChange
 
     const vendorSpend = new Map()

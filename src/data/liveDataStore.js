@@ -45,6 +45,17 @@ const configs = {
     fromDb:r=>({ ...r, date:r.business_date||r.date, amount:money(r.net_sales), tips_collected:money(r.tips_collected??r.tips), payment:'Mixed', category:'Food + Alcohol' }),
     toDb:r=>({ id:r.id||id(), business_date:r.business_date||r.date||new Date().toISOString().slice(0,10), gross_sales:money(r.gross_sales??r.amount), net_sales:money(r.net_sales??r.amount), cash_sales:money(r.cash_sales), credit_sales:money(r.credit_sales), gift_card_sales:money(r.gift_card_sales), online_orders:money(r.online_orders), delivery_orders:money(r.delivery_orders), pickup_orders:money(r.pickup_orders), tips:money(r.tips??r.tips_collected), tips_collected:money(r.tips_collected??r.tips), tips_withheld:money(r.tips_withheld), tips_after_withholding:money(r.tips_after_withholding), food_sales:money(r.food_sales), alcohol_sales:money(r.alcohol_sales), other_sales:money(r.other_sales), excluded_sales:money(r.excluded_sales), food_sales_categories:Array.isArray(r.food_sales_categories)?r.food_sales_categories:[], alcohol_sales_categories:Array.isArray(r.alcohol_sales_categories)?r.alcohol_sales_categories:[], other_sales_categories:Array.isArray(r.other_sales_categories)?r.other_sales_categories:[], excluded_sales_categories:Array.isArray(r.excluded_sales_categories)?r.excluded_sales_categories:[], refunds:money(r.refunds), voids:money(r.voids), discounts:money(r.discounts), tax:money(r.tax), guest_count:money(r.guest_count), source_file:text(r.source_file), import_note:text(r.import_note), created_at:r.created_at||now(), updated_at:now() })
   },
+
+  'restapay-invoice-approvals': {
+    table:'invoice_edit_requests',
+    fromDb:r=>({...r,original:r.original_invoice||{},proposed:r.proposed_invoice||{},requestedBy:r.requested_by_email||''}),
+    toDb:r=>({id:r.id||id(),invoice_id:r.invoice_id||r.invoiceId,status:r.status||'Pending',requested_by:r.requested_by||null,requested_by_email:text(r.requested_by_email||r.requestedBy),original_invoice:r.original_invoice||r.original||{},proposed_invoice:r.proposed_invoice||r.proposed||{},decision_notes:text(r.decision_notes),decided_by:r.decided_by||null,decided_at:r.decided_at||null,created_at:r.created_at||now(),updated_at:now()})
+  },
+  'restapay-cash-ledger': {
+    table:'cash_ledger',
+    fromDb:r=>({...r,date:r.entry_date||r.date,type:r.entry_type||r.type}),
+    toDb:r=>({id:r.id||id(),entry_date:r.entry_date||r.date||new Date().toISOString().slice(0,10),entry_type:r.entry_type||r.type||'withdrawal',amount:money(r.amount),purpose:text(r.purpose),notes:text(r.notes),created_by:r.created_by||null,created_by_email:text(r.created_by_email),created_at:r.created_at||now(),updated_at:now()})
+  },
   'restapay-bank-checks': {
     table:'bank_checks',
     fromDb:r=>({ ...r, date:r.payment_date||r.date, type:r.payment_type||r.type, reference:r.reference_number||r.reference }),
@@ -52,7 +63,7 @@ const configs = {
   }
 }
 
-const OPTIONAL_TABLE_KEYS = new Set(['restapay-bank-checks'])
+const OPTIONAL_TABLE_KEYS = new Set(['restapay-bank-checks','restapay-invoice-approvals','restapay-cash-ledger'])
 const isMissingTableError = error => error && (error.code === '42P01' || error.status === 404 || /does not exist|not found|schema cache/i.test(String(error.message || '')))
 const normalizeCollectionRows = (rows, key) => (Array.isArray(rows) ? rows : []).filter(Boolean).map(row => {
   const normalized = { ...row }
@@ -141,6 +152,17 @@ export async function replaceLiveCollection(key,nextOrUpdater){
   await ensureLiveCollection(key)
   const current=cache.get(key)||[]
   const next=typeof nextOrUpdater==='function'?nextOrUpdater(current):nextOrUpdater
+  const role=typeof localStorage!=='undefined'?(localStorage.getItem('restapay-current-role')||'admin'):'admin'
+  if(role==='manager'){
+    const allowed=new Set(['restapay-invoices','restapay-invoice-approvals','restapay.sales'])
+    if(!allowed.has(key)) throw new Error('Manager role is not permitted to modify this data.')
+    if(key==='restapay-invoices'){
+      const before=new Map((current||[]).map(row=>[String(row.id),JSON.stringify(row)]))
+      const changedExisting=(next||[]).some(row=>before.has(String(row.id))&&before.get(String(row.id))!==JSON.stringify(row))
+      const removedExisting=(current||[]).some(row=>!(next||[]).some(candidate=>String(candidate.id)===String(row.id)))
+      if(changedExisting||removedExisting) throw new Error('Manager edits to existing invoices must be submitted through Admin Approval.')
+    }
+  }
   cache.set(key,Array.isArray(next)?next:[]);emit(key)
   try{
     if(key==='restapay-invoices') await saveInvoices(cache.get(key))
@@ -150,4 +172,4 @@ export async function replaceLiveCollection(key,nextOrUpdater){
 }
 export async function reloadLiveCollection(key){ready.delete(key);return ensureLiveCollection(key)}
 export async function initializeLiveData(){await Promise.allSettled(Object.keys(configs).map(ensureLiveCollection))}
-export function liveSnapshot(){return {sales:getLiveCollection('restapay.sales'),payroll:getLiveCollection('restapay-payroll'),invoices:getLiveCollection('restapay-invoices'),expenses:getLiveCollection('restapay-expenses'),vendors:getLiveCollection('restapay-vendors'),employees:getLiveCollection('restapay-employees')}}
+export function liveSnapshot(){return {sales:getLiveCollection('restapay.sales'),payroll:getLiveCollection('restapay-payroll'),invoices:getLiveCollection('restapay-invoices'),expenses:getLiveCollection('restapay-expenses'),vendors:getLiveCollection('restapay-vendors'),employees:getLiveCollection('restapay-employees'),invoiceApprovals:getLiveCollection('restapay-invoice-approvals'),cashLedger:getLiveCollection('restapay-cash-ledger')}}
