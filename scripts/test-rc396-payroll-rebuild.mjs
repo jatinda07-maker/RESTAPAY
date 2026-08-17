@@ -7,7 +7,7 @@ assert(!page.includes("'Ready to Pay','Payroll History'"), 'Ready to Pay tab mus
 assert(page.includes("'Imported Labor','Weekly Payroll','Payroll History'"), 'Weekly Payroll tab must replace Ready to Pay')
 assert(page.includes("markWeeklyPaidByMethod('Cash')"))
 assert(page.includes("markWeeklyPaidByMethod('Check')"))
-assert(store.includes("if (row?.weekly_rollup) return `weekly|"), 'weekly duplicate identity must be employee/week based')
+assert(store.includes("return `weekly|${employee}|${weekStart}|${weekEnd}"), 'non-kitchen weekly duplicate identity must remain employee/week based')
 assert(store.includes("duplicateIds=before.map"), 'historical duplicate cleanup must remove duplicate Supabase rows')
 const rows=buildWeeklyPayroll([
  {id:'a1',employee_id:'e1',employee_name:'Israel Cruz',pay_date:'2026-08-10',regular_pay:0,credit_card_tips:400,source:'toast'},

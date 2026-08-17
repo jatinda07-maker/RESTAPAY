@@ -9,7 +9,7 @@ import Modal from '../components/Modal'
 import ToastReportImport from '../components/ToastReportImport'
 import { formatMoney, summarizePayroll, toPayrollViewRow } from '../core/adapters/payrollAdapter.js'
 import { normalizePayrollRecord, normalizePayrollRecords } from '../core/adapters/payrollSchemaAdapter.js'
-import { buildKitchenWeeklyPayroll, buildWeeklyPayroll, endOfPayrollWeek, isMondayToSunday, startOfPayrollWeek } from '../core/engines/WeeklyPayrollEngine.js'
+import { buildHistoricalPayrollRepair, buildKitchenWeeklyPayroll, buildWeeklyPayroll, endOfPayrollWeek, isMondayToSunday, startOfPayrollWeek } from '../core/engines/WeeklyPayrollEngine.js'
 import usePersistentState from '../hooks/usePersistentState'
 import useCrudCollection from '../hooks/useCrudCollection'
 import { useFeedback } from '../components/AppFeedback'
@@ -71,6 +71,10 @@ export default function Payroll(){
   const [selectedKitchenEmployeeIds,setSelectedKitchenEmployeeIds] = useState([])
   const [savingKitchenPayroll,setSavingKitchenPayroll] = useState(false)
   const [weekOpen,setWeekOpen] = useState(false)
+  const [repairOpen,setRepairOpen] = useState(false)
+  const [repairStart,setRepairStart] = useState('2026-08-03')
+  const [repairEnd,setRepairEnd] = useState('2026-08-09')
+  const [repairSaving,setRepairSaving] = useState(false)
   const [weekStart,setWeekStart] = useState(() => startOfPayrollWeek(new Date().toISOString().slice(0,10)))
   const [weekEnd,setWeekEnd] = useState(() => endOfPayrollWeek(new Date().toISOString().slice(0,10)))
   const [selectedWeeklyEmployees,setSelectedWeeklyEmployees] = useState([])
@@ -524,6 +528,35 @@ export default function Payroll(){
   }
 
 
+  const repairPreview = useMemo(() => {
+    if (!isMondayToSunday(repairStart, repairEnd)) return null
+    try { return buildHistoricalPayrollRepair(allSourceRows, { start:repairStart, end:repairEnd }) }
+    catch { return null }
+  }, [allSourceRows, repairStart, repairEnd])
+
+  const applyHistoricalRepair = async () => {
+    if (!repairPreview?.rows?.length) return notify('No repairable payroll source data was found for this week.', 'error')
+    if (repairPreview.reviewCount) return notify('Repair preview contains kitchen rows that need review before replacement.', 'error')
+    const confirmed = window.confirm(`Repair payroll week ${repairStart} through ${repairEnd}? This will replace corrupted weekly/payroll-history rows with ${repairPreview.rows.length} reconstructed Sunday records. Imported daily source rows will remain for audit.`)
+    if (!confirmed) return
+    try {
+      setRepairSaving(true)
+      await setSourceRows(previous => {
+        const repairedSourceIds = new Set(repairPreview.checkRows.flatMap(row => row.source_ids || []).map(String))
+        const kept = previous
+          .filter(row => !(row.weekly_rollup && (row.payroll_week_end || row.week_end || row.payroll_date || row.pay_date) === repairEnd))
+          .map(row => repairedSourceIds.has(String(row.id)) ? { ...row, payroll_status:'rolled-up', included_in_weekly_end:repairEnd } : row)
+        const repaired = repairPreview.rows.map(row => normalizePayrollRecord(row, { source:row.source, method:row.method || row.payment_method }))
+        return [...repaired, ...kept]
+      })
+      setRepairOpen(false)
+      setActiveTab('Payroll History')
+      notify(`Payroll week ending ${repairEnd} repaired into ${repairPreview.rows.length} Sunday records. Source shifts were preserved.`)
+    } catch (error) {
+      notify(`Historical payroll repair failed: ${error?.message || 'Unable to save repair to Supabase.'}`, 'error')
+    } finally { setRepairSaving(false) }
+  }
+
   const weeklySourceRows = useMemo(() => sourceRows
     .filter(row => !(row.weekly_rollup && row.payroll_week_end === weekEnd))
     .map(row => row.included_in_weekly_end === weekEnd ? { ...row, payroll_status:'' } : row), [sourceRows, weekEnd])
@@ -725,6 +758,7 @@ export default function Payroll(){
           <button className="soft-action soft-purple" onClick={openAdd}><Plus size={17}/>Manual Payroll</button>
           <button className="soft-action soft-green" onClick={openKitchenWeeklyBuilder}><ChefHat size={17}/>Build Kitchen Payroll</button>
           <button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={17}/>Build Weekly Payroll</button>
+          <button className="soft-action soft-blue" onClick={()=>setRepairOpen(true)}><RotateCcw size={17}/>Repair Payroll Week</button>
         </div>
       </header>
 
@@ -855,6 +889,19 @@ export default function Payroll(){
         {paymentForm.payment_method==='ACH' && <label>ACH Reference<input value={paymentForm.ach_reference} onChange={e=>setPaymentForm({...paymentForm,ach_reference:e.target.value})} placeholder="Required"/></label>}
         <label className="form-span-2">Payment Notes<input value={paymentForm.notes} onChange={e=>setPaymentForm({...paymentForm,notes:e.target.value})} placeholder="Optional notes"/></label>
       </div>
+    </Modal>
+
+    <Modal open={repairOpen} title="Repair Historical Payroll Week" subtitle="Rebuild one damaged Monday-Sunday week from source records before replacing corrupted weekly history." onClose={()=>setRepairOpen(false)} footer={<><button className="secondary-action" onClick={()=>setRepairOpen(false)}>Cancel</button><button className="primary-button" disabled={repairSaving || !repairPreview?.rows?.length || repairPreview?.reviewCount>0} onClick={applyHistoricalRepair}>{repairSaving?'Repairing...':'Apply Repair'}</button></>}>
+      <div className="form-grid weekly-payroll-form">
+        <label>Week Starts Monday<input type="date" value={repairStart} onChange={e=>{const start=e.target.value;setRepairStart(start);setRepairEnd(endOfPayrollWeek(start))}}/></label>
+        <label>Week Ends Sunday<input type="date" value={repairEnd} onChange={e=>setRepairEnd(e.target.value)}/></label>
+      </div>
+      <div className={`weekly-range-status ${isMondayToSunday(repairStart,repairEnd)?'valid':'invalid'}`}>{isMondayToSunday(repairStart,repairEnd)?`Repair week: ${repairStart} through ${repairEnd}`:'Range must be Monday through Sunday.'}</div>
+      {!repairPreview ? <div className="records-empty">No repair preview available for this week.</div> : <>
+        <div className="payroll-tab-panel"><div><strong>Repair Preview</strong><small>{repairPreview.rows.length} Sunday payroll records · Check {formatMoney(repairPreview.checkTotal)} · Kitchen/Cash {formatMoney(repairPreview.kitchenTotal)} · Corrected Total {formatMoney(repairPreview.total)}</small><small>Existing corrupted weekly rows total {formatMoney(repairPreview.existingWeeklyTotal)} · Duplicate inflation removed {formatMoney(repairPreview.duplicateInflationRemoved)}</small></div></div>
+        {repairPreview.reviewCount>0 && <div className="weekly-range-status invalid">{repairPreview.reviewCount} kitchen record(s) need review. Repair is blocked until their historical components are clear.</div>}
+        <div className="weekly-preview">{repairPreview.rows.map(row=><div className="weekly-preview-row" key={row.id}><span><strong>{row.employee_name}</strong><small>{row.source==='kitchen-weekly'?'Kitchen/Cash':'Imported shifts'} · Sunday {repairEnd}{row.extra_pay?` · Base ${formatMoney(row.regular_pay)} + Extra ${formatMoney(row.extra_pay)}`:''}</small></span><span>{Number(row.hours||0).toFixed(1)} hrs</span><b>{formatMoney(row.total_pay ?? row.total)}</b></div>)}</div>
+      </>}
     </Modal>
 
     <Modal open={weekOpen} title="Build Weekly Payroll" subtitle="Select a Monday through Sunday range. One payroll row per employee will be dated on Sunday." onClose={() => setWeekOpen(false)} footer={<><button className="secondary-action" onClick={()=>setWeekOpen(false)}>Cancel</button><button className="primary-button" disabled={savingPayroll} onClick={createWeeklyPayroll}>{savingPayroll?'Saving Payroll...':'Create & Save Weekly Payroll'}</button></>}>

@@ -47,7 +47,8 @@
     "test:rc393": "node scripts/test-rc393-payroll-history-dedupe.mjs",
     "test:rc394": "node scripts/test-rc394-payroll-delete-precision.mjs",
     "test:rc395": "node scripts/test-rc395-weekly-payroll-truncation.mjs",
-    "test:rc396": "node scripts/test-rc396-payroll-rebuild.mjs"
+    "test:rc396": "node scripts/test-rc396-payroll-rebuild.mjs",
+    "test:rc397": "node scripts/test-rc397-historical-payroll-repair.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
