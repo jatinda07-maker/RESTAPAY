@@ -1,5 +1,6 @@
 const num = value => Number(String(value ?? '').replace(/[$,%]/g, '').trim()) || 0
 export const roundPayroll = value => Math.round((num(value) + Number.EPSILON) * 100) / 100
+export const truncatePayroll = value => Math.trunc((num(value) + Number.EPSILON) * 100) / 100
 
 const firstPresentAmount = (row = {}, keys = []) => {
   for (const key of keys) {
@@ -17,10 +18,12 @@ export const TIPS_WITHHOLDING_RATE = 0.035
 
 export const tipsWithheld = row => {
   const gross = storedGrossTips(row)
-  if (gross !== null) return roundPayroll(Math.max(0, gross) * TIPS_WITHHOLDING_RATE)
+  // Keep withholding precision internally. The displayed currency can still show 2 decimals,
+  // but net payroll/check payment is truncated from the full-precision calculation.
+  if (gross !== null) return Math.max(0, gross) * TIPS_WITHHOLDING_RATE
 
   const explicit = storedWithheldTips(row)
-  if (explicit !== null) return roundPayroll(Math.max(0, explicit))
+  if (explicit !== null) return Math.max(0, explicit)
 
   const net = storedNetTips(row)
   if (net === null) return 0
@@ -29,10 +32,10 @@ export const tipsWithheld = row => {
 
 export const netTips = row => {
   const gross = storedGrossTips(row)
-  if (gross !== null) return roundPayroll(Math.max(0, gross - tipsWithheld(row)))
+  if (gross !== null) return truncatePayroll(Math.max(0, gross - tipsWithheld(row)))
 
   const stored = storedNetTips(row)
-  if (stored !== null) return roundPayroll(Math.max(0, stored))
+  if (stored !== null) return truncatePayroll(Math.max(0, stored))
 
   return 0
 }
@@ -53,7 +56,7 @@ export const payrollTotal = row => {
   const extraPay = num(row.extra_pay)
 
   // Restaurant rule: tipped employees are paid net tips plus approved extra pay.
-  if (isTippedRow(row)) return roundPayroll(netTips(row) + extraPay)
+  if (isTippedRow(row)) return truncatePayroll(netTips(row) + extraPay)
 
   // Preserve an explicitly approved final amount when supplied by a manual row.
   const explicitTotal = firstPresentAmount(row, ['total_pay', 'total'])

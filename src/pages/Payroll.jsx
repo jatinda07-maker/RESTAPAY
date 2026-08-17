@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Banknote, CalendarRange, ChefHat, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy,
-  Edit2, Eye, FileUp, Filter, Plus, Save, Search, Trash2, Users, WalletCards
+  Edit2, Eye, FileUp, Filter, Plus, RotateCcw, Save, Search, Trash2, Users, WalletCards
 } from 'lucide-react'
 import DateToolbar from '../components/DateToolbar'
 import DetailDrawer from '../components/DetailDrawer'
@@ -14,6 +14,8 @@ import usePersistentState from '../hooks/usePersistentState'
 import useCrudCollection from '../hooks/useCrudCollection'
 import { useFeedback } from '../components/AppFeedback'
 import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
+
+const truncatePayrollPayment = value => Math.trunc(((Number(String(value ?? 0).replace(/[$,%(),]/g,'')) || 0) + Number.EPSILON) * 100) / 100
 
 const addDays = (value, days) => {
   if (!value) return ''
@@ -254,8 +256,8 @@ export default function Payroll(){
   const saveManual = async () => {
     if (!manualForm.employee_name.trim()) return notify('Employee name is required.', 'error')
     const tips=Number(manualForm.credit_card_tips||0)
-    const withheld = Math.round(tips * 0.035 * 100) / 100
-    const netTips = Math.round((tips - withheld) * 100) / 100
+    const withheld = tips * 0.035
+    const netTips = truncatePayrollPayment(tips - withheld)
     const manualStatus=String(manualForm.payment_status || 'Draft').trim()
     const paidNow=manualStatus.toLowerCase() === 'paid'
     const changedAt=new Date().toISOString()
@@ -297,18 +299,40 @@ export default function Payroll(){
     }
   }
 
-  const removeRow = async raw => {
-    if (!window.confirm(`Delete payroll entry for ${raw.employee_name || raw.employee}?`)) return
+  const undoPaidRow = async raw => {
+    if (!window.confirm(`Remove ${raw.employee_name || raw.employee} from Payroll History and return the source labor to an editable state?`)) return
     const duplicateKey = payrollDuplicateKey(raw)
     try {
       await setSourceRows(prev => {
-        const matchingRows = prev.filter(item => payrollDuplicateKey(item) === duplicateKey)
-        const restoreIds = new Set(matchingRows.flatMap(item => item.weekly_rollup ? (item.source_ids || []) : []))
-        return prev.filter(item => payrollDuplicateKey(item) !== duplicateKey).map(item => restoreIds.has(item.id)
-          ? { ...item, payroll_status:'', included_in_weekly_end:'' }
-          : item)
+        const matches = prev.filter(item => payrollDuplicateKey(item) === duplicateKey)
+        const sourceIds = new Set(matches.flatMap(item => item.weekly_rollup ? (item.source_ids || []) : []))
+        const matchIds = new Set(matches.map(item => String(item.id)))
+        return prev
+          .filter(item => !matchIds.has(String(item.id)))
+          .map(item => sourceIds.has(String(item.id))
+            ? { ...item, payment_status:'Ready to Pay', paid_history:false, paid_at:null, payment_date:null, payroll_status:'', included_in_weekly_end:'', updated_at:new Date().toISOString() }
+            : item)
       })
-      notify(raw.weekly_rollup ? 'Weekly payroll and duplicate copies deleted; daily entries restored.' : 'Payroll entry and duplicate copies deleted from Supabase.')
+      notify('Paid history removed and source labor restored.')
+    } catch (error) {
+      notify(error?.message || 'Paid history could not be removed from Supabase.', 'error')
+    }
+  }
+
+  const removeRow = async raw => {
+    const isAdmin = (localStorage.getItem('restapay-current-role') || 'admin') === 'admin'
+    if (activeTab === 'Payroll History' && !isAdmin) return notify('Only Admin can permanently delete paid payroll records.', 'error')
+    const sourceIds = new Set((raw.weekly_rollup ? (raw.source_ids || []) : []).map(String))
+    const duplicateKey = payrollDuplicateKey(raw)
+    if (!window.confirm(activeTab === 'Payroll History'
+      ? `Permanently delete ${raw.employee_name || raw.employee} payroll from Supabase? This also deletes the source payroll rows used by this paid record and cannot be undone.`
+      : `Delete payroll entry for ${raw.employee_name || raw.employee}?`)) return
+    try {
+      await setSourceRows(prev => {
+        const withoutDuplicates = prev.filter(item => payrollDuplicateKey(item) !== duplicateKey)
+        return withoutDuplicates.filter(item => !sourceIds.has(String(item.id)))
+      })
+      notify(activeTab === 'Payroll History' ? 'Payroll record and linked source rows permanently deleted from Supabase.' : 'Payroll entry and duplicate copies deleted from Supabase.')
     } catch (error) {
       notify(error?.message || 'Payroll entry could not be deleted from Supabase.', 'error')
     }
@@ -754,7 +778,8 @@ export default function Payroll(){
                 <button title="Edit all payroll fields" onClick={()=>openEdit(r)}><Edit2 size={14}/></button>
                 {activeTab==='Ready to Pay' && <button className="pay-action" title="Record Check, Cash, or ACH payment" onClick={()=>openPayment(r)}><WalletCards size={14}/></button>}
                 <button title="Duplicate" onClick={()=>duplicateRow(r)}><Copy size={14}/></button>
-                <button className="danger" title="Delete" onClick={()=>removeRow(r)}><Trash2 size={14}/></button>
+                {activeTab==='Payroll History' && <button title="Undo Paid / restore source labor" onClick={()=>undoPaidRow(r)}><RotateCcw size={14}/></button>}
+                <button className="danger" title={activeTab==='Payroll History'?'Permanently delete payroll record and linked source rows':'Delete'} onClick={()=>removeRow(r)}><Trash2 size={14}/></button>
               </div></td>
             </tr>)}</tbody>
           </table>
