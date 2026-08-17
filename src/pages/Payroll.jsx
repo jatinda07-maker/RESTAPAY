@@ -23,6 +23,26 @@ const addDays = (value, days) => {
   return date.toISOString().slice(0,10)
 }
 
+const payrollDuplicateKey = row => {
+  const textValue = value => String(value ?? '').trim().toLowerCase()
+  const num = value => (Number(String(value ?? 0).replace(/[$,%(),]/g,'')) || 0)
+  const sourceIds = Array.isArray(row?.source_ids) ? [...row.source_ids].map(String).sort().join(',') : ''
+  const employee = textValue(row?.employee_id || row?.employee_name || row?.employee)
+  const date = textValue(row?.payroll_date || row?.pay_date || row?.date)
+  if (sourceIds) return `rollup|${employee}|${textValue(row?.payroll_week_start || row?.week_start)}|${textValue(row?.payroll_week_end || row?.week_end)}|${sourceIds}`
+  return `entry|${employee}|${date}|${textValue(row?.source || row?.source_type || row?.group_name)}|${textValue(row?.payment_method || row?.method)}|${num(row?.hours).toFixed(4)}|${num(row?.regular_pay ?? row?.base_pay).toFixed(2)}|${num(row?.original_tips ?? row?.credit_card_tips).toFixed(2)}|${num(row?.extra_pay).toFixed(2)}`
+}
+
+const dedupePayrollForDisplay = rows => {
+  const seen = new Set()
+  return (Array.isArray(rows) ? rows : []).filter(row => {
+    const key = payrollDuplicateKey(row)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 const emptyForm = {
   employee_id:'', employee_name:'', pay_date:new Date().toISOString().slice(0,10), job_type:'Kitchen', hours:'', regular_pay:'',
   credit_card_tips:'', tip_deduction:'', tips_after_withholding:'', extra_pay:'', extra_reason:'',
@@ -91,7 +111,7 @@ export default function Payroll(){
     if (status === 'paid' || status === 'void') return false
     return Boolean(row.weekly_rollup) || ['ready','ready to pay','approved','pending'].includes(status)
   }).map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
-  const paidRows = useMemo(() => allSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid').map(enrichPayrollRow), [allSourceRows, employeeById, employeeByName])
+  const paidRows = useMemo(() => dedupePayrollForDisplay(allSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid')).map(enrichPayrollRow), [allSourceRows, employeeById, employeeByName])
   const payableRows = useMemo(() => [...new Map([...readyRows, ...paidRows, ...manualRows].map(row => [row.id, row])).values()], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
   const payrollSummary = useMemo(() => summarizePayroll(payableRows), [payableRows])
@@ -277,15 +297,21 @@ export default function Payroll(){
     }
   }
 
-  const removeRow = raw => {
+  const removeRow = async raw => {
     if (!window.confirm(`Delete payroll entry for ${raw.employee_name || raw.employee}?`)) return
-    setSourceRows(prev => {
-      const sourceIds = new Set(raw.source_ids || [])
-      return prev.filter(item => item.id !== raw.id).map(item => sourceIds.has(item.id)
-        ? { ...item, payroll_status:'', included_in_weekly_end:'' }
-        : item)
-    })
-    notify(raw.weekly_rollup ? 'Weekly payroll deleted and daily entries restored.' : 'Payroll entry deleted.')
+    const duplicateKey = payrollDuplicateKey(raw)
+    try {
+      await setSourceRows(prev => {
+        const matchingRows = prev.filter(item => payrollDuplicateKey(item) === duplicateKey)
+        const restoreIds = new Set(matchingRows.flatMap(item => item.weekly_rollup ? (item.source_ids || []) : []))
+        return prev.filter(item => payrollDuplicateKey(item) !== duplicateKey).map(item => restoreIds.has(item.id)
+          ? { ...item, payroll_status:'', included_in_weekly_end:'' }
+          : item)
+      })
+      notify(raw.weekly_rollup ? 'Weekly payroll and duplicate copies deleted; daily entries restored.' : 'Payroll entry and duplicate copies deleted from Supabase.')
+    } catch (error) {
+      notify(error?.message || 'Payroll entry could not be deleted from Supabase.', 'error')
+    }
   }
 
   const duplicateRow = raw => {
@@ -622,8 +648,10 @@ export default function Payroll(){
     try {
       await setSourceRows(prev => {
         const selected = prev.filter(item => selectedSet.has(item.id))
-        const restoreIds = new Set(selected.flatMap(item => item.weekly_rollup ? (item.source_ids || []) : []))
-        return prev.filter(item => !selectedSet.has(item.id)).map(item => restoreIds.has(item.id) ? {...item,payroll_status:'',included_in_weekly_end:''} : item)
+        const duplicateKeys = new Set(selected.map(payrollDuplicateKey))
+        const selectedAndDuplicates = prev.filter(item => duplicateKeys.has(payrollDuplicateKey(item)))
+        const restoreIds = new Set(selectedAndDuplicates.flatMap(item => item.weekly_rollup ? (item.source_ids || []) : []))
+        return prev.filter(item => !duplicateKeys.has(payrollDuplicateKey(item))).map(item => restoreIds.has(item.id) ? {...item,payroll_status:'',included_in_weekly_end:''} : item)
       })
       setSelectedRowIds([])
       notify(`${count} payroll entr${count===1?'y':'ies'} deleted from Supabase.`)

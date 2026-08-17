@@ -43,7 +43,8 @@
     "test:rc383": "node scripts/test-rc383-admin-nav-report-subtotals.mjs",
     "test:rc39": "node scripts/test-rc39-kpi-vendor-intelligence.mjs",
     "test:rc391": "node scripts/test-rc391-kpi-drilldown-audit.mjs",
-    "test:rc392": "node scripts/test-rc392-invoice-kpi-semantic.mjs"
+    "test:rc392": "node scripts/test-rc392-invoice-kpi-semantic.mjs",
+    "test:rc393": "node scripts/test-rc393-payroll-history-dedupe.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

@@ -6,6 +6,35 @@ const money = value => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 const text = value => String(value ?? '').trim()
 const normalizeJob = value => /^(server|waitress)$/i.test(text(value)) ? 'Waiter' : text(value)
 
+const payrollIdentity = row => {
+  const employee = text(row?.employee_id || row?.employee_name || row?.employee).toLowerCase()
+  const date = text(row?.payroll_date || row?.pay_date || row?.date)
+  const weekStart = text(row?.week_start || row?.payroll_week_start)
+  const weekEnd = text(row?.week_end || row?.payroll_week_end)
+  const sourceIds = Array.isArray(row?.source_ids) ? [...row.source_ids].map(String).sort().join(',') : ''
+  const source = text(row?.source || row?.source_type || row?.group_name).toLowerCase()
+  const method = text(row?.payment_method || row?.method).toLowerCase()
+  const hours = money(row?.hours).toFixed(4)
+  const regularPay = money(row?.regular_pay ?? row?.base_pay).toFixed(2)
+  const tips = money(row?.original_tips ?? row?.credit_card_tips).toFixed(2)
+  const extraPay = money(row?.extra_pay).toFixed(2)
+  if (sourceIds) return `rollup|${employee}|${weekStart}|${weekEnd}|${sourceIds}`
+  return `entry|${employee}|${date}|${source}|${method}|${hours}|${regularPay}|${tips}|${extraPay}`
+}
+
+const dedupePayrollRows = rows => {
+  const seen = new Map()
+  ;(Array.isArray(rows) ? rows : []).filter(Boolean).forEach(row => {
+    const key = payrollIdentity(row)
+    const existing = seen.get(key)
+    if (!existing) { seen.set(key, row); return }
+    const existingUpdated = text(existing.updated_at || existing.paid_at || existing.created_at)
+    const rowUpdated = text(row.updated_at || row.paid_at || row.created_at)
+    if (rowUpdated >= existingUpdated) seen.set(key, row)
+  })
+  return [...seen.values()]
+}
+
 const configs = {
   'restapay-invoices': { table: 'invoices' },
   'restapay-employees': {
@@ -145,15 +174,36 @@ export async function ensureLiveCollection(key){
     let rows
     if(key==='restapay-invoices') rows=await loadInvoices()
     else {const cfg=configs[key];const {data,error}=await supabase.from(cfg.table).select('*');if(error){if(OPTIONAL_TABLE_KEYS.has(key)&&isMissingTableError(error)){console.warn(`Optional Supabase table ${cfg.table} is unavailable; using an empty collection.`);rows=[]}else throw error}else rows=(data||[]).map(cfg.fromDb)}
-    rows=normalizeCollectionRows(rows,key);cache.set(key,rows);emit(key);return rows
+    rows=normalizeCollectionRows(rows,key);if(key==='restapay-payroll') rows=dedupePayrollRows(rows);cache.set(key,rows);emit(key);return rows
   })().catch(error=>{ready.delete(key);console.error(`Unable to load ${key}`,error);window.dispatchEvent(new CustomEvent('restapay:cloud-error',{detail:{key,message:error.message}}));throw error})
   ready.set(key,promise);return promise
+}
+
+
+async function syncPayrollCollection(currentRows,nextRows){
+  const current = dedupePayrollRows(currentRows)
+  const next = dedupePayrollRows(nextRows)
+  const nextIds = new Set(next.map(r=>String(r.id)).filter(Boolean))
+  const removedIds = current.map(r=>String(r.id)).filter(Boolean).filter(id=>!nextIds.has(id))
+  if(removedIds.length){
+    for(let i=0;i<removedIds.length;i+=100){
+      const {error}=await supabase.from('payroll_entries').delete().in('id',removedIds.slice(i,i+100))
+      if(error) throw error
+    }
+  }
+  if(next.length){
+    const payload = next.map(configs['restapay-payroll'].toDb)
+    const {error}=await supabase.from('payroll_entries').upsert(payload,{onConflict:'id'})
+    if(error) throw error
+  }
+  return next
 }
 
 export async function replaceLiveCollection(key,nextOrUpdater){
   await ensureLiveCollection(key)
   const current=cache.get(key)||[]
-  const next=typeof nextOrUpdater==='function'?nextOrUpdater(current):nextOrUpdater
+  let next=typeof nextOrUpdater==='function'?nextOrUpdater(current):nextOrUpdater
+  if(key==='restapay-payroll') next=dedupePayrollRows(next)
   const role=typeof localStorage!=='undefined'?(localStorage.getItem('restapay-current-role')||'admin'):'admin'
   if(role==='manager'){
     const allowed=new Set(['restapay-invoices','restapay-invoice-approvals','restapay.sales'])
@@ -168,6 +218,7 @@ export async function replaceLiveCollection(key,nextOrUpdater){
   cache.set(key,Array.isArray(next)?next:[]);emit(key)
   try{
     if(key==='restapay-invoices') await saveInvoices(cache.get(key))
+    else if(key==='restapay-payroll') { const synced=await syncPayrollCollection(current,cache.get(key)); cache.set(key,synced) }
     else {const cfg=configs[key];await syncExact(cfg.table,cache.get(key).map(cfg.toDb))}
     window.dispatchEvent(new CustomEvent('restapay:cloud-status',{detail:{status:'saved',key}}))
   }catch(error){console.error(`Unable to save ${key}`,error);await reloadLiveCollection(key);window.dispatchEvent(new CustomEvent('restapay:cloud-error',{detail:{key,message:error.message}}));throw error}
