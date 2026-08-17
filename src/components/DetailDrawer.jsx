@@ -102,6 +102,22 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
     'Kitchen Staff': ['Kitchen / BOH employee profiles', [{title:'Kitchen / BOH',rows:employees.filter(r=>payrollCostClass(r)==='operating-labor').map(r=>[r.name||r.employee_name||'Employee',r.job||r.job_type||'Kitchen','BOH']),total:['Kitchen / BOH',String(employees.filter(r=>payrollCostClass(r)==='operating-labor').length)]}]],
     'Front of House': ['Waiter and Bartender employee profiles', [{title:'Front of House',rows:employees.filter(r=>payrollCostClass(r)==='front-of-house').map(r=>[r.name||r.employee_name||'Employee',r.job||r.job_type||'FOH','FOH']),total:['Front of House',String(employees.filter(r=>payrollCostClass(r)==='front-of-house').length)]}]],
     'Active Employees': ['Current employee records', [{title:'Employees',rows:[['Active Employees',`${employees.filter(r=>r.status!=='Inactive').length} active`,'Current'],['Total Employees',`${employees.length} records`,String(employees.length)]],total:['Employee Count',String(employees.length)]}]],
+    'Total Payments': ['All check, ACH and bank-payment records for the selected period', [{title:'Bank & Check Payments',rows:[['Total Payments','Use Entries for exact transactions','Selected period']],total:['Status','Exact records attached by Bank & Checks']}]],
+    'Cleared': ['Cleared bank/check payments for the selected period', [{title:'Cleared Payments',rows:[['Cleared','Use Entries for exact cleared transactions','Selected period']],total:['Status','Exact records attached by Bank & Checks']}]],
+    'Pending': ['Pending bank/check payments for the selected period', [{title:'Pending Payments',rows:[['Pending','Use Entries for exact pending transactions','Selected period']],total:['Status','Exact records attached by Bank & Checks']}]],
+    'Entries': ['Recorded bank/check transactions for the selected period', [{title:'Bank & Check Entries',rows:[['Entries','Use Entries for exact transactions','Selected period']],total:['Status','Exact records attached by Bank & Checks']}]],
+    'Sales Imports': ['Sales import activity', [{title:'Sales Imports',rows:[['Sales files','Import Center sales uploads','Live import workflow']],total:['Source','Import Center']}]],
+    'Labor Imports': ['Labor import activity', [{title:'Labor Imports',rows:[['Labor files','Import Center labor uploads','Live import workflow']],total:['Source','Import Center']}]],
+    'Invoice Imports': ['Invoice import activity', [{title:'Invoice Imports',rows:[['Invoice files','AI/manual invoice uploads','Live import workflow']],total:['Source','Import Center']}]],
+    'Completed': ['Completed import activity', [{title:'Completed Imports',rows:[['Completed','Successful reviewed imports','Import Center']],total:['Source','Import Center']}]],
+    'Connection Status': ['Toast integration connection details', [{title:'Toast Connection',rows:[['Connection','Toast integration status','Connected']],total:['Status','Connected']}]],
+    'Last Sales Sync': ['Most recent Toast sales synchronization', [{title:'Sales Sync',rows:[['Sales Sync','Most recent sales synchronization','See Toast jobs table']],total:['Source','Toast Integration']}]],
+    'Last Labor Sync': ['Most recent Toast labor synchronization', [{title:'Labor Sync',rows:[['Labor Sync','Most recent labor synchronization','See Toast jobs table']],total:['Source','Toast Integration']}]],
+    'Pending Jobs': ['Toast jobs waiting to process', [{title:'Pending Toast Jobs',rows:[['Pending Jobs','Waiting Toast jobs','See Toast jobs table']],total:['Source','Toast Integration']}]],
+    'Restaurant Profile': ['Restaurant business identity and profile configuration', [{title:'Restaurant Profile',rows:[['Business Profile','Manage under Settings > Business','Settings']],total:['Action','Open Settings']}]],
+    'Users & Roles': ['User access, roles and Admin security', [{title:'Users & Roles',rows:[['Admin / Manager','Manage permissions, PIN and approvals','Settings']],total:['Action','Open Users & Security']}]],
+    'Data & Backup': ['Supabase connection and data-protection settings', [{title:'Data & Backup',rows:[['Supabase',metrics?.liveConnected===false?'Not configured':'Connected','Live data']],total:['Action','Open Settings']}]],
+    'Notifications': ['Import, payroll and workflow notifications', [{title:'Notifications',rows:[['Notifications','Manage alert preferences','Enabled']],total:['Action','Open Settings']}]],
   }
   const normalizedTitle=String(title||'').trim().toLowerCase()
   const selected=Object.entries(map).find(([key])=>key.trim().toLowerCase()===normalizedTitle)?.[1]
@@ -138,6 +154,7 @@ function entryTriples(rows = [], kind = '') {
     if (kind === 'payroll') return [r.pay_date || r.payroll_date || r.date || '—', `${r.employee_name || r.employee || 'Employee'} · ${r.job_type || r.job || 'Job'} · ${r.payment_method || r.method || 'Method'}`, appMoney2(r._display_amount ?? payrollEntryValue(r))]
     if (kind === 'employee') return [r.created_at ? String(r.created_at).slice(0,10) : '—', `${r.name || r.employee_name || 'Employee'} · ${r.job || r.job_type || 'Job'}`, r.status || 'Active']
     if (kind === 'vendor') return [r.created_at ? String(r.created_at).slice(0,10) : '—', `${r.name || r.vendor_name || 'Vendor'} · ${r.category || 'Other'}`, r.status || (r.is_active === false ? 'Inactive' : 'Active')]
+    if (kind === 'bank') return [r.payment_date || r.date || '—', `${r.payee || 'Payee'} · ${r.type || 'Payment'} · ${r.reference || 'No reference'} · ${r.status || 'Pending'}`, appMoney2(r.amount || 0)]
     return [r.business_date || r.date || '—', `${r.category || r.department || 'Sales'} · ${r.source || 'Toast POS'}`, appMoney2(r.net_sales ?? r.amount ?? r.sales ?? 0)]
   })
 }
@@ -152,10 +169,11 @@ function buildRecentEntries(title, collections, explicitEntries = []) {
   if (Array.isArray(explicitEntries) && explicitEntries.length) {
     const sample = explicitEntries[0] || {}
     const kind = ('employee_name' in sample || 'regular_pay' in sample || 'base_pay' in sample) ? 'payroll'
-      : ('invoice_number' in sample || 'invoice_date' in sample || 'line_total' in sample) ? 'invoice'
+      : ('invoice_number' in sample || 'invoice_date' in sample || 'line_total' in sample || 'purchase_unit' in sample || 'normalized_unit_cost' in sample) ? 'invoice'
+      : ('payee' in sample || 'reference' in sample) ? 'bank'
       : ('expense_date' in sample || 'payment_type' in sample || 'expense_type' in sample) ? 'expense'
       : ('business_date' in sample || 'net_sales' in sample || 'cash_sales' in sample) ? 'sales'
-      : ('vendor_type' in sample || 'expense_type' in sample) ? 'vendor' : 'sales'
+      : ('vendor_type' in sample || 'website' in sample || 'logo_url' in sample) ? 'vendor' : 'sales'
     return entryTriples(explicitEntries, kind)
   }
 
@@ -243,7 +261,9 @@ if (lowerLabel === 'cash expenses') { rows = collections.expenses.filter(r => ex
   else if (/cash withdrawals?/i.test(label)) { rows = collections.expenses.filter(r=>/cash withdrawal|owner withdrawal|cash draw/i.test(`${r.category||''} ${r.type||''} ${r.name||''} ${r.payment_type||''}`)); kind='expense' }
   else if (/price increases?|items increased/i.test(label)) return (metrics.priceComparisons||[]).filter(r=>Number(r.change||0)>0).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.vendor||'Vendor'}`,`${Number(r.change_percent||0).toFixed(1)}%`])
   else if (/items decreased/i.test(label)) return (metrics.priceComparisons||[]).filter(r=>Number(r.change||0)<0).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.vendor||'Vendor'}`,`${Number(r.change_percent||0).toFixed(1)}%`])
-  else if (/compared items/i.test(label)) return (metrics.priceComparisons||[]).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.vendor||'Vendor'}`,appMoney2(r.current_price||0)])
+  else if (/compared items/i.test(label)) return (metrics.priceComparisons||[]).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.vendor||'Vendor'} · ${r.comparison_basis||'unit'}`,appMoney2(r.current_price||0)])
+  else if (/best vendor matches/i.test(label)) return (metrics.priceComparisons||[]).filter(r=>Number(r.vendor_count||0)>1).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · best ${r.best_vendor||'Vendor'} · ${r.comparison_basis||'unit'} · ${r.vendor_count||0} vendors`,appMoney2(r.best_price||0)])
+  else if (/invoice lines/i.test(label)) return (metrics.priceHistory||[]).map(r=>[r.invoice_date||r.date||'—',`${r.item||'Item'} · ${r.vendor||'Vendor'} · ${r.comparison_basis||r.purchase_unit||'unit'}`,appMoney2(r.normalized_unit_cost||r.effective_each_cost||r.unit_cost||r.case_price||0)])
   else if (/unit impact|potential savings/i.test(label)) return (metrics.priceComparisons||[]).map(r=>[r.current_date||r.date||'—',`${r.item||'Item'} · ${r.best_vendor||r.vendor||'Vendor'}`,appMoney2(r.change||r.savings||r.potential_savings||0)])
   else if (lowerLabel === 'total hours') { return allClassifiedPayroll.map(r=>[r.pay_date||r.payroll_date||r.date||'—',`${r.employee_name||r.employee||'Employee'} · ${r.job_type||r.job||'Job'}`,`${Number(r.hours||r.regular_hours||0).toFixed(1)} hrs`]) }
   else if (lowerLabel === 'food sales' && (dc.foodDepartmentRows||dc.foodSalesRows)) { return (dc.foodDepartmentRows?.length?dc.foodDepartmentRows:dc.foodSalesRows||[]).map(r=>[r.business_date||r.date||'Selected period',`${r.category||r.normalizedCategory||r.toastDepartment||'Food Sales'}`,appMoney2(r.salesAmount??r.amount??r.net_sales??0)]) }
@@ -279,11 +299,11 @@ const routeMap = {
   'Food Invoices':'/invoices','Alcohol Invoices':'/invoices','Invoice Total':'/invoices','Open Balance':'/invoices',
   'Vendor Spend':'/vendors','Total Vendors':'/vendors','Inventory Vendors':'/vendors','Expense Vendors':'/vendors',
   'Compared Items':'/vendor-comparison','Best Vendor Matches':'/vendor-comparison','Best Savings':'/vendor-comparison','Matched Sizes':'/vendor-comparison','Potential Savings':'/vendor-comparison','Invoice Lines':'/vendor-comparison',
-  'Items Increased':'/price-increase','Average Increase':'/price-increase','Largest Increase':'/price-increase','Items Decreased':'/price-increase',
+  'Price Increases':'/price-increase','Items Increased':'/price-increase','Average Increase':'/price-increase','Largest Increase':'/price-increase','Items Decreased':'/price-increase','Unit Impact':'/price-increase',
   'Total Employees':'/employees','Active Employees':'/employees','Kitchen Staff':'/employees','Front of House':'/employees','Weekly Base Pay':'/employees',
   'Payroll Total':'/payroll','Cash Payroll':'/payroll','Check Payroll':'/payroll','Total Hours':'/payroll',
   'Total Expenses':'/expenses','Cash Expenses':'/expenses','Check & ACH':'/expenses','Check / ACH':'/expenses','Credit Expenses':'/expenses',
-  'Bank Activity':'/bank-checks','Cleared Payments':'/bank-checks','Pending Payments':'/bank-checks','Checks Issued':'/bank-checks',
+  'Bank Activity':'/bank-checks','Total Payments':'/bank-checks','Cleared':'/bank-checks','Pending':'/bank-checks','Entries':'/bank-checks','Cleared Payments':'/bank-checks','Pending Payments':'/bank-checks','Checks Issued':'/bank-checks',
   'Sales Imports':'/import-center','Labor Imports':'/import-center','Invoice Imports':'/import-center','Completed':'/import-center',
   'Connection Status':'/toast-integration','Last Sales Sync':'/toast-integration','Last Labor Sync':'/toast-integration','Pending Jobs':'/toast-integration',
 }

@@ -41,7 +41,8 @@
     "test:rc381": "node scripts/test-rc381-kpi-labor-reports.mjs",
     "test:rc382": "node scripts/test-rc382-admin-pin-tips-print-roles.mjs",
     "test:rc383": "node scripts/test-rc383-admin-nav-report-subtotals.mjs",
-    "test:rc39": "node scripts/test-rc39-kpi-vendor-intelligence.mjs"
+    "test:rc39": "node scripts/test-rc39-kpi-vendor-intelligence.mjs",
+    "test:rc391": "node scripts/test-rc391-kpi-drilldown-audit.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
