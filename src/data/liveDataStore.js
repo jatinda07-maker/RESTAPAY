@@ -130,8 +130,38 @@ const normalizeCollectionRows = (rows, key) => (Array.isArray(rows) ? rows : [])
 const cache = new Map(Object.keys(configs).map(k=>[k,[]]))
 const ready = new Map()
 const listeners = new Set()
+let realtimeChannel = null
+let realtimeConnectPromise = null
+let invoiceReloadTimer = null
+let lastReconcileAt = 0
 
-function emit(key){ window.dispatchEvent(new CustomEvent('restapay:data-change',{detail:{key,source:'supabase'}})); listeners.forEach(fn=>fn()) }
+function emit(key, source='supabase'){ window.dispatchEvent(new CustomEvent('restapay:data-change',{detail:{key,source}})); listeners.forEach(fn=>fn()) }
+function cloudStatus(status,key,message=''){ if(typeof window!=='undefined') window.dispatchEvent(new CustomEvent('restapay:cloud-status',{detail:{status,key,message}})) }
+function cloudError(key,error){ if(typeof window!=='undefined') window.dispatchEvent(new CustomEvent('restapay:cloud-error',{detail:{key,message:error?.message||String(error||'Unknown Supabase error')}})) }
+function mergeRealtimeRow(key,payload){
+  if(!isLiveKey(key)) return
+  if(key==='restapay-invoices'){
+    clearTimeout(invoiceReloadTimer)
+    invoiceReloadTimer=setTimeout(()=>reloadLiveCollection('restapay-invoices').catch(()=>{}),120)
+    return
+  }
+  const cfg=configs[key]
+  const current=cache.get(key)||[]
+  if(payload.eventType==='DELETE'){
+    const targetId=String(payload.old?.id||'')
+    if(!targetId) return
+    cache.set(key,current.filter(row=>String(row?.id)!==targetId))
+  }else{
+    const raw=payload.new||{}
+    const mapped=normalizeCollectionRows([cfg.fromDb?cfg.fromDb(raw):raw],key)[0]
+    if(!mapped) return
+    const targetId=String(mapped.id||raw.id||'')
+    const next=current.filter(row=>String(row?.id)!==targetId)
+    next.push(mapped)
+    cache.set(key,key==='restapay-payroll'?dedupePayrollRows(next):next)
+  }
+  emit(key,'realtime')
+}
 export const isLiveKey = key => Boolean(configs[key])
 export const getLiveCollection = key => cache.get(key) || []
 export const subscribeLiveData = fn => { listeners.add(fn); return ()=>listeners.delete(fn) }
@@ -175,6 +205,28 @@ async function syncExact(table,rows){
   const stale=(existing||[]).map(r=>String(r.id)).filter(x=>!nextIds.has(x))
   for(let i=0;i<stale.length;i+=100){const {error}=await supabase.from(table).delete().in('id',stale.slice(i,i+100));if(error)throw error}
   if(rows.length){const {error}=await supabase.from(table).upsert(rows,{onConflict:'id'});if(error)throw error}
+}
+
+async function syncRowDiff(key,currentRows,nextRows){
+  const cfg=configs[key]
+  const currentById=new Map((currentRows||[]).filter(r=>r?.id).map(r=>[String(r.id),r]))
+  const nextById=new Map((nextRows||[]).filter(r=>r?.id).map(r=>[String(r.id),r]))
+  const removed=[...currentById.keys()].filter(rowId=>!nextById.has(rowId))
+  const changed=[]
+  for(const [rowId,row] of nextById){
+    const previous=currentById.get(rowId)
+    if(!previous || JSON.stringify(previous)!==JSON.stringify(row)) changed.push(cfg.toDb?cfg.toDb(row):row)
+  }
+  if(removed.length){
+    for(let i=0;i<removed.length;i+=100){
+      const {error}=await supabase.from(cfg.table).delete().in('id',removed.slice(i,i+100))
+      if(error) throw error
+    }
+  }
+  if(changed.length){
+    const {error}=await supabase.from(cfg.table).upsert(changed,{onConflict:'id'})
+    if(error) throw error
+  }
 }
 
 export async function ensureLiveCollection(key){
@@ -239,14 +291,55 @@ export async function replaceLiveCollection(key,nextOrUpdater){
       if(changedExisting||removedExisting) throw new Error('Manager edits to existing invoices must be submitted through Admin Approval.')
     }
   }
-  cache.set(key,Array.isArray(next)?next:[]);emit(key)
+  cache.set(key,Array.isArray(next)?next:[]);emit(key,'optimistic')
+  cloudStatus('saving',key)
   try{
     if(key==='restapay-invoices') await saveInvoices(cache.get(key))
     else if(key==='restapay-payroll') { const synced=await syncPayrollCollection(current,cache.get(key)); cache.set(key,synced) }
-    else {const cfg=configs[key];await syncExact(cfg.table,cache.get(key).map(cfg.toDb))}
-    window.dispatchEvent(new CustomEvent('restapay:cloud-status',{detail:{status:'saved',key}}))
-  }catch(error){console.error(`Unable to save ${key}`,error);await reloadLiveCollection(key);window.dispatchEvent(new CustomEvent('restapay:cloud-error',{detail:{key,message:error.message}}));throw error}
+    else await syncRowDiff(key,current,cache.get(key))
+    cloudStatus('saved',key)
+  }catch(error){
+    console.error(`Unable to save ${key}`,error)
+    cache.set(key,current);emit(key,'rollback')
+    cloudError(key,error)
+    throw error
+  }
 }
 export async function reloadLiveCollection(key){ready.delete(key);return ensureLiveCollection(key)}
+
+export async function connectLiveData(){
+  if(!isSupabaseReady || realtimeChannel) return realtimeChannel
+  if(realtimeConnectPromise) return realtimeConnectPromise
+  realtimeConnectPromise=(async()=>{
+    await initializeLiveData()
+    const tableKeys=new Map()
+    Object.entries(configs).forEach(([key,cfg])=>{ if(cfg?.table) tableKeys.set(cfg.table,key) })
+    let channel=supabase.channel('restapay-live-data',{config:{broadcast:{self:false}}})
+    const subscribedTables=new Set()
+    for(const [table,key] of tableKeys){
+      if(subscribedTables.has(table)) continue
+      subscribedTables.add(table)
+      channel=channel.on('postgres_changes',{event:'*',schema:'public',table},payload=>mergeRealtimeRow(key,payload))
+    }
+    channel=channel.on('postgres_changes',{event:'*',schema:'public',table:'invoice_items'},()=>{
+      clearTimeout(invoiceReloadTimer)
+      invoiceReloadTimer=setTimeout(()=>reloadLiveCollection('restapay-invoices').catch(()=>{}),120)
+    })
+    realtimeChannel=channel.subscribe(status=>{
+      if(status==='SUBSCRIBED') cloudStatus('live','all')
+      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT') cloudError('realtime',new Error(`Supabase realtime ${status.toLowerCase().replace('_',' ')}`))
+    })
+    return realtimeChannel
+  })().finally(()=>{realtimeConnectPromise=null})
+  return realtimeConnectPromise
+}
+
+export async function reconcileLiveData({force=false}={}){
+  const currentTime=Date.now()
+  if(!force && currentTime-lastReconcileAt<60000) return
+  lastReconcileAt=currentTime
+  await Promise.allSettled(Object.keys(configs).map(reloadLiveCollection))
+}
+
 export async function initializeLiveData(){await Promise.allSettled(Object.keys(configs).map(ensureLiveCollection))}
 export function liveSnapshot(){return {sales:getLiveCollection('restapay.sales'),payroll:getLiveCollection('restapay-payroll'),invoices:getLiveCollection('restapay-invoices'),expenses:getLiveCollection('restapay-expenses'),vendors:getLiveCollection('restapay-vendors'),employees:getLiveCollection('restapay-employees'),invoiceApprovals:getLiveCollection('restapay-invoice-approvals'),cashLedger:getLiveCollection('restapay-cash-ledger')}}

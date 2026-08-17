@@ -4,7 +4,7 @@ import { buildPriceHistory, comparePrices, normalizeInvoice } from '../core/engi
 import { buildFinancialMetrics } from '../core/engines/FinancialReconciliation.js'
 import { calculateDepartmentCosts, DEFAULT_ALLOCATION_RULES } from '../core/engines/DepartmentCostEngine.js'
 
-import { liveSnapshot, subscribeLiveData, initializeLiveData, reloadLiveCollection } from '../data/liveDataStore.js'
+import { liveSnapshot, subscribeLiveData, connectLiveData, reconcileLiveData } from '../data/liveDataStore.js'
 import useGlobalDateRange, { inDateRange, normalizeRowDate } from './useGlobalDateRange.js'
 
 const number = (value) => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
@@ -19,15 +19,9 @@ export function useAppData(overrideRange = null) {
   useEffect(() => {
     let active=true
     const refresh=()=>active&&setData(snapshot())
-    const liveKeys=['restapay.sales','restapay-payroll','restapay-invoices','restapay-expenses','restapay-vendors','restapay-employees','restapay-invoice-approvals','restapay-cash-ledger']
-    const refreshFromCloud=async()=>{
-      await initializeLiveData().catch(()=>{})
-      await Promise.allSettled(liveKeys.map(key=>reloadLiveCollection(key)))
-      refresh()
-    }
-    refreshFromCloud()
-    const onFocus=()=>refreshFromCloud()
-    const onVisibility=()=>{ if(document.visibilityState==='visible') refreshFromCloud() }
+    connectLiveData().then(refresh).catch(()=>{})
+    const onFocus=()=>reconcileLiveData().then(refresh).catch(()=>{})
+    const onVisibility=()=>{ if(document.visibilityState==='visible') reconcileLiveData().then(refresh).catch(()=>{}) }
     window.addEventListener('focus',onFocus)
     document.addEventListener('visibilitychange',onVisibility)
     const onLaborClassification=()=>setLaborClassificationVersion(value=>value+1)

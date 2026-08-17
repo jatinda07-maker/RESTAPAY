@@ -49,7 +49,8 @@
     "test:rc395": "node scripts/test-rc395-weekly-payroll-truncation.mjs",
     "test:rc396": "node scripts/test-rc396-payroll-rebuild.mjs",
     "test:rc397": "node scripts/test-rc397-historical-payroll-repair.mjs",
-    "test:rc398": "node scripts/test-rc398-cumulative-fixes.mjs"
+    "test:rc398": "node scripts/test-rc398-cumulative-fixes.mjs",
+    "test:rc399": "node scripts/test-rc399-supabase-live-sync.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
