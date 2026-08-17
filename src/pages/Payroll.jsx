@@ -31,7 +31,7 @@ const payrollDuplicateKey = row => {
   const sourceIds = Array.isArray(row?.source_ids) ? [...row.source_ids].map(String).sort().join(',') : ''
   const employee = textValue(row?.employee_id || row?.employee_name || row?.employee)
   const date = textValue(row?.payroll_date || row?.pay_date || row?.date)
-  if (sourceIds) return `rollup|${employee}|${textValue(row?.payroll_week_start || row?.week_start)}|${textValue(row?.payroll_week_end || row?.week_end)}|${sourceIds}`
+  if (row?.weekly_rollup) return `weekly|${employee}|${textValue(row?.payroll_week_start || row?.week_start)}|${textValue(row?.payroll_week_end || row?.week_end)}|${textValue(row?.source || 'weekly-rollup')}`
   return `entry|${employee}|${date}|${textValue(row?.source || row?.source_type || row?.group_name)}|${textValue(row?.payment_method || row?.method)}|${num(row?.hours).toFixed(4)}|${num(row?.regular_pay ?? row?.base_pay).toFixed(2)}|${num(row?.original_tips ?? row?.credit_card_tips).toFixed(2)}|${num(row?.extra_pay).toFixed(2)}`
 }
 
@@ -48,7 +48,7 @@ const dedupePayrollForDisplay = rows => {
 const emptyForm = {
   employee_id:'', employee_name:'', pay_date:new Date().toISOString().slice(0,10), job_type:'Kitchen', hours:'', regular_pay:'',
   credit_card_tips:'', tip_deduction:'', tips_after_withholding:'', extra_pay:'', extra_reason:'',
-  payment_method:'Cash', check_number:'', ach_reference:'', payment_status:'Draft', payment_date:'',
+  payment_method:'Cash', check_number:'', ach_reference:'', payment_status:'Unpaid', payment_date:'',
   payroll_week_start:'', payroll_week_end:'', group_name:'', notes:''
 }
 
@@ -108,11 +108,8 @@ export default function Payroll(){
 
   const importedRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast').map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
   const manualRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() !== 'toast').map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
-  const readyRows = useMemo(() => scopedSourceRows.filter(row => {
-    const status=String(row.payment_status || 'Draft').trim().toLowerCase()
-    if (status === 'paid' || status === 'void') return false
-    return Boolean(row.weekly_rollup) || ['ready','ready to pay','approved','pending'].includes(status)
-  }).map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
+  const weeklyRows = useMemo(() => dedupePayrollForDisplay(scopedSourceRows.filter(row => row.weekly_rollup && !['paid','void'].includes(String(row.payment_status || '').trim().toLowerCase()))).map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
+  const readyRows = weeklyRows
   const paidRows = useMemo(() => dedupePayrollForDisplay(allSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid')).map(enrichPayrollRow), [allSourceRows, employeeById, employeeByName])
   const payableRows = useMemo(() => [...new Map([...readyRows, ...paidRows, ...manualRows].map(row => [row.id, row])).values()], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
@@ -126,12 +123,12 @@ export default function Payroll(){
 
   const tabRows = useMemo(() => {
     if (activeTab === 'Imported Labor') return importedRows.map(toPayrollViewRow)
-    if (activeTab === 'Ready to Pay') return readyRows.map(toPayrollViewRow)
+    if (activeTab === 'Weekly Payroll') return weeklyRows.map(toPayrollViewRow)
     if (activeTab === 'Payroll History') return paidRows.map(toPayrollViewRow)
     if (activeTab === 'Manual Labor') return manualRows.map(toPayrollViewRow)
     if (activeTab === 'Kitchen') return [...readyRows, ...paidRows, ...manualRows].filter(r => /kitchen|cook|prep|dishwasher|busser/i.test(r.job_type || r.job)).map(toPayrollViewRow)
     return []
-  }, [importedRows, readyRows, paidRows, manualRows, activeTab])
+  }, [importedRows, weeklyRows, paidRows, manualRows, activeTab])
 
   const filtered = useMemo(() => {
     const contains = (value, needle) => !needle || String(value ?? '').toLowerCase().includes(String(needle).toLowerCase().trim())
@@ -282,7 +279,7 @@ export default function Payroll(){
       const status=String(record.payment_status || 'Draft').trim().toLowerCase()
       const savedDate=record.payroll_date || record.pay_date
       const persistPromise = setSourceRows(prev => editingId ? prev.map(item => item.id===editingId ? record : item) : [record,...prev])
-      setActiveTab(status === 'paid' ? 'Payroll History' : ['ready','ready to pay','approved','pending'].includes(status) ? 'Ready to Pay' : 'Manual Labor')
+      setActiveTab(status === 'paid' ? 'Payroll History' : ['unpaid','approved','pending','draft'].includes(status) ? 'Weekly Payroll' : 'Manual Labor')
       setManual(false)
       notify(editingId ? 'Payroll entry updated. Syncing to Supabase…' : 'Manual payroll entry added. Syncing to Supabase…', 'info')
       await persistPromise
@@ -310,7 +307,7 @@ export default function Payroll(){
         return prev
           .filter(item => !matchIds.has(String(item.id)))
           .map(item => sourceIds.has(String(item.id))
-            ? { ...item, payment_status:'Ready to Pay', paid_history:false, paid_at:null, payment_date:null, payroll_status:'', included_in_weekly_end:'', updated_at:new Date().toISOString() }
+            ? { ...item, payment_status:'Unpaid', paid_history:false, paid_at:null, payment_date:null, payroll_status:'', included_in_weekly_end:'', updated_at:new Date().toISOString() }
             : item)
       })
       notify('Paid history removed and source labor restored.')
@@ -360,7 +357,7 @@ export default function Payroll(){
     if (paymentForm.payment_method === 'Check' && !paymentForm.check_number.trim()) return notify('Enter a check number.', 'error')
     if (paymentForm.payment_method === 'ACH' && !paymentForm.ach_reference.trim()) return notify('Enter an ACH reference.', 'error')
     try {
-      const targetTab = paymentForm.payment_status === 'Paid' ? 'Payroll History' : 'Ready to Pay'
+      const targetTab = paymentForm.payment_status === 'Paid' ? 'Payroll History' : 'Weekly Payroll'
       const persistPromise = setSourceRows(prev => prev.map(row => row.id === paymentId ? {
       ...row, method:paymentForm.payment_method, payment_method:paymentForm.payment_method,
       check_number:paymentForm.payment_method === 'Check' ? paymentForm.check_number : '',
@@ -445,7 +442,7 @@ export default function Payroll(){
         ))
         const normalized = weeklyRows.map(row => normalizePayrollRecord({
           ...row,
-          payment_status:'Draft', payment_date:'', check_number:'', ach_reference:'',
+          payment_status:'Unpaid', payment_date:'', check_number:'', ach_reference:'',
           week_start:kitchenWeekStart, week_end:kitchenWeekEnd,
           payroll_week_start:kitchenWeekStart, payroll_week_end:kitchenWeekEnd
         }, { source:'kitchen-weekly', method:row.method || 'Cash' }))
@@ -460,7 +457,7 @@ export default function Payroll(){
           to:range?.to && range.to > savedKitchenDate ? range.to : savedKitchenDate
         })
       }
-      setActiveTab('Ready to Pay')
+      setActiveTab('Weekly Payroll')
       notify(`${weeklyRows.length} kitchen payroll records created and saved to Supabase for week ending ${kitchenWeekEnd}.`)
     } catch (error) {
       notify(`Kitchen payroll save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
@@ -564,10 +561,10 @@ export default function Payroll(){
       const marked = withoutExistingWeek.map(row => sourceIds.has(row.id)
         ? { ...row, payroll_status:'rolled-up', included_in_weekly_end:weekEnd }
         : row)
-      return [...weeklyRows.map(row => normalizePayrollRecord({...row,payment_status:'Draft',payment_date:'',check_number:'',ach_reference:''}, { source:'weekly-rollup', method:'Check' })), ...marked]
+      return [...weeklyRows.map(row => normalizePayrollRecord({...row,payment_status:'Unpaid',payment_date:'',check_number:'',ach_reference:''}, { source:'weekly-rollup', method:'Check' })), ...marked]
       })
       setWeekOpen(false)
-      setActiveTab('Ready to Pay')
+      setActiveTab('Weekly Payroll')
       notify(`${weeklyRows.length} employee payroll records created and saved to Supabase for week ending ${weekEnd}.`)
     } catch (error) {
       notify(`Weekly payroll save failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error')
@@ -609,6 +606,23 @@ export default function Payroll(){
     } finally {
       setSavingPayroll(false)
     }
+  }
+
+  const markWeeklyPaidByMethod = async (methodFilter = 'All') => {
+    const targets = weeklyRows.filter(row => methodFilter === 'All' || String(row.payment_method || row.method || '').toLowerCase() === methodFilter.toLowerCase())
+    if (!targets.length) return notify(`No ${methodFilter === 'All' ? '' : methodFilter + ' '}weekly payroll records to mark paid.`, 'error')
+    const ids = new Set(targets.map(row => String(row.id)))
+    const paidAt = new Date().toISOString()
+    try {
+      setSavingPayroll(true)
+      await setSourceRows(prev => prev.map(row => ids.has(String(row.id)) ? {
+        ...row, payment_status:'Paid', payment_date:row.payroll_week_end || row.week_end || row.payroll_date || row.pay_date,
+        paid_history:true, paid_at:row.paid_at || paidAt, status_updated_at:paidAt, status_updated_via:'weekly-direct-paid', updated_at:paidAt
+      } : row))
+      setActiveTab('Payroll History')
+      notify(`${targets.length} ${methodFilter === 'All' ? '' : methodFilter + ' '}payroll record${targets.length===1?'':'s'} marked Paid.`)
+    } catch (error) { notify(`Payroll payment update failed: ${error?.message || 'Unable to save to Supabase.'}`, 'error') }
+    finally { setSavingPayroll(false) }
   }
 
   const openGroupBuilder = (group=null) => {
@@ -715,7 +729,7 @@ export default function Payroll(){
       </header>
 
       <div className="payroll-tabs">
-        {['Imported Labor','Ready to Pay','Payroll History','Manual Labor','Payroll Groups','Kitchen'].map(tab =>
+        {['Imported Labor','Weekly Payroll','Payroll History','Manual Labor','Payroll Groups','Kitchen'].map(tab =>
           <button key={tab} className={activeTab===tab?'active':''} onClick={() => setActiveTab(tab)}>{tab}</button>
         )}
       </div>
@@ -725,7 +739,7 @@ export default function Payroll(){
         {safeGroups.length===0 ? <div className="records-empty">No payroll groups created.</div> : safeGroups.map(group=>{const count=(group.memberIds||group.member_ids||group.employees||[]).length;return <div className="payroll-group-row" key={group.id}><span><strong>{group.name}</strong><small>{group.type} · {count} employee{count===1?'':'s'}</small></span><div className="row-actions"><button title="Edit group" onClick={()=>openGroupBuilder(group)}><Edit2 size={14}/></button><button className="danger" title="Delete group" onClick={()=>deleteGroup(group.id)}><Trash2 size={14}/></button></div></div>})}
       </div>}
       {activeTab==='Imported Labor' && <div className="payroll-tab-panel"><div><strong>Imported Daily Labor</strong><small>Daily Toast source entries used to build weekly payroll. These stay separate for audit.</small></div><button className="soft-action soft-blue" onClick={()=>setImportOpen(true)}><FileUp size={16}/>Import More Labor</button></div>}
-      {activeTab==='Ready to Pay' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll Ready to Pay</strong><small>Created weekly payroll saved in Supabase and awaiting Check, Cash, or ACH payment.</small></div><div className="records-actions"><button className="soft-action soft-green" disabled={!readyRows.length || savingPayroll} onClick={saveReadyPayroll}><Save size={16}/>{savingPayroll?'Saving...':'Save Payroll'}</button><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div></div>}
+      {activeTab==='Weekly Payroll' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll</strong><small>One combined payable entry per employee for the Monday-Sunday week, dated Sunday. Imported shifts remain audit-only.</small></div><div className="records-actions"><button className="soft-action soft-green" disabled={savingPayroll || !weeklyRows.some(r=>String(r.payment_method||r.method).toLowerCase()==='cash')} onClick={()=>markWeeklyPaidByMethod('Cash')}><Banknote size={16}/>Mark Cash Paid</button><button className="soft-action soft-purple" disabled={savingPayroll || !weeklyRows.some(r=>String(r.payment_method||r.method).toLowerCase()==='check')} onClick={()=>markWeeklyPaidByMethod('Check')}><WalletCards size={16}/>Mark Checks Paid</button><button className="secondary-action" disabled={savingPayroll || !weeklyRows.length} onClick={()=>markWeeklyPaidByMethod('All')}>Mark All Paid</button><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div></div>}
       {activeTab==='Payroll History' && <div className="payroll-tab-panel"><div><strong>Paid Payroll History</strong><small>Completed weekly payroll payments and full audit details.</small></div></div>}
       {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Create Monday–Sunday weekly payroll from saved employee base pay, then pay by Cash, Check, or ACH.</small></div><div className="records-actions"><button className="soft-action soft-green" onClick={openKitchenWeeklyBuilder}><CalendarRange size={16}/>{latestKitchenWeekEnd?'Build Another Kitchen Week':'Build Weekly Kitchen Payroll'}</button><button className="soft-action soft-purple" onClick={()=>openGroupBuilder()}><ChefHat size={16}/>Manage Kitchen Group</button></div></div>}
       {activeTab==='Manual Labor' && <div className="payroll-tab-panel"><div><strong>Manual Labor Entries</strong><small>Add, edit, duplicate, or delete manually entered payroll.</small></div><button className="soft-action soft-purple" onClick={openAdd}><Plus size={16}/>Add Manual Labor</button></div>}
@@ -734,7 +748,7 @@ export default function Payroll(){
         <div className="records-filterbar payroll-filterbar">
           {selectedRowIds.length>0 && <div className="payroll-bulk-actions">
             <strong>{selectedRowIds.length} selected</strong>
-            <label className="records-select payroll-bulk-select"><select aria-label="Bulk payroll action" value={bulkAction} onChange={e=>setBulkAction(e.target.value)}><option value="">Change Action</option><option>Approved</option><option>Draft</option><option>Paid</option><option>Ready to Pay</option><option>Void</option></select><ChevronDown size={14}/></label>
+            <label className="records-select payroll-bulk-select"><select aria-label="Bulk payroll action" value={bulkAction} onChange={e=>setBulkAction(e.target.value)}><option value="">Change Action</option><option>Approved</option><option>Draft</option><option>Paid</option><option>Void</option></select><ChevronDown size={14}/></label>
             <button className="secondary-action bulk-apply-button" disabled={!bulkAction} onClick={applyBulkAction}>Apply</button>
             <button className="secondary-action danger-action bulk-delete-button" onClick={bulkDeleteRows}><Trash2 size={15}/>Delete Selected</button>
           </div>}
@@ -764,7 +778,7 @@ export default function Payroll(){
                 <th><input aria-label="Filter payroll by net tips" inputMode="decimal" value={columnFilters.netTips} onChange={e=>setColumnFilters({...columnFilters,netTips:e.target.value})} placeholder="Amount"/></th>
                 <th><input aria-label="Filter payroll by final pay" inputMode="decimal" value={columnFilters.finalPay} onChange={e=>setColumnFilters({...columnFilters,finalPay:e.target.value})} placeholder="Amount"/></th>
                 <th><select aria-label="Filter payroll by method" value={columnFilters.method} onChange={e=>setColumnFilters({...columnFilters,method:e.target.value})}><option value="">All</option><option>ACH</option><option>Cash</option><option>Check</option></select></th>
-                <th><select aria-label="Filter payroll by status" value={columnFilters.status} onChange={e=>setColumnFilters({...columnFilters,status:e.target.value})}><option value="">All</option><option value="draft">Draft</option><option value="ready to pay">Ready</option><option value="approved">Approved</option><option value="paid">Paid</option><option value="void">Void</option></select></th>
+                <th><select aria-label="Filter payroll by status" value={columnFilters.status} onChange={e=>setColumnFilters({...columnFilters,status:e.target.value})}><option value="">All</option><option value="draft">Draft</option><option value="approved">Approved</option><option value="paid">Paid</option><option value="void">Void</option></select></th>
               </tr>
             </thead>
             <tbody>{filtered.length===0 ? <tr><td colSpan="12" className="records-empty-cell">No payroll records.</td></tr> : pagedRows.map(r => <tr key={r.id || `${r.date}-${r.employee}`} className={selectedRowIds.includes(r.id)?'row-selected':''}>
@@ -776,7 +790,7 @@ export default function Payroll(){
               <td className="centered"><div className="row-actions compact-actions">
                 <button title="View" onClick={()=>setDrawer(`${r.employee} Payroll`)}><Eye size={14}/></button>
                 <button title="Edit all payroll fields" onClick={()=>openEdit(r)}><Edit2 size={14}/></button>
-                {activeTab==='Ready to Pay' && <button className="pay-action" title="Record Check, Cash, or ACH payment" onClick={()=>openPayment(r)}><WalletCards size={14}/></button>}
+                {activeTab==='Weekly Payroll' && <button className="pay-action" title="Record Check, Cash, or ACH payment" onClick={()=>openPayment(r)}><WalletCards size={14}/></button>}
                 <button title="Duplicate" onClick={()=>duplicateRow(r)}><Copy size={14}/></button>
                 {activeTab==='Payroll History' && <button title="Undo Paid / restore source labor" onClick={()=>undoPaidRow(r)}><RotateCcw size={14}/></button>}
                 <button className="danger" title={activeTab==='Payroll History'?'Permanently delete payroll record and linked source rows':'Delete'} onClick={()=>removeRow(r)}><Trash2 size={14}/></button>
@@ -810,7 +824,7 @@ export default function Payroll(){
         <label>Extra Pay<input type="number" value={manualForm.extra_pay} onChange={e=>setManualForm({...manualForm,extra_pay:e.target.value})} placeholder="0.00"/></label>
         <label>Extra Pay Reason<input value={manualForm.extra_reason||''} onChange={e=>setManualForm({...manualForm,extra_reason:e.target.value})} placeholder="Optional reason"/></label>
         <label>Payment Method<select value={manualForm.payment_method} onChange={e=>setManualForm({...manualForm,payment_method:e.target.value})}><option>Cash</option><option>Check</option><option>ACH</option></select></label>
-        <label>Payment Status<select value={manualForm.payment_status||'Draft'} onChange={e=>setManualForm({...manualForm,payment_status:e.target.value})}><option>Draft</option><option>Ready to Pay</option><option>Approved</option><option>Paid</option><option>Void</option></select></label>
+        <label>Payment Status<select value={manualForm.payment_status||'Draft'} onChange={e=>setManualForm({...manualForm,payment_status:e.target.value})}><option>Draft</option><option>Approved</option><option>Paid</option><option>Void</option></select></label>
         <label>Payment Date<input type="date" value={manualForm.payment_date||''} onChange={e=>setManualForm({...manualForm,payment_date:e.target.value})}/></label>
         <label>Check Number<input value={manualForm.check_number||''} onChange={e=>setManualForm({...manualForm,check_number:e.target.value})} placeholder="For check payments"/></label>
         <label>ACH Reference<input value={manualForm.ach_reference||''} onChange={e=>setManualForm({...manualForm,ach_reference:e.target.value})} placeholder="For ACH payments"/></label>

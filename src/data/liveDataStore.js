@@ -19,7 +19,7 @@ const payrollIdentity = row => {
   const regularPay = money(row?.regular_pay ?? row?.base_pay).toFixed(2)
   const tips = money(row?.original_tips ?? row?.credit_card_tips).toFixed(2)
   const extraPay = money(row?.extra_pay).toFixed(2)
-  if (sourceIds) return `rollup|${employee}|${weekStart}|${weekEnd}|${sourceIds}`
+  if (row?.weekly_rollup) return `weekly|${employee}|${weekStart}|${weekEnd}|${source || 'weekly-rollup'}`
   return `entry|${employee}|${date}|${source}|${method}|${hours}|${regularPay}|${tips}|${extraPay}`
 }
 
@@ -69,7 +69,7 @@ const configs = {
   },
   'restapay-payroll': {
     table:'payroll_entries',
-    fromDb:r=>({ ...r, employee:r.employee_name, job_type:normalizeJob(r.job_type||r.job||''), date:r.payroll_date, base_pay:money(r.regular_pay), original_tips:money(r.original_tips ?? (money(r.tips_after_withheld)+money(r.tips_withheld))), credit_card_tips:money(r.original_tips ?? (money(r.tips_after_withheld)+money(r.tips_withheld))), tip_deduction:money(r.tips_withheld), tips_withheld:money(r.tips_withheld), tips_after_withholding:money(r.tips_after_withheld), tips_after_withheld:money(r.tips_after_withheld), payment_method:r.method||'Cash', final_pay:money(r.total), total_pay:money(r.total), week_start:r.week_start||'', week_end:r.week_end||'', payroll_week_start:r.week_start||'', payroll_week_end:r.week_end||'', payment_status:r.payment_status||'Ready' }),
+    fromDb:r=>({ ...r, employee:r.employee_name, job_type:normalizeJob(r.job_type||r.job||''), date:r.payroll_date, base_pay:money(r.regular_pay), original_tips:money(r.original_tips ?? (money(r.tips_after_withheld)+money(r.tips_withheld))), credit_card_tips:money(r.original_tips ?? (money(r.tips_after_withheld)+money(r.tips_withheld))), tip_deduction:money(r.tips_withheld), tips_withheld:money(r.tips_withheld), tips_after_withholding:money(r.tips_after_withheld), tips_after_withheld:money(r.tips_after_withheld), payment_method:r.method||'Cash', final_pay:money(r.total), total_pay:money(r.total), week_start:r.week_start||'', week_end:r.week_end||'', payroll_week_start:r.week_start||'', payroll_week_end:r.week_end||'', payment_status:r.payment_status||(r.weekly_rollup?'Unpaid':'Source') }),
     toDb:r=>{ const grossTips=money(r.original_tips??r.credit_card_tips); const tipsWithheld=money(grossTips*0.035); const netTips=truncateMoney(grossTips-tipsWithheld); return ({ id:r.id||id(), employee_id:r.employee_id||null, employee_name:text(r.employee_name||r.employee)||'Unknown employee', source:r.source||r.source_type||r.group_name||'Manual', pay_type:r.pay_type||'Hourly', method:r.payment_method||r.method||'Cash', check_number:text(r.check_number), payroll_date:r.payroll_date||r.date||new Date().toISOString().slice(0,10), hours:money(r.hours), regular_pay:money(r.regular_pay??r.base_pay), original_tips:grossTips, tips_after_withheld:netTips, tips_withheld:tipsWithheld, extra_pay:money(r.extra_pay), extra_reason:text(r.extra_reason), total:truncateMoney(r.total_pay??r.final_pay??r.total), group_id:r.group_id||null, group_name:text(r.group_name), week_start:r.week_start||r.payroll_week_start||null, week_end:r.week_end||r.payroll_week_end||null, payment_status:r.payment_status||null, payment_date:r.payment_date||null, ach_reference:text(r.ach_reference), payment_notes:text(r.payment_notes||r.notes), source_ids:Array.isArray(r.source_ids)?r.source_ids:[], rolled_up:Boolean(r.rolled_up), weekly_rollup:Boolean(r.weekly_rollup), created_at:r.created_at||now(), updated_at:now() }) }
   },
   'restapay.sales': {
@@ -175,7 +175,20 @@ export async function ensureLiveCollection(key){
     let rows
     if(key==='restapay-invoices') rows=await loadInvoices()
     else {const cfg=configs[key];const {data,error}=await supabase.from(cfg.table).select('*');if(error){if(OPTIONAL_TABLE_KEYS.has(key)&&isMissingTableError(error)){console.warn(`Optional Supabase table ${cfg.table} is unavailable; using an empty collection.`);rows=[]}else throw error}else rows=(data||[]).map(cfg.fromDb)}
-    rows=normalizeCollectionRows(rows,key);if(key==='restapay-payroll') rows=dedupePayrollRows(rows);cache.set(key,rows);emit(key);return rows
+    rows=normalizeCollectionRows(rows,key);
+    if(key==='restapay-payroll'){
+      const before=rows
+      rows=dedupePayrollRows(rows)
+      const keepIds=new Set(rows.map(r=>String(r.id)))
+      const duplicateIds=before.map(r=>String(r.id)).filter(Boolean).filter(id=>!keepIds.has(id))
+      if(duplicateIds.length){
+        for(let i=0;i<duplicateIds.length;i+=100){
+          const {error:cleanupError}=await supabase.from('payroll_entries').delete().in('id',duplicateIds.slice(i,i+100))
+          if(cleanupError) console.warn('Historical payroll duplicate cleanup could not remove every duplicate.', cleanupError)
+        }
+      }
+    }
+    cache.set(key,rows);emit(key);return rows
   })().catch(error=>{ready.delete(key);console.error(`Unable to load ${key}`,error);window.dispatchEvent(new CustomEvent('restapay:cloud-error',{detail:{key,message:error.message}}));throw error})
   ready.set(key,promise);return promise
 }
