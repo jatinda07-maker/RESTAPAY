@@ -1,4 +1,5 @@
 const money = value => Math.round((Number(value) || 0) * 100) / 100
+const truncateMoney = value => Math.trunc(((Number(value) || 0) + Number.EPSILON) * 100) / 100
 const number = value => Number(String(value ?? '').replace(/[$,%]/g, '').trim()) || 0
 
 export function isoDate(value = '') {
@@ -76,30 +77,42 @@ export function buildWeeklyPayroll(rows = [], { start, end, paymentMethod = 'Che
     if (!current.payment_method) current.payment_method = paymentMethod
     grouped.set(key, current)
   }
-  return Array.from(grouped.values()).map((entry, index) => ({
-    id: `weekly-${end}-${entry.employee_id || employeeKey(entry)}-${index}`,
-    employee_id: entry.employee_id,
-    employee_name: entry.employee_name,
-    job_type: entry.job_type,
-    pay_date: end,
-    payroll_date: end,
-    payroll_week_start: start,
-    payroll_week_end: end,
-    hours: money(entry.hours),
-    regular_pay: money(entry.regular_pay),
-    credit_card_tips: money(entry.credit_card_tips),
-    tip_deduction: money(entry.credit_card_tips * 0.035),
-    tips_withheld: money(entry.credit_card_tips * 0.035),
-    tips_after_withheld: money(entry.credit_card_tips - money(entry.credit_card_tips * 0.035)),
-    extra_pay: money(entry.extra_pay),
-    payment_method: entry.payment_method || paymentMethod,
-    method: entry.payment_method || paymentMethod,
-    source: 'weekly-rollup',
-    weekly_rollup: true,
-    source_ids: entry.source_ids,
-    source_files: Array.from(entry.source_files),
-    notes: `Weekly payroll ${start} through ${end}`,
-  }))
+  return Array.from(grouped.values()).map((entry, index) => {
+    const regularPay = money(entry.regular_pay)
+    const originalTips = money(entry.credit_card_tips)
+    // Keep withholding at full calculation precision. Actual payroll/check payment
+    // is truncated to cents (never rounded up), e.g. 732.4157 -> 732.41.
+    const tipsWithheld = originalTips * 0.035
+    const netTips = truncateMoney(originalTips - tipsWithheld)
+    const extraPay = money(entry.extra_pay)
+    const total = truncateMoney(regularPay + netTips + extraPay)
+    return {
+      id: `weekly-${end}-${entry.employee_id || employeeKey(entry)}-${index}`,
+      employee_id: entry.employee_id,
+      employee_name: entry.employee_name,
+      job_type: entry.job_type,
+      pay_date: end,
+      payroll_date: end,
+      payroll_week_start: start,
+      payroll_week_end: end,
+      hours: money(entry.hours),
+      regular_pay: regularPay,
+      credit_card_tips: originalTips,
+      tip_deduction: money(tipsWithheld),
+      tips_withheld: tipsWithheld,
+      tips_after_withheld: netTips,
+      extra_pay: extraPay,
+      total,
+      total_pay: total,
+      payment_method: entry.payment_method || paymentMethod,
+      method: entry.payment_method || paymentMethod,
+      source: 'weekly-rollup',
+      weekly_rollup: true,
+      source_ids: entry.source_ids,
+      source_files: Array.from(entry.source_files),
+      notes: `Weekly payroll ${start} through ${end}`,
+    }
+  })
 }
 
 

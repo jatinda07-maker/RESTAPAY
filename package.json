@@ -45,7 +45,8 @@
     "test:rc391": "node scripts/test-rc391-kpi-drilldown-audit.mjs",
     "test:rc392": "node scripts/test-rc392-invoice-kpi-semantic.mjs",
     "test:rc393": "node scripts/test-rc393-payroll-history-dedupe.mjs",
-    "test:rc394": "node scripts/test-rc394-payroll-delete-precision.mjs"
+    "test:rc394": "node scripts/test-rc394-payroll-delete-precision.mjs",
+    "test:rc395": "node scripts/test-rc395-weekly-payroll-truncation.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

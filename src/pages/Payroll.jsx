@@ -862,13 +862,13 @@ export default function Payroll(){
           {weeklyAllPreview.map(row => <label key={row.id} className="weekly-employee-option">
             <input type="checkbox" checked={selectedWeeklyEmployees.includes(row.employee_name)} onChange={event=>setSelectedWeeklyEmployees(previous=>event.target.checked?[...new Set([...previous,row.employee_name])]:previous.filter(name=>name!==row.employee_name))}/>
             <span><strong>{row.employee_name}</strong><small>{row.job_type || 'Employee'} · {Number(row.hours||0).toFixed(1)} hrs</small></span>
-            <b>{formatMoney(Number(row.regular_pay||0)+Number(row.credit_card_tips||0)-Number(row.tip_deduction||0)+Number(row.extra_pay||0))}</b>
+            <b>{formatMoney(truncatePayrollPayment(row.total_pay ?? row.total ?? (Number(row.regular_pay||0)+Number(row.tips_after_withheld||0)+Number(row.extra_pay||0))))}</b>
           </label>)}
         </div>}
       </div>
       <div className="weekly-preview">
         <div className="weekly-preview-head"><strong>Weekly Payroll Preview</strong><span>{weeklyPreview.length} selected</span></div>
-        {weeklyAllPreview.length>0 && weeklyPreview.length===0 ? <div className="records-empty">Select at least one employee.</div> : weeklyPreview.map(row=><div className="weekly-preview-row" key={row.id}><span><strong>{row.employee_name}</strong><small>{row.job_type || 'Employee'} · pay date {row.pay_date}</small></span><span>{Number(row.hours||0).toFixed(1)} hrs</span><b>{formatMoney(Number(row.regular_pay||0)+Number(row.credit_card_tips||0)-Number(row.tip_deduction||0)+Number(row.extra_pay||0))}</b></div>)}
+        {weeklyAllPreview.length>0 && weeklyPreview.length===0 ? <div className="records-empty">Select at least one employee.</div> : weeklyPreview.map(row=><div className="weekly-preview-row" key={row.id}><span><strong>{row.employee_name}</strong><small>{row.job_type || 'Employee'} · pay date {row.pay_date}</small></span><span>{Number(row.hours||0).toFixed(1)} hrs</span><b>{formatMoney(truncatePayrollPayment(row.total_pay ?? row.total ?? (Number(row.regular_pay||0)+Number(row.tips_after_withheld||0)+Number(row.extra_pay||0))))}</b></div>)}
       </div>
     </Modal>
 
