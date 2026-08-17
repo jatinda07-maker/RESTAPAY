@@ -9,11 +9,12 @@ import Modal from '../components/Modal'
 import ToastReportImport from '../components/ToastReportImport'
 import { formatMoney, summarizePayroll, toPayrollViewRow } from '../core/adapters/payrollAdapter.js'
 import { normalizePayrollRecord, normalizePayrollRecords } from '../core/adapters/payrollSchemaAdapter.js'
-import { buildHistoricalPayrollRepair, buildKitchenWeeklyPayroll, buildWeeklyPayroll, endOfPayrollWeek, isMondayToSunday, startOfPayrollWeek } from '../core/engines/WeeklyPayrollEngine.js'
+import { buildHistoricalPayrollRepair, buildKitchenWeeklyPayroll, buildWeeklyPayroll, endOfPayrollWeek, isMondayToSunday, isWeeklyPayrollRecord, startOfPayrollWeek, weeklyPayrollEnd } from '../core/engines/WeeklyPayrollEngine.js'
 import usePersistentState from '../hooks/usePersistentState'
 import useCrudCollection from '../hooks/useCrudCollection'
 import { useFeedback } from '../components/AppFeedback'
 import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
+import { filterPayrollRows } from '../core/engines/PayrollFilterEngine.js'
 
 const truncatePayrollPayment = value => Math.trunc(((Number(String(value ?? 0).replace(/[$,%(),]/g,'')) || 0) + Number.EPSILON) * 100) / 100
 
@@ -112,9 +113,9 @@ export default function Payroll(){
 
   const importedRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast').map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
   const manualRows = useMemo(() => scopedSourceRows.filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() !== 'toast').map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
-  const weeklyRows = useMemo(() => dedupePayrollForDisplay(scopedSourceRows.filter(row => row.weekly_rollup && !['paid','void'].includes(String(row.payment_status || '').trim().toLowerCase()))).map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
+  const weeklyRows = useMemo(() => dedupePayrollForDisplay(scopedSourceRows.filter(row => isWeeklyPayrollRecord(row) && !['paid','void'].includes(String(row.payment_status || '').trim().toLowerCase()))).map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
   const readyRows = weeklyRows
-  const paidRows = useMemo(() => dedupePayrollForDisplay(allSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid')).map(enrichPayrollRow), [allSourceRows, employeeById, employeeByName])
+  const paidRows = useMemo(() => dedupePayrollForDisplay(allSourceRows.filter(row => isWeeklyPayrollRecord(row) && String(row.payment_status || '').trim().toLowerCase() === 'paid')).map(enrichPayrollRow), [allSourceRows, employeeById, employeeByName])
   const payableRows = useMemo(() => [...new Map([...readyRows, ...paidRows, ...manualRows].map(row => [row.id, row])).values()], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
   const payrollSummary = useMemo(() => summarizePayroll(payableRows), [payableRows])
@@ -130,34 +131,22 @@ export default function Payroll(){
     if (activeTab === 'Weekly Payroll') return weeklyRows.map(toPayrollViewRow)
     if (activeTab === 'Payroll History') return paidRows.map(toPayrollViewRow)
     if (activeTab === 'Manual Labor') return manualRows.map(toPayrollViewRow)
-    if (activeTab === 'Kitchen') return [...readyRows, ...paidRows, ...manualRows].filter(r => /kitchen|cook|prep|dishwasher|busser/i.test(r.job_type || r.job)).map(toPayrollViewRow)
+    if (activeTab === 'Kitchen') return dedupePayrollForDisplay([...readyRows, ...paidRows].filter(r => /kitchen|cook|prep|dishwasher|busser/i.test(r.job_type || r.job))).map(toPayrollViewRow)
     return []
   }, [importedRows, weeklyRows, paidRows, manualRows, activeTab])
 
-  const filtered = useMemo(() => {
-    const contains = (value, needle) => !needle || String(value ?? '').toLowerCase().includes(String(needle).toLowerCase().trim())
-    const moneyText = value => String(value ?? '').replace(/[$,]/g,'')
-    return tabRows
-      .filter(r => (!query || Object.values(r).join(' ').toLowerCase().includes(query.toLowerCase())) && (method === 'All Methods' || r.method === method))
-      .filter(r => (!columnFilters.date || r.date === columnFilters.date) &&
-        contains(r.employee,columnFilters.employee) && contains(r.job,columnFilters.job) &&
-        contains(r.hours,columnFilters.hours) && contains(moneyText(r.basePay),columnFilters.basePay) &&
-        contains(moneyText(r.originalTips),columnFilters.tips) && contains(moneyText(r.withheld),columnFilters.withheld) &&
-        contains(moneyText(r.tipsAfter),columnFilters.netTips) && contains(moneyText(r.finalPay),columnFilters.finalPay) &&
-        (!columnFilters.method || r.method === columnFilters.method) &&
-        (!columnFilters.status || String(r.payment_status || '').toLowerCase() === columnFilters.status.toLowerCase()))
-      .sort((a,b) => String(a.date||'').localeCompare(String(b.date||'')) || String(a.employee||'').localeCompare(String(b.employee||''), undefined, {sensitivity:'base', numeric:true}))
-  }, [tabRows, query, method, columnFilters])
+  const filtered = useMemo(() => filterPayrollRows(tabRows, { query, method, columns: columnFilters })
+    .sort((a,b) => String(a.date||'').localeCompare(String(b.date||'')) || String(a.employee||'').localeCompare(String(b.employee||''), undefined, {sensitivity:'base', numeric:true})), [tabRows, query, method, columnFilters])
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pagedRows = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize])
   useEffect(() => { setPage(1) }, [activeTab, query, method, pageSize, columnFilters])
   useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
-  const manualTipWithheld = Math.round(Number(manualForm.credit_card_tips || 0) * 0.035 * 100) / 100
-  const manualNetTips = Math.round((Number(manualForm.credit_card_tips || 0) - manualTipWithheld) * 100) / 100
+  const manualTipWithheld = Number(manualForm.credit_card_tips || 0) * 0.035
+  const manualNetTips = truncatePayrollPayment(Number(manualForm.credit_card_tips || 0) - manualTipWithheld)
 
   const activeEmployees = useMemo(() => (Array.isArray(employees) ? employees : []).filter(employee => employee && employee.id && employee.status !== 'Inactive' && employee.active !== false && employee.is_active !== false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))), [employees])
   const kitchenGroups = useMemo(() => safeGroups.filter(group => /kitchen|cook|prep|dishwasher|busser/i.test(String(group.type || group.group_type || group.name || ''))), [safeGroups])
-  const latestKitchenWeekEnd = useMemo(() => allSourceRows.filter(row => row.weekly_rollup && String(row.source || '').toLowerCase() === 'kitchen-weekly').map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date).filter(Boolean).sort().at(-1) || '', [allSourceRows])
+  const latestKitchenWeekEnd = useMemo(() => allSourceRows.filter(row => isWeeklyPayrollRecord(row) && String(row.source || '').toLowerCase() === 'kitchen-weekly').map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date).filter(Boolean).sort().at(-1) || '', [allSourceRows])
   const selectedKitchenGroup = useMemo(() => kitchenGroups.find(group => String(group.id) === String(kitchenWeekGroupId)) || null, [kitchenGroups, kitchenWeekGroupId])
   const kitchenEligibleEmployees = useMemo(() => {
     const memberIds = new Set((selectedKitchenGroup?.memberIds || selectedKitchenGroup?.member_ids || []).map(String))
@@ -506,7 +495,7 @@ export default function Payroll(){
   }
 
   const latestSavedWeeklyEnd = useMemo(() => allSourceRows
-    .filter(row => row.weekly_rollup && String(row.source || '').toLowerCase() !== 'kitchen-weekly')
+    .filter(row => isWeeklyPayrollRecord(row) && String(row.source || '').toLowerCase() !== 'kitchen-weekly')
     .map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date)
     .filter(Boolean)
     .sort()
@@ -544,7 +533,7 @@ export default function Payroll(){
       await setSourceRows(previous => {
         const repairedSourceIds = new Set(repairPreview.checkRows.flatMap(row => row.source_ids || []).map(String))
         const kept = previous
-          .filter(row => !(row.weekly_rollup && (row.payroll_week_end || row.week_end || row.payroll_date || row.pay_date) === repairEnd))
+          .filter(row => !(isWeeklyPayrollRecord(row) && weeklyPayrollEnd(row) === repairEnd))
           .map(row => repairedSourceIds.has(String(row.id)) ? { ...row, payroll_status:'rolled-up', included_in_weekly_end:repairEnd } : row)
         const repaired = repairPreview.rows.map(row => normalizePayrollRecord(row, { source:row.source, method:row.method || row.payment_method }))
         return [...repaired, ...kept]
@@ -609,7 +598,7 @@ export default function Payroll(){
 
   const prepareNextPayrollWeek = (baseRows = readyRows) => {
     const weekEnds = baseRows
-      .filter(row => row.weekly_rollup && String(row.source || '').toLowerCase() !== 'kitchen-weekly')
+      .filter(row => isWeeklyPayrollRecord(row) && String(row.source || '').toLowerCase() !== 'kitchen-weekly')
       .map(row => row.payroll_week_end || row.week_end || row.pay_date || row.payroll_date)
       .filter(Boolean)
       .sort()

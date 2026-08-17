@@ -19,7 +19,8 @@ const payrollIdentity = row => {
   const regularPay = money(row?.regular_pay ?? row?.base_pay).toFixed(2)
   const tips = money(row?.original_tips ?? row?.credit_card_tips).toFixed(2)
   const extraPay = money(row?.extra_pay).toFixed(2)
-  if (row?.weekly_rollup) {
+  const weeklyLike = Boolean(row?.weekly_rollup || source === 'weekly-rollup' || source === 'kitchen-weekly' || (weekStart && weekEnd))
+  if (weeklyLike) {
     // Kitchen history can legitimately contain a regular-pay component and a separate
     // extra-pay component from older releases. Keep distinct monetary components so
     // the historical repair can combine them; collapse only exact repeated copies.

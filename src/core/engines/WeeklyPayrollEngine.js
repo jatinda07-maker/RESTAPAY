@@ -32,6 +32,21 @@ export function isMondayToSunday(start, end) {
   return first.getUTCDay() === 1 && last.getUTCDay() === 0 && Math.round((last - first) / 86400000) === 6
 }
 
+
+export function isWeeklyPayrollRecord(row = {}) {
+  const source = String(row?.source || row?.source_type || '').trim().toLowerCase()
+  return Boolean(
+    row?.weekly_rollup ||
+    source === 'weekly-rollup' ||
+    source === 'kitchen-weekly' ||
+    ((row?.week_start || row?.payroll_week_start) && (row?.week_end || row?.payroll_week_end))
+  )
+}
+
+export function weeklyPayrollEnd(row = {}) {
+  return isoDate(row?.payroll_week_end || row?.week_end || row?.payroll_date || row?.pay_date || row?.date)
+}
+
 export function inDateRange(row, start, end) {
   const date = isoDate(row.payroll_date || row.pay_date || row.date || row.period_end)
   return Boolean(date && date >= start && date <= end)
@@ -185,7 +200,7 @@ export function buildHistoricalPayrollRepair(rows = [], { start, end } = {}) {
   const dailySource = all
     .filter(row => !row.weekly_rollup && String(row.source || '').toLowerCase() === 'toast' && inDateRange(row, start, end) && historyEmployeeKey(row))
     .map(row => ({ ...row, payroll_status: '' }))
-  const historicalWeekly = all.filter(row => row.weekly_rollup && (row.payroll_week_end || row.week_end || row.payroll_date || row.pay_date) === end)
+  const historicalWeekly = all.filter(row => isWeeklyPayrollRecord(row) && weeklyPayrollEnd(row) === end)
   const priorCheckByEmployee = new Map()
   for (const row of historicalWeekly.filter(row => String(row.source || '').toLowerCase() !== 'kitchen-weekly')) {
     const key = historyEmployeeKey(row)

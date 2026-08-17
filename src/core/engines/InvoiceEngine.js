@@ -114,13 +114,19 @@ export function reconcileInvoiceExtraction({ lines = [], printedSubtotal = 0, pr
   const discount = Number(n(summaryDiscount).toFixed(2))
   const taxAmount = Number(n(tax).toFixed(2))
   const chargeAmount = Number(n(charges).toFixed(2))
-  const productTotal = subtotal || lineSubtotal
-  const calculatedTotal = Number((productTotal + chargeAmount + taxAmount - discount).toFixed(2))
   const tolerance = 0.02
+  const inferredProductTotal = total ? Number((total - chargeAmount - taxAmount + discount).toFixed(2)) : 0
+  const extractedMathTotal = Number(((subtotal || lineSubtotal) + chargeAmount + taxAmount - discount).toFixed(2))
+  const extractedSubtotalConflictsWithFinal = Boolean(total && subtotal && inferredProductTotal > 0 && Math.abs(extractedMathTotal - total) > tolerance)
+  // When the invoice final total, tax and invoice-level charges reconcile cleanly, derive
+  // the printed Product Total from that authoritative summary. This prevents a bad AI
+  // Product Total extraction from being presented as authoritative (US Foods case).
+  const productTotal = extractedSubtotalConflictsWithFinal ? inferredProductTotal : (subtotal || inferredProductTotal || lineSubtotal)
+  const calculatedTotal = Number((productTotal + chargeAmount + taxAmount - discount).toFixed(2))
   const mismatches = []
 
-  if (subtotal && Math.abs(lineSubtotal - subtotal) > tolerance) {
-    mismatches.push(`line items total ${lineSubtotal.toFixed(2)} does not match printed Product Total ${subtotal.toFixed(2)} (difference ${(lineSubtotal-subtotal).toFixed(2)})`)
+  if (Math.abs(lineSubtotal - productTotal) > tolerance) {
+    mismatches.push(`line items total ${lineSubtotal.toFixed(2)} does not match printed Product Total ${productTotal.toFixed(2)} (difference ${(lineSubtotal-productTotal).toFixed(2)})`)
   }
   if (total && Math.abs(calculatedTotal - total) > tolerance) {
     mismatches.push(`invoice math ${calculatedTotal.toFixed(2)} does not match printed final total ${total.toFixed(2)} (difference ${(calculatedTotal-total).toFixed(2)})`)
@@ -132,7 +138,10 @@ export function reconcileInvoiceExtraction({ lines = [], printedSubtotal = 0, pr
   return {
     lines: normalized,
     line_subtotal: lineSubtotal,
-    printed_subtotal: subtotal,
+    printed_subtotal: productTotal,
+    extracted_printed_subtotal: subtotal,
+    inferred_product_total: inferredProductTotal,
+    product_total_inferred: extractedSubtotalConflictsWithFinal,
     product_total: productTotal,
     printed_net: net,
     printed_total: total,
@@ -173,13 +182,52 @@ export function normalizeInvoice(invoice = {}) {
   }
 }
 
-function normalizedItemIdentity(value = '') {
+export function invoiceItemIdentity(value = '') {
   return String(value || '')
     .toLowerCase()
     .replace(/\b\d+(?:\.\d+)?\s*(lb|lbs|oz|kg|g|gal|qt|pt|ml|l|ct|count|ea|each|pk|pack|case|cs)\b/g, ' ')
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\b(the|and|of|size|case|pack|each)\b/g, ' ')
     .trim().replace(/\s+/g, ' ')
+}
+
+
+export function applyLearnedInvoiceCategories(lines = [], invoices = []) {
+  const memory = new Map()
+  ;(Array.isArray(invoices) ? invoices : []).forEach(invoice => {
+    ;(invoice?.lines || invoice?.items || []).forEach(line => {
+      const key = invoiceItemIdentity(line?.description || line?.item_name || line?.name)
+      const category = String(line?.category || '').trim()
+      if (key && category && !/^other$/i.test(category)) memory.set(key, category)
+    })
+  })
+  return (Array.isArray(lines) ? lines : []).map(line => {
+    const key = invoiceItemIdentity(line?.description || line?.item_name || line?.name)
+    const learned = key ? memory.get(key) : ''
+    return learned ? { ...line, category: learned, category_source: 'history' } : line
+  })
+}
+
+export function propagateInvoiceCategories(invoices = [], referenceLines = []) {
+  const rules = new Map()
+  ;(Array.isArray(referenceLines) ? referenceLines : []).forEach(line => {
+    const key = invoiceItemIdentity(line?.description || line?.item_name || line?.name)
+    const category = String(line?.category || '').trim()
+    if (key && category) rules.set(key, category)
+  })
+  let changedLines = 0
+  const rows = (Array.isArray(invoices) ? invoices : []).map(invoice => {
+    let changed = false
+    const lines = (invoice?.lines || invoice?.items || []).map(line => {
+      const key = invoiceItemIdentity(line?.description || line?.item_name || line?.name)
+      const category = rules.get(key)
+      if (!category || String(line?.category || '') === category) return line
+      changed = true; changedLines += 1
+      return { ...line, category, category_source: 'learned-correction' }
+    })
+    return changed ? { ...invoice, lines, items: invoice.items ? lines : invoice.items, category_learning_updated_at: new Date().toISOString() } : invoice
+  })
+  return { rows, changedLines, ruleCount: rules.size }
 }
 
 export function buildPriceHistory(invoices = []) {
@@ -199,7 +247,7 @@ export function buildPriceHistory(invoices = []) {
         vendor_key: normalized.vendor_key,
         item_number: line.item_number,
         item: line.description,
-        item_key: normalizedItemIdentity(line.description),
+        item_key: invoiceItemIdentity(line.description),
         category: line.category || normalized.category,
         package_size: line.package_size,
         quantity: line.quantity,
@@ -221,7 +269,7 @@ export function buildPriceHistory(invoices = []) {
 export function comparePrices(history = []) {
   const groups = new Map()
   history.forEach(row => {
-    const identity = row.item_key || normalizedItemIdentity(row.item)
+    const identity = row.item_key || invoiceItemIdentity(row.item)
     const basis = String(row.comparison_basis || row.normalized_unit || row.purchase_unit || '').toLowerCase()
     if (!identity || !basis) return
     const key = `${identity}|${basis}`
