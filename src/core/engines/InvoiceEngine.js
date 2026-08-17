@@ -112,24 +112,38 @@ export function reconcileInvoiceExtraction({ lines = [], printedSubtotal = 0, pr
   const net = Number(n(printedNet).toFixed(2))
   const total = Number(n(printedTotal).toFixed(2))
   const discount = Number(n(summaryDiscount).toFixed(2))
+  const taxAmount = Number(n(tax).toFixed(2))
+  const chargeAmount = Number(n(charges).toFixed(2))
+  const productTotal = subtotal || lineSubtotal
+  const calculatedTotal = Number((productTotal + chargeAmount + taxAmount - discount).toFixed(2))
   const tolerance = 0.02
-  const comparisons = [
-    subtotal ? ['line subtotal', lineSubtotal, subtotal] : null,
-    net && subtotal ? ['subtotal/net', subtotal, net] : null,
-    total && net ? ['net/final total', Number((net + n(tax) + n(charges)).toFixed(2)), total] : null,
-  ].filter(Boolean)
-  const mismatches = comparisons.filter(([,a,b]) => Math.abs(a - b) > tolerance).map(([label,a,b]) => `${label}: ${a.toFixed(2)} vs ${b.toFixed(2)}`)
+  const mismatches = []
+
+  if (subtotal && Math.abs(lineSubtotal - subtotal) > tolerance) {
+    mismatches.push(`line items total ${lineSubtotal.toFixed(2)} does not match printed Product Total ${subtotal.toFixed(2)} (difference ${(lineSubtotal-subtotal).toFixed(2)})`)
+  }
+  if (total && Math.abs(calculatedTotal - total) > tolerance) {
+    mismatches.push(`invoice math ${calculatedTotal.toFixed(2)} does not match printed final total ${total.toFixed(2)} (difference ${(calculatedTotal-total).toFixed(2)})`)
+  }
+  if (net && total && Math.abs(net-total) > tolerance && !subtotal) {
+    mismatches.push(`printed net/delivered amount ${net.toFixed(2)} does not match printed final total ${total.toFixed(2)}`)
+  }
+
   return {
     lines: normalized,
     line_subtotal: lineSubtotal,
     printed_subtotal: subtotal,
+    product_total: productTotal,
     printed_net: net,
     printed_total: total,
     summary_discount: discount,
+    tax: taxAmount,
+    charges: chargeAmount,
+    calculated_total: calculatedTotal,
     reconciled: mismatches.length === 0,
     needs_review: mismatches.length > 0,
     mismatches,
-    authoritative_total: total || net || subtotal || lineSubtotal,
+    authoritative_total: total || (mismatches.length === 0 ? calculatedTotal : 0) || net || productTotal,
   }
 }
 

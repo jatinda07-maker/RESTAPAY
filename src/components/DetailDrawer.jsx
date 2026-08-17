@@ -12,7 +12,7 @@ const rowsTotal = (rows, field = 'amount') => rows.reduce((sum,row) => sum + (Nu
 const salesCategory = (rows, pattern) => rows.filter(row => pattern.test(String(row.category || row.department || ''))).reduce((sum,row)=>sum+(Number(row.amount||0)||0),0)
 const formatRangeDate = value => { if (!value) return '—'; const [y,m,d] = String(value).split('-').map(Number); const date = y&&m&&d ? new Date(y,m-1,d) : new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}) }
 
-function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll, vendors, employees }) {
+function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll, vendors, employees }, explicitEntries = []) {
   const tone = /cost|expense|alcohol/i.test(title || '') ? 'orange' : /profit|cash|food/i.test(title || '') ? 'green' : /vendor|payroll|labor|employee/i.test(title || '') ? 'purple' : 'blue'
   const dc = metrics.departmentCosts || {}
   const operatingRows = metrics.payrollSummary?.operatingRows || payroll.filter(row=>payrollCostClass(row)==='operating-labor')
@@ -54,14 +54,14 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
     'Prime Cost': ['Direct food/alcohol purchases plus BOH operating labor; tips excluded', [{title:'Prime Cost',rows:primeRows,total:['Prime Cost',appMoney(metrics.primeCostAmount)]}]],
     'Labor Mix': ['BOH operating labor compared with sales; management, FOH and employee tips are shown separately', [{title:'Labor Mix',rows:[['Operating Labor',`${operatingRows.length} BOH/kitchen records`,appMoney(metrics.operatingLabor)],['Management Payroll',`${managementRows.length} records · allocated separately`,appMoney(metrics.managementPayroll||0)],['Front of House Payroll',`${fohRows.length} records · excluded from Operating Labor`,appMoney(metrics.frontOfHousePayroll||0)],['Unmapped Payroll',`${reviewRows.length} records · review classification`,appMoney(metrics.reviewPayroll||0)],['Tip Pass-Through','EXCLUDED · employee-owned net tips',appMoney(metrics.netTipsPaid)],['Net Sales',`${sales.length} sales days`,appMoney(metrics.salesTotal)]],total:['Labor Mix',appMoney((metrics.operatingLabor||0)+(metrics.managementPayroll||0))]}]],
     'Operating Profit': ['Sales less food, alcohol, operating labor and expenses', [{title:'Operating Profit',rows:[['Net Sales',`${sales.length} sales days`,appMoney(metrics.salesTotal)],['Cost of Goods','Food and alcohol',appMoney(-metrics.cogs)],['Employer Labor Cost','BOH + management + FOH wages · employee tips excluded',appMoney(-(metrics.employerLabor||metrics.operatingLabor))],['Tip Pass-Through','Employee-owned net tips · not deducted',appMoney(metrics.netTipsPaid)],['Expenses',`${expenses.length} records`,appMoney(-metrics.expenseTotal)]],total:['Operating Profit',appMoney(metrics.operatingProfit)]}]],
-    'Business Expenses': ['Operating expenses in the selected period', [{title:'Expense Categories',rows:[['All Expenses',`${expenses.length} records`,appMoney(metrics.expenseTotal)],...expenseGroups],total:['Business Expenses',appMoney(metrics.expenseTotal)]},{title:'Payment Methods',rows:[['Cash Expenses','Cash payments',appMoney(metrics.cashExpenses)],['Check & ACH','Check / ACH payments',appMoney(expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).reduce((s,r)=>s+(Number(r.amount||r.total||0)||0),0))],['Credit Expenses','Credit/card payments',appMoney(expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).reduce((s,r)=>s+(Number(r.amount||r.total||0)||0),0))]],total:['All Payment Methods',appMoney(metrics.expenseTotal)]}]],
+    'Business Expenses': ['Operating expenses in the selected period', [{title:'Expense Categories',rows:expenseGroups,total:['Business Expenses',appMoney(metrics.expenseTotal)]},{title:'Payment Methods',rows:[['Cash Expenses','Cash payments',appMoney(metrics.cashExpenses)],['Check & ACH','Check / ACH payments',appMoney(expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).reduce((s,r)=>s+(Number(r.amount||r.total||0)||0),0))],['Credit Expenses','Credit/card payments',appMoney(expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).reduce((s,r)=>s+(Number(r.amount||r.total||0)||0),0))]],total:['All Payment Methods',appMoney(metrics.expenseTotal)]}]],
     'Cash Sales': ['Actual cash sales and payments', [{title:'Cash Activity',rows:[['Cash Sales',`${sales.filter(r=>Number(r.cash_sales||0)!==0).length} daily records`,appMoney(metrics.cashSales)]],total:['Cash Sales',appMoney(metrics.cashSales)]}]],
     'Credit Sales': ['Card and debit activity', [{title:'Credit Activity',rows:[['Credit Sales',`${sales.filter(r=>Number(r.credit_sales||0)!==0).length} daily records`,appMoney(metrics.creditSales)]],total:['Credit Sales',appMoney(metrics.creditSales)]}]],
     'Other Sales': ['Other payment activity', [{title:'Other Activity',rows:[['Other Sales','Delivery and other',appMoney(metrics.otherSales)]],total:['Other Sales',appMoney(metrics.otherSales)]}]],
     'Tips Earned': ['Customer tips kept separate from profit', [{title:'Tip Activity',rows:[['Tips',`${sales.length} sales records`,appMoney(metrics.tips)]],total:['Tips Earned',appMoney(metrics.tips)]}]],
     'Sales Summary': ['Detailed breakdown of sales', [{title:'Sales Breakdown',rows:salesRows,total:['Total Sales',appMoney(metrics.salesTotal)]},{title:'Payment Types',rows:paymentRows,total:['Total Payments',appMoney(metrics.salesTotal)]}]],
     'Cost Breakdown': ['Food, alcohol, labor and prime cost', [{title:'Current Period Costs',rows:costRows,total:['Prime Cost',appMoney(metrics.primeCostAmount)]}]],
-    'Profit Summary': ['Income, deductions and operating profit', [{title:'Profit Detail',rows:[['Gross Sales','Before expenses',appMoney(metrics.salesTotal)],['Cost of Goods','Food and alcohol',appMoney(-metrics.cogs)],['Operating Labor & Expenses','Employee tips excluded',appMoney(-((metrics.employerLabor||metrics.operatingLabor)+metrics.expenseTotal))],['Tip Pass-Through','Employee-owned net tips · not deducted',appMoney(metrics.netTipsPaid)]],total:['Operating Profit',appMoney(metrics.operatingProfit)]}]],
+    'Profit Summary': ['Income, deductions and operating profit with every labor group visible', [{title:'Profit Detail',rows:[['Gross Sales','Before costs and operating expenses',appMoney(metrics.salesTotal)],['Cost of Goods','Direct Food + Alcohol purchases',appMoney(-metrics.cogs)],['Operating Labor',`${operatingRows.length} Kitchen / BOH payroll records`,appMoney(-(metrics.operatingLabor||0))],['Management Payroll',`${managementRows.length} management payroll records`,appMoney(-(metrics.managementPayroll||0))],['Front of House Payroll',`${fohRows.length} FOH payroll records`,appMoney(-(metrics.frontOfHousePayroll||0))],['Operating Expenses',`${operatingExpenseRows.length} operating expense records`,appMoney(-metrics.expenseTotal)],['Tip Pass-Through','Employee-owned net tips · EXCLUDED from profit deductions',appMoney(metrics.netTipsPaid)]],total:['Operating Profit',appMoney(metrics.operatingProfit)]}]],
     'Vendor Spend': ['Vendor invoice totals and recent activity', [{title:'Top Vendors',rows:(metrics.topVendors.length?metrics.topVendors:[['No vendor data',0]]).map(([name,value])=>[name,'Invoice spend',appMoney(value)]),total:['Vendor Total',appMoney(metrics.invoiceTotal)]}]],
     'Total Vendors': ['All vendors with category and expense-type breakdowns', [{title:'Vendors by Category',rows:vendorCategoryGroups,total:['Total Vendors',String(vendors.length)]},{title:'Vendors by Expense Type',rows:vendorExpenseGroups,total:['Total Vendors',String(vendors.length)]}]],
     'Inventory Vendors': ['Inventory-purchase vendors by category', [{title:'Inventory Vendors',rows:vendorCategoryGroups,total:['Inventory Vendors',String(vendors.filter(r=>String(r.type||r.vendor_type)==='Inventory Purchase').length)]}]],
@@ -93,7 +93,7 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
     'Cash Payroll': ['Cash payment employees', [{title:'Cash Payroll',rows:[['Cash Payroll','Current records',appMoney(metrics.cashPayroll)]],total:['Cash Payroll',appMoney(metrics.cashPayroll)]}]],
     'Check Payroll': ['Check payment employees', [{title:'Check Payroll',rows:[['Check Payroll','Current records',appMoney(metrics.checkPayroll)]],total:['Check Payroll',appMoney(metrics.checkPayroll)]}]],
     'Total Hours': ['Payroll hours for the selected period', [{title:'Hours by Job Type',rows:Object.values(payroll.reduce((acc,row)=>{const label=String(row.job_type||row.job||'Unassigned');if(!acc[label])acc[label]={label,hours:0,count:0};acc[label].hours+=Number(row.hours||0)||0;acc[label].count+=1;return acc},{})).sort((a,b)=>a.label.localeCompare(b.label)).map(g=>[g.label,`${g.count} payroll records`,`${g.hours.toFixed(1)} hrs`]),total:['Total Hours',`${Number(metrics.payrollHours||0).toFixed(1)} hrs`]}]],
-    'Total Expenses': ['Operating expense totals', [{title:'Expenses',rows:[['All Expenses',`${expenses.length} records`,appMoney(metrics.expenseTotal)],['Cash Expenses','Cash payments',appMoney(metrics.cashExpenses)]],total:['Total Expenses',appMoney(metrics.expenseTotal)]}]],
+    'Total Expenses': ['Operating expenses grouped by accounting category; payment method is shown separately', [{title:'Expense Categories',rows:expenseGroups,total:['Total Expenses',appMoney(metrics.expenseTotal)]},{title:'Payment Methods',rows:[['Cash Expenses','Cash payments',appMoney(metrics.cashExpenses)],['Check & ACH','Check / ACH payments',appMoney(expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))],['Credit Expenses','Credit/card payments',appMoney(expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]],total:['All Payment Methods',appMoney(metrics.expenseTotal)]}]],
     'Cash Expenses': ['Cash operating expenses in the selected period', [{title:'Cash Expenses',rows:[['Cash Expenses',`${expenses.filter(r=>String(r.payment_type||r.method).toLowerCase()==='cash').length} matching records`,appMoney(metrics.cashExpenses)]],total:['Cash Expenses',appMoney(metrics.cashExpenses)]}]],
     'Check & ACH': ['Check and ACH operating expenses in the selected period', [{title:'Check & ACH',rows:[['Check & ACH',`${expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).length} matching records`,appMoney(expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]],total:['Check & ACH',appMoney(expenses.filter(r=>['check','ach'].includes(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]}]],
     'Credit Expenses': ['Credit/card operating expenses in the selected period', [{title:'Credit Expenses',rows:[['Credit Expenses',`${expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).length} matching records`,appMoney(expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]],total:['Credit Expenses',appMoney(expenses.filter(r=>/credit|card/.test(String(r.payment_type||r.method).toLowerCase())).reduce((sum,r)=>sum+(Number(r.amount||r.total||0)||0),0))]}]],
@@ -122,6 +122,15 @@ function buildDrawerContent(title, { metrics, sales, invoices, expenses, payroll
   const normalizedTitle=String(title||'').trim().toLowerCase()
   const selected=Object.entries(map).find(([key])=>key.trim().toLowerCase()===normalizedTitle)?.[1]
   if (selected) return { tone, subtitle:selected[0], sections:selected[1] }
+  if (Array.isArray(explicitEntries) && explicitEntries.length) {
+    const sample = explicitEntries[0] || {}
+    if ('normalized_unit_cost' in sample || 'effective_each_cost' in sample || 'best_vendor' in sample || 'current_price' in sample) {
+      const vendorGroups = Object.values(explicitEntries.reduce((acc,row)=>{const label=String(row.vendor||row.best_vendor||'Vendor');const key=label.toLowerCase();if(!acc[key])acc[key]={label,count:0,total:0};acc[key].count+=1;acc[key].total+=Number(row.unit_cost||row.normalized_unit_cost||row.effective_each_cost||row.current_price||row.best_price||0)||0;return acc},{})).sort((a,b)=>a.label.localeCompare(b.label))
+      const latest=[...explicitEntries].sort((a,b)=>String(b.date||b.current_date||'').localeCompare(String(a.date||a.current_date||'')))[0]||{}
+      const best=[...explicitEntries].filter(r=>Number(r.unit_cost||r.normalized_unit_cost||r.effective_each_cost||r.best_price||0)>0).sort((a,b)=>Number(a.unit_cost||a.normalized_unit_cost||a.effective_each_cost||a.best_price)-Number(b.unit_cost||b.normalized_unit_cost||b.effective_each_cost||b.best_price))[0]||{}
+      return {tone:'green',subtitle:'Vendor price intelligence and normalized invoice history',sections:[{title:'Item Price Summary',rows:[['Latest Vendor',`${latest.date||latest.current_date||'Selected period'} · ${latest.comparison_basis||latest.purchase_unit||'unit'}`,latest.vendor||'—'],['Latest Normalized Cost',latest.package_size||'Comparable quantity',appMoney2(latest.unit_cost||latest.normalized_unit_cost||latest.effective_each_cost||latest.current_price||0)],['Best Known Vendor',best.date||best.current_date||'Historical price',best.vendor||best.best_vendor||'—'],['Best Normalized Cost',best.package_size||'Comparable quantity',appMoney2(best.unit_cost||best.normalized_unit_cost||best.effective_each_cost||best.best_price||0)]],total:['Price History Records',String(explicitEntries.length)]},{title:'By Vendor',rows:vendorGroups.map(g=>[g.label,`${g.count} price record${g.count===1?'':'s'}`,appMoney2(g.total/Math.max(1,g.count))]),total:['Vendors',String(vendorGroups.length)]}]}
+    }
+  }
   return { tone, subtitle:'Selected period details', sections:[{title:'Summary',rows:[['Current Total','No calculation is configured for this KPI',appMoney(0)],['Entries','No related live collection is configured','0'],['Status','No live detail mapping','Review']],total:['Selected Total',appMoney(0)]}] }
 }
 
@@ -155,6 +164,7 @@ function entryTriples(rows = [], kind = '') {
     if (kind === 'employee') return [r.created_at ? String(r.created_at).slice(0,10) : '—', `${r.name || r.employee_name || 'Employee'} · ${r.job || r.job_type || 'Job'}`, r.status || 'Active']
     if (kind === 'vendor') return [r.created_at ? String(r.created_at).slice(0,10) : '—', `${r.name || r.vendor_name || 'Vendor'} · ${r.category || 'Other'}`, r.status || (r.is_active === false ? 'Inactive' : 'Active')]
     if (kind === 'bank') return [r.payment_date || r.date || '—', `${r.payee || 'Payee'} · ${r.type || 'Payment'} · ${r.reference || 'No reference'} · ${r.status || 'Pending'}`, appMoney2(r.amount || 0)]
+    if (kind === 'vendor-intelligence') return [r.current_date || r.date || '—', `${r.item || 'Item'} · current ${r.vendor || 'Vendor'} → best ${r.best_vendor || r.vendor || 'Vendor'} · ${r.comparison_basis || r.normalized_unit || 'unit'}`, appMoney2(r.potential_savings ?? r.savings ?? r.best_price ?? r.current_price ?? 0)]
     return [r.business_date || r.date || '—', `${r.category || r.department || 'Sales'} · ${r.source || 'Toast POS'}`, appMoney2(r.net_sales ?? r.amount ?? r.sales ?? 0)]
   })
 }
@@ -171,6 +181,7 @@ function buildRecentEntries(title, collections, explicitEntries = []) {
     const kind = ('employee_name' in sample || 'regular_pay' in sample || 'base_pay' in sample) ? 'payroll'
       : ('invoice_number' in sample || 'invoice_date' in sample || 'line_total' in sample || 'purchase_unit' in sample || 'normalized_unit_cost' in sample) ? 'invoice'
       : ('payee' in sample || 'reference' in sample) ? 'bank'
+      : ('best_vendor' in sample || 'current_price' in sample || 'potential_savings' in sample) ? 'vendor-intelligence'
       : ('expense_date' in sample || 'payment_type' in sample || 'expense_type' in sample) ? 'expense'
       : ('business_date' in sample || 'net_sales' in sample || 'cash_sales' in sample) ? 'sales'
       : ('vendor_type' in sample || 'website' in sample || 'logo_url' in sample) ? 'vendor' : 'sales'
@@ -243,6 +254,12 @@ function buildRecentEntries(title, collections, explicitEntries = []) {
   else if (/^(front of house payroll|front of house wages)$/i.test(label)) { rows = frontPayroll.map(r=>({...r,_display_amount:employerPayrollAmount(r)})).filter(r=>r._display_amount>0); kind='payroll' }
   else if (/^unmapped payroll$/i.test(label)) { rows = reviewPayroll.map(r=>({...r,_display_amount:employerPayrollAmount(r)})).filter(r=>r._display_amount>0); kind='payroll' }
   else if (/^tip pass-through$/i.test(label)) { rows = allClassifiedPayroll.filter(r=>Number(r.net_tips??r.tips_after_withholding??r.credit_card_tips??r.tips??0)!==0).map(r=>({...r,_display_amount:Number(r.net_tips??r.tips_after_withholding??r.credit_card_tips??r.tips??0)||0})); kind='payroll' }
+  else if (/^(profit summary|operating profit)$/i.test(label)) {
+    const labor=[...operatingPayroll,...managementPayroll,...frontPayroll].map(r=>({...r,_display_amount:employerPayrollAmount(r)})).filter(r=>r._display_amount>0)
+    return [...costTriples(foodDirect,'Food COGS'),...costTriples(alcoholDirect,'Alcohol COGS'),...entryTriples(labor,'payroll'),...entryTriples(collections.expenses,'expense')].sort((a,b)=>String(b[0]).localeCompare(String(a[0])))
+  }
+  else if (/^cost of goods$/i.test(label)) return [...costTriples(foodDirect,'Food COGS'),...costTriples(alcoholDirect,'Alcohol COGS')].sort((a,b)=>String(b[0]).localeCompare(String(a[0])))
+  else if (/^operating expenses$/i.test(label)) { rows=collections.expenses; kind='expense' }
   else 
 if (lowerLabel === 'cash expenses') { rows = collections.expenses.filter(r => expenseMethod(r) === 'cash'); kind = 'expense' }
   else if (/^(check\s*(?:&|\/|and)\s*ach|check \/ ach)$/i.test(label)) { rows = collections.expenses.filter(r => ['check','ach'].includes(expenseMethod(r))); kind = 'expense' }
@@ -308,7 +325,7 @@ const routeMap = {
   'Connection Status':'/toast-integration','Last Sales Sync':'/toast-integration','Last Labor Sync':'/toast-integration','Pending Jobs':'/toast-integration',
 }
 
-export default function DetailDrawer({ title, entries = [], initialTab = 'Overview', onClose }) {
+export default function DetailDrawer({ title, entries = [], initialTab = 'Overview', headerAction = null, onClose }) {
   const navigate = useNavigate()
   const { notify } = useFeedback()
   const [activeTab, setActiveTab] = useState(initialTab)
@@ -325,7 +342,7 @@ export default function DetailDrawer({ title, entries = [], initialTab = 'Overvi
   const [draftRange, setDraftRange] = useState(() => readDateRange())
   const appData = useAppData(drawerRange)
   const { metrics, sales, invoices, expenses, payroll, vendors, employees, cashLedger=[] } = appData
-  const content = useMemo(() => buildDrawerContent(title, appData), [title, appData])
+  const content = useMemo(() => buildDrawerContent(title, appData, entries), [title, appData, entries])
 
   useEffect(() => {
     setActiveTab(initialTab); setExpanded(initialTab === 'Entries'); setSelectedRow(null); setEntryScope('')
@@ -335,7 +352,7 @@ export default function DetailDrawer({ title, entries = [], initialTab = 'Overvi
   }, [title, initialTab, globalRange.from, globalRange.to, globalRange.preset])
 
   const categoryRows = useMemo(() => {
-    const preferred = title === 'Business Expenses' ? ['Expense Categories'] : title === 'Payroll Total' ? ['Payroll by Job Type'] : []
+    const preferred = ['Business Expenses','Total Expenses'].includes(title) ? ['Expense Categories'] : title === 'Payroll Total' ? ['Payroll by Job Type'] : []
     const sections = preferred.length ? content.sections.filter(section=>preferred.includes(section.title)) : content.sections
     return sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row })))
   }, [content, title])
@@ -381,7 +398,7 @@ export default function DetailDrawer({ title, entries = [], initialTab = 'Overvi
 
   return <div className="drawer-layer" role="presentation" onMouseDown={onClose}>
     <aside className={`detail-drawer drawer-${content.tone} ${expanded ? 'drawer-expanded' : ''}`} role="dialog" aria-modal="true" aria-label={`${title} details`} onMouseDown={(event) => event.stopPropagation()}>
-      <header className="drawer-header"><div><h2>{title}</h2><p>{content.subtitle}</p></div><div className="drawer-header-actions">
+      <header className="drawer-header"><div><h2>{title}</h2><p>{content.subtitle}</p></div><div className="drawer-header-actions">{headerAction}
         <button type="button" className="drawer-icon-button" aria-label={expanded ? 'Restore size' : 'Expand'} onClick={() => setExpanded((value) => !value)}>{expanded ? <Minimize2 size={18}/> : <Expand size={18}/>}</button>
         <button type="button" className="drawer-icon-button" aria-label="Close" onClick={onClose}><X size={20}/></button>
       </div></header>
