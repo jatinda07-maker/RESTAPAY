@@ -72,6 +72,11 @@ const configs = {
     fromDb: r => ({ ...r, date:r.expense_date||r.date, payment_method:r.payment_type||r.payment_method, type:r.category||r.type }),
     toDb: r => ({ id:r.id||id(), expense_date:r.expense_date||r.date||new Date().toISOString().slice(0,10), name:text(r.name||r.description||r.category)||'Expense', vendor:text(r.vendor), category:r.type||r.category||'Other', payment_type:r.payment_type||r.payment_method||r.method||'Cash', check_number:text(r.check_number||r.reference), amount:money(r.amount||r.total), notes:text(r.notes||r.description), recurring:Boolean(r.recurring), status:r.status||null, created_at:r.created_at||now(), updated_at:now() })
   },
+  'restapay-pay-rates': {
+    table:'employee_pay_rates',
+    fromDb:r=>({ ...r, employee_id:String(r.employee_id||''), amount:money(r.amount), effective_date:text(r.effective_date), reason:text(r.reason) }),
+    toDb:r=>({ id:r.id||id(), employee_id:String(r.employee_id||''), amount:money(r.amount), effective_date:text(r.effective_date)||new Date().toISOString().slice(0,10), reason:text(r.reason), created_at:r.created_at||now(), updated_at:now() })
+  },
   'restapay-payroll-groups': {
     table:'payroll_groups',
     fromDb:r=>({ ...r, memberIds:r.member_ids||[], payment_method:r.method||'Cash', type:r.group_type||r.type||'Kitchen' }),
@@ -104,6 +109,12 @@ const configs = {
     toDb:r=>({ id:r.id||id(), payment_date:r.payment_date||r.date||new Date().toISOString().slice(0,10), payment_type:r.payment_type||r.type||'Check', payee:text(r.payee), reference_number:text(r.reference_number||r.reference), amount:money(r.amount), status:r.status||'Pending', notes:text(r.notes), created_at:r.created_at||now(), updated_at:now() })
   }
 }
+
+const LIVE_SETTING_KEYS = new Set(['restapay-cost-settings','restapay-expense-types-v2','restapay-categories','restapay-labor-classification'])
+const settingCache = new Map()
+const settingReady = new Map()
+export const isLiveSettingKey = key => LIVE_SETTING_KEYS.has(key)
+export const getLiveSetting = (key, fallback) => settingCache.has(key) ? settingCache.get(key) : fallback
 
 const OPTIONAL_TABLE_KEYS = new Set(['restapay-bank-checks','restapay-invoice-approvals','restapay-cash-ledger'])
 const isMissingTableError = error => error && (error.code === '42P01' || error.status === 404 || /does not exist|not found|schema cache/i.test(String(error.message || '')))
@@ -165,6 +176,37 @@ function mergeRealtimeRow(key,payload){
 export const isLiveKey = key => Boolean(configs[key])
 export const getLiveCollection = key => cache.get(key) || []
 export const subscribeLiveData = fn => { listeners.add(fn); return ()=>listeners.delete(fn) }
+export async function ensureLiveSetting(key, fallback){
+  if(!isLiveSettingKey(key)) return fallback
+  if(settingReady.has(key)) return settingReady.get(key)
+  const promise=(async()=>{
+    if(!isSupabaseReady) throw new Error('Supabase environment variables are missing.')
+    const {data,error}=await supabase.from('app_settings').select('setting_key,value').eq('setting_key',key).maybeSingle()
+    if(error && !isMissingTableError(error)) throw error
+    if(data){ settingCache.set(key,data.value); emit(key,'supabase'); return data.value }
+    settingCache.set(key,fallback)
+    if(!error){
+      const {error:writeError}=await supabase.from('app_settings').upsert({setting_key:key,value:fallback,updated_at:now()},{onConflict:'setting_key'})
+      if(writeError) throw writeError
+    }
+    emit(key,'supabase'); return fallback
+  })().catch(error=>{settingReady.delete(key);cloudError(key,error);throw error})
+  settingReady.set(key,promise);return promise
+}
+export async function replaceLiveSetting(key,nextOrUpdater,fallback){
+  await ensureLiveSetting(key,fallback)
+  const current=getLiveSetting(key,fallback)
+  const next=typeof nextOrUpdater==='function'?nextOrUpdater(current):nextOrUpdater
+  const role=typeof localStorage!=='undefined'?(localStorage.getItem('restapay-current-role')||'admin'):'admin'
+  if(role==='manager') throw new Error('Manager role is not permitted to modify application settings.')
+  settingCache.set(key,next);emit(key,'optimistic');cloudStatus('saving',key)
+  try{
+    const {error}=await supabase.from('app_settings').upsert({setting_key:key,value:next,updated_at:now()},{onConflict:'setting_key'})
+    if(error) throw error
+    cloudStatus('saved',key);return next
+  }catch(error){settingCache.set(key,current);emit(key,'rollback');cloudError(key,error);throw error}
+}
+
 
 async function loadInvoices(){
   const [{data:invoices,error:e1},{data:items,error:e2},{data:vendors,error:e3}] = await Promise.all([
@@ -321,6 +363,13 @@ export async function connectLiveData(){
       subscribedTables.add(table)
       channel=channel.on('postgres_changes',{event:'*',schema:'public',table},payload=>mergeRealtimeRow(key,payload))
     }
+    channel=channel.on('postgres_changes',{event:'*',schema:'public',table:'app_settings'},payload=>{
+      const key=String(payload.new?.setting_key||payload.old?.setting_key||'')
+      if(!isLiveSettingKey(key)) return
+      if(payload.eventType==='DELETE') settingCache.delete(key)
+      else settingCache.set(key,payload.new?.value)
+      emit(key,'realtime')
+    })
     channel=channel.on('postgres_changes',{event:'*',schema:'public',table:'invoice_items'},()=>{
       clearTimeout(invoiceReloadTimer)
       invoiceReloadTimer=setTimeout(()=>reloadLiveCollection('restapay-invoices').catch(()=>{}),120)
@@ -338,8 +387,8 @@ export async function reconcileLiveData({force=false}={}){
   const currentTime=Date.now()
   if(!force && currentTime-lastReconcileAt<60000) return
   lastReconcileAt=currentTime
-  await Promise.allSettled(Object.keys(configs).map(reloadLiveCollection))
+  await Promise.allSettled([ ...Object.keys(configs).map(reloadLiveCollection), ...[...LIVE_SETTING_KEYS].filter(key=>settingReady.has(key)||settingCache.has(key)).map(key=>{settingReady.delete(key);return ensureLiveSetting(key,settingCache.get(key))}) ])
 }
 
 export async function initializeLiveData(){await Promise.allSettled(Object.keys(configs).map(ensureLiveCollection))}
-export function liveSnapshot(){return {sales:getLiveCollection('restapay.sales'),payroll:getLiveCollection('restapay-payroll'),invoices:getLiveCollection('restapay-invoices'),expenses:getLiveCollection('restapay-expenses'),vendors:getLiveCollection('restapay-vendors'),employees:getLiveCollection('restapay-employees'),invoiceApprovals:getLiveCollection('restapay-invoice-approvals'),cashLedger:getLiveCollection('restapay-cash-ledger')}}
+export function liveSnapshot(){return {sales:getLiveCollection('restapay.sales'),payroll:getLiveCollection('restapay-payroll'),invoices:getLiveCollection('restapay-invoices'),expenses:getLiveCollection('restapay-expenses'),vendors:getLiveCollection('restapay-vendors'),employees:getLiveCollection('restapay-employees'),payRates:getLiveCollection('restapay-pay-rates'),invoiceApprovals:getLiveCollection('restapay-invoice-approvals'),cashLedger:getLiveCollection('restapay-cash-ledger')}}

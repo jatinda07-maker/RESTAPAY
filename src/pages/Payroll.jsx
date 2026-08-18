@@ -91,6 +91,7 @@ export default function Payroll(){
   const [columnFilters,setColumnFilters] = useState({date:'',employee:'',job:'',hours:'',basePay:'',tips:'',withheld:'',netTips:'',finalPay:'',method:'',status:''})
   const [sourceRows,setSourceRows] = usePersistentState('restapay-payroll', [])
   const [employees, employeeCrud] = useCrudCollection('restapay-employees', [])
+  const [payRates] = useCrudCollection('restapay-pay-rates',[])
   const [groups,setGroups] = usePersistentState('restapay-payroll-groups', [])
   const [manualForm,setManualForm] = useState(emptyForm)
   const [employeeAddOpen,setEmployeeAddOpen] = useState(false)
@@ -404,10 +405,11 @@ export default function Payroll(){
         end:kitchenWeekEnd,
         selectedEmployeeIds:selectedKitchenEmployeeIds,
         groupId:selectedKitchenGroup?.id || null,
-        groupName:selectedKitchenGroup?.name || 'Kitchen Payroll'
+        groupName:selectedKitchenGroup?.name || 'Kitchen Payroll',
+        payRates
       })
     } catch { return [] }
-  }, [kitchenEligibleEmployees, kitchenWeekStart, kitchenWeekEnd, selectedKitchenEmployeeIds, selectedKitchenGroup])
+  }, [kitchenEligibleEmployees, kitchenWeekStart, kitchenWeekEnd, selectedKitchenEmployeeIds, selectedKitchenGroup, payRates])
 
   const createKitchenWeeklyPayroll = async () => {
     if (!isMondayToSunday(kitchenWeekStart, kitchenWeekEnd)) return notify('Select a Monday through Sunday kitchen payroll range.', 'error')
@@ -419,7 +421,8 @@ export default function Payroll(){
         end:kitchenWeekEnd,
         selectedEmployeeIds:selectedKitchenEmployeeIds,
         groupId:selectedKitchenGroup?.id || null,
-        groupName:selectedKitchenGroup?.name || 'Kitchen Payroll'
+        groupName:selectedKitchenGroup?.name || 'Kitchen Payroll',
+        payRates
       })
     } catch (error) { return notify(error.message, 'error') }
     if (!weeklyRows.length) return notify('No active kitchen employees were found for this payroll.', 'error')

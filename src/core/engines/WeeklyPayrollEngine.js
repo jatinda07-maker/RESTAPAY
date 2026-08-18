@@ -1,3 +1,4 @@
+import { effectivePayRate } from './PayRateEngine.js'
 const money = value => Math.round((Number(value) || 0) * 100) / 100
 const truncateMoney = value => Math.trunc(((Number(value) || 0) + Number.EPSILON) * 100) / 100
 const number = value => Number(String(value ?? '').replace(/[$,%]/g, '').trim()) || 0
@@ -131,7 +132,7 @@ export function buildWeeklyPayroll(rows = [], { start, end, paymentMethod = 'Che
 }
 
 
-export function buildKitchenWeeklyPayroll(employees = [], { start, end, selectedEmployeeIds = [], groupId = null, groupName = 'Kitchen Payroll' } = {}) {
+export function buildKitchenWeeklyPayroll(employees = [], { start, end, selectedEmployeeIds = [], groupId = null, groupName = 'Kitchen Payroll', payRates = [] } = {}) {
   if (!isMondayToSunday(start, end)) {
     throw new Error('Kitchen payroll range must run Monday through Sunday.')
   }
@@ -139,7 +140,7 @@ export function buildKitchenWeeklyPayroll(employees = [], { start, end, selected
   return (employees || [])
     .filter(employee => employee && employee.id && (!selected.size || selected.has(String(employee.id))))
     .map((employee, index) => {
-      const basePay = money(employee.basePay ?? employee.base_pay ?? 0)
+      const basePay = money(effectivePayRate(payRates, employee.id, start, employee.basePay ?? employee.base_pay ?? 0))
       const extraPay = money(employee.extra_pay ?? 0)
       return {
         id: `kitchen-weekly-${end}-${employee.id}-${index}`,
@@ -161,6 +162,7 @@ export function buildKitchenWeeklyPayroll(employees = [], { start, end, selected
         tips_after_withheld: 0,
         extra_pay: extraPay,
         extra_reason: employee.extra_reason || '',
+        pay_rate_effective_date: (Array.isArray(payRates) ? payRates : []).filter(rate => String(rate?.employee_id||'')===String(employee.id||'') && String(rate?.effective_date||'')<=String(start||'')).sort((a,b)=>String(b.effective_date||'').localeCompare(String(a.effective_date||'')))[0]?.effective_date || '',
         total: money(basePay + extraPay),
         total_pay: money(basePay + extraPay),
         payment_method: employee.method || employee.payroll_type || 'Cash',

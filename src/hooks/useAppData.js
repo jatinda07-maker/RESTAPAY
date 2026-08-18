@@ -9,7 +9,7 @@ import useGlobalDateRange, { inDateRange, normalizeRowDate } from './useGlobalDa
 
 const number = (value) => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 
-function snapshot(){ const value=liveSnapshot()||{};return {sales:Array.isArray(value.sales)?value.sales.filter(Boolean):[],payroll:Array.isArray(value.payroll)?value.payroll.filter(Boolean):[],invoices:Array.isArray(value.invoices)?value.invoices.filter(Boolean):[],expenses:Array.isArray(value.expenses)?value.expenses.filter(Boolean):[],vendors:Array.isArray(value.vendors)?value.vendors.filter(Boolean):[],employees:Array.isArray(value.employees)?value.employees.filter(Boolean):[],invoiceApprovals:Array.isArray(value.invoiceApprovals)?value.invoiceApprovals.filter(Boolean):[],cashLedger:Array.isArray(value.cashLedger)?value.cashLedger.filter(Boolean):[]} }
+function snapshot(){ const value=liveSnapshot()||{};return {sales:Array.isArray(value.sales)?value.sales.filter(Boolean):[],payroll:Array.isArray(value.payroll)?value.payroll.filter(Boolean):[],invoices:Array.isArray(value.invoices)?value.invoices.filter(Boolean):[],expenses:Array.isArray(value.expenses)?value.expenses.filter(Boolean):[],vendors:Array.isArray(value.vendors)?value.vendors.filter(Boolean):[],employees:Array.isArray(value.employees)?value.employees.filter(Boolean):[],payRates:Array.isArray(value.payRates)?value.payRates.filter(Boolean):[],invoiceApprovals:Array.isArray(value.invoiceApprovals)?value.invoiceApprovals.filter(Boolean):[],cashLedger:Array.isArray(value.cashLedger)?value.cashLedger.filter(Boolean):[]} }
 
 export function useAppData(overrideRange = null) {
   const { range: globalRange } = useGlobalDateRange()
