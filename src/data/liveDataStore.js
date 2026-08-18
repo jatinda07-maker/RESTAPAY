@@ -5,7 +5,7 @@ const id = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random().toStrin
 const money = value => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
 const truncateMoney = value => Math.trunc((money(value) + Number.EPSILON) * 100) / 100
 const text = value => String(value ?? '').trim()
-const normalizeJob = value => /^(server|waitress)$/i.test(text(value)) ? 'Waiter' : text(value)
+const normalizeJob = value => /^(server|waitress|front\s*house|front-of-house|foh)$/i.test(text(value)) ? 'Waiter' : /^dish\s*washer$/i.test(text(value)) ? 'Dishwasher' : text(value)
 
 const payrollIdentity = row => {
   const employee = text(row?.employee_id || row?.employee_name || row?.employee).toLowerCase()
@@ -122,7 +122,8 @@ const normalizeCollectionRows = (rows, key) => (Array.isArray(rows) ? rows : [])
   const normalized = { ...row }
   if (key === 'restapay-employees') {
     normalized.name = text(normalized.name || normalized.employee_name) || 'Unnamed employee'
-    normalized.job = text(normalized.job || normalized.job_type) || 'Kitchen'
+    normalized.job = normalizeJob(normalized.job || normalized.job_type) || 'Kitchen'
+    normalized.job_type = normalized.job
     normalized.type = text(normalized.type || normalized.employee_type) || 'Hourly'
     normalized.method = text(normalized.method || normalized.pay_method) || 'Cash'
     normalized.status = text(normalized.status) || 'Active'

@@ -51,7 +51,8 @@
     "test:rc397": "node scripts/test-rc397-historical-payroll-repair.mjs",
     "test:rc398": "node scripts/test-rc398-cumulative-fixes.mjs",
     "test:rc399": "node scripts/test-rc399-supabase-live-sync.mjs",
-    "test:rc3910": "node src/scripts/test-rc3910-effective-pay-live-supabase.mjs"
+    "test:rc3910": "node src/scripts/test-rc3910-effective-pay-live-supabase.mjs",
+    "test:rc3911": "node scripts/test-rc3911-employee-role-hover.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

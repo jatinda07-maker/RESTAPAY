@@ -377,3 +377,13 @@
 @media(max-width:900px){.approval-row{grid-template-columns:1fr 1fr}.approval-actions{grid-column:1/-1}}
 /* RC3.8.2 profile role switcher */
 .profile-switch-wrap{position:relative}.profile-switch-button{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:4px 6px;border-radius:12px;cursor:pointer;color:inherit}.profile-switch-button:hover{background:rgba(15,45,80,.06)}.profile-switch-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:1000;min-width:220px;padding:8px;background:#fff;border:1px solid #dce7e2;border-radius:14px;box-shadow:0 16px 40px rgba(13,37,63,.16)}.profile-switch-menu button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:11px 12px;border-radius:10px;text-align:left;font-weight:700;color:#10284b;cursor:pointer}.profile-switch-menu button:hover{background:#f2f8f5}
+
+/* RC3.9.11 global interactive button feedback */
+button:not(:disabled){transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease,border-color .15s ease,color .15s ease;cursor:pointer}
+button:not(:disabled):active{transform:translateY(0) scale(.985)}
+.primary-button:not(:disabled):hover{transform:translateY(-1px);background:linear-gradient(180deg,#12b967,#067d44);box-shadow:0 10px 22px rgba(10,168,91,.28)}
+.secondary-action:not(:disabled):hover{transform:translateY(-1px);border-color:#8fc9aa;background:#f1faf5;color:#087f45;box-shadow:0 7px 16px rgba(20,68,48,.09)}
+.danger-action:not(:disabled):hover,.row-actions button.danger:not(:disabled):hover{border-color:#f3a6ad;background:#fff1f2;color:#c92335;box-shadow:0 7px 16px rgba(201,35,53,.10)}
+.row-actions button:not(:disabled):hover{transform:translateY(-1px);border-color:#9ebbad;background:#f2faf6;color:#087f45;box-shadow:0 6px 14px rgba(20,68,48,.09)}
+.status-badge:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 5px 12px rgba(20,68,48,.10)}
+button:disabled{cursor:not-allowed}

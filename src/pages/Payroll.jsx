@@ -15,6 +15,7 @@ import useCrudCollection from '../hooks/useCrudCollection'
 import { useFeedback } from '../components/AppFeedback'
 import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
 import { filterPayrollRows } from '../core/engines/PayrollFilterEngine.js'
+import { canonicalEmployeeJob } from '../lib/employeeRoles.js'
 
 const truncatePayrollPayment = value => Math.trunc(((Number(String(value ?? 0).replace(/[$,%(),]/g,'')) || 0) + Number.EPSILON) * 100) / 100
 
@@ -106,9 +107,9 @@ export default function Payroll(){
   const employeeByName = useMemo(() => new Map((Array.isArray(employees) ? employees : []).filter(Boolean).map(employee => [String(employee.name || employee.employee_name || '').trim().toLowerCase(), employee])), [employees])
   const resolveEmployeeJob = row => {
     const direct = String(row?.job_type || row?.job || row?.job_title || row?.position || row?.duty || '').trim()
-    if (direct) return direct
+    if (direct) return canonicalEmployeeJob(direct)
     const employee = employeeById.get(String(row?.employee_id || '')) || employeeByName.get(String(row?.employee_name || row?.employee || '').trim().toLowerCase())
-    return String(employee?.job || employee?.job_type || employee?.job_title || employee?.position || employee?.duty || 'Unassigned').trim() || 'Unassigned'
+    return canonicalEmployeeJob(employee?.job || employee?.job_type || employee?.job_title || employee?.position || employee?.duty || 'Unassigned')
   }
   const enrichPayrollRow = row => ({ ...row, job_type: resolveEmployeeJob(row) })
 
