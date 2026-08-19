@@ -2,6 +2,16 @@ import { enrichInvoiceItem, normalizeVendorName } from './InvoiceProductEngine.j
 
 const n = value => Number(String(value ?? 0).replace(/[$,%(),]/g, '').replaceAll(',', '')) || 0
 const text = value => String(value ?? '').trim()
+const isoDate = value => {
+  const raw=text(value); if(!raw)return ''
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const m=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/); if(!m)return ''
+  return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
+}
+export const PAYMENT_TERMS=['Due on Receipt','Net 7','Net 14','Net 15','Net 30','Net 45','Net 60','Custom']
+export function normalizePaymentTerms(value=''){const v=text(value).toLowerCase().replace(/\s+/g,' ');if(!v)return '';if(/due\s*(on\s*)?receipt|cod/.test(v))return 'Due on Receipt';const m=v.match(/net\s*(7|14|15|30|45|60)\s*(day|days)?/);return m?`Net ${m[1]}`:text(value)}
+export function dueDateFromTerms(invoiceDate,terms){const date=isoDate(invoiceDate);const normalized=normalizePaymentTerms(terms);if(!date||!normalized)return '';const days=normalized==='Due on Receipt'?0:Number((normalized.match(/Net (\d+)/)||[])[1]);if(!Number.isFinite(days))return '';const d=new Date(`${date}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)}
+export function authoritativeInvoiceDate(data={}){return isoDate(data.invoice_date||data.date)||''}
 
 export const ALCOHOL_CATEGORIES = ['Beer','Wine','Liquor','Margaritas','Cocktails & Shots','Draft Beer','Bottled Beer','Alcohol']
 export const FOOD_CATEGORIES = ['Food','Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Bakery']
@@ -124,9 +134,14 @@ export function reconcileInvoiceExtraction({ lines = [], printedSubtotal = 0, pr
   const productTotal = extractedSubtotalConflictsWithFinal ? inferredProductTotal : (subtotal || inferredProductTotal || lineSubtotal)
   const calculatedTotal = Number((productTotal + chargeAmount + taxAmount - discount).toFixed(2))
   const mismatches = []
+  const warnings = []
+  const lineVariance = Number((lineSubtotal-productTotal).toFixed(2))
 
-  if (Math.abs(lineSubtotal - productTotal) > tolerance) {
-    mismatches.push(`line items total ${lineSubtotal.toFixed(2)} does not match printed Product Total ${productTotal.toFixed(2)} (difference ${(lineSubtotal-productTotal).toFixed(2)})`)
+  // A line-item sum can differ slightly from the vendor's printed Product Total because
+  // of printed credits/allowances or extraction precision. Report that variance separately.
+  // It must not make a correctly reconciled invoice-summary total look invalid.
+  if (Math.abs(lineVariance) > tolerance) {
+    warnings.push(`line items total ${lineSubtotal.toFixed(2)} differs from printed Product Total ${productTotal.toFixed(2)} by ${lineVariance.toFixed(2)}`)
   }
   if (total && Math.abs(calculatedTotal - total) > tolerance) {
     mismatches.push(`invoice math ${calculatedTotal.toFixed(2)} does not match printed final total ${total.toFixed(2)} (difference ${(calculatedTotal-total).toFixed(2)})`)
@@ -151,6 +166,9 @@ export function reconcileInvoiceExtraction({ lines = [], printedSubtotal = 0, pr
     calculated_total: calculatedTotal,
     reconciled: mismatches.length === 0,
     needs_review: mismatches.length > 0,
+    line_variance: lineVariance,
+    line_variance_needs_review: Math.abs(lineVariance) > tolerance,
+    warnings,
     mismatches,
     authoritative_total: total || (mismatches.length === 0 ? calculatedTotal : 0) || net || productTotal,
   }
@@ -164,8 +182,9 @@ export function normalizeInvoice(invoice = {}) {
     vendor: text(invoice.vendor || invoice.vendor_name),
     vendor_id: invoice.vendor_id || null,
     number: text(invoice.number || invoice.invoice_number),
-    date: invoice.date || invoice.invoice_date || '',
-    due_date: invoice.due_date || '',
+    date: authoritativeInvoiceDate(invoice),
+    payment_terms: normalizePaymentTerms(invoice.payment_terms || invoice.terms || ''),
+    due_date: isoDate(invoice.due_date) || dueDateFromTerms(invoice.date || invoice.invoice_date, invoice.payment_terms || invoice.terms),
     category: text(invoice.category || 'Food'),
     payment_type: text(invoice.payment_type || invoice.method || 'Check'),
     check_number: text(invoice.check_number || invoice.checkNumber),
@@ -266,15 +285,38 @@ export function buildPriceHistory(invoices = []) {
   return history.sort((a,b) => String(a.date).localeCompare(String(b.date)))
 }
 
+export function invoiceItemSimilarity(a={},b={}){
+  const basisA=String(a.comparison_basis||a.normalized_unit||a.purchase_unit||'').toLowerCase()
+  const basisB=String(b.comparison_basis||b.normalized_unit||b.purchase_unit||'').toLowerCase()
+  if(basisA&&basisB&&basisA!==basisB)return 0
+  if(a.item_number&&b.item_number&&String(a.item_number)===String(b.item_number))return 1
+  const stop=new Set(['fresh','raw','ref','shlf','bulk','case','cs','ea','each','pack','food','foods'])
+  const tokens=v=>new Set(invoiceItemIdentity(v).split(' ').filter(x=>x.length>1&&!stop.has(x)))
+  const A=tokens(a.item||a.description),B=tokens(b.item||b.description);if(!A.size||!B.size)return 0
+  let shared=0;A.forEach(x=>{if(B.has(x))shared++});return shared/Math.max(A.size,B.size)
+}
+export function buildVendorPriceBook(history=[]){
+  const rows=(Array.isArray(history)?history:[]).filter(r=>n(r.unit_cost||r.case_price)>0)
+  return rows.map(row=>{
+    const family=rows.filter(candidate=>candidate===row||invoiceItemSimilarity(row,candidate)>=0.72)
+    const byVendor=new Map();family.forEach(candidate=>{const key=String(candidate.vendor_key||candidate.vendor||'').toLowerCase();const prev=byVendor.get(key);if(!prev||String(candidate.date||'')>String(prev.date||''))byVendor.set(key,candidate)})
+    const latest=[...byVendor.values()].sort((a,b)=>n(a.unit_cost||a.case_price)-n(b.unit_cost||b.case_price))
+    const best=latest[0]||row
+    return {...row,family_key:invoiceItemIdentity(row.item),vendor_options:latest,best_vendor:best.vendor,best_price:n(best.unit_cost||best.case_price),match_confidence:latest.length>1?'AI matched':'History only'}
+  })
+}
+
 export function comparePrices(history = []) {
   const groups = new Map()
+  const representatives=[]
   history.forEach(row => {
     const identity = row.item_key || invoiceItemIdentity(row.item)
     const basis = String(row.comparison_basis || row.normalized_unit || row.purchase_unit || '').toLowerCase()
     if (!identity || !basis) return
-    const key = `${identity}|${basis}`
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(row)
+    let rep=representatives.find(x=>x.basis===basis && invoiceItemSimilarity(x.row,row)>=0.72)
+    if(!rep){rep={key:`${identity}|${basis}`,basis,row};representatives.push(rep)}
+    if (!groups.has(rep.key)) groups.set(rep.key, [])
+    groups.get(rep.key).push(row)
   })
   return [...groups.values()].map(rows => {
     const sorted = [...rows].sort((a,b)=>String(a.date).localeCompare(String(b.date)))
@@ -315,7 +357,7 @@ export function comparePrices(history = []) {
       savings_per_unit: Number(savingsPerUnit.toFixed(4)),
       savings: Number(potentialSavings.toFixed(2)),
       potential_savings: Number(potentialSavings.toFixed(2)),
-      match_confidence: vendorCount > 1 ? 'High' : 'History only',
+      match_confidence: vendorCount > 1 ? (new Set(comparableRows.map(r=>r.item_key||invoiceItemIdentity(r.item))).size>1 ? 'AI similar' : 'Exact') : 'History only',
       previous_row: previous,
       current_row: latest,
       comparison_rows: [

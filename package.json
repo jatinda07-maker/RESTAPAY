@@ -33,7 +33,8 @@
     "test:tip-pass-through": "node scripts/test-tip-pass-through.mjs",
     "test:rc34": "node scripts/test-rc34-detail-drilldowns.mjs",
     "test:rc35": "node scripts/test-rc35-invoice-unit-ui.mjs",
-    "test:rc3912": "node scripts/test-rc3912-live-derived-recalc.mjs"
+    "test:rc3912": "node scripts/test-rc3912-live-derived-recalc.mjs",
+    "test:rc3913": "node scripts/test-rc3913-invoice-price-book.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
