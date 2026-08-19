@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { useAccessControl } from '../lib/accessControl.js'
 import {
   BarChart3, Building2, CalendarRange, Cloud, FileText, Gauge, Landmark,
   LayoutDashboard, PackageSearch, ReceiptText, Settings, TrendingUp,
@@ -51,7 +50,6 @@ const sections = [
 ]
 
 export default function Sidebar() {
-  const {canRoute}=useAccessControl()
   const [expanded, setExpanded] = useState(false)
   const [collapseLock, setCollapseLock] = useState(false)
 
@@ -82,7 +80,7 @@ export default function Sidebar() {
         <div className="brand-name">RestaPay</div>
       </div>
       <nav className="sidebar-nav">
-        {sections.map((section) => ({...section,items:section.items.filter(([to])=>canRoute(to))})).filter(section=>section.items.length).map((section) => (
+        {sections.map((section) => (
           <div className="nav-section" key={section.label}>
             <div className="nav-section-label">{section.label}</div>
             {section.items.map(([to, label, Icon]) => (

@@ -112,47 +112,24 @@ export function reconcileInvoiceExtraction({ lines = [], printedSubtotal = 0, pr
   const net = Number(n(printedNet).toFixed(2))
   const total = Number(n(printedTotal).toFixed(2))
   const discount = Number(n(summaryDiscount).toFixed(2))
-  const taxAmount = Number(n(tax).toFixed(2))
-  const chargeAmount = Number(n(charges).toFixed(2))
   const tolerance = 0.02
-  const inferredProductTotal = total ? Number((total - chargeAmount - taxAmount + discount).toFixed(2)) : 0
-  const extractedMathTotal = Number(((subtotal || lineSubtotal) + chargeAmount + taxAmount - discount).toFixed(2))
-  const extractedSubtotalConflictsWithFinal = Boolean(total && subtotal && inferredProductTotal > 0 && Math.abs(extractedMathTotal - total) > tolerance)
-  // When the invoice final total, tax and invoice-level charges reconcile cleanly, derive
-  // the printed Product Total from that authoritative summary. This prevents a bad AI
-  // Product Total extraction from being presented as authoritative (US Foods case).
-  const productTotal = extractedSubtotalConflictsWithFinal ? inferredProductTotal : (subtotal || inferredProductTotal || lineSubtotal)
-  const calculatedTotal = Number((productTotal + chargeAmount + taxAmount - discount).toFixed(2))
-  const mismatches = []
-
-  if (Math.abs(lineSubtotal - productTotal) > tolerance) {
-    mismatches.push(`line items total ${lineSubtotal.toFixed(2)} does not match printed Product Total ${productTotal.toFixed(2)} (difference ${(lineSubtotal-productTotal).toFixed(2)})`)
-  }
-  if (total && Math.abs(calculatedTotal - total) > tolerance) {
-    mismatches.push(`invoice math ${calculatedTotal.toFixed(2)} does not match printed final total ${total.toFixed(2)} (difference ${(calculatedTotal-total).toFixed(2)})`)
-  }
-  if (net && total && Math.abs(net-total) > tolerance && !subtotal) {
-    mismatches.push(`printed net/delivered amount ${net.toFixed(2)} does not match printed final total ${total.toFixed(2)}`)
-  }
-
+  const comparisons = [
+    subtotal ? ['line subtotal', lineSubtotal, subtotal] : null,
+    net && subtotal ? ['subtotal/net', subtotal, net] : null,
+    total && net ? ['net/final total', Number((net + n(tax) + n(charges)).toFixed(2)), total] : null,
+  ].filter(Boolean)
+  const mismatches = comparisons.filter(([,a,b]) => Math.abs(a - b) > tolerance).map(([label,a,b]) => `${label}: ${a.toFixed(2)} vs ${b.toFixed(2)}`)
   return {
     lines: normalized,
     line_subtotal: lineSubtotal,
-    printed_subtotal: productTotal,
-    extracted_printed_subtotal: subtotal,
-    inferred_product_total: inferredProductTotal,
-    product_total_inferred: extractedSubtotalConflictsWithFinal,
-    product_total: productTotal,
+    printed_subtotal: subtotal,
     printed_net: net,
     printed_total: total,
     summary_discount: discount,
-    tax: taxAmount,
-    charges: chargeAmount,
-    calculated_total: calculatedTotal,
     reconciled: mismatches.length === 0,
     needs_review: mismatches.length > 0,
     mismatches,
-    authoritative_total: total || (mismatches.length === 0 ? calculatedTotal : 0) || net || productTotal,
+    authoritative_total: total || net || subtotal || lineSubtotal,
   }
 }
 
@@ -182,62 +159,12 @@ export function normalizeInvoice(invoice = {}) {
   }
 }
 
-export function invoiceItemIdentity(value = '') {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/\b\d+(?:\.\d+)?\s*(lb|lbs|oz|kg|g|gal|qt|pt|ml|l|ct|count|ea|each|pk|pack|case|cs)\b/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\b(the|and|of|size|case|pack|each)\b/g, ' ')
-    .trim().replace(/\s+/g, ' ')
-}
-
-
-export function applyLearnedInvoiceCategories(lines = [], invoices = []) {
-  const memory = new Map()
-  ;(Array.isArray(invoices) ? invoices : []).forEach(invoice => {
-    ;(invoice?.lines || invoice?.items || []).forEach(line => {
-      const key = invoiceItemIdentity(line?.description || line?.item_name || line?.name)
-      const category = String(line?.category || '').trim()
-      if (key && category && !/^other$/i.test(category)) memory.set(key, category)
-    })
-  })
-  return (Array.isArray(lines) ? lines : []).map(line => {
-    const key = invoiceItemIdentity(line?.description || line?.item_name || line?.name)
-    const learned = key ? memory.get(key) : ''
-    return learned ? { ...line, category: learned, category_source: 'history' } : line
-  })
-}
-
-export function propagateInvoiceCategories(invoices = [], referenceLines = []) {
-  const rules = new Map()
-  ;(Array.isArray(referenceLines) ? referenceLines : []).forEach(line => {
-    const key = invoiceItemIdentity(line?.description || line?.item_name || line?.name)
-    const category = String(line?.category || '').trim()
-    if (key && category) rules.set(key, category)
-  })
-  let changedLines = 0
-  const rows = (Array.isArray(invoices) ? invoices : []).map(invoice => {
-    let changed = false
-    const lines = (invoice?.lines || invoice?.items || []).map(line => {
-      const key = invoiceItemIdentity(line?.description || line?.item_name || line?.name)
-      const category = rules.get(key)
-      if (!category || String(line?.category || '') === category) return line
-      changed = true; changedLines += 1
-      return { ...line, category, category_source: 'learned-correction' }
-    })
-    return changed ? { ...invoice, lines, items: invoice.items ? lines : invoice.items, category_learning_updated_at: new Date().toISOString() } : invoice
-  })
-  return { rows, changedLines, ruleCount: rules.size }
-}
-
 export function buildPriceHistory(invoices = []) {
   const history = []
   invoices.forEach(invoice => {
     const normalized = normalizeInvoice(invoice)
     normalized.lines.forEach(line => {
       if (!line.description) return
-      const normalizedCost = n(line.effective_each_cost || line.normalized_unit_cost || line.unit_price || line.case_price)
-      const comparableQuantity = n(line.total_measure) || (n(line.pack_count) > 1 ? n(line.pack_count) : 1)
       history.push({
         id: `${invoice.id}-${line.id}`,
         invoice_id: invoice.id,
@@ -247,15 +174,12 @@ export function buildPriceHistory(invoices = []) {
         vendor_key: normalized.vendor_key,
         item_number: line.item_number,
         item: line.description,
-        item_key: invoiceItemIdentity(line.description),
         category: line.category || normalized.category,
         package_size: line.package_size,
         quantity: line.quantity,
-        comparable_quantity: comparableQuantity,
         case_price: line.case_price || (line.quantity ? line.line_total / line.quantity : line.line_total),
-        unit_cost: normalizedCost,
+        unit_cost: line.effective_each_cost || line.normalized_unit_cost || line.unit_price,
         effective_each_cost: line.effective_each_cost || 0,
-        normalized_unit_cost: line.normalized_unit_cost || 0,
         purchase_unit: line.purchase_unit || 'each',
         pack_count: line.pack_count || 0,
         comparison_basis: line.comparison_basis || line.normalized_unit || line.purchase_unit || '',
@@ -269,59 +193,34 @@ export function buildPriceHistory(invoices = []) {
 export function comparePrices(history = []) {
   const groups = new Map()
   history.forEach(row => {
-    const identity = row.item_key || invoiceItemIdentity(row.item)
-    const basis = String(row.comparison_basis || row.normalized_unit || row.purchase_unit || '').toLowerCase()
-    if (!identity || !basis) return
-    const key = `${identity}|${basis}`
+    const key = `${String(row.item_number || '').toLowerCase()}|${String(row.item || '').toLowerCase()}|${String(row.comparison_basis || row.normalized_unit || '')}`
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key).push(row)
   })
   return [...groups.values()].map(rows => {
     const sorted = [...rows].sort((a,b)=>String(a.date).localeCompare(String(b.date)))
-    const latest = sorted[sorted.length-1]
-    const previous = sorted.length > 1 ? sorted[sorted.length-2] : latest
-    const currentPrice = n(latest.unit_cost || latest.case_price)
-    const previousPrice = n(previous.unit_cost || previous.case_price)
-    const comparableRows = sorted.filter(r=>n(r.unit_cost || r.case_price)>0)
-    const best = [...comparableRows].sort((a,b)=>n(a.unit_cost||a.case_price)-n(b.unit_cost||b.case_price))[0] || latest
-    const high = [...comparableRows].sort((a,b)=>n(b.unit_cost||b.case_price)-n(a.unit_cost||a.case_price))[0] || latest
-    const vendorCount = new Set(comparableRows.map(r=>String(r.vendor_key||r.vendor||'').toLowerCase()).filter(Boolean)).size
-    const change = currentPrice - previousPrice
-    const changePercent = previousPrice ? change / previousPrice * 100 : 0
-    const savingsPerUnit = Math.max(0,currentPrice - n(best.unit_cost||best.case_price))
-    const comparableQuantity = Math.max(1,n(latest.comparable_quantity)||1)
-    const potentialSavings = savingsPerUnit * comparableQuantity
+    const first = sorted[0], latest = sorted[sorted.length-1]
+    const previous = sorted.length > 1 ? sorted[sorted.length-2] : first
+    const change = n(latest.unit_cost || latest.case_price) - n(previous.unit_cost || previous.case_price)
+    const base = n(previous.unit_cost || previous.case_price)
+    const changePercent = base ? change / base * 100 : 0
+    const best = [...sorted].sort((a,b)=>n(a.unit_cost||a.case_price)-n(b.unit_cost||b.case_price))[0]
     return {
-      key: `${latest.item_key || latest.item}-${latest.comparison_basis || latest.normalized_unit || ''}`,
+      key: `${latest.item_number || latest.item}-${latest.normalized_unit || ''}`,
       item: latest.item,
-      item_key: latest.item_key,
       item_number: latest.item_number,
       category: latest.category,
       package_size: latest.package_size,
       purchase_unit: latest.purchase_unit,
       pack_count: latest.pack_count,
       comparison_basis: latest.comparison_basis || latest.normalized_unit || '',
-      comparable_quantity: comparableQuantity,
-      previous_price: previousPrice,
-      current_price: currentPrice,
+      previous_price: n(previous.unit_cost || previous.case_price),
+      current_price: n(latest.unit_cost || latest.case_price),
       change: Number(change.toFixed(4)),
       change_percent: Number(changePercent.toFixed(2)),
       vendor: latest.vendor,
       best_vendor: best.vendor,
       best_price: n(best.unit_cost || best.case_price),
-      highest_vendor: high.vendor,
-      highest_price: n(high.unit_cost || high.case_price),
-      vendor_count: vendorCount,
-      savings_per_unit: Number(savingsPerUnit.toFixed(4)),
-      savings: Number(potentialSavings.toFixed(2)),
-      potential_savings: Number(potentialSavings.toFixed(2)),
-      match_confidence: vendorCount > 1 ? 'High' : 'History only',
-      previous_row: previous,
-      current_row: latest,
-      comparison_rows: [
-        { ...previous, comparison_role: 'Previous' },
-        { ...latest, comparison_role: 'Current' },
-      ],
       history: sorted,
     }
   }).sort((a,b)=>b.change_percent-a.change_percent)

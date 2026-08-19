@@ -10,9 +10,6 @@ import './styles/sales.css'
 import './styles/cost.css'
 import { FeedbackProvider } from './components/AppFeedback'
 import './styles/records.css'
-import { connectLiveData } from './data/liveDataStore.js'
-
-connectLiveData().catch(() => {})
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

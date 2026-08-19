@@ -53,51 +53,40 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
 
   const invoiceSplit = classifyInvoiceSpend(invoices)
   const invoiceTotal = invoices.reduce((sum, row) => sum + invoiceAmount(row), 0)
-  const isCashWithdrawal = row => /cash withdrawal|owner withdrawal|cash draw/i.test(`${row?.category||''} ${row?.type||''} ${row?.name||''} ${row?.payment_type||''}`)
-  const withdrawalRows = expenses.filter(isCashWithdrawal)
-  const operatingExpenses = expenses.filter(row => !isCashWithdrawal(row))
-  const cashWithdrawals = withdrawalRows.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
-  const expenseTotal = operatingExpenses.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
-  const cashExpenses = operatingExpenses.filter(row => text(row?.method || row?.payment_type) === 'cash')
+  const expenseTotal = expenses.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
+  const cashExpenses = expenses.filter(row => text(row?.method || row?.payment_type) === 'cash')
     .reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
   const cashInvoiceSpend = invoices.filter(row => text(row?.payment_type || row?.method) === 'cash')
     .reduce((sum, row) => sum + invoiceAmount(row), 0)
 
   const payrollTotal = n(payrollSummary.total)
   const operatingLabor = payrollSummary.operatingLabor === undefined ? payrollTotal : n(payrollSummary.operatingLabor)
-  const managementPayroll = n(payrollSummary.managementPayroll)
-  const frontOfHousePayroll = n(payrollSummary.frontOfHousePayroll)
-  const reviewPayroll = n(payrollSummary.reviewPayroll)
   const tipsEarned = n(payrollSummary.tipsEarned)
   const tipsWithheld = n(payrollSummary.tipsWithheld)
   const netTipsPaid = n(payrollSummary.netTipsPaid)
   const cashPayroll = n(payrollSummary.cash)
   const checkPayroll = n(payrollSummary.check)
   const payrollHours = n(payrollSummary.hours)
-  const employerLabor = operatingLabor + managementPayroll + frontOfHousePayroll + reviewPayroll
   const cogs = invoiceSplit.food + invoiceSplit.alcohol
-  // Restaurant-wide Prime Cost includes direct COGS + BOH/kitchen labor + management labor once.
-  // Department screens may allocate management between Food/Alcohol; employee tip pass-through remains excluded.
-  const primeLabor = operatingLabor + managementPayroll
-  const primeCostAmount = cogs + primeLabor
-  const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend - cashWithdrawals
-  const operatingProfit = salesTotal - cogs - employerLabor - expenseTotal
+  const primeCostAmount = cogs + operatingLabor
+  const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend
+  const operatingProfit = salesTotal - cogs - operatingLabor - expenseTotal
   const percent = (value, base) => base > 0 ? (value / base) * 100 : 0
 
   const salesCategoryVariance = salesTotal - (foodSales + alcoholSales + otherSales)
-  const cashEquationVariance = cashRemaining - (cashSales - cashPayroll - cashExpenses - cashInvoiceSpend - cashWithdrawals)
-  const profitEquationVariance = operatingProfit - (salesTotal - cogs - employerLabor - expenseTotal)
+  const cashEquationVariance = cashRemaining - (cashSales - cashPayroll - cashExpenses - cashInvoiceSpend)
+  const profitEquationVariance = operatingProfit - (salesTotal - cogs - operatingLabor - expenseTotal)
 
   return {
     salesTotal, foodSales, alcoholSales, otherSales, tips, cashSales, creditSales,
     foodCost: invoiceSplit.food, alcoholCost: invoiceSplit.alcohol, uncategorizedInvoiceCost: invoiceSplit.uncategorized,
-    invoiceTotal, expenseTotal, cashExpenses, cashInvoiceSpend, cashWithdrawals, withdrawalRows,
-    payrollTotal, operatingLabor, managementPayroll, frontOfHousePayroll, reviewPayroll, employerLabor, tipsEarned, tipsWithheld, netTipsPaid, cashPayroll, checkPayroll, payrollHours,
-    cashRemaining, cogs, primeLabor, primeCostAmount, operatingProfit,
+    invoiceTotal, expenseTotal, cashExpenses, cashInvoiceSpend,
+    payrollTotal, operatingLabor, tipsEarned, tipsWithheld, netTipsPaid, cashPayroll, checkPayroll, payrollHours,
+    cashRemaining, cogs, primeCostAmount, operatingProfit,
     foodCostPercent: percent(invoiceSplit.food, foodSales),
     alcoholCostPercent: percent(invoiceSplit.alcohol, alcoholSales),
     primeCostPercent: percent(primeCostAmount, salesTotal),
-    laborMixPercent: percent(primeLabor, salesTotal),
+    laborMixPercent: percent(operatingLabor, salesTotal),
     operatingMargin: percent(operatingProfit, salesTotal),
     foodInvoiceCount: invoiceSplit.foodInvoiceCount,
     alcoholInvoiceCount: invoiceSplit.alcoholInvoiceCount,
