@@ -2,7 +2,6 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
-import RestaAssistant from '../components/RestaAssistant'
 
 const quickRoutes = {
   'Import Sales':'/import-center','Import Labor':'/import-center','Product Mix':'/import-center','Toast Sync':'/toast-integration',
@@ -26,5 +25,5 @@ export default function AppShell() {
     if (quickRoutes[label]) { event.preventDefault(); navigate(quickRoutes[label]); return }
     if (['1','2','3'].includes(label)) return
   }
-  return <div className="app-shell" onPointerDownCapture={openDatePicker} onClickCapture={handleFallback}><Sidebar/><div className="app-main"><Topbar/><main className="page-canvas"><Outlet/></main></div><RestaAssistant/></div>
+  return <div className="app-shell" onPointerDownCapture={openDatePicker} onClickCapture={handleFallback}><Sidebar/><div className="app-main"><Topbar/><main className="page-canvas"><Outlet/></main></div></div>
 }

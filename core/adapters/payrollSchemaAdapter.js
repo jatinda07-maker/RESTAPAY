@@ -1,6 +1,5 @@
 const n = value => Number(String(value ?? '').replace(/[$,%(),]/g, '').trim()) || 0
 const round2 = value => Math.round(n(value) * 100) / 100
-const truncate2 = value => Math.trunc((n(value) + Number.EPSILON) * 100) / 100
 const text = value => String(value ?? '').trim()
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -11,11 +10,11 @@ const today = () => new Date().toISOString().slice(0, 10)
  */
 export function normalizePayrollRecord(row = {}, defaults = {}) {
   const originalTips = round2(row.original_tips ?? row.credit_card_tips ?? row.total_tips ?? 0)
-  const withheld = originalTips * 0.035
-  const netTips = truncate2(originalTips - withheld)
+  const withheld = round2(originalTips * 0.035)
+  const netTips = round2(originalTips - withheld)
   const regularPay = round2(row.regular_pay ?? row.base_pay ?? row.gross_pay ?? 0)
   const extraPay = round2(row.extra_pay ?? 0)
-  const total = truncate2(row.total ?? row.total_pay ?? row.amount ?? (regularPay + netTips + extraPay))
+  const total = round2(row.total ?? row.total_pay ?? row.amount ?? (regularPay + netTips + extraPay))
   const payrollDate = row.payroll_date || row.pay_date || row.date || defaults.payroll_date || today()
   const method = row.method || row.payment_method || row.payroll_type || defaults.method || 'Check'
   const now = new Date().toISOString()
