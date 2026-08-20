@@ -18,6 +18,7 @@ import { useFeedback } from '../components/AppFeedback'
 import DetailDrawer from '../components/DetailDrawer'
 import Modal from '../components/Modal'
 import { appMoney, appMoney2, useAppData } from '../hooks/useAppData'
+import { exportReportPdf } from '../lib/reportExport'
 
 const reportTypes = [
   'Cash Sales', 'Credit Sales', 'Other Sales', 'Food Sales', 'Alcohol Sales', 'Sales Tax', 'Tips Original', 'Tips After Withholding',
@@ -74,6 +75,47 @@ export default function Reports() {
     return next
   })
 
+  const reportPdfPayload = key => {
+    const commonSummary = [
+      { label:'Report Period', value:activeRangeLabel },
+      { label:'Net Sales', value:appMoney2(metrics.salesTotal) },
+      { label:'Payroll', value:appMoney2(metrics.payrollTotal) },
+      { label:'Profit / Loss', value:appMoney2(metrics.operatingProfit) },
+    ]
+    if (key === 'weekly-custom') return {
+      title: reportName || 'Custom Restaurant Report',
+      subtitle: activeRangeLabel,
+      summary: commonSummary,
+      sections: visibleWeeklySections.map(section=>({ ...section, total:money(section.total) })),
+      filename:`RESTAPAY-Custom-Report-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+    if (key === 'sales-department') return {
+      title:'Sales by Department', subtitle:activeRangeLabel, summary:commonSummary,
+      sections:[{title:'Sales Detail',total:appMoney2(metrics.salesTotal),headers:['Date','Food','Alcohol','Other','Cash','Credit','Total'],rows:sales.map(r=>[r.date||'',appMoney2(r.food_sales||r.food||0),appMoney2(r.alcohol_sales||r.alcohol||0),appMoney2(r.other_sales||r.other||0),appMoney2(r.cash_sales||r.cash||0),appMoney2(r.credit_sales||r.credit||0),appMoney2(r.total_sales||r.total||r.amount||0)])}],
+      filename:`RESTAPAY-Sales-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+    if (key === 'payroll-detail') return {
+      title:'Payroll Detail', subtitle:activeRangeLabel, summary:commonSummary,
+      sections:[{title:'Payroll Detail',total:appMoney2(metrics.payrollTotal),headers:['Date','Employee','Job','Hours','Base Pay','Tips','Withheld','Extra','Method','Final Pay'],rows:payroll.map(r=>[r.pay_date||r.date||'',r.employee_name||r.employee||'',r.job_type||r.job||'',Number(r.hours||0).toFixed(1),appMoney2(r.regular_pay||r.base_pay||0),appMoney2(r.credit_card_tips||r.tips||0),appMoney2(r.tip_deduction||r.withheld||0),appMoney2(r.extra_pay||0),r.payment_method||r.method||'',appMoney2(r.final_pay||r.amount||((Number(r.regular_pay||r.base_pay||0)+Number(r.extra_pay||0)+Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||r.withheld||0))))])}],
+      filename:`RESTAPAY-Payroll-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+    return {
+      title:'Vendor & Expense Summary', subtitle:activeRangeLabel, summary:commonSummary,
+      sections:[{title:'Vendor Invoices',total:appMoney2(metrics.invoiceTotal),headers:['Date','Vendor','Invoice #','Category','Payment','Amount'],rows:invoices.map(r=>[r.invoice_date||r.date||'',r.vendor_name||r.vendor||'',r.invoice_number||r.number||'',r.category||'',r.payment_type||'',appMoney2(r.total||r.amount||0)])},{title:'Business Expenses',total:appMoney2(metrics.expenseTotal),headers:['Date','Vendor / Payee','Category','Method','Notes','Amount'],rows:expenses.map(r=>[r.date||'',r.vendor||r.payee||'',r.category||r.type||'',r.method||'',r.notes||'',appMoney2(r.amount||r.total||0)])}],
+      filename:`RESTAPAY-Vendor-Expense-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+  }
+
+  const downloadPdf = key => {
+    try {
+      exportReportPdf(reportPdfPayload(key))
+      notify('PDF downloaded.')
+    } catch (error) {
+      console.error('PDF export failed', error)
+      notify(error?.message || 'PDF export failed.','error')
+    }
+  }
+
   const openReport = key => {
     if (key === 'weekly-custom') setWeeklyOpen(true)
     else setDrawer('Report Preview')
@@ -109,7 +151,7 @@ export default function Reports() {
             <div><h3>{title}</h3><p>{desc}</p><small>{range}</small></div>
             <div className="report-actions">
               <button onClick={() => openReport(key)}><Eye size={14} />Preview</button>
-              <button onClick={()=>notify("PDF preview prepared.")}>PDF</button>
+              <button onClick={()=>downloadPdf(key)}>PDF</button>
               <button onClick={()=>notify("Excel export prepared.")}>Excel</button>
               <ChevronRight size={18} />
             </div>
@@ -128,7 +170,7 @@ export default function Reports() {
         <label className="show-empty-toggle"><input type="checkbox" checked={showEmpty} onChange={event => setShowEmpty(event.target.checked)} />Show empty sections</label>
         <span className="modal-footer-spacer" />
         <button className="secondary-action" onClick={()=>window.print()}><Printer size={16} />Print</button>
-        <button className="secondary-action" onClick={()=>notify("PDF export prepared.")}><Download size={16} />PDF</button>
+        <button className="secondary-action" onClick={()=>downloadPdf('weekly-custom')}><Download size={16} />PDF</button>
         <button className="primary-button" onClick={()=>notify("Excel export prepared.")}><FileSpreadsheet size={16} />Excel</button>
       </>}
     >
