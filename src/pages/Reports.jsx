@@ -27,6 +27,50 @@ const reportTypes = [
 
 const money = value => `$${Number(value).toFixed(2)}`
 
+const payrollDate = row => String(row?.pay_date || row?.payroll_date || row?.date || '').slice(0,10)
+const localIso = date => {
+  const y=date.getFullYear(), m=String(date.getMonth()+1).padStart(2,'0'), d=String(date.getDate()).padStart(2,'0')
+  return `${y}-${m}-${d}`
+}
+const fallbackPayrollWeek = value => {
+  if (!value) return { from:'', to:'' }
+  const date=new Date(`${value}T12:00:00`)
+  if (Number.isNaN(date.getTime())) return { from:value, to:value }
+  const day=date.getDay()
+  const monday=new Date(date); monday.setDate(date.getDate()-((day+6)%7))
+  const sunday=new Date(monday); sunday.setDate(monday.getDate()+6)
+  return { from:localIso(monday), to:localIso(sunday) }
+}
+const payrollPeriod = row => {
+  const from=String(row?.period_start || row?.pay_period_start || row?.week_start || row?.payroll_week_start || '').slice(0,10)
+  const to=String(row?.period_end || row?.pay_period_end || row?.week_end || row?.payroll_week_end || '').slice(0,10)
+  if (from || to) return { from:from||to, to:to||from }
+  return fallbackPayrollWeek(payrollDate(row))
+}
+const payrollEmployee = row => String(row?.employee_name || row?.employee || row?.name || 'Employee').trim() || 'Employee'
+const num = value => Number(String(value ?? 0).replace(/[$,%(),]/g,'')) || 0
+const rowBasePay = row => num(row?.regular_pay ?? row?.base_pay ?? row?.gross_pay ?? row?.wages)
+const rowTips = row => num(row?.credit_card_tips ?? row?.original_tips ?? row?.tips)
+const rowWithheld = row => num(row?.tip_deduction ?? row?.tips_withheld ?? row?.withheld)
+const rowExtra = row => num(row?.extra_pay)
+const payrollMethod = row => String(row?.payment_method || row?.method || row?.payment_type || '').trim()
+const groupPayrollByEmployeePeriod = rows => {
+  const groups=new Map()
+  ;(rows||[]).filter(Boolean).forEach(row=>{
+    const period=payrollPeriod(row)
+    const employee=payrollEmployee(row)
+    const key=`${employee.toLowerCase()}|${period.from}|${period.to}`
+    if(!groups.has(key)) groups.set(key,{employee,from:period.from,to:period.to,hours:0,basePay:0,tips:0,withheld:0,extra:0,reasons:new Set(),methods:new Set(),jobs:new Set(),rows:[]})
+    const g=groups.get(key)
+    g.rows.push(row); g.hours+=num(row.hours ?? row.regular_hours); g.basePay+=rowBasePay(row); g.tips+=rowTips(row); g.withheld+=rowWithheld(row); g.extra+=rowExtra(row)
+    if(row.extra_reason) g.reasons.add(String(row.extra_reason))
+    const method=payrollMethod(row); if(method) g.methods.add(method)
+    const job=String(row.job_type || row.job || row.position || row.role || '').trim(); if(job) g.jobs.add(job)
+  })
+  return [...groups.values()].sort((a,b)=>`${b.from}|${b.employee}`.localeCompare(`${a.from}|${a.employee}`))
+}
+const periodLabel = group => group.from && group.to ? (group.from===group.to ? group.from : `${group.from}–${group.to}`) : (group.from || group.to || '')
+
 export default function Reports() {
   const { notify } = useFeedback()
   const { metrics, sales, payroll, invoices, expenses, dateRange } = useAppData()
@@ -44,12 +88,16 @@ export default function Reports() {
     { title: 'Payroll Report', value: appMoney(metrics.payrollTotal), meta: `${metrics.payrollHours.toFixed(1)} labor hours`, tone: 'purple', icon: WalletCards },
     { title: 'Expense Report', value: appMoney(metrics.expenseTotal), meta: `${expenses.length} expense entries`, tone: 'orange', icon: FileSpreadsheet },
   ]
+  const payrollGroups = groupPayrollByEmployeePeriod(payroll)
+  const cashPayrollGroups = groupPayrollByEmployeePeriod(payroll.filter(r=>payrollMethod(r).toLowerCase()==='cash'))
+  const tippedPayrollGroups = groupPayrollByEmployeePeriod(payroll.filter(r=>rowTips(r)>0))
+
   const weeklyReportSections = [
     { title:'Sales Summary', total:metrics.salesTotal, headers:['Metric','Amount'], rows:[['Gross Sales',appMoney2(metrics.salesTotal)],['Net Sales',appMoney2(metrics.salesTotal)],['Cash Sales',appMoney2(metrics.cashSales)],['Credit Sales',appMoney2(metrics.creditSales)],['Tips',appMoney2(metrics.tips)]] },
-    { title:'Cash Payment Employees', total:metrics.cashPayroll, headers:['Date','Employee','Pay','Extra Pay','Reason','Total'], rows:payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='cash').map(r=>[r.pay_date||r.date||'',r.employee_name||r.employee||'',appMoney2(r.regular_pay||r.base_pay||0),appMoney2(r.extra_pay||0),r.extra_reason||'',appMoney2((Number(r.regular_pay||r.base_pay||0)+Number(r.extra_pay||0)))]) },
-    { title:'Employees With Tips', total:payroll.reduce((s,r)=>s+(Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||0)),0), headers:['Date','Employee','Original Tips','Withheld','Tips After Withholding','Extra Pay','Reason','Total'], rows:payroll.filter(r=>Number(r.credit_card_tips||r.tips||0)>0).map(r=>{const tips=Number(r.credit_card_tips||r.tips||0),withheld=Number(r.tip_deduction||0),extra=Number(r.extra_pay||0);return [r.pay_date||r.date||'',r.employee_name||r.employee||'',appMoney2(tips),appMoney2(withheld),appMoney2(tips-withheld),appMoney2(extra),r.extra_reason||'',appMoney2(tips-withheld+extra)]}) },
+    { title:'Cash Payment Employees', total:cashPayrollGroups.reduce((sum,g)=>sum+g.basePay+g.extra,0), headers:['Payroll Period','Employee','Pay','Extra Pay','Reason','Total'], rows:cashPayrollGroups.map(g=>[periodLabel(g),g.employee,appMoney2(g.basePay),appMoney2(g.extra),[...g.reasons].join('; '),appMoney2(g.basePay+g.extra)]) },
+    { title:'Employees With Tips', total:tippedPayrollGroups.reduce((sum,g)=>sum+g.tips,0), headers:['Payroll Period','Employee','Original Tips','Withheld','Tips After Withholding','Extra Pay','Reason','Total'], rows:tippedPayrollGroups.map(g=>[periodLabel(g),g.employee,appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.tips-g.withheld),appMoney2(g.extra),[...g.reasons].join('; '),appMoney2(g.tips-g.withheld+g.extra)]) },
     { title:'Vendor Payments / Spending Detail', total:metrics.invoiceTotal+metrics.expenseTotal, headers:['Date','Vendor / Payee','Category','Payment Type','Details','Amount'], rows:[...invoices.map(r=>[r.date||r.invoice_date||'',r.vendor||'',r.category||'',r.payment_type||'',r.number||r.invoice_number||'',appMoney2(r.amount??r.total)]),...expenses.map(r=>[r.date||'',r.vendor||'',r.type||r.category||'',r.method||'',r.notes||'',appMoney2(r.amount??r.total)])] },
-    { title:'Cash Balance Summary', total:metrics.cashRemaining, headers:['Metric','Amount'], rows:[['Cash Sales',appMoney2(metrics.cashSales)],['Cash Employee Payments',appMoney2(metrics.cashPayroll)],['Cash Vendor Invoices',appMoney2(metrics.cashInvoiceSpend)],['Cash Operating Expenses',appMoney2(metrics.cashExpenses)],['Remaining Cash Balance',appMoney2(metrics.cashRemaining)]] },
+    { title:'Cash Balance Summary', total:metrics.cashRemaining, headers:['Metric','Amount'], rows:[['Previous Period Reconciliation / Carry Forward',appMoney2(metrics.cashCarryForward||0)],['Current Period Cash Sales',appMoney2(metrics.cashSales)],['Cash Employee Payments',appMoney2(-metrics.cashPayroll)],['Cash Vendor Invoices',appMoney2(-metrics.cashInvoiceSpend)],['Cash Operating Expenses',appMoney2(-metrics.cashExpenses)],['Cash Withdrawals',appMoney2(-(metrics.cashWithdrawals||0))],['Current Period Reconciliation Adjustment',appMoney2(metrics.cashAdjustments||0)],['Remaining Cash Balance',appMoney2(metrics.cashRemaining)]] },
     { title:'Period Profit / Loss Analysis', total:metrics.operatingProfit, headers:['Metric','Amount'], rows:[['Net Sales',appMoney2(metrics.salesTotal)],['Food + Alcohol COGS',appMoney2(metrics.cogs)],['Employee Payroll Total',appMoney2(metrics.payrollTotal)],['Operating Expenses',appMoney2(metrics.expenseTotal)],['Operating Profit / Loss',appMoney2(metrics.operatingProfit)]] },
     { title:'Reconciliation Check', total:0, headers:['Check','Variance'], rows:[['Sales category equation',appMoney2(metrics.reconciliation.salesCategoryVariance)],['Cash balance equation',appMoney2(metrics.reconciliation.cashEquationVariance)],['Operating profit equation',appMoney2(metrics.reconciliation.profitEquationVariance)],['Status',metrics.reconciliation.balanced?'Balanced':'Review required']] },
   ]
@@ -96,7 +144,7 @@ export default function Reports() {
     }
     if (key === 'payroll-detail') return {
       title:'Payroll Detail', subtitle:activeRangeLabel, summary:commonSummary,
-      sections:[{title:'Payroll Detail',total:appMoney2(metrics.payrollTotal),headers:['Date','Employee','Job','Hours','Base Pay','Tips','Withheld','Extra','Method','Final Pay'],rows:payroll.map(r=>[r.pay_date||r.date||'',r.employee_name||r.employee||'',r.job_type||r.job||'',Number(r.hours||0).toFixed(1),appMoney2(r.regular_pay||r.base_pay||0),appMoney2(r.credit_card_tips||r.tips||0),appMoney2(r.tip_deduction||r.withheld||0),appMoney2(r.extra_pay||0),r.payment_method||r.method||'',appMoney2(r.final_pay||r.amount||((Number(r.regular_pay||r.base_pay||0)+Number(r.extra_pay||0)+Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||r.withheld||0))))])}],
+      sections:[{title:'Payroll Detail',total:appMoney2(metrics.payrollTotal),headers:['Payroll Period','Employee','Job','Hours','Base Pay','Tips','Withheld','Extra','Method','Final Pay'],rows:payrollGroups.map(g=>[periodLabel(g),g.employee,[...g.jobs].join('; '),g.hours.toFixed(1),appMoney2(g.basePay),appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.extra),[...g.methods].join(' / '),appMoney2(g.basePay+g.extra+g.tips-g.withheld)])}],
       filename:`RESTAPAY-Payroll-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
     }
     return {
