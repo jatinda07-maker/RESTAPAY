@@ -99,3 +99,9 @@
 }
 .sales-filterbar .sales-select:focus-within>svg:last-child{background:#dcecff;color:#174a80}
 .sales-table td{font-size:12px}
+
+/* RC3.7 summary-card readability */
+.sales-summary-card { background:#f7faf8; }
+.sales-summary-copy strong { font-size:13px; }
+.sales-summary-copy b { font-size:21px; }
+.sales-summary-copy small { font-size:10px; }

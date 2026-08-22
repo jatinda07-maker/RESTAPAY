@@ -1,9 +1,9 @@
 const n = value => Number(String(value ?? 0).replace(/[$,%(),]/g, '').replaceAll(',', '')) || 0
 const text = value => String(value ?? '').trim().toLowerCase()
 
-const categoryName = row => text([row?.category,row?.department,row?.type,row?.description,row?.item_name,row?.item,row?.name,row?.vendor,row?.vendor_name].filter(Boolean).join(' '))
-export const isAlcoholCategory = row => /alcohol|beer|wine|liquor|tequila|mezcal|vodka|rum|whisk|bourbon|scotch|gin|brandy|cognac|margarita|cocktail|shot|modelo|corona|michelob|coors|miller|dos equis|pacifico|tecate/.test(categoryName(row))
-export const isFoodCategory = row => /food|meat|seafood|produce|dairy|dry goods|frozen|bakery|chicken|beef|fish|shrimp|cheese|tortilla|rice|bean|grocery/.test(categoryName(row)) && !isAlcoholCategory(row)
+const categoryName = row => text(row?.category || row?.department || row?.type)
+export const isAlcoholCategory = row => /alcohol|beer|wine|liquor|margarita|cocktail|shot/.test(categoryName(row))
+export const isFoodCategory = row => /food|meat|seafood|produce|dairy|dry goods|frozen|bakery/.test(categoryName(row)) && !isAlcoholCategory(row)
 
 const invoiceAmount = row => n(row?.amount ?? row?.total)
 const lineAmount = row => n(row?.line_total ?? row?.amount ?? row?.total)
@@ -53,43 +53,51 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
 
   const invoiceSplit = classifyInvoiceSpend(invoices)
   const invoiceTotal = invoices.reduce((sum, row) => sum + invoiceAmount(row), 0)
-  const expenseTotal = expenses.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
-  const cashExpenses = expenses.filter(row => text(row?.method || row?.payment_type) === 'cash')
+  const isCashWithdrawal = row => /cash withdrawal|owner withdrawal|cash draw/i.test(`${row?.category||''} ${row?.type||''} ${row?.name||''} ${row?.payment_type||''}`)
+  const withdrawalRows = expenses.filter(isCashWithdrawal)
+  const operatingExpenses = expenses.filter(row => !isCashWithdrawal(row))
+  const cashWithdrawals = withdrawalRows.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
+  const expenseTotal = operatingExpenses.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
+  const cashExpenses = operatingExpenses.filter(row => text(row?.method || row?.payment_type) === 'cash')
     .reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
   const cashInvoiceSpend = invoices.filter(row => text(row?.payment_type || row?.method) === 'cash')
     .reduce((sum, row) => sum + invoiceAmount(row), 0)
 
   const payrollTotal = n(payrollSummary.total)
-  const managerLabor = n(payrollSummary.managerLabor)
   const operatingLabor = payrollSummary.operatingLabor === undefined ? payrollTotal : n(payrollSummary.operatingLabor)
+  const managementPayroll = n(payrollSummary.managementPayroll)
+  const frontOfHousePayroll = n(payrollSummary.frontOfHousePayroll)
+  const reviewPayroll = n(payrollSummary.reviewPayroll)
   const tipsEarned = n(payrollSummary.tipsEarned)
   const tipsWithheld = n(payrollSummary.tipsWithheld)
   const netTipsPaid = n(payrollSummary.netTipsPaid)
   const cashPayroll = n(payrollSummary.cash)
   const checkPayroll = n(payrollSummary.check)
   const payrollHours = n(payrollSummary.hours)
+  const employerLabor = operatingLabor + managementPayroll + frontOfHousePayroll + reviewPayroll
   const cogs = invoiceSplit.food + invoiceSplit.alcohol
-  const allocatedFoodAlcoholCost = cogs + managerLabor
-  const primeCostAmount = allocatedFoodAlcoholCost + operatingLabor
-  const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend
-  // Manager payroll is counted once inside Food + Alcohol cost; waiter/server tip pass-through is excluded by payrollSummary.
-  const operatingProfit = salesTotal - allocatedFoodAlcoholCost - operatingLabor - expenseTotal
+  // Restaurant-wide Prime Cost includes direct COGS + BOH/kitchen labor + management labor once.
+  // Department screens may allocate management between Food/Alcohol; employee tip pass-through remains excluded.
+  const primeLabor = operatingLabor + managementPayroll
+  const primeCostAmount = cogs + primeLabor
+  const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend - cashWithdrawals
+  const operatingProfit = salesTotal - cogs - employerLabor - expenseTotal
   const percent = (value, base) => base > 0 ? (value / base) * 100 : 0
 
   const salesCategoryVariance = salesTotal - (foodSales + alcoholSales + otherSales)
-  const cashEquationVariance = cashRemaining - (cashSales - cashPayroll - cashExpenses - cashInvoiceSpend)
-  const profitEquationVariance = operatingProfit - (salesTotal - allocatedFoodAlcoholCost - operatingLabor - expenseTotal)
+  const cashEquationVariance = cashRemaining - (cashSales - cashPayroll - cashExpenses - cashInvoiceSpend - cashWithdrawals)
+  const profitEquationVariance = operatingProfit - (salesTotal - cogs - employerLabor - expenseTotal)
 
   return {
     salesTotal, foodSales, alcoholSales, otherSales, tips, cashSales, creditSales,
     foodCost: invoiceSplit.food, alcoholCost: invoiceSplit.alcohol, uncategorizedInvoiceCost: invoiceSplit.uncategorized,
-    invoiceTotal, expenseTotal, cashExpenses, cashInvoiceSpend,
-    payrollTotal, operatingLabor, managerLabor, allocatedFoodAlcoholCost, tipsEarned, tipsWithheld, netTipsPaid, cashPayroll, checkPayroll, payrollHours,
-    cashRemaining, cogs, primeCostAmount, operatingProfit,
+    invoiceTotal, expenseTotal, cashExpenses, cashInvoiceSpend, cashWithdrawals, withdrawalRows,
+    payrollTotal, operatingLabor, managementPayroll, frontOfHousePayroll, reviewPayroll, employerLabor, tipsEarned, tipsWithheld, netTipsPaid, cashPayroll, checkPayroll, payrollHours,
+    cashRemaining, cogs, primeLabor, primeCostAmount, operatingProfit,
     foodCostPercent: percent(invoiceSplit.food, foodSales),
     alcoholCostPercent: percent(invoiceSplit.alcohol, alcoholSales),
     primeCostPercent: percent(primeCostAmount, salesTotal),
-    laborMixPercent: percent(operatingLabor, salesTotal),
+    laborMixPercent: percent(primeLabor, salesTotal),
     operatingMargin: percent(operatingProfit, salesTotal),
     foodInvoiceCount: invoiceSplit.foodInvoiceCount,
     alcoholInvoiceCount: invoiceSplit.alcoholInvoiceCount,

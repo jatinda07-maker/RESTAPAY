@@ -32,16 +32,22 @@
     "test:rc32": "node scripts/test-rc32-classifications.mjs",
     "test:tip-pass-through": "node scripts/test-tip-pass-through.mjs",
     "test:rc34": "node scripts/test-rc34-detail-drilldowns.mjs",
-    "test:rc35": "node scripts/test-rc35-invoice-unit-ui.mjs"
+    "test:rc35": "node scripts/test-rc35-invoice-unit-ui.mjs",
+    "test:rc3912": "node scripts/test-rc3912-live-derived-recalc.mjs",
+    "test:rc3913": "node scripts/test-rc3913-invoice-price-book.mjs",
+    "test:rc3914": "node scripts/test-rc3914-pdf-export.mjs",
+    "test:rc3916": "node scripts/test-rc3916-cash-reconciliation-carry-forward.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "@vitejs/plugin-react": "latest",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest",
     "vite": "latest",
-    "xlsx": "^0.18.5",
-    "@supabase/supabase-js": "^2.57.4"
+    "xlsx": "^0.18.5"
   }
 }

@@ -101,7 +101,7 @@ const configs = {
   'restapay-cash-ledger': {
     table:'cash_ledger',
     fromDb:r=>({...r,date:r.entry_date||r.date,type:r.entry_type||r.type}),
-    toDb:r=>({id:r.id||id(),entry_date:r.entry_date||r.date||new Date().toISOString().slice(0,10),entry_type:r.entry_type||r.type||'withdrawal',amount:money(r.amount),purpose:text(r.purpose),notes:text(r.notes),created_by:r.created_by||null,created_by_email:text(r.created_by_email),created_at:r.created_at||now(),updated_at:now()})
+    toDb:r=>({id:r.id||id(),entry_date:r.entry_date||r.date||new Date().toISOString().slice(0,10),entry_type:r.entry_type||r.type||'withdrawal',amount:money(r.amount),target_closing_balance:r.target_closing_balance==null?null:money(r.target_closing_balance),purpose:text(r.purpose),notes:text(r.notes),created_by:r.created_by||null,created_by_email:text(r.created_by_email),created_at:r.created_at||now(),updated_at:now()})
   },
   'restapay-bank-checks': {
     table:'bank_checks',

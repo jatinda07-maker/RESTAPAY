@@ -26,15 +26,15 @@ export default function Dashboard() {
   },[sales,invoices,expenses,payroll,employees,costSettings])
   const kpis=[
     [WalletCards,'Cash Flow',appMoney(metrics.cashRemaining),`Cash collected ${appMoney(metrics.cashSales)}`,'green'],
-    [ChartPie,'Prime Cost',appPercent(metrics.primeCostPercent),'Food + alcohol + payroll vs sales','blue'],
-    [UsersRound,'Labor Mix',appPercent(metrics.laborMixPercent),`Cash ${appMoney(metrics.cashPayroll)} • Check ${appMoney(metrics.checkPayroll)}`,'purple'],
-    [Utensils,'Food Cost',appPercent(metrics.foodCostPercent),`${appMoney(metrics.foodCost)} purchases`,'orange'],
+    [ChartPie,'Prime Cost',appPercent(metrics.primeCostPercent),'Food + alcohol + BOH + management labor vs sales','blue'],
+    [UsersRound,'Labor Mix',appPercent(metrics.laborMixPercent),`BOH + management ${appMoney((metrics.operatingLabor||0)+(metrics.managementPayroll||0))} · tips excluded`,'purple'],
+    [Utensils,'Food Cost',appPercent(departmentCosts.foodCostPercent),`${appMoney(departmentCosts.trueFoodCost)} true department cost`,'orange'],
     [ShoppingCart,'Cash Sales',appMoney(metrics.cashSales),'Actual cash sales/payments','blue'],
     [BriefcaseBusiness,'Cash Collected',appMoney(metrics.cashSales),'Total cash sales/payments','green'],
     [TrendingUp,'Operating Profit',appMoney(metrics.operatingProfit),`${appPercent(metrics.operatingMargin)} margin`,'purple'],
     [BriefcaseBusiness,'Cash Remaining',appMoney(metrics.cashRemaining),'Cash minus cash payroll, expenses & cash invoices','teal'],
-    [Boxes,'True Food Cost',appMoney(metrics.foodCost),'Actual food invoice totals','amber'],
-    [GlassWater,'True Alcohol Cost',appMoney(metrics.alcoholCost),'Beer • liquor • wine','orange'],
+    [Boxes,'True Food Cost',appMoney(departmentCosts.trueFoodCost),'Purchases + allocated payroll/shared costs','amber'],
+    [GlassWater,'True Alcohol Cost',appMoney(departmentCosts.trueAlcoholCost),'Purchases + allocated payroll/shared costs','orange'],
     [BadgeDollarSign,'Business Expenses',appMoney(metrics.expenseTotal),'Operating expenses','red'],
     [UsersRound,'Payroll Total',appMoney(metrics.payrollTotal),'Cash • Check payroll','blue'],
   ]

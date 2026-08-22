@@ -18,6 +18,7 @@ import { useFeedback } from '../components/AppFeedback'
 import DetailDrawer from '../components/DetailDrawer'
 import Modal from '../components/Modal'
 import { appMoney, appMoney2, useAppData } from '../hooks/useAppData'
+import { exportReportPdf } from '../lib/reportExport'
 
 const reportTypes = [
   'Cash Sales', 'Credit Sales', 'Other Sales', 'Food Sales', 'Alcohol Sales', 'Sales Tax', 'Tips Original', 'Tips After Withholding',
@@ -45,11 +46,11 @@ export default function Reports() {
   ]
   const weeklyReportSections = [
     { title:'Sales Summary', total:metrics.salesTotal, headers:['Metric','Amount'], rows:[['Gross Sales',appMoney2(metrics.salesTotal)],['Net Sales',appMoney2(metrics.salesTotal)],['Cash Sales',appMoney2(metrics.cashSales)],['Credit Sales',appMoney2(metrics.creditSales)],['Tips',appMoney2(metrics.tips)]] },
-    (()=>{const rows=payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='cash');const pay=rows.reduce((s,r)=>s+Number(r.regular_pay||r.base_pay||0),0),extra=rows.reduce((s,r)=>s+Number(r.extra_pay||0),0);return { title:'Cash Payment Employees', total:pay+extra, headers:['Date','Employee','Pay','Extra Pay','Reason','Total'], rows:rows.map(r=>[r.pay_date||r.date||'',r.employee_name||r.employee||'',appMoney2(r.regular_pay||r.base_pay||0),appMoney2(r.extra_pay||0),r.extra_reason||'',appMoney2((Number(r.regular_pay||r.base_pay||0)+Number(r.extra_pay||0)))]), subtotals:['Subtotal','',appMoney2(pay),appMoney2(extra),'',appMoney2(pay+extra)] }} )(),
-    (()=>{const rows=payroll.filter(r=>Number(r.credit_card_tips??r.original_tips??r.tips??0)>0);const original=rows.reduce((s,r)=>s+Number(r.credit_card_tips??r.original_tips??r.tips??0),0),withheld=rows.reduce((s,r)=>s+Number(r.tip_deduction??r.tips_withheld??0),0),after=original-withheld,extra=rows.reduce((s,r)=>s+Number(r.extra_pay||0),0);return { title:'Employees With Tips', summaryLabel:'Payroll Tips Total', total:original, headers:['Date','Employee','Original Tips','Withheld','Tips After Withholding','Extra Pay','Reason','Total'], rows:rows.map(r=>{const tips=Number(r.credit_card_tips??r.original_tips??r.tips??0),held=Number(r.tip_deduction??r.tips_withheld??0),ex=Number(r.extra_pay||0);return [r.pay_date||r.date||'',r.employee_name||r.employee||'',appMoney2(tips),appMoney2(held),appMoney2(tips-held),appMoney2(ex),r.extra_reason||'',appMoney2(tips-held+ex)]}), subtotals:['Subtotal','',appMoney2(original),appMoney2(withheld),appMoney2(after),appMoney2(extra),'',appMoney2(after+extra)] }} )(),
-    { title:'Vendor Payments / Spending Detail', total:metrics.invoiceTotal+metrics.expenseTotal, headers:['Date','Vendor / Payee','Category','Payment Type','Details','Amount'], rows:[...invoices.map(r=>[r.date||r.invoice_date||'',r.vendor||'',r.category||'',r.payment_type||'',r.number||r.invoice_number||'',appMoney2(r.amount??r.total)]),...expenses.map(r=>[r.date||'',r.vendor||'',r.type||r.category||'',r.method||'',r.notes||'',appMoney2(r.amount??r.total)])], subtotals:['Subtotal','','','','',appMoney2(metrics.invoiceTotal+metrics.expenseTotal)] },
-    { title:'Cash Balance Summary', total:metrics.cashRemaining, headers:['Metric','Amount'], rows:[['Carry Forward',appMoney2(metrics.cashCarryForward||0)],['Cash Sales',appMoney2(metrics.cashSales)],['Cash Employee Payments',appMoney2(metrics.cashPayroll)],['Cash Vendor Invoices',appMoney2(metrics.cashInvoiceSpend)],['Cash Operating Expenses',appMoney2(metrics.cashExpenses)],['Cash Withdrawals',appMoney2(metrics.cashWithdrawals||0)],['Remaining Cash Balance',appMoney2(metrics.cashRemaining)]] },
-    { title:'Period Profit / Loss Analysis', total:metrics.operatingProfit, headers:['Metric','Amount'], rows:[['Net Sales',appMoney2(metrics.salesTotal)],['Food + Alcohol COGS',appMoney2(metrics.cogs)],['Employer Labor Cost (tips excluded)',appMoney2(metrics.employerLabor??metrics.operatingLabor)],['Tip Pass-Through (excluded)',appMoney2(metrics.netTipsPaid)],['Operating Expenses',appMoney2(metrics.expenseTotal)],['Operating Profit / Loss',appMoney2(metrics.operatingProfit)]] },
+    { title:'Cash Payment Employees', total:metrics.cashPayroll, headers:['Date','Employee','Pay','Extra Pay','Reason','Total'], rows:payroll.filter(r=>String(r.payment_method||r.method).toLowerCase()==='cash').map(r=>[r.pay_date||r.date||'',r.employee_name||r.employee||'',appMoney2(r.regular_pay||r.base_pay||0),appMoney2(r.extra_pay||0),r.extra_reason||'',appMoney2((Number(r.regular_pay||r.base_pay||0)+Number(r.extra_pay||0)))]) },
+    { title:'Employees With Tips', total:payroll.reduce((s,r)=>s+(Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||0)),0), headers:['Date','Employee','Original Tips','Withheld','Tips After Withholding','Extra Pay','Reason','Total'], rows:payroll.filter(r=>Number(r.credit_card_tips||r.tips||0)>0).map(r=>{const tips=Number(r.credit_card_tips||r.tips||0),withheld=Number(r.tip_deduction||0),extra=Number(r.extra_pay||0);return [r.pay_date||r.date||'',r.employee_name||r.employee||'',appMoney2(tips),appMoney2(withheld),appMoney2(tips-withheld),appMoney2(extra),r.extra_reason||'',appMoney2(tips-withheld+extra)]}) },
+    { title:'Vendor Payments / Spending Detail', total:metrics.invoiceTotal+metrics.expenseTotal, headers:['Date','Vendor / Payee','Category','Payment Type','Details','Amount'], rows:[...invoices.map(r=>[r.date||r.invoice_date||'',r.vendor||'',r.category||'',r.payment_type||'',r.number||r.invoice_number||'',appMoney2(r.amount??r.total)]),...expenses.map(r=>[r.date||'',r.vendor||'',r.type||r.category||'',r.method||'',r.notes||'',appMoney2(r.amount??r.total)])] },
+    { title:'Cash Balance Summary', total:metrics.cashRemaining, headers:['Metric','Amount'], rows:[['Cash Sales',appMoney2(metrics.cashSales)],['Cash Employee Payments',appMoney2(metrics.cashPayroll)],['Cash Vendor Invoices',appMoney2(metrics.cashInvoiceSpend)],['Cash Operating Expenses',appMoney2(metrics.cashExpenses)],['Remaining Cash Balance',appMoney2(metrics.cashRemaining)]] },
+    { title:'Period Profit / Loss Analysis', total:metrics.operatingProfit, headers:['Metric','Amount'], rows:[['Net Sales',appMoney2(metrics.salesTotal)],['Food + Alcohol COGS',appMoney2(metrics.cogs)],['Employee Payroll Total',appMoney2(metrics.payrollTotal)],['Operating Expenses',appMoney2(metrics.expenseTotal)],['Operating Profit / Loss',appMoney2(metrics.operatingProfit)]] },
     { title:'Reconciliation Check', total:0, headers:['Check','Variance'], rows:[['Sales category equation',appMoney2(metrics.reconciliation.salesCategoryVariance)],['Cash balance equation',appMoney2(metrics.reconciliation.cashEquationVariance)],['Operating profit equation',appMoney2(metrics.reconciliation.profitEquationVariance)],['Status',metrics.reconciliation.balanced?'Balanced':'Review required']] },
   ]
   const [drawer, setDrawer] = useState(null)
@@ -61,7 +62,6 @@ export default function Reports() {
 
   const available = useMemo(() => reportTypes.filter(type => !selected.includes(type)), [selected])
   const visibleWeeklySections = weeklyReportSections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)
-  const sectionSubtotalRow = section => section.subtotals || section.headers.map((_,index)=>index===0?'Subtotal':index===section.headers.length-1?appMoney2(section.total):'')
 
   const addType = value => {
     if (value && !selected.includes(value)) setSelected(prev => [...prev, value])
@@ -75,15 +75,50 @@ export default function Reports() {
     return next
   })
 
-  const escapeHtml=value=>String(value??'').replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]))
-  const printableHtml=(title='Restaurant Report',sections=visibleWeeklySections)=>`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#172033;margin:32px}h1{margin:0 0 4px}p{color:#667085;margin:0 0 24px}section{margin:0 0 28px;break-inside:avoid}h2{font-size:18px;border-bottom:2px solid #d9e2ec;padding-bottom:8px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}th{background:#f3f6f8}.num{text-align:right;font-weight:700}@media print{body{margin:16mm}.no-print{display:none}}</style></head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(activeRangeLabel)}</p>${sections.map(section=>`<section><h2>${escapeHtml(section.title)}</h2><table><thead><tr>${section.headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${section.rows.map(row=>`<tr>${row.map((cell,index)=>`<td class="${index===row.length-1?'num':''}">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr>${sectionSubtotalRow(section).map((cell,index)=>`<td class="${index===section.headers.length-1?'num':''}"><strong>${escapeHtml(cell)}</strong></td>`).join('')}</tr></tfoot></table></section>`).join('')}</body></html>`
-  const openPrintableReport=(title='Restaurant Report',asPdf=false)=>{const win=window.open('about:blank','_blank');if(!win)return notify('Allow pop-ups to print or save the report as PDF.','error');const html=printableHtml(title);win.document.open();win.document.write(html);win.document.close();const doPrint=()=>{try{win.focus();win.print();if(asPdf)notify('In the print dialog choose Save as PDF.')}catch{notify('The browser blocked the print dialog. Use Ctrl+P in the opened report window.','error')}};if(win.document.readyState==='complete')setTimeout(doPrint,500);else win.addEventListener('load',()=>setTimeout(doPrint,250),{once:true})}
-  const exportReportCsv=(title='Restaurant Report',sections=visibleWeeklySections)=>{const rows=[[title],[activeRangeLabel],[],...sections.flatMap(section=>[[section.title],section.headers,...section.rows,sectionSubtotalRow(section),[]])];const csv=rows.map(row=>row.map(value=>`"${String(value??'').replaceAll('\"','\"\"')}"`).join(',')).join('\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download=`${title.toLowerCase().replace(/[^a-z0-9]+/g,'-')}.csv`;a.click();URL.revokeObjectURL(url);notify('Report export downloaded.')}
+  const reportPdfPayload = key => {
+    const commonSummary = [
+      { label:'Report Period', value:activeRangeLabel },
+      { label:'Net Sales', value:appMoney2(metrics.salesTotal) },
+      { label:'Payroll', value:appMoney2(metrics.payrollTotal) },
+      { label:'Profit / Loss', value:appMoney2(metrics.operatingProfit) },
+    ]
+    if (key === 'weekly-custom') return {
+      title: reportName || 'Custom Restaurant Report',
+      subtitle: activeRangeLabel,
+      summary: commonSummary,
+      sections: visibleWeeklySections.map(section=>({ ...section, total:money(section.total) })),
+      filename:`RESTAPAY-Custom-Report-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+    if (key === 'sales-department') return {
+      title:'Sales by Department', subtitle:activeRangeLabel, summary:commonSummary,
+      sections:[{title:'Sales Detail',total:appMoney2(metrics.salesTotal),headers:['Date','Food','Alcohol','Other','Cash','Credit','Total'],rows:sales.map(r=>[r.date||'',appMoney2(r.food_sales||r.food||0),appMoney2(r.alcohol_sales||r.alcohol||0),appMoney2(r.other_sales||r.other||0),appMoney2(r.cash_sales||r.cash||0),appMoney2(r.credit_sales||r.credit||0),appMoney2(r.total_sales||r.total||r.amount||0)])}],
+      filename:`RESTAPAY-Sales-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+    if (key === 'payroll-detail') return {
+      title:'Payroll Detail', subtitle:activeRangeLabel, summary:commonSummary,
+      sections:[{title:'Payroll Detail',total:appMoney2(metrics.payrollTotal),headers:['Date','Employee','Job','Hours','Base Pay','Tips','Withheld','Extra','Method','Final Pay'],rows:payroll.map(r=>[r.pay_date||r.date||'',r.employee_name||r.employee||'',r.job_type||r.job||'',Number(r.hours||0).toFixed(1),appMoney2(r.regular_pay||r.base_pay||0),appMoney2(r.credit_card_tips||r.tips||0),appMoney2(r.tip_deduction||r.withheld||0),appMoney2(r.extra_pay||0),r.payment_method||r.method||'',appMoney2(r.final_pay||r.amount||((Number(r.regular_pay||r.base_pay||0)+Number(r.extra_pay||0)+Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||r.withheld||0))))])}],
+      filename:`RESTAPAY-Payroll-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+    return {
+      title:'Vendor & Expense Summary', subtitle:activeRangeLabel, summary:commonSummary,
+      sections:[{title:'Vendor Invoices',total:appMoney2(metrics.invoiceTotal),headers:['Date','Vendor','Invoice #','Category','Payment','Amount'],rows:invoices.map(r=>[r.invoice_date||r.date||'',r.vendor_name||r.vendor||'',r.invoice_number||r.number||'',r.category||'',r.payment_type||'',appMoney2(r.total||r.amount||0)])},{title:'Business Expenses',total:appMoney2(metrics.expenseTotal),headers:['Date','Vendor / Payee','Category','Method','Notes','Amount'],rows:expenses.map(r=>[r.date||'',r.vendor||r.payee||'',r.category||r.type||'',r.method||'',r.notes||'',appMoney2(r.amount||r.total||0)])}],
+      filename:`RESTAPAY-Vendor-Expense-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+  }
+
+  const downloadPdf = key => {
+    try {
+      exportReportPdf(reportPdfPayload(key))
+      notify('PDF downloaded.')
+    } catch (error) {
+      console.error('PDF export failed', error)
+      notify(error?.message || 'PDF export failed.','error')
+    }
+  }
 
   const openReport = key => {
-    if (key === 'weekly-custom') return setWeeklyOpen(true)
-    const titles={ 'sales-department':'Sales Report','payroll-detail':'Payroll Report','vendor-expense':'Expense Report' }
-    setDrawer(titles[key]||'Period P&L')
+    if (key === 'weekly-custom') setWeeklyOpen(true)
+    else setDrawer('Report Preview')
   }
 
   return <div className="records-page">
@@ -103,8 +138,8 @@ export default function Reports() {
       <header className="records-header">
         <div><h2>Reports</h2><p>Generate standard reports or arrange a custom report in your preferred order</p></div>
         <div className="records-actions">
-          <button className="secondary-action" onClick={()=>openPrintableReport('Restaurant Reports')}><Printer size={17} />Print</button>
-          <button className="secondary-action" onClick={()=>exportReportCsv('Restaurant Reports')}><Download size={17} />Export</button>
+          <button className="secondary-action" onClick={()=>window.print()}><Printer size={17} />Print</button>
+          <button className="secondary-action" onClick={()=>notify("Report export prepared locally.")}><Download size={17} />Export</button>
           <button className="primary-button" onClick={() => setBuilderOpen(true)}><Plus size={17} />Custom Report Builder</button>
         </div>
       </header>
@@ -116,8 +151,8 @@ export default function Reports() {
             <div><h3>{title}</h3><p>{desc}</p><small>{range}</small></div>
             <div className="report-actions">
               <button onClick={() => openReport(key)}><Eye size={14} />Preview</button>
-              <button onClick={()=>openPrintableReport(title,true)}>PDF</button>
-              <button onClick={()=>exportReportCsv(title)}>Excel</button>
+              <button onClick={()=>downloadPdf(key)}>PDF</button>
+              <button onClick={()=>notify("Excel export prepared.")}>Excel</button>
               <ChevronRight size={18} />
             </div>
           </article>
@@ -134,9 +169,9 @@ export default function Reports() {
       footer={<>
         <label className="show-empty-toggle"><input type="checkbox" checked={showEmpty} onChange={event => setShowEmpty(event.target.checked)} />Show empty sections</label>
         <span className="modal-footer-spacer" />
-        <button className="secondary-action" onClick={()=>openPrintableReport('Custom Restaurant Report')}><Printer size={16} />Print</button>
-        <button className="secondary-action" onClick={()=>openPrintableReport('Custom Restaurant Report',true)}><Download size={16} />PDF</button>
-        <button className="primary-button" onClick={()=>exportReportCsv('Custom Restaurant Report')}><FileSpreadsheet size={16} />Excel</button>
+        <button className="secondary-action" onClick={()=>window.print()}><Printer size={16} />Print</button>
+        <button className="secondary-action" onClick={()=>downloadPdf('weekly-custom')}><Download size={16} />PDF</button>
+        <button className="primary-button" onClick={()=>notify("Excel export prepared.")}><FileSpreadsheet size={16} />Excel</button>
       </>}
     >
       <div className="weekly-report-preview">
@@ -149,7 +184,7 @@ export default function Reports() {
 
         {visibleWeeklySections.map(section => (
           <section className="weekly-report-section" key={section.title}>
-            <header><div><h3>{section.title}</h3><small>{section.summaryLabel || (section.rows.length ? `${section.rows.length} report row${section.rows.length === 1 ? '' : 's'}` : 'No data for this section')}</small></div><strong>{money(section.total)}</strong></header>
+            <header><div><h3>{section.title}</h3><small>{section.rows.length ? `${section.rows.length} report row${section.rows.length === 1 ? '' : 's'}` : 'No data for this section'}</small></div><strong>{money(section.total)}</strong></header>
             <div className="weekly-report-table-wrap">
               <table className="weekly-report-table">
                 <thead><tr>{section.headers.map(header => <th key={header}>{header}</th>)}</tr></thead>
@@ -160,7 +195,6 @@ export default function Reports() {
                     <tr><td className="empty-report-row" colSpan={section.headers.length}>No data for this section.</td></tr>
                   )}
                 </tbody>
-                <tfoot><tr className="weekly-report-subtotal-row">{sectionSubtotalRow(section).map((cell, cellIndex)=><td key={`subtotal-${cellIndex}`} className={cellIndex > 0 ? 'numeric-report-cell' : ''}><strong>{cell}</strong></td>)}</tr></tfoot>
               </table>
             </div>
           </section>
