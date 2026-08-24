@@ -348,3 +348,13 @@
 .notification-item strong{font-size:13px;color:#10284b}
 .notification-item small{max-width:240px;font-size:11px;line-height:1.35;color:#64748b}
 .topbar .profile-switch-button .user-copy strong{color:#fff}.topbar .profile-switch-button .user-copy span{color:#b8c8db}.topbar .profile-switch-button>svg{color:#d6e3f0}
+
+/* RC3.9.21 access controls */
+.topbar-role-switch{display:flex;align-items:center;gap:10px;border:0;background:transparent;color:inherit;padding:0;cursor:pointer}
+.topbar-role-switch .user-copy{display:flex;flex-direction:column;align-items:flex-start}
+.security-settings{display:grid;gap:22px}
+.security-pin-grid{align-items:end}
+.security-pin-grid .primary-button{min-height:44px;align-self:end}
+
+/* RC3.9.22 Users & Security: compact role cards + working editor modal. */
+.security-role-list{display:grid;gap:12px}.security-role-card{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:14px;padding:16px 18px;border:1px solid #dce7e2;border-radius:14px;background:#fff}.security-role-card>svg{color:#079455}.security-role-card>div{display:flex;flex-direction:column;gap:4px;min-width:0}.security-role-card strong{font-size:15px;color:var(--ink-900)}.security-role-card small{font-size:11px;line-height:1.45;color:var(--ink-500)}.security-help{margin:0;color:var(--ink-500);font-size:11px}.role-editor{display:grid;gap:18px}.role-editor-summary,.role-pin-editor{padding:16px;border:1px solid #dce7e2;border-radius:13px;background:#fbfdfc}.role-editor-summary strong,.role-pin-editor h3{margin:0;color:var(--ink-900);font-size:14px}.role-editor-summary p,.role-pin-editor p{margin:6px 0 0;color:var(--ink-500);font-size:11px;line-height:1.5}.role-pin-editor{display:grid;gap:14px}.role-pin-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.role-pin-fields label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;color:var(--ink-700)}.role-pin-fields input{height:42px;border:1px solid #d7e2de;border-radius:10px;padding:0 12px;background:#fff;font-size:13px}.role-pin-editor>.primary-button{justify-self:start}.security-role-card .secondary-action{min-width:74px}@media(max-width:720px){.security-role-card{grid-template-columns:34px minmax(0,1fr)}.security-role-card .secondary-action{grid-column:2;justify-self:start}.role-pin-fields{grid-template-columns:1fr}}

@@ -29,8 +29,12 @@ export function useAccessControl(){
   },[])
   const applyRole=next=>{const value=['admin','manager','viewer'].includes(next)?next:'manager';localStorage.setItem('restapay-current-role',value);setRole(value);window.dispatchEvent(new CustomEvent('restapay:role-change',{detail:{role:value}}));return true}
   const setCurrentRole=next=>next==='admin'&&role!=='admin'?false:applyRole(next)
-  const unlockAdmin=async pin=>{if(!/^\d{4,6}$/.test(String(pin||'')))return false;if(!isSupabaseReady)throw new Error('Supabase is required for Admin PIN verification.');const{data,error}=await supabase.rpc('verify_admin_pin',{candidate:String(pin)});if(error)throw error;if(!data)return false;return applyRole('admin')}
+  const verifyRolePin=async(targetRole,pin)=>{if(!/^\d{4,6}$/.test(String(pin||'')))return false;if(!isSupabaseReady)throw new Error('Supabase is required for role PIN verification.');const{data,error}=await supabase.rpc('verify_role_pin',{target_role:targetRole,candidate:String(pin)});if(error)throw error;return Boolean(data)}
+  const unlockAdmin=async pin=>(await verifyRolePin('admin',pin))?applyRole('admin'):false
+  const unlockManager=async pin=>(await verifyRolePin('manager',pin))?applyRole('manager'):false
   const lockAdmin=()=>applyRole('manager')
-  const setAdminPin=async pin=>{if(!/^\d{4,6}$/.test(String(pin||'')))throw new Error('Admin PIN must be 4 to 6 digits.');if(!isSupabaseReady)throw new Error('Supabase is required to store the Admin PIN securely.');const{data,error}=await supabase.rpc('set_admin_pin',{new_pin:String(pin)});if(error)throw error;return Boolean(data)}
-  return useMemo(()=>({role,identity,isAdmin:role==='admin',isManager:role==='manager',has:p=>hasPermission(role,p),canRoute:p=>canAccessRoute(role,p),setCurrentRole,unlockAdmin,lockAdmin,setAdminPin}),[role,identity])
+  const setRolePin=async(targetRole,pin)=>{if(!/^\d{4,6}$/.test(String(pin||'')))throw new Error('PIN must be 4 to 6 digits.');if(!isSupabaseReady)throw new Error('Supabase is required to store role PINs securely.');const{data,error}=await supabase.rpc('set_role_pin',{target_role:targetRole,new_pin:String(pin)});if(error)throw error;return Boolean(data)}
+  const setAdminPin=pin=>setRolePin('admin',pin)
+  const setManagerPin=pin=>setRolePin('manager',pin)
+  return useMemo(()=>({role,identity,isAdmin:role==='admin',isManager:role==='manager',has:p=>hasPermission(role,p),canRoute:p=>canAccessRoute(role,p),setCurrentRole,unlockAdmin,unlockManager,lockAdmin,setAdminPin,setManagerPin}),[role,identity])
 }

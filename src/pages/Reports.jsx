@@ -20,6 +20,7 @@ import Modal from '../components/Modal'
 import { appMoney, appMoney2, useAppData } from '../hooks/useAppData'
 import { originalTips, tipsWithheld, netTips } from '../core/engines/PayrollEngine.js'
 import { exportReportPdf } from '../lib/reportExport'
+import { useAccessControl } from '../lib/accessControl.js'
 
 const reportTypes = [
   'Cash Sales', 'Credit Sales', 'Other Sales', 'Food Sales', 'Alcohol Sales', 'Sales Tax', 'Tips Original', 'Tips After Withholding',
@@ -107,6 +108,7 @@ const periodLabel = group => group.from && group.to ? (group.from===group.to ? g
 
 export default function Reports() {
   const { notify } = useFeedback()
+  const access = useAccessControl()
   const { metrics, sales, payroll, invoices, expenses, dateRange } = useAppData()
   const formatDate = value => { if(!value)return '—'; const d=new Date(`${value}T00:00:00`); return Number.isNaN(d.getTime())?value:d.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}) }
   const activeRangeLabel = `${formatDate(dateRange?.from)}–${formatDate(dateRange?.to)}`
@@ -117,7 +119,7 @@ export default function Reports() {
     ['Vendor & Expense Summary','Invoices and expenses grouped by category',activeRangeLabel,'vendor-expense'],
   ]
   const cards = [
-    { title: 'Period P&L', value: appMoney(metrics.operatingProfit), meta: 'Operating profit', tone: 'green', icon: FileBarChart },
+    ...(!access.isManager ? [{ title: 'Period P&L', value: appMoney(metrics.operatingProfit), meta: 'Operating profit', tone: 'green', icon: FileBarChart }] : []),
     { title: 'Sales Report', value: appMoney(metrics.salesTotal), meta: `${sales.length} sales entries`, tone: 'blue', icon: ReceiptText },
     { title: 'Payroll Report', value: appMoney(metrics.payrollTotal), meta: `${metrics.payrollHours.toFixed(1)} labor hours`, tone: 'purple', icon: WalletCards },
     { title: 'Expense Report', value: appMoney(metrics.expenseTotal), meta: `${expenses.length} expense entries`, tone: 'orange', icon: FileSpreadsheet },
@@ -142,8 +144,11 @@ export default function Reports() {
   const [selected, setSelected] = useState(['Cash Sales', 'Cash Payroll', 'Vendor Cash Spend', 'Remaining Cash', 'Period P&L'])
   const [reportName, setReportName] = useState('Custom Restaurant Report')
 
-  const available = useMemo(() => reportTypes.filter(type => !selected.includes(type)), [selected])
-  const visibleWeeklySections = weeklyReportSections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)
+  const allowedReportTypes = access.isManager ? reportTypes.filter(type=>type!=='Period P&L') : reportTypes
+  const available = useMemo(() => allowedReportTypes.filter(type => !selected.includes(type)), [allowedReportTypes,selected])
+  const managerHiddenSections = new Set(['Period Profit / Loss Analysis','Reconciliation Check'])
+  const roleVisibleWeeklySections = weeklyReportSections.filter(section => !(access.isManager && managerHiddenSections.has(section.title)))
+  const visibleWeeklySections = roleVisibleWeeklySections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)
 
   const addType = value => {
     if (value && !selected.includes(value)) setSelected(prev => [...prev, value])
@@ -162,7 +167,7 @@ export default function Reports() {
       { label:'Report Period', value:activeRangeLabel },
       { label:'Net Sales', value:appMoney2(metrics.salesTotal) },
       { label:'Payroll / Wages', value:appMoney2(metrics.employerLabor ?? metrics.payrollTotal) },
-      { label:'Profit / Loss', value:appMoney2(metrics.operatingProfit) },
+      ...(!access.isManager ? [{ label:'Profit / Loss', value:appMoney2(metrics.operatingProfit) }] : []),
     ]
     if (key === 'weekly-custom') return {
       title: reportName || 'Custom Restaurant Report',
@@ -261,7 +266,7 @@ export default function Reports() {
           <div><small>Report Period</small><strong>{activeRangeLabel}</strong></div>
           <div><small>Net Sales</small><strong>{appMoney2(metrics.salesTotal)}</strong></div>
           <div><small>Remaining Cash</small><strong>{appMoney2(metrics.cashRemaining)}</strong></div>
-          <div><small>Estimated Profit / Loss</small><strong>{appMoney2(metrics.operatingProfit)}</strong></div>
+          {!access.isManager&&<div><small>Estimated Profit / Loss</small><strong>{appMoney2(metrics.operatingProfit)}</strong></div>}
         </div>
 
         {visibleWeeklySections.map(section => (
@@ -301,9 +306,9 @@ export default function Reports() {
         <label>Add Report Section<div className="select-with-icon"><select defaultValue="" onChange={event => { addType(event.target.value); event.target.value = '' }}><option value="" disabled>Select section to add</option>{available.map(type => <option key={type}>{type}</option>)}</select><ChevronDown size={15} /></div></label>
       </div>
       <div className="report-order-list">
-        {selected.map((type, index) => <div className="report-order-row" key={type}>
+        {(access.isManager?selected.filter(type=>type!=='Period P&L'):selected).map((type, index, displaySelected) => <div className="report-order-row" key={type}>
           <GripVertical size={18} /><span className="order-number">{index + 1}</span><strong>{type}</strong>
-          <div className="order-actions"><button disabled={index === 0} onClick={() => move(index, -1)}>Up</button><button disabled={index === selected.length - 1} onClick={() => move(index, 1)}>Down</button><button className="danger-icon" onClick={() => setSelected(prev => prev.filter(item => item !== type))}><Trash2 size={15} /></button></div>
+          <div className="order-actions"><button disabled={index === 0} onClick={() => move(index, -1)}>Up</button><button disabled={index === displaySelected.length - 1} onClick={() => move(index, 1)}>Down</button><button className="danger-icon" onClick={() => setSelected(prev => prev.filter(item => item !== type))}><Trash2 size={15} /></button></div>
         </div>)}
       </div>
       <div className="builder-note">The saved order is used for the live report preview and export workflow.</div>

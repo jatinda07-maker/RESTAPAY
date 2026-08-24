@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const drawer=read('src/components/DetailDrawer.jsx');const settings=read('src/pages/Settings.jsx');const reports=read('src/pages/Reports.jsx');const data=read('src/hooks/useAppData.js');
+const must=(ok,msg)=>{if(!ok)throw new Error(msg)};
+must(drawer.includes("'Invoice Total': ['Invoice spend broken down by line-item category'"),'Invoice Total category mapping missing');
+must(!drawer.includes("'Invoice Total': ['Invoice totals and status'"),'Duplicate generic Invoice Total mapping still present');
+must(drawer.includes('normalizedTitle')&&drawer.includes('Object.entries(map).find'),'KPI resolver must normalize titles');
+must(settings.includes("Labor Classification")&&settings.includes('Kitchen / BOH')&&settings.includes('Management'),'Labor classification UI missing');
+must(data.includes('restapay-labor-classification')&&data.includes('labor_classification:mapped'),'Labor mapping is not wired into metrics');
+must(reports.includes('openPrintableReport')&&reports.includes('printableHtml')&&reports.includes('Save as PDF'),'Reports Print/PDF implementation missing');
+console.log('RC3.8.1 KPI + labor classification + reports export regression passed');

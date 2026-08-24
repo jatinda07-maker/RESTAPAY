@@ -1,0 +1,604 @@
+.records-page{width:100%}.records-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.records-kpi{height:100px;display:grid;grid-template-columns:48px minmax(0,1fr) 18px;align-items:center;gap:12px;padding:14px;border:1px solid;border-radius:14px;background:#fff;text-align:left;color:var(--ink-900);box-shadow:0 6px 18px rgba(20,44,75,.05);transition:.16s ease}.records-kpi:hover{transform:translateY(-2px);border-color:#087f45!important;box-shadow:0 12px 26px rgba(8,127,69,.11)}.records-kpi-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:11px;color:#fff}.records-kpi-icon svg{stroke:currentColor}.records-kpi>span:nth-child(2){display:flex;flex-direction:column;min-width:0}.records-kpi strong{font-size:12px;font-weight:650}.records-kpi b{margin-top:4px;font-size:20px;line-height:1;font-weight:700}.records-kpi small{margin-top:5px;color:var(--ink-500);font-size:9px}.tone-blue{border-color:#c5d9ff}.tone-blue .records-kpi-icon{background:linear-gradient(145deg,#2d8bff,#0b5dd8)}.tone-green{border-color:#bce8cd}.tone-green .records-kpi-icon{background:linear-gradient(145deg,#20bf6b,#07934d)}.tone-orange{border-color:#ffd4b5}.tone-orange .records-kpi-icon{background:linear-gradient(145deg,#ff7d2c,#f05208)}.tone-purple{border-color:#ddceff}.tone-purple .records-kpi-icon{background:linear-gradient(145deg,#9148f6,#6519c8)}.records-workspace{overflow:hidden}.records-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 18px;border-bottom:1px solid #e7eeeb}.records-header h2{margin:0;font-size:19px}.records-header p{margin:5px 0 0;color:var(--ink-500);font-size:11px}.records-actions{display:flex;gap:8px}.records-actions button,.records-header>.primary-button{display:flex;align-items:center;gap:7px}.records-filterbar{display:grid;grid-template-columns:minmax(240px,1fr) 210px 180px;gap:10px;padding:12px 18px;border-bottom:1px solid #e7eeeb;background:#fbfdfc}.records-search,.records-select{height:40px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid #dce7e2;border-radius:10px;background:#fff}.records-search input,.records-select select{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--ink-800);font-size:11px}.records-select select{appearance:none;padding-left:3px;padding-right:18px}.records-select svg:last-child{margin-left:auto}.records-table-wrap{overflow:auto}.records-table{width:100%;border-collapse:collapse}.records-table th{height:40px;padding:0 16px;background:#f5faf7;text-align:left;font-size:10px}.records-table td{height:48px;padding:0 16px;border-top:1px solid #edf2f0;font-size:11px;white-space:nowrap}.records-table .numeric{text-align:right;font-weight:700}.status-badge{display:inline-flex;align-items:center;justify-content:center;min-width:58px;padding:5px 9px;border-radius:999px;font-size:9px;font-weight:700}.status-paid,.status-active{background:#e3f6ea;color:#087f45}.status-due{background:#fff1dc;color:#b76800}.status-inactive{background:#eef2f4;color:#64748b}.row-actions{display:flex;justify-content:center;gap:6px}.row-actions button{width:30px;height:30px;display:grid;place-items:center;border:1px solid #d8e3df;border-radius:8px;background:#fff;color:#24405f}.row-actions button.danger{color:#dc3545}.records-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid #e7eeeb;color:var(--ink-500);font-size:10px}.records-footer>div{display:flex;gap:5px}.records-footer button{width:30px;height:30px;border:1px solid #dce7e2;border-radius:8px;background:#fff}.records-footer button.active{background:#087f45;color:#fff}.contact-cell{display:inline-flex;align-items:center;gap:7px}.vendors-page{padding-top:0}.vendors-table td:first-child strong{font-weight:700}@media(max-width:1050px){.records-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.records-filterbar{grid-template-columns:1fr 190px}}@media(max-width:650px){.records-kpi-grid{grid-template-columns:1fr}.records-header{align-items:flex-start;flex-direction:column}.records-filterbar{grid-template-columns:1fr}}
+
+/* Shared modal and data-entry system */
+.modal-layer{position:fixed;inset:0;z-index:110;display:grid;place-items:center;padding:24px;background:rgba(4,20,42,.34);backdrop-filter:blur(3px)}
+.app-modal{width:min(620px,94vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #dce7e2;border-radius:16px;background:#fff;box-shadow:0 28px 70px rgba(7,26,61,.26)}.modal-lg{width:min(860px,94vw)}
+.app-modal>header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:17px 20px;border-bottom:1px solid #e7eeeb}.app-modal h2{margin:0;font-size:21px}.app-modal header p{margin:4px 0 0;color:var(--ink-500);font-size:12px}.modal-close{width:38px;height:38px;display:grid;place-items:center;border:1px solid #dce7e2;border-radius:10px;background:#fff}.modal-body{overflow:auto;padding:18px 20px}.app-modal>footer{display:flex;justify-content:flex-end;gap:9px;padding:14px 20px;border-top:1px solid #e7eeeb;background:#fbfdfc}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.form-grid label{display:flex;flex-direction:column;gap:7px;color:var(--ink-700);font-size:12px;font-weight:650}.form-grid input,.form-grid select{height:42px;padding:0 13px;border:1px solid #d7e2de;border-radius:12px;background:#fff;color:var(--ink-900);font-size:13px;outline:none;box-shadow:0 1px 2px rgba(15,45,75,.03)}.form-grid input:focus,.form-grid select:focus{border-color:#14935a;box-shadow:0 0 0 3px rgba(20,147,90,.11)}
+.line-item-editor{margin-top:17px;border:1px solid #dce7e2;border-radius:11px;overflow:hidden}.line-item-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f7fbf9}.line-item-head button{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#087f45;font-size:11px;font-weight:700}.line-item-row{display:grid;grid-template-columns:2fr .55fr .8fr .8fr;gap:8px;padding:8px 10px;border-top:1px solid #edf2f0}.line-item-row input{height:36px;padding:0 9px;border:1px solid #dce7e2;border-radius:8px}.invoice-total-box{margin:14px 0 0 auto;width:min(330px,100%);display:grid;gap:8px;padding:12px 14px;border:1px solid #dce7e2;border-radius:10px;background:#f8fbfa}.invoice-total-box span,.invoice-total-box strong{display:flex;justify-content:space-between}.invoice-total-box strong{padding-top:8px;border-top:1px solid #dce7e2;font-size:14px}
+.ai-dropzone{width:100%;min-height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;border:1.5px dashed #93c8aa;border-radius:14px;background:linear-gradient(180deg,#f4fbf7,#fff);color:#087f45}.ai-dropzone strong{color:var(--ink-900);font-size:14px}.ai-dropzone span{color:var(--ink-500);font-size:10px}.ai-feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:14px}.ai-feature-grid span{display:flex;align-items:center;gap:7px;padding:10px;border:1px solid #dce7e2;border-radius:9px;font-size:10px}.ai-feature-grid svg{width:16px;color:#087f45}
+.vendor-filterbar{grid-template-columns:minmax(240px,1fr) 220px 200px}.vendor-name-cell,.employee-cell{display:flex;align-items:center;gap:9px}.brand-vendor-mark{display:grid;place-items:center;flex:0 0 auto;border-radius:9px;background:var(--brand-color);color:#fff;font-size:9px;font-weight:800;letter-spacing:-.02em;box-shadow:0 4px 10px rgba(14,33,57,.12)}.duplicate-alert{display:flex;gap:12px;align-items:center;padding:13px;border:1px solid #ffd6a7;border-radius:11px;background:#fff8ee;color:#c4610c}.duplicate-alert div{display:flex;flex-direction:column;gap:3px}.duplicate-alert span{color:#8a6a4e;font-size:10px}.duplicate-list{display:grid;gap:8px;margin-top:12px}.duplicate-list label{display:grid;grid-template-columns:auto 34px 1fr;align-items:center;gap:10px;padding:10px;border:1px solid #dce7e2;border-radius:10px}.duplicate-list span{display:flex;flex-direction:column}.duplicate-list small{margin-top:3px;color:var(--ink-500)}.override-check{display:flex;align-items:center;gap:8px;margin-top:13px;font-size:11px}
+.compare-selectors{display:flex;align-items:center;gap:8px}.compare-selectors label{height:38px;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid #dce7e2;border-radius:9px}.compare-selectors select{border:0;outline:0;background:transparent}.savings{color:#087f45!important}.increase{color:#d85124!important}.impact{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:9px;font-weight:750}.impact-high{background:#ffe5e1;color:#c63f20}.impact-medium{background:#fff0d9;color:#b56408}.impact-low{background:#e3f5e9;color:#087f45}.employee-avatar{width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:#e4edff;color:#175fce;font-size:10px;font-weight:800}.payroll-tabs{display:flex;gap:6px;padding:10px 18px;border-bottom:1px solid #e7eeeb;background:#fff}.payroll-tabs button{padding:8px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--ink-500);font-size:10px;font-weight:700}.payroll-tabs button.active{border-color:#bce8cd;background:#edf9f2;color:#087f45}
+@media(max-width:900px){.records-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.form-grid{grid-template-columns:1fr}.ai-feature-grid{grid-template-columns:repeat(2,1fr)}.line-item-row{grid-template-columns:1fr 1fr}.vendor-filterbar{grid-template-columns:1fr}.compare-selectors{flex-wrap:wrap}}
+@media(max-width:560px){.records-kpi-grid{grid-template-columns:1fr}.ai-feature-grid{grid-template-columns:1fr}}
+.tone-red{border-color:#ffc7ce}.tone-red .records-kpi-icon{background:linear-gradient(145deg,#ff5d68,#dc2638)}
+.brand-vendor-mark{position:relative;overflow:hidden}.brand-vendor-mark img{width:78%;height:78%;object-fit:contain;background:#fff;border-radius:5px;z-index:2}.brand-vendor-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:1}.brand-vendor-mark img:not([style*="display: none"])+.brand-vendor-fallback{opacity:0}
+.vendor-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.vendor-editable-field>span{display:block;margin-bottom:7px}.vendor-select-row{height:46px;display:grid;grid-template-columns:18px 1fr 34px;align-items:center;gap:7px;padding-left:12px;border:1px solid #dce7e2;border-radius:10px;background:#fff}.vendor-select-row select{width:100%;height:100%;border:0;outline:0;background:transparent;color:var(--ink-800);font-weight:600}.inline-add-button{width:34px;height:34px;display:grid;place-items:center;border:0;border-left:1px solid #dce7e2;background:#f4fbf7;color:#087f45}.vendor-logo-note{display:flex;align-items:flex-start;gap:8px;margin-top:14px;padding:10px 12px;border:1px solid #d7ebe0;border-radius:10px;background:#f4fbf7;color:#37634d;font-size:10px}.primary-button:disabled{opacity:.45;cursor:not-allowed}
+.impact{display:inline-flex;min-width:62px;justify-content:center;padding:5px 9px;border-radius:999px;font-size:9px;font-weight:750}.impact-low{background:#def7e7;color:#087f45}.impact-medium{background:#fff0cc;color:#9a6100}.impact-high{background:#ffe1e5;color:#c9283f}.change-low{color:#087f45!important}.change-medium{color:#a96700!important}.change-high{color:#d7263d!important}.price-low{box-shadow:inset 3px 0 #22a861}.price-medium{box-shadow:inset 3px 0 #e5a11a}.price-high{box-shadow:inset 3px 0 #e23b4f}
+@media(max-width:700px){.vendor-form-grid{grid-template-columns:1fr}}
+
+/* Alignment and workflow stabilization */
+.records-kpi-copy{display:flex;flex-direction:column;justify-content:center;min-width:0;padding-left:2px}.records-kpi-copy strong,.records-kpi-copy b,.records-kpi-copy small{display:block}.records-kpi>svg{justify-self:end}.aligned-table{table-layout:fixed}.aligned-table th,.aligned-table td{vertical-align:middle}.aligned-table th.numeric,.aligned-table td.numeric{text-align:right}.aligned-table td:first-child,.aligned-table th:first-child{padding-left:18px}.records-workspace h2,.records-workspace p{padding-left:0}.payroll-filterbar{grid-template-columns:minmax(260px,1fr) 220px}.payroll-action-grid{display:grid;grid-template-columns:repeat(3,max-content);align-items:center}.soft-action{height:38px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 13px;border:1px solid;border-radius:9px;font-size:10px;font-weight:750}.soft-blue{border-color:#bfd7ff;background:#edf4ff;color:#155fc2}.soft-purple{border-color:#dac8ff;background:#f4efff;color:#6d32c9}.soft-green{border-color:#bce8cd;background:#edf9f2;color:#087f45}.group-summary-card{display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:12px;padding:14px;border:1px solid #cfe9da;border-radius:12px;background:#f6fcf8}.group-summary-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:11px;background:#087f45;color:#fff}.group-summary-card>div:nth-child(2){display:flex;flex-direction:column}.group-summary-card span{margin-top:4px;color:var(--ink-500);font-size:10px}.group-summary-card b{font-size:17px}.compact-form-top{margin-top:14px}.import-review-note{display:flex;gap:9px;align-items:flex-start;margin-top:12px;padding:11px 12px;border:1px solid #ffd6a7;border-radius:10px;background:#fff8ee;color:#9a5b12;font-size:10px}.duplicate-review-table{border:1px solid #dce7e2;border-radius:11px;overflow:hidden}.duplicate-review-head,.duplicate-review-row{display:grid;grid-template-columns:1.2fr 1.2fr .45fr 1fr;gap:10px;align-items:center;padding:11px 12px}.duplicate-review-head{background:#f4f8f6;color:var(--ink-600);font-size:10px;font-weight:750}.duplicate-review-row{border-top:1px solid #e7eeeb}.duplicate-review-row>span{display:flex;flex-direction:column}.duplicate-review-row small{margin-top:3px;color:var(--ink-500);font-size:9px}.duplicate-review-row select{height:36px;padding:0 9px;border:1px solid #dce7e2;border-radius:8px;background:#fff;font-size:10px}.report-card-grid,.import-option-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px 18px}.report-card,.import-option{display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px;border:1px solid #dce7e2;border-radius:12px;background:#fff;text-align:left}.report-card:hover,.import-option:hover{border-color:#087f45;box-shadow:0 9px 22px rgba(8,127,69,.09)}.report-icon,.import-option-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:10px;color:#fff}.report-card h3{margin:0;font-size:13px}.report-card p{margin:5px 0;color:var(--ink-500);font-size:10px}.report-card small{color:#6b7f73;font-size:9px}.report-actions{display:flex;align-items:center;gap:6px}.report-actions button{height:30px;padding:0 9px;border:1px solid #dce7e2;border-radius:7px;background:#fff;font-size:9px}.import-option span:nth-child(2){display:flex;flex-direction:column}.import-option strong{font-size:12px}.import-option small{margin-top:4px;color:var(--ink-500);font-size:9px}.tone-border-blue{border-color:#c5d9ff}.tone-border-purple{border-color:#ddceff}.tone-border-orange{border-color:#ffd4b5}.tone-border-green{border-color:#bce8cd}.integration-status-strip{display:flex;gap:9px;align-items:center;padding:13px 18px;border-top:1px solid #e7eeeb;background:#f3fbf6;color:#087f45;font-size:10px}
+@media(max-width:900px){.payroll-action-grid{grid-template-columns:1fr}.report-card-grid,.import-option-grid{grid-template-columns:1fr}.duplicate-review-head{display:none}.duplicate-review-row{grid-template-columns:1fr}.aligned-table{table-layout:auto}}
+
+/* Global compact table alignment */
+.records-table{width:100%;border-collapse:collapse;table-layout:fixed}.records-table th,.records-table td{height:46px;padding:0 16px;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.records-table th{font-size:10px;font-weight:750;text-align:left;color:var(--ink-700);background:#f3f8f5}.records-table td{font-size:10px;color:var(--ink-800);border-top:1px solid #e7eeeb}.records-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.records-table th:last-child,.records-table td:last-child{padding-right:20px}.records-table-wrap{overflow-x:auto}.records-table-wrap .records-table{min-width:920px}.vendor-name-cell,.employee-cell{min-width:0}.records-table td .status-badge{display:inline-flex;align-items:center;justify-content:center;min-width:58px}.records-table td:last-child .icon-actions{justify-content:center}
+.records-header{align-items:center}.records-actions{align-items:center;flex-wrap:wrap}.records-filterbar>*{min-width:0}.records-filterbar input,.records-filterbar select{font-size:10px}
+.payroll-tab-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid #e7eeeb;background:#fbfdfc}.payroll-tab-panel>div{display:flex;flex-direction:column}.payroll-tab-panel small{margin-top:3px;color:var(--ink-500);font-size:9px}.payroll-group-form{margin-bottom:14px}.employee-group-picker{border:1px solid #dce7e2;border-radius:11px;overflow:hidden}.employee-group-head{display:flex;flex-direction:column;padding:11px 13px;background:#f4f8f6}.employee-group-head small{margin-top:3px;color:var(--ink-500);font-size:9px}.employee-group-picker>label{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:10px 13px;border-top:1px solid #e7eeeb}.employee-group-picker>label span{display:flex;flex-direction:column}.employee-group-picker>label small{margin-top:2px;color:var(--ink-500);font-size:9px}
+.report-builder-top{margin-bottom:14px}.select-with-icon{position:relative}.select-with-icon select{width:100%;padding-right:34px}.select-with-icon svg{position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none}.report-order-list{display:grid;gap:8px}.report-order-row{display:grid;grid-template-columns:auto 30px minmax(0,1fr) auto;align-items:center;gap:9px;padding:10px 12px;border:1px solid #dce7e2;border-radius:10px;background:#fff}.report-order-row>svg{color:#7c8d84}.order-number{width:26px;height:26px;display:grid;place-items:center;border-radius:8px;background:#edf9f2;color:#087f45;font-size:10px;font-weight:800}.order-actions{display:flex;gap:6px}.order-actions button{height:30px;padding:0 9px;border:1px solid #dce7e2;border-radius:7px;background:#fff;font-size:9px}.order-actions button:disabled{opacity:.35}.order-actions .danger-icon{width:30px;padding:0;color:#d7263d}.builder-note{margin-top:12px;padding:10px 12px;border:1px solid #d7ebe0;border-radius:9px;background:#f4fbf7;color:#4f6d5d;font-size:9px}.settings-kpi-grid{margin-top:0}.settings-panel{padding:18px}.settings-list{display:grid;gap:9px}.settings-list>div{display:grid;grid-template-columns:36px 1fr auto;gap:11px;align-items:center;padding:12px;border:1px solid #dce7e2;border-radius:10px}.settings-list>div>svg{color:#087f45}.settings-list span{display:flex;flex-direction:column}.settings-list small{margin-top:3px;color:var(--ink-500);font-size:9px}.settings-list button{height:32px;padding:0 11px;border:1px solid #dce7e2;border-radius:8px;background:#fff;font-size:9px}
+@media(max-width:760px){.payroll-tab-panel{align-items:flex-start;flex-direction:column}.report-order-row{grid-template-columns:auto 28px 1fr}.order-actions{grid-column:1/-1;justify-content:flex-end}}
+
+/* Custom Weekly Restaurant Report */
+.report-card-featured{border-color:#bce8cd;background:linear-gradient(180deg,#fff 0%,#f7fcf9 100%);box-shadow:0 10px 24px rgba(8,127,69,.08)}
+.report-actions button{display:inline-flex;align-items:center;gap:5px}.weekly-report-preview{display:grid;gap:14px}.weekly-report-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.weekly-report-summary>div{padding:12px 13px;border:1px solid #dce7e2;border-radius:11px;background:#f8fbf9}.weekly-report-summary small{display:block;color:var(--ink-500);font-size:9px}.weekly-report-summary strong{display:block;margin-top:5px;color:var(--ink-900);font-size:14px}.weekly-report-section{overflow:hidden;border:1px solid #dce7e2;border-radius:12px;background:#fff}.weekly-report-section>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #e7eeeb;background:#f5faf7}.weekly-report-section h3{margin:0;font-size:12px}.weekly-report-section header small{display:block;margin-top:3px;color:var(--ink-500);font-size:8px}.weekly-report-section header>strong{color:#087f45;font-size:15px}.weekly-report-table-wrap{overflow-x:auto}.weekly-report-table{width:100%;min-width:620px;border-collapse:collapse}.weekly-report-table th{padding:9px 11px;background:#fbfdfc;text-align:left;color:var(--ink-600);font-size:8px;font-weight:750}.weekly-report-table td{padding:9px 11px;border-top:1px solid #edf2f0;color:var(--ink-800);font-size:9px}.weekly-report-table th:not(:first-child),.weekly-report-table .numeric-report-cell{text-align:right;font-variant-numeric:tabular-nums}.empty-report-row{text-align:center!important;color:var(--ink-500)!important;font-style:italic}.show-empty-toggle{display:inline-flex;align-items:center;gap:7px;color:var(--ink-700);font-size:9px}.show-empty-toggle input{accent-color:#087f45}.modal-footer-spacer{flex:1}
+@media(max-width:800px){.weekly-report-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.weekly-report-summary{grid-template-columns:1fr}}
+
+/* 2026-08 payroll withholding + strict column alignment */
+.records-table th.centered,.records-table td.centered{text-align:center}
+.payroll-table{min-width:1420px!important}
+.payroll-table th:nth-child(1),.payroll-table td:nth-child(1){width:112px}
+.payroll-table th:nth-child(2),.payroll-table td:nth-child(2){width:170px}
+.payroll-table th:nth-child(3),.payroll-table td:nth-child(3){width:112px}
+.payroll-table th:nth-child(4),.payroll-table td:nth-child(4){width:82px}
+.payroll-table th:nth-child(5),.payroll-table td:nth-child(5){width:112px}
+.payroll-table th:nth-child(6),.payroll-table td:nth-child(6){width:122px}
+.payroll-table th:nth-child(7),.payroll-table td:nth-child(7){width:105px}
+.payroll-table th:nth-child(8),.payroll-table td:nth-child(8){width:166px}
+.payroll-table th:nth-child(9),.payroll-table td:nth-child(9){width:105px}
+.payroll-table th:nth-child(10),.payroll-table td:nth-child(10){width:118px}
+.payroll-table th:nth-child(11),.payroll-table td:nth-child(11){width:105px}
+.withholding-value{color:#b45309!important}.tips-after-value{color:#087f45!important}.final-pay-value{font-weight:750;color:#172b20!important}
+
+/* Every header and row uses the same measured column track. */
+.vendors-table{min-width:1320px!important}.vendors-table th:nth-child(1),.vendors-table td:nth-child(1){width:210px}.vendors-table th:nth-child(2),.vendors-table td:nth-child(2){width:150px}.vendors-table th:nth-child(3),.vendors-table td:nth-child(3){width:120px}.vendors-table th:nth-child(4),.vendors-table td:nth-child(4){width:170px}.vendors-table th:nth-child(5),.vendors-table td:nth-child(5){width:145px}.vendors-table th:nth-child(6),.vendors-table td:nth-child(6){width:210px}.vendors-table th:nth-child(7),.vendors-table td:nth-child(7){width:105px}.vendors-table th:nth-child(8),.vendors-table td:nth-child(8){width:90px;text-align:center}.vendors-table th:nth-child(9),.vendors-table td:nth-child(9){width:90px;text-align:center}
+.invoices-table{min-width:980px!important}.invoices-table th:nth-child(1),.invoices-table td:nth-child(1){width:115px}.invoices-table th:nth-child(2),.invoices-table td:nth-child(2){width:200px}.invoices-table th:nth-child(3),.invoices-table td:nth-child(3){width:130px}.invoices-table th:nth-child(4),.invoices-table td:nth-child(4){width:140px}.invoices-table th:nth-child(5),.invoices-table td:nth-child(5){width:120px;text-align:right}.invoices-table th:nth-child(6),.invoices-table td:nth-child(6){width:95px;text-align:center}.invoices-table th:nth-child(7),.invoices-table td:nth-child(7){width:90px;text-align:center}
+.employees-table{min-width:980px!important}.employees-table th:nth-child(1),.employees-table td:nth-child(1){width:220px}.employees-table th:nth-child(2),.employees-table td:nth-child(2){width:135px}.employees-table th:nth-child(3),.employees-table td:nth-child(3){width:145px}.employees-table th:nth-child(4),.employees-table td:nth-child(4){width:130px}.employees-table th:nth-child(5),.employees-table td:nth-child(5){width:120px;text-align:right}.employees-table th:nth-child(6),.employees-table td:nth-child(6){width:95px;text-align:center}.employees-table th:nth-child(7),.employees-table td:nth-child(7){width:90px;text-align:center}
+.comparison-table{min-width:1050px!important}.comparison-table th:nth-child(1),.comparison-table td:nth-child(1){width:245px}.comparison-table th:nth-child(2),.comparison-table td:nth-child(2),.comparison-table th:nth-child(4),.comparison-table td:nth-child(4){width:145px}.comparison-table th:nth-child(3),.comparison-table td:nth-child(3),.comparison-table th:nth-child(5),.comparison-table td:nth-child(5),.comparison-table th:nth-child(6),.comparison-table td:nth-child(6){width:110px;text-align:right}.comparison-table th:nth-child(7),.comparison-table td:nth-child(7){width:120px;text-align:center}
+.price-table{min-width:1050px!important}.price-table th:nth-child(1),.price-table td:nth-child(1){width:235px}.price-table th:nth-child(2),.price-table td:nth-child(2){width:175px}.price-table th:nth-child(n+3):nth-child(-n+6),.price-table td:nth-child(n+3):nth-child(-n+6){width:125px;text-align:right}.price-table th:nth-child(7),.price-table td:nth-child(7){width:105px;text-align:center}
+.expenses-table{min-width:980px!important}.expenses-table th:nth-child(1),.expenses-table td:nth-child(1){width:115px}.expenses-table th:nth-child(2),.expenses-table td:nth-child(2){width:150px}.expenses-table th:nth-child(3),.expenses-table td:nth-child(3){width:185px}.expenses-table th:nth-child(4),.expenses-table td:nth-child(4){width:270px}.expenses-table th:nth-child(5),.expenses-table td:nth-child(5){width:125px;text-align:right}.expenses-table th:nth-child(6),.expenses-table td:nth-child(6){width:105px;text-align:center}
+.bank-table{min-width:920px!important}.bank-table th:nth-child(1),.bank-table td:nth-child(1){width:120px}.bank-table th:nth-child(2),.bank-table td:nth-child(2){width:145px}.bank-table th:nth-child(3),.bank-table td:nth-child(3){width:245px}.bank-table th:nth-child(4),.bank-table td:nth-child(4){width:130px;text-align:right}.bank-table th:nth-child(5),.bank-table td:nth-child(5){width:160px}.bank-table th:nth-child(6),.bank-table td:nth-child(6){width:100px;text-align:center}
+.toast-table{min-width:850px!important}.toast-table th:nth-child(1),.toast-table td:nth-child(1){width:255px}.toast-table th:nth-child(2),.toast-table td:nth-child(2){width:125px;text-align:center}.toast-table th:nth-child(3),.toast-table td:nth-child(3){width:260px}.toast-table th:nth-child(4),.toast-table td:nth-child(4){width:150px;text-align:right}
+
+/* Expense entry: selectable and extensible expense types/vendors */
+.select-add-row{display:grid;grid-template-columns:minmax(0,1fr) 46px;gap:8px;align-items:center}
+.select-add-row>select{width:100%;min-width:0}
+.field-add-button{height:40px;display:flex;align-items:center;justify-content:center;gap:1px;border:1px solid;border-radius:9px;cursor:pointer;transition:.15s ease}
+.field-add-button:hover{transform:translateY(-1px);border-color:#087f45;box-shadow:0 7px 16px rgba(8,127,69,.10)}
+.tone-green-button{background:#e8f7ee;border-color:#bce8cd;color:#087f45}
+.tone-blue-button{background:#edf4ff;border-color:#c5d9ff;color:#1769d2}
+.form-span-2{grid-column:1/-1}
+.one-column-form{grid-template-columns:1fr}
+@media(max-width:620px){.form-span-2{grid-column:auto}.select-add-row{grid-template-columns:minmax(0,1fr) 42px}}
+
+/* Phase 1 UI freeze: enterprise table alignment */
+.records-table{
+  border-spacing:0;
+  font-variant-numeric:tabular-nums;
+}
+.records-table thead th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  box-sizing:border-box;
+  border-bottom:1px solid #dfe9e4;
+  letter-spacing:.01em;
+}
+.records-table tbody td{
+  box-sizing:border-box;
+}
+.records-table th:first-child,
+.records-table td:first-child{
+  padding-left:20px;
+}
+.records-table th:last-child,
+.records-table td:last-child{
+  padding-right:20px;
+}
+.records-table th.numeric,
+.records-table td.numeric{
+  text-align:right!important;
+}
+.records-table th.centered,
+.records-table td.centered,
+.records-table td:has(> .status-badge),
+.records-table td:has(> .row-actions){
+  text-align:center;
+}
+.records-table .row-actions{
+  width:100%;
+  justify-content:center;
+  align-items:center;
+}
+.records-table .vendor-name-cell,
+.records-table .employee-cell,
+.records-table .contact-cell{
+  width:100%;
+  min-width:0;
+  overflow:hidden;
+}
+.records-table .vendor-name-cell strong,
+.records-table .employee-cell strong,
+.records-table .contact-cell{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.records-table tbody tr:hover td{
+  background:#fbfefc;
+}
+
+/* Keep header labels directly over their values on every record page. */
+.vendors-table th:nth-child(7),.vendors-table td:nth-child(7),
+.invoices-table th:nth-child(5),.invoices-table td:nth-child(5),
+.employees-table th:nth-child(5),.employees-table td:nth-child(5),
+.comparison-table th:nth-child(3),.comparison-table td:nth-child(3),
+.comparison-table th:nth-child(5),.comparison-table td:nth-child(5),
+.comparison-table th:nth-child(6),.comparison-table td:nth-child(6),
+.price-table th:nth-child(3),.price-table td:nth-child(3),
+.price-table th:nth-child(4),.price-table td:nth-child(4),
+.price-table th:nth-child(5),.price-table td:nth-child(5),
+.price-table th:nth-child(6),.price-table td:nth-child(6),
+.expenses-table th:nth-child(5),.expenses-table td:nth-child(5),
+.bank-table th:nth-child(4),.bank-table td:nth-child(4),
+.toast-table th:nth-child(4),.toast-table td:nth-child(4){
+  text-align:right!important;
+}
+.vendors-table th:nth-child(8),.vendors-table td:nth-child(8),
+.vendors-table th:nth-child(9),.vendors-table td:nth-child(9),
+.invoices-table th:nth-child(6),.invoices-table td:nth-child(6),
+.invoices-table th:nth-child(7),.invoices-table td:nth-child(7),
+.employees-table th:nth-child(6),.employees-table td:nth-child(6),
+.employees-table th:nth-child(7),.employees-table td:nth-child(7),
+.comparison-table th:nth-child(7),.comparison-table td:nth-child(7),
+.price-table th:nth-child(7),.price-table td:nth-child(7),
+.expenses-table th:nth-child(6),.expenses-table td:nth-child(6),
+.bank-table th:nth-child(6),.bank-table td:nth-child(6),
+.toast-table th:nth-child(2),.toast-table td:nth-child(2){
+  text-align:center!important;
+}
+.toast-report-dropzone{cursor:pointer}.toast-report-dropzone:hover{border-color:#087f45;box-shadow:0 8px 22px rgba(8,127,69,.08)}
+.toast-import-review{display:flex;flex-direction:column;gap:12px}.toast-import-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.toast-import-summary>div{display:flex;flex-direction:column;gap:5px;padding:12px;border:1px solid #dce7e2;border-radius:10px;background:#f8fbfa}.toast-import-summary small{color:var(--ink-500);font-size:9px}.toast-import-summary strong{font-size:16px}.toast-import-validation{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #bce8cd;border-radius:9px;background:#f2fbf6;color:#087f45;font-size:10px}.toast-import-preview{overflow:auto;border:1px solid #dce7e2;border-radius:10px}.toast-import-preview table{width:100%;border-collapse:collapse;min-width:620px}.toast-import-preview th,.toast-import-preview td{padding:9px 10px;border-bottom:1px solid #edf2f0;text-align:left;font-size:9px;white-space:nowrap}.toast-import-preview th{background:#f4f8f6;color:var(--ink-700);font-weight:750}.toast-import-more{margin:0;color:var(--ink-500);font-size:9px}
+
+/* Payroll compact actions and no horizontal scrollbar */
+.payroll-table-wrap{overflow-x:hidden}
+.payroll-table.payroll-table-compact{min-width:0!important;width:100%;table-layout:fixed}
+.payroll-table-compact th,.payroll-table-compact td{padding-left:8px;padding-right:8px;font-size:10px}
+.payroll-table-compact th:nth-child(1){width:8%}.payroll-table-compact th:nth-child(2){width:13%}.payroll-table-compact th:nth-child(3){width:9%}.payroll-table-compact th:nth-child(4){width:6%}.payroll-table-compact th:nth-child(5){width:9%}.payroll-table-compact th:nth-child(6){width:8%}.payroll-table-compact th:nth-child(7){width:8%}.payroll-table-compact th:nth-child(8){width:8%}.payroll-table-compact th:nth-child(9){width:9%}.payroll-table-compact th:nth-child(10){width:8%}.payroll-table-compact th:nth-child(11){width:14%}
+.payroll-table-compact td{overflow:hidden;text-overflow:ellipsis}
+.compact-actions{gap:3px;flex-wrap:nowrap}.compact-actions button{width:25px;height:25px;border-radius:6px}
+.records-empty-cell,.records-empty{padding:26px!important;text-align:center!important;color:var(--ink-500);font-weight:600}
+.payroll-groups-list{border-bottom:1px solid #e7eeeb}.payroll-group-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 18px;border-top:1px solid #edf2f0}.payroll-group-row>span{display:flex;flex-direction:column;gap:3px}.payroll-group-row small{color:var(--ink-500);font-size:9px}
+.form-span-2{grid-column:1/-1}
+
+/* Unified KPI card alignment */
+.records-kpi{min-height:100px;height:auto;grid-template-columns:46px minmax(0,1fr) 18px;padding:13px 14px;gap:11px}
+.records-kpi-copy{height:64px;display:grid!important;grid-template-rows:16px 24px 16px;align-content:center;gap:2px;padding-left:0!important}
+.records-kpi-copy strong{align-self:end;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:16px}
+.records-kpi-copy b{align-self:center;margin:0!important;font-size:19px;line-height:24px}
+.records-kpi-copy small{align-self:start;margin:0!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;line-height:16px}
+.records-kpi>svg{align-self:center}
+
+@media(max-width:1180px){.payroll-table-compact th,.payroll-table-compact td{font-size:9px;padding-left:5px;padding-right:5px}.compact-actions button{width:23px;height:23px}}
+.soft-orange{border-color:#ffd0ad;background:#fff4eb;color:#c55413}
+.payroll-action-grid{grid-template-columns:repeat(4,max-content)}
+.weekly-payroll-form{margin-bottom:12px}
+.weekly-range-status{padding:10px 12px;border-radius:9px;font-size:10px;font-weight:700;margin-bottom:12px}
+.weekly-range-status.valid{background:#edf9f2;border:1px solid #bce8cd;color:#087f45}
+.weekly-range-status.invalid{background:#fff1f0;border:1px solid #ffc9c3;color:#c63f20}
+.weekly-preview{border:1px solid #dce7e2;border-radius:11px;overflow:hidden}
+.weekly-preview-head,.weekly-preview-row{display:grid;grid-template-columns:minmax(0,1fr) 90px 110px;align-items:center;gap:12px;padding:10px 12px}
+.weekly-preview-head{background:#f4f8f6;color:var(--ink-600);font-size:10px}
+.weekly-preview-head span{text-align:right}
+.weekly-preview-row{border-top:1px solid #e7eeeb;font-size:10px}
+.weekly-preview-row>span:first-child{display:flex;flex-direction:column;min-width:0}
+.weekly-preview-row small{margin-top:3px;color:var(--ink-500)}
+.weekly-preview-row>span:nth-child(2),.weekly-preview-row>b{text-align:right}
+@media(max-width:1100px){.payroll-action-grid{grid-template-columns:repeat(2,max-content)}}
+@media(max-width:700px){.weekly-preview-head,.weekly-preview-row{grid-template-columns:1fr}.weekly-preview-head span,.weekly-preview-row>span:nth-child(2),.weekly-preview-row>b{text-align:left}}
+
+/* Weekly payroll employee selection */
+.weekly-employee-picker {
+  margin-top: 14px;
+  border: 1px solid var(--border, #dbe7e1);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+.weekly-employee-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 15px;
+  background: #f6faf8;
+  border-bottom: 1px solid var(--border, #dbe7e1);
+}
+.weekly-employee-picker-head > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+.weekly-employee-picker-head small {
+  color: #6480a8;
+  font-weight: 500;
+}
+.weekly-picker-actions {
+  display: flex;
+  gap: 8px;
+}
+.weekly-picker-actions button {
+  border: 1px solid #cfe0d8;
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #0c6d3d;
+  font-weight: 700;
+  cursor: pointer;
+}
+.weekly-picker-actions button:hover {
+  background: #edf9f2;
+  border-color: #8ed3ac;
+}
+.weekly-employee-list {
+  max-height: 220px;
+  overflow: auto;
+}
+.weekly-employee-option {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 15px;
+  border-bottom: 1px solid #edf2ef;
+  cursor: pointer;
+}
+.weekly-employee-option:last-child { border-bottom: 0; }
+.weekly-employee-option:hover { background: #f6fbf8; }
+.weekly-employee-option input { width: 16px; height: 16px; accent-color: #0aa55c; }
+.weekly-employee-option span { display: grid; gap: 2px; min-width: 0; }
+.weekly-employee-option small { color: #6480a8; }
+.weekly-employee-option b { color: #0f2747; white-space: nowrap; }
+
+.weekly-available-weeks{display:flex;flex-direction:column;gap:7px;margin:12px 0;font-weight:700;color:#17345d}.weekly-available-weeks select{height:46px;border:1px solid #cfe0d8;border-radius:12px;background:#fff;padding:0 14px;color:#10294d;font:inherit}.weekly-empty-diagnostic{display:flex;flex-direction:column;gap:6px}.weekly-empty-diagnostic span{font-size:13px;color:#60789f;font-weight:500}
+
+/* Payroll workflow separation: imported labor, ready-to-pay, and paid history */
+.payroll-tabs{overflow-x:auto;scrollbar-width:none}.payroll-tabs::-webkit-scrollbar{display:none}.payroll-tabs button{white-space:nowrap}
+.compact-actions .pay-action{border-color:#bce8cd;background:#edf9f2;color:#087f45}
+.payroll-page .records-table-wrap{overflow-x:hidden}
+@media(max-width:1180px){.payroll-tabs{padding-right:10px}.payroll-tabs button{padding:7px 9px;font-size:9px}}
+
+/* Phase 2D invoice line editor */
+.invoice-line-editor{margin-top:18px;border:1px solid var(--border-soft);border-radius:14px;padding:14px;background:#fbfdfc}.invoice-line-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}.invoice-line-heading h3{margin:0;font-size:15px}.invoice-line-heading p{margin:3px 0 0;color:var(--text-muted);font-size:12px}.invoice-line-grid{display:grid;grid-template-columns:minmax(190px,2fr) minmax(120px,1fr) 68px minmax(105px,.9fr) minmax(105px,1fr) 96px 106px 36px;gap:8px;align-items:center;margin-bottom:9px}.invoice-line-grid input,.invoice-line-grid select{min-width:0;height:40px;border:1px solid #d7e2de;border-radius:11px;background:#fff;padding:0 11px;font-size:12px;outline:none;box-shadow:0 1px 2px rgba(15,45,75,.03)}.invoice-line-grid input:focus,.invoice-line-grid select:focus{border-color:#14935a;box-shadow:0 0 0 3px rgba(20,147,90,.10)}.invoice-line-header{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}.icon-danger-button{width:32px;height:32px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;border-radius:8px;display:grid;place-items:center}.invoice-totals{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:12px;align-items:end;margin-top:14px}.invoice-totals>div{min-height:58px;border:1px solid var(--border-soft);border-radius:10px;padding:9px 12px;display:flex;flex-direction:column;justify-content:center;background:white}.invoice-totals span{font-size:11px;color:var(--text-muted)}.invoice-totals strong{font-size:18px}.modal-full-field{display:flex;flex-direction:column;gap:6px;margin-top:12px}.modal-full-field textarea{min-height:74px}.ai-review-summary{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-top:14px}.ai-review-summary>div{border:1px solid var(--border-soft);border-radius:10px;padding:10px;background:white;display:flex;flex-direction:column}.ai-review-summary small{color:var(--text-muted)}
+@media(max-width:1050px){.invoice-line-grid{grid-template-columns:2fr 1fr 65px 1fr 1fr 90px 100px 34px}.invoice-totals{grid-template-columns:repeat(2,1fr)}}
+.price-lower{color:#15803d!important;font-weight:700}.price-higher{color:#dc2626!important;font-weight:700}
+.records-header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.vendor-logo-preview{display:flex;align-items:center;gap:12px;min-height:52px}
+.brand-vendor-mark{position:relative;display:inline-grid;place-items:center;flex:0 0 auto;border-radius:10px;overflow:hidden;background:#425466;color:#fff;font-weight:800;font-size:12px}
+.brand-vendor-mark img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:3px;z-index:2}
+.brand-vendor-fallback{position:relative;z-index:1}
+
+/* Vendor multi-select actions */
+.vendors-table-selectable{min-width:1360px!important}
+.vendors-table-selectable th:nth-child(1),.vendors-table-selectable td:nth-child(1){width:42px!important;text-align:center!important;padding-left:10px!important;padding-right:6px!important}
+.vendors-table-selectable th:nth-child(2),.vendors-table-selectable td:nth-child(2){width:210px}
+.vendors-table-selectable th:nth-child(3),.vendors-table-selectable td:nth-child(3){width:150px}
+.vendors-table-selectable th:nth-child(4),.vendors-table-selectable td:nth-child(4){width:120px}
+.vendors-table-selectable th:nth-child(5),.vendors-table-selectable td:nth-child(5){width:170px}
+.vendors-table-selectable th:nth-child(6),.vendors-table-selectable td:nth-child(6){width:145px}
+.vendors-table-selectable th:nth-child(7),.vendors-table-selectable td:nth-child(7){width:210px}
+.vendors-table-selectable th:nth-child(8),.vendors-table-selectable td:nth-child(8){width:105px;text-align:right!important}
+.vendors-table-selectable th:nth-child(9),.vendors-table-selectable td:nth-child(9){width:90px;text-align:center!important}
+.vendors-table-selectable th:nth-child(10),.vendors-table-selectable td:nth-child(10){width:90px;text-align:center!important}
+.select-column input{width:15px;height:15px;accent-color:#087f45;cursor:pointer}
+.records-table tbody tr.row-selected td{background:#eef9f2!important}
+.danger-action{border-color:#f2c4c8!important;color:#c62828!important;background:#fff7f7!important}
+.danger-action:hover{border-color:#dc3545!important;background:#fff0f1!important}
+
+/* Phase 3C.4 shared bulk actions */
+.records-table th.select-column,.records-table td.select-column,.sales-table th.select-column,.sales-table td.select-column{width:42px!important;min-width:42px!important;max-width:42px!important;text-align:center!important;padding-left:8px!important;padding-right:6px!important}
+.sales-table th.select-column input,.sales-table td.select-column input{width:15px;height:15px;accent-color:#087f45;cursor:pointer}
+.sales-table tbody tr.row-selected td{background:#eef9f2!important}
+.bulk-delete-button{flex:0 0 auto}
+.payroll-bulk-actions{display:flex;align-items:center;gap:8px;flex:1 1 100%;padding:8px 10px;border:1px solid #dce7e2;border-radius:10px;background:#f7fbf8}
+.payroll-bulk-actions>strong{white-space:nowrap;color:#173e2a;font-size:13px}
+.payroll-bulk-select{min-width:170px}
+.payroll-bulk-select select{min-width:150px}
+.bulk-apply-button{flex:0 0 auto}
+.bulk-apply-button:disabled{opacity:.5;cursor:not-allowed}
+.payroll-table.payroll-table-compact th:nth-child(1),.payroll-table.payroll-table-compact td:nth-child(1){width:4%!important;text-align:center!important}
+.payroll-table.payroll-table-compact th:nth-child(2){width:8%}.payroll-table.payroll-table-compact th:nth-child(3){width:13%}.payroll-table.payroll-table-compact th:nth-child(4){width:9%}.payroll-table.payroll-table-compact th:nth-child(5){width:6%}.payroll-table.payroll-table-compact th:nth-child(6){width:8%}.payroll-table.payroll-table-compact th:nth-child(7){width:8%}.payroll-table.payroll-table-compact th:nth-child(8){width:8%}.payroll-table.payroll-table-compact th:nth-child(9){width:8%}.payroll-table.payroll-table-compact th:nth-child(10){width:9%}.payroll-table.payroll-table-compact th:nth-child(11){width:8%}.payroll-table.payroll-table-compact th:nth-child(12){width:11%}
+.employee-group-picker>.records-empty{padding:18px;text-align:center;color:#60789f}
+
+/* RC2 department cost comparison and allocation settings */
+.department-comparison{margin:18px 0;padding:20px}.department-comparison-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.department-comparison-header h2{margin:0 0 4px}.department-comparison-header p,.department-comparison-header span{margin:0;color:var(--muted,#6b7280);font-size:13px}.department-comparison-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.department-compare-card{border:1px solid #e5e7eb;border-radius:14px;padding:16px;background:#fff}.department-compare-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.department-compare-title h3{margin:0}.department-compare-title strong{font-size:13px}.department-compare-card dl{margin:0}.department-compare-card dl>div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #f1f5f9}.department-compare-card dt{font-size:13px}.department-compare-card dt small{display:block;color:#6b7280}.department-compare-card dd{margin:0;font-weight:700}.department-compare-card .department-total{margin-top:4px;border-top:2px solid #e5e7eb;border-bottom:0;padding-top:12px}.allocation-snapshot{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.allocation-snapshot span{border:1px solid #e5e7eb;border-radius:999px;padding:6px 9px;font-size:11px;background:#f8fafc}.allocation-settings{width:100%}.settings-help{color:#64748b;margin-top:0}.allocation-grid{display:grid;gap:10px}.allocation-row{display:grid;grid-template-columns:minmax(170px,1fr) 140px 140px;gap:12px;align-items:end;padding:12px;border:1px solid #e5e7eb;border-radius:12px}.allocation-row label{font-size:12px}.allocation-row input{width:100%}@media(max-width:800px){.department-comparison-grid{grid-template-columns:1fr}.department-comparison-header{display:block}.allocation-row{grid-template-columns:1fr 1fr}.allocation-row strong{grid-column:1/-1}}
+
+
+/* RC2.3 payroll pagination */
+.records-pagination{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 4px 2px;border-top:1px solid #edf2ef;margin-top:10px}.records-pagination-summary{font-size:12px;color:#64748b;font-weight:600}.records-pagination-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.records-pagination-controls label{display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;font-weight:600}.records-pagination-controls select{height:34px;border:1px solid #d6e1dc;border-radius:8px;background:#fff;padding:0 8px;color:#17345d}.records-pagination-controls>span{min-width:82px;text-align:center;font-size:12px;font-weight:700;color:#17345d}.records-pagination-controls .secondary-action{display:inline-flex;align-items:center;gap:5px;min-height:34px}.records-pagination-controls .secondary-action:disabled{opacity:.45;cursor:not-allowed}@media(max-width:700px){.records-pagination{align-items:flex-start;flex-direction:column}.records-pagination-controls{width:100%}}
+
+/* RC2.6 modal control alignment: keep add-select rows usable and checkboxes compact. */
+.form-grid .vendor-select-row{height:40px;display:grid;grid-template-columns:minmax(0,1fr) 38px;align-items:stretch;gap:0;padding-left:0;overflow:hidden}
+.form-grid .vendor-select-row select{min-width:0;width:100%;height:100%;padding:0 12px;border:0;border-radius:0;background:#fff}
+.form-grid .vendor-select-row .inline-add-button{width:38px;height:40px;border-left:1px solid #dce7e2;border-radius:0;background:#f4fbf7}
+.form-grid .checkbox-field{flex-direction:row;align-items:center;align-self:end;gap:9px;min-height:40px;padding:0 2px}
+.form-grid .checkbox-field input[type="checkbox"]{width:18px;height:18px;min-width:18px;padding:0;margin:0;box-shadow:none;accent-color:#14935a}
+
+/* RC2.9 Add Vendor selector alignment: icon + visible value + add button. */
+.form-grid .vendor-select-row.vendor-editable-select-row{
+  height:46px;
+  display:grid;
+  grid-template-columns:20px minmax(0,1fr) 42px;
+  align-items:center;
+  gap:8px;
+  padding-left:12px;
+  overflow:hidden;
+}
+.form-grid .vendor-select-row.vendor-editable-select-row .vendor-select-icon{
+  position:static;
+  flex:0 0 auto;
+  color:#17345d;
+  pointer-events:none;
+}
+.form-grid .vendor-select-row.vendor-editable-select-row select{
+  min-width:0;
+  width:100%;
+  height:44px;
+  padding:0 34px 0 2px;
+  border:0;
+  border-radius:0;
+  background:#fff;
+  color:var(--ink-800);
+  font-weight:600;
+  appearance:auto;
+}
+.form-grid .vendor-select-row.vendor-editable-select-row .inline-add-button{
+  width:42px;
+  height:44px;
+  align-self:stretch;
+  border-left:1px solid #dce7e2;
+  border-radius:0;
+  background:#f4fbf7;
+}
+
+/* RC2.10 Manual Payroll employee selector + inline employee creation */
+.form-grid .payroll-employee-select-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 42px;
+  align-items:stretch;
+  min-width:0;
+  height:40px;
+  border:1px solid #dce7e2;
+  border-radius:9px;
+  overflow:hidden;
+  background:#fff;
+}
+.form-grid .payroll-employee-select-row select{
+  width:100%;
+  min-width:0;
+  height:38px;
+  border:0;
+  border-radius:0;
+  padding:0 30px 0 12px;
+  background:#fff;
+}
+.form-grid .payroll-employee-select-row .payroll-add-employee-button{
+  width:42px;
+  height:38px;
+  border-left:1px solid #dce7e2;
+  background:#f4fbf7;
+  color:#087f45;
+}
+.form-grid .payroll-employee-select-row:focus-within{
+  border-color:#14935a;
+  box-shadow:0 0 0 3px rgba(20,147,90,.11);
+}
+
+/* RC2.12 filter-only custom chevrons.
+   Force-hide the native browser arrow and render one consistent RESTAPAY chevron. */
+.records-filterbar .records-select{
+  position:relative;
+  padding-right:7px;
+}
+.records-filterbar .records-select select{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  -moz-appearance:none!important;
+  background-image:none!important;
+  padding-right:38px!important;
+  cursor:pointer;
+}
+.records-filterbar .records-select select::-ms-expand{display:none}
+.records-filterbar .records-select>svg:last-child{
+  width:24px;
+  height:24px;
+  padding:5px;
+  margin-left:-32px;
+  flex:0 0 24px;
+  border:1px solid #cfe4d8;
+  border-radius:8px;
+  background:linear-gradient(180deg,#ffffff 0%,#f2f9f5 100%);
+  color:#176b49;
+  pointer-events:none;
+  stroke-width:2.25;
+  box-shadow:0 1px 2px rgba(17,82,58,.06);
+  transition:background .15s ease,border-color .15s ease,color .15s ease,transform .15s ease;
+}
+.records-filterbar .records-select:hover>svg:last-child,
+.records-filterbar .records-select:focus-within>svg:last-child{
+  background:#e8f6ee;
+  border-color:#9fceb5;
+  color:#0b7a49;
+}
+.records-filterbar .records-select:focus-within>svg:last-child{transform:translateY(1px)}
+
+/* Agreed project readability change: +1px to record/data rows only.
+   Do not alter page titles, navigation, buttons, form labels, or form-control text. */
+.records-table td{font-size:12px}
+
+/* Keep bulk Apply visually distinct and compact. */
+.payroll-bulk-actions .bulk-apply-button{
+  min-height:32px;
+  padding:0 11px;
+  border-color:#f0c36a;
+  background:#fff7df;
+  color:#8a5b00;
+}
+.payroll-bulk-actions .bulk-apply-button:hover:not(:disabled){
+  background:#ffedb8;
+  border-color:#dda932;
+}
+
+/* RC2.13 payroll per-column filters */
+.payroll-table .payroll-column-filter-row th {
+  padding: 7px 8px 9px;
+  background: #f8fbfa;
+  border-top: 1px solid #e2ece8;
+}
+.payroll-table .payroll-column-filter-row input,
+.payroll-table .payroll-column-filter-row select {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #cedbd6;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #0b2b55;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 8px;
+  outline: none;
+  box-sizing: border-box;
+}
+.payroll-table .payroll-column-filter-row input:focus,
+.payroll-table .payroll-column-filter-row select:focus {
+  border-color: #79bda2;
+  box-shadow: 0 0 0 2px rgba(24, 159, 107, .09);
+}
+.payroll-table .payroll-column-filter-row select {
+  appearance: auto;
+}
+.payroll-clear-column-filters {
+  white-space: nowrap;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+/* RC3 invoice workflow consolidation */
+.invoice-bulk-actions{display:flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid #dce7e2;border-radius:10px;background:#f7fbf8}.invoice-bulk-actions strong{font-size:11px;white-space:nowrap}.invoice-bulk-actions .records-select{height:34px;min-width:150px}.bulk-apply-modern{height:34px!important;padding:0 13px!important;border-color:#b8d9ca!important;background:#f3fbf7!important;color:#087f45!important;box-shadow:0 2px 8px rgba(8,127,69,.06)}.bulk-apply-modern:hover:not(:disabled){background:#e8f7ef!important;border-color:#8bc5a8!important}.bulk-apply-modern:disabled{opacity:.5;cursor:not-allowed}
+.status-draft{background:#eef2ff;color:#4f46e5}.status-approved{background:#e8f7ef;color:#087f45}.status-void{background:#f1f5f9;color:#64748b}
+.invoice-upload-tracker{margin-top:14px;padding:12px;border:1px solid #dce7e2;border-radius:12px;background:#fbfdfc}.tracker-head,.tracker-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}.tracker-head span{display:flex;align-items:center;gap:8px;min-width:0}.tracker-head strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tracker-head b{font-size:12px}.tracker-bar{height:8px;margin:10px 0;border-radius:99px;background:#e7efeb;overflow:hidden}.tracker-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#0ea765,#087f45);transition:width .22s ease}.stage-error .tracker-bar i{background:#dc3545}.stage-error{border-color:#fecaca;background:#fff8f8}.stage-review{border-color:#bce8cd;background:#f7fcf9}.tracker-foot span{font-size:11px;color:var(--text-muted)}.tracker-foot .secondary-action{height:30px;padding:0 10px}.spin{animation:restapay-spin .9s linear infinite}@keyframes restapay-spin{to{transform:rotate(360deg)}}
+.invoice-reconcile-warning{display:flex;align-items:flex-start;gap:9px;margin-bottom:12px;padding:10px 12px;border:1px solid #f6c86b;border-radius:10px;background:#fff9eb;color:#8a5500}.invoice-reconcile-warning div{display:flex;flex-direction:column;gap:2px}.invoice-reconcile-warning small{font-size:10px;color:#96641a}.ai-review-summary{grid-template-columns:2fr 1fr 1fr 1fr}
+
+/* RC3.1 right-panel visual system: semantic color without changing the left navigation. */
+.page-canvas .records-table td,
+.page-canvas .sales-table td,
+.page-canvas .weekly-report-table td{
+  font-size:12.5px;
+}
+.page-canvas .records-table .numeric,
+.page-canvas .sales-table td:nth-last-child(n+1){font-variant-numeric:tabular-nums}
+
+/* Reusable semantic text colors for categories and classifications. */
+.data-tone-text{font-weight:650}
+.data-tone-green{color:#087f45}
+.data-tone-blue{color:#0b5fd7}
+.data-tone-amber{color:#a94d08}
+.data-tone-purple{color:#6b2bc5}
+.data-tone-slate{color:#3f5368}
+
+/* Status pills shared by invoices, payroll, employees, bank/checks and other record pages. */
+.status-badge{border:1px solid transparent;border-radius:7px;min-width:0;padding:5px 10px;font-size:10.5px;font-weight:700;letter-spacing:0}
+.status-paid{background:#edf4ff;border-color:#c9dcff;color:#0757d9}
+.status-approved,.status-active,.status-cleared,.status-completed{background:#eef9f2;border-color:#c7e8d2;color:#087f45}
+.status-draft,.status-pending{background:#f5f6f8;border-color:#dfe4e8;color:#44546a}
+.status-due,.status-unpaid,.status-unpaid-due{background:#fff5e9;border-color:#ffd5a9;color:#c45c08}
+.status-void,.status-voided,.status-cancelled,.status-inactive{background:#fff0f1;border-color:#ffc9ce;color:#c92a39}
+
+/* Compact semantic action buttons, used anywhere bulk/status actions are offered. */
+.page-canvas .secondary-action.action-draft{border-color:#d9dfe7;background:#f8f9fb;color:#37465a}
+.page-canvas .secondary-action.action-approve{border-color:#bee5ca;background:#f2fbf5;color:#087f45}
+.page-canvas .secondary-action.action-paid{border-color:#bfd5ff;background:#f1f6ff;color:#0757d9}
+.page-canvas .secondary-action.action-unpaid{border-color:#ffd0a2;background:#fff7ee;color:#c45c08}
+.page-canvas .secondary-action.action-void,
+.page-canvas .secondary-action.danger-action{border-color:#ffc4ca;background:#fff5f6;color:#d22436}
+.page-canvas .secondary-action.action-draft:hover{background:#eef1f5}
+.page-canvas .secondary-action.action-approve:hover{background:#e8f7ed}
+.page-canvas .secondary-action.action-paid:hover{background:#e7f0ff}
+.page-canvas .secondary-action.action-unpaid:hover{background:#ffedd9}
+.page-canvas .secondary-action.action-void:hover,
+.page-canvas .secondary-action.danger-action:hover{background:#ffe9eb}
+
+/* Invoice status filter boxes mirror the accepted right-panel mockup. */
+.invoice-status-tabs{display:flex;align-items:center;gap:9px;padding:11px 18px;border-bottom:1px solid #e7eeeb;background:#fff;overflow-x:auto}
+.invoice-status-tab{height:38px;display:inline-flex;align-items:center;gap:10px;padding:0 13px;border:1px solid #dce5e1;border-radius:9px;background:#fff;color:#263a53;font:inherit;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer;transition:.15s ease}
+.invoice-status-tab b{min-width:24px;padding:2px 7px;border:1px solid #dce5e1;border-radius:7px;background:#f7f9f8;font-size:10px;text-align:center}
+.invoice-status-tab:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(18,45,74,.07)}
+.invoice-status-tab.active{border-color:#93b8ff;background:#f5f8ff;color:#0757d9;box-shadow:0 0 0 2px rgba(37,99,235,.05)}
+.status-tab-approved{color:#087f45}.status-tab-approved b{background:#eef9f2;border-color:#c7e8d2;color:#087f45}
+.status-tab-paid{color:#0757d9}.status-tab-paid b{background:#edf4ff;border-color:#c9dcff;color:#0757d9}
+.status-tab-due{color:#c45c08}.status-tab-due b{background:#fff5e9;border-color:#ffd5a9;color:#c45c08}
+.status-tab-void{color:#c92a39}.status-tab-void b{background:#fff0f1;border-color:#ffc9ce;color:#c92a39}
+.status-tab-draft{color:#44546a}.status-tab-draft b{background:#f5f6f8;border-color:#dfe4e8;color:#44546a}
+
+.invoice-bulk-direct{flex-wrap:wrap;background:#fff;border-color:#e2e9e6;padding:7px 9px}
+.invoice-bulk-direct .secondary-action{height:34px;padding:0 11px;border-radius:8px;font-size:10.5px}
+.invoice-bulk-direct>strong{color:#0757d9;margin-right:2px}
+
+@media(max-width:1100px){.invoice-status-tabs{padding-inline:12px}.invoice-bulk-direct{max-width:100%;overflow-x:auto;flex-wrap:nowrap}}
+
+/* RC3.2 shared classification management + vendor bulk assignment */
+.vendor-bulk-classification{display:flex;flex-wrap:wrap;align-items:end;gap:10px;padding:10px 12px;margin:0 0 10px;border:1px solid #d7e2ef;border-radius:12px;background:#f8fbff}.vendor-bulk-classification>strong{align-self:center;margin-right:4px}.vendor-bulk-classification label{display:grid;gap:4px;font-size:11px;font-weight:750;color:#53657d}.vendor-bulk-classification select{min-width:180px;height:36px;border:1px solid #c8d5e5;border-radius:9px;background:#fff;padding:0 32px 0 10px}.vendor-bulk-classification .secondary-action{height:36px}
+.classification-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.classification-manager{border:1px solid #dce6f1;border-radius:14px;background:#fff;overflow:hidden}.classification-manager>header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:#f6f9fd;border-bottom:1px solid #dce6f1}.classification-manager h3{margin:0 0 3px}.classification-manager p{margin:0;color:#667892;font-size:12px;max-width:540px}.classification-manager .primary-button{white-space:nowrap}.classification-list{max-height:520px;overflow:auto}.classification-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 14px;border-bottom:1px solid #edf1f6}.classification-row:last-child{border-bottom:0}.classification-row>div:first-child{display:grid;gap:3px}.classification-row small{color:#74849a}.classification-row>div:last-child{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.classification-row .secondary-action{min-height:32px;padding:5px 9px}.classification-row.is-inactive{opacity:.58;background:#f8fafc}.classification-row.is-inactive strong{text-decoration:line-through}@media(max-width:1100px){.classification-grid{grid-template-columns:1fr}}
+
+/* RC3.5 UI consistency: rounded right-panel controls and slightly larger readable data. Sidebar intentionally untouched. */
+.main-content input:not([type='checkbox']):not([type='radio']),.main-content select,.main-content textarea,.content-area input:not([type='checkbox']):not([type='radio']),.content-area select,.content-area textarea{border-radius:12px}
+.app-modal .modal-body,.detail-drawer .drawer-scroll{font-size:13px}.app-modal .drawer-row,.app-modal td,.detail-drawer .drawer-row{font-size:13px}.records-table td,.sales-table td{font-size:12px}
+.drawer-range-editor select,.drawer-range-editor input{min-height:42px;border:1px solid #cfded7;border-radius:12px;background:#fff;padding:0 12px;font-size:13px}.drawer-range-editor button{min-height:42px;border:1px solid #0b8f55;border-radius:12px;background:#0b8f55;color:#fff;padding:0 18px;font-weight:750;box-shadow:0 3px 10px rgba(11,143,85,.12)}
+
+/* RC3.8.1 labor classification */
+.labor-classification-row{align-items:center}.labor-classification-row label{display:grid;gap:6px;min-width:210px;font-size:12px;font-weight:700;color:#44546a}.labor-classification-row select{min-height:42px;border:1px solid #ccd8e5;border-radius:12px;padding:0 38px 0 12px;background:#fff;font:inherit;color:#172033}.labor-classification-manager .classification-list{max-height:560px;overflow:auto}
+
+.weekly-report-subtotal-row td {
+  background: rgba(15, 118, 110, 0.06);
+  border-top: 2px solid rgba(15, 118, 110, 0.18);
+  font-weight: 700;
+}
+
+/* RC3.9 Smart AI Upload emphasis */
+.smart-ai-upload-action{border-color:#c9b8ff;background:#f5f1ff;color:#5b2bc8;box-shadow:0 6px 18px rgba(91,43,200,.08);transition:background .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.smart-ai-upload-action svg{color:#6d35dc;transition:color .18s ease,transform .18s ease}
+.smart-ai-upload-action:hover{border-color:#6d35dc;background:#6d35dc;color:#fff;box-shadow:0 10px 24px rgba(91,43,200,.2);transform:translateY(-1px)}
+.smart-ai-upload-action:hover svg{color:#fff;transform:rotate(-6deg) scale(1.05)}
+.vendor-intelligence-table td small{display:block;margin-top:3px;color:#71829a;font-size:11px}.sams-check-action{height:32px;padding:0 10px;white-space:nowrap}.online-price-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:9px;border:1px solid #c8e4d4;background:#f1fbf5;color:#087f45;font-weight:750;text-decoration:none}.vendor-intelligence-note{margin:12px 2px 0;color:#64748b;font-size:11.5px;line-height:1.5}
+
+
+/* RC3.9.8 category learning + grounded assistant */
+.invoice-category-learning-toggle{display:flex;gap:10px;align-items:flex-start;margin:14px 0;padding:12px 14px;border:1px solid var(--border,#d8e2df);border-radius:12px;background:#f7fbfa}.invoice-category-learning-toggle input{margin-top:4px}.invoice-category-learning-toggle span{display:flex;flex-direction:column;gap:3px}.invoice-category-learning-toggle small{color:var(--text-muted,#60789a)}
+.resta-assistant-fab{position:fixed;right:24px;bottom:24px;z-index:70;display:flex;align-items:center;gap:8px;border:0;border-radius:999px;padding:12px 16px;background:#6d35e7;color:#fff;font-weight:800;box-shadow:0 12px 32px rgba(52,32,105,.25);cursor:pointer}.resta-assistant-fab:hover{transform:translateY(-1px);box-shadow:0 16px 36px rgba(52,32,105,.3)}
+.resta-assistant-panel{position:fixed;right:24px;bottom:82px;width:min(430px,calc(100vw - 32px));max-height:70vh;z-index:80;background:#fff;border:1px solid #dce5e2;border-radius:18px;box-shadow:0 24px 60px rgba(14,31,53,.24);overflow:hidden;display:flex;flex-direction:column}.resta-assistant-panel header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;background:#0c2340;color:#fff}.resta-assistant-panel header>div{display:flex;align-items:center;gap:10px}.resta-assistant-panel header span{display:flex;flex-direction:column}.resta-assistant-panel header small{font-weight:500;color:#b9c9dc}.resta-assistant-panel header button{border:0;background:transparent;color:#fff;cursor:pointer}.resta-assistant-search{margin:14px;display:flex;align-items:center;gap:8px;border:1px solid #cfdcda;border-radius:12px;padding:10px 12px}.resta-assistant-search input{border:0;outline:0;width:100%;font:inherit}.resta-assistant-results{overflow:auto;padding:0 10px 10px}.resta-assistant-results button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;background:#fff;border:0;border-bottom:1px solid #edf1f0;padding:12px;cursor:pointer}.resta-assistant-results button:hover{background:#f6faf9}.resta-assistant-results span{display:flex;flex-direction:column;gap:2px}.resta-assistant-results small{color:#6e83a2}.resta-assistant-empty{padding:24px 18px;text-align:center;color:#526b8c}.resta-assistant-empty strong{color:#102849}.resta-assistant-panel footer{padding:10px 14px;border-top:1px solid #edf1f0;color:#7185a1;font-size:12px;background:#fafcfc}
+
+/* RC3.9.11 employee role management */
+.department-badge{display:inline-flex;align-items:center;min-height:24px;padding:4px 8px;border-radius:999px;background:#f0f6ff;color:#315b8c;font-size:9px;font-weight:700;border:1px solid #d9e7f7}.classification-role-actions{display:flex!important;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.classification-role-actions label{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:650;color:#465c76}.classification-role-actions select{height:34px;border:1px solid #dce6f1;border-radius:8px;background:#fff;padding:0 28px 0 9px;color:#18324f}.compact-role-add{height:32px;padding:0 11px;font-size:10px}
+.vendor-price-tabs{display:flex;gap:8px;padding:0 0 16px;flex-wrap:wrap}.vendor-price-tabs button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line,#d9e3df);background:#fff;border-radius:12px;padding:10px 14px;font-weight:800;color:#17345c;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,background .16s ease}.vendor-price-tabs button:hover{transform:translateY(-1px);box-shadow:0 7px 18px rgba(15,42,76,.09);background:#f4faf7}.vendor-price-tabs button.active{background:#edf8f2;border-color:#a8ddc1;color:#087847}.best-price-settings{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;margin:0 0 14px;border:1px solid #dbe8e2;border-radius:14px;background:#f7fbf9}.best-price-settings label{display:flex;align-items:center;gap:6px;font-weight:700}.best-price-settings input{width:82px;padding:8px;border:1px solid #d1ded9;border-radius:9px}.best-price-settings small{color:#6480a6}.match-confidence-chip{display:inline-flex;margin-right:7px;padding:4px 7px;border-radius:999px;background:#eef3ff;color:#345b9d;font-weight:800;white-space:nowrap}.invoice-reconcile-advisory{border-color:#e7cf8a!important;background:#fffaf0!important;color:#75520a!important}
+
+/* RC3.9.17 compact drawer date controls: keep preset, dates and Apply on one row. */
+.detail-drawer .drawer-range-controls{display:grid;gap:8px;margin-top:10px;padding:10px 12px}
+.detail-drawer .drawer-range-current{display:flex;justify-content:space-between;align-items:center;gap:12px;min-width:0}
+.detail-drawer .drawer-range-current strong{white-space:nowrap;font-size:13px}
+.detail-drawer .drawer-range-editor{display:grid;grid-template-columns:minmax(112px,1.05fr) minmax(138px,1fr) auto minmax(138px,1fr) auto;align-items:center;gap:7px;width:100%;min-width:0}
+.detail-drawer .drawer-range-editor select,.detail-drawer .drawer-range-editor input{width:100%;min-width:0;min-height:38px;height:38px;border-radius:10px;padding:0 10px;font-size:12px}
+.detail-drawer .drawer-range-editor button{min-height:38px;height:38px;padding:0 14px;border-radius:10px;font-size:12px;white-space:nowrap}
+.detail-drawer .drawer-range-separator{font-size:13px;text-align:center}
+.detail-drawer .drawer-tabs{margin-top:8px}
+@media(max-width:760px){.detail-drawer .drawer-range-editor{grid-template-columns:1fr 1fr}.detail-drawer .drawer-range-editor select{grid-column:1/-1}.detail-drawer .drawer-range-separator{display:none}.detail-drawer .drawer-range-editor button{grid-column:1/-1}}
+
+/* RC3.9.18 Payroll imported-labor date range and responsive KPI fixes */
+.payroll-filterbar-imported{grid-template-columns:1fr 220px;align-items:center}
+.payroll-import-range{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #dce7e2;border-radius:12px;background:#f8fcfa}
+.payroll-import-range label{display:flex;align-items:center;gap:8px;min-width:220px;height:40px;padding:0 12px;border:1px solid #d7e6df;border-radius:10px;background:#fff}
+.payroll-import-range label span{font-size:10px;font-weight:800;text-transform:uppercase;color:#5f786c;letter-spacing:.04em}
+.payroll-import-range input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-weight:700;color:#0b2340}
+.payroll-import-range-divider{color:#7f978c;font-weight:700}
+.payroll-import-range-apply{height:40px;white-space:nowrap;padding:0 16px}
+@media(max-width:900px){.payroll-filterbar-imported{grid-template-columns:1fr}.payroll-import-range{align-items:stretch;flex-wrap:wrap}.payroll-import-range label{min-width:min(100%,220px);flex:1}.payroll-import-range-apply{flex:0 0 auto}}

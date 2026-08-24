@@ -1,0 +1,30 @@
+import fs from 'node:fs'
+import assert from 'node:assert/strict'
+
+const read = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+const records = read('src/styles/records.css')
+const components = read('src/styles/components.css')
+const employees = read('src/pages/Employees.jsx')
+const expenses = read('src/pages/Expenses.jsx')
+const invoices = read('src/pages/Invoices.jsx')
+const payroll = read('src/pages/Payroll.jsx')
+const price = read('src/pages/PriceIncrease.jsx')
+const vendors = read('src/pages/VendorComparison.jsx')
+const cleanup = read('src/lib/vendorCleanup.js')
+
+assert.match(records, /appearance:none!important/)
+assert.match(records, /records-filterbar \.records-select>svg:last-child/)
+assert.match(records, /background:linear-gradient\(180deg,#ffffff 0%,#f2f9f5 100%\)/)
+assert.match(components, /compact-range-select select[\s\S]*appearance:none!important/)
+assert.match(components, /compact-apply[\s\S]*#0b6f43/)
+assert.doesNotMatch(components, /#fff3d6!important/)
+assert.ok(employees.indexOf('<option>Bartender</option>') < employees.indexOf('<option>Kitchen</option>'))
+assert.ok(expenses.indexOf('<option>ACH</option>') < expenses.indexOf('<option>Cash</option>'))
+assert.ok(invoices.indexOf('<option>Due</option>') < invoices.indexOf('<option>Paid</option>'))
+assert.ok(payroll.indexOf('<option>Approved</option>') < payroll.indexOf('<option>Draft</option>'))
+assert.ok(payroll.indexOf('<option>ACH</option>') < payroll.indexOf('<option>Cash</option>'))
+assert.ok(price.indexOf('<option>Decreased</option>') < price.indexOf('<option>Increased</option>'))
+assert.match(vendors, /numeric:true,sensitivity:'base'/)
+assert.match(cleanup, /numeric: true, sensitivity: 'base'/)
+
+console.log('RC2.12 filter/sort/apply regression passed: A-Z filter options, forced custom chevrons, and modern Apply styling are wired.')
