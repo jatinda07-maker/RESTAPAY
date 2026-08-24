@@ -54,9 +54,41 @@ const rowTips = row => num(row?.credit_card_tips ?? row?.original_tips ?? row?.t
 const rowWithheld = row => num(row?.tip_deduction ?? row?.tips_withheld ?? row?.withheld)
 const rowExtra = row => num(row?.extra_pay)
 const payrollMethod = row => String(row?.payment_method || row?.method || row?.payment_type || '').trim()
+const payrollStatus = row => String(row?.payment_status || row?.status || '').trim().toLowerCase()
+const payrollSource = row => String(row?.source || '').trim().toLowerCase()
+const payrollRollupKey = row => {
+  const period=payrollPeriod(row)
+  const employee=payrollEmployee(row).toLowerCase().replace(/\s+/g,' ')
+  return `${employee}|${period.from}|${period.to}`
+}
+const reportPayrollRows = rows => {
+  const source=(rows||[]).filter(Boolean)
+  const rollupsByKey=new Map()
+  source.filter(row=>row.weekly_rollup).forEach(row=>{
+    const key=payrollRollupKey(row)
+    const current=rollupsByKey.get(key)
+    if(!current){ rollupsByKey.set(key,row); return }
+    const score = item => (payrollStatus(item)==='paid'?40:0) + (payrollStatus(item)==='approved'?30:0) + (payrollSource(item)==='weekly-rollup'?20:0) + (payrollSource(item)==='kitchen-weekly'?10:0)
+    const rowStamp=String(row?.updated_at || row?.paid_at || row?.created_at || '')
+    const currentStamp=String(current?.updated_at || current?.paid_at || current?.created_at || '')
+    if(score(row)>score(current) || (score(row)===score(current) && rowStamp>=currentStamp)) rollupsByKey.set(key,row)
+  })
+  const canonical=[]
+  source.forEach(row=>{
+    const key=payrollRollupKey(row)
+    if(row.weekly_rollup){
+      if(rollupsByKey.get(key)===row) canonical.push(row)
+      return
+    }
+    if(String(row.payroll_status || '').trim().toLowerCase()==='rolled-up') return
+    if(rollupsByKey.has(key)) return
+    canonical.push(row)
+  })
+  return canonical
+}
 const groupPayrollByEmployeePeriod = rows => {
   const groups=new Map()
-  ;(rows||[]).filter(Boolean).forEach(row=>{
+  ;reportPayrollRows(rows).forEach(row=>{
     const period=payrollPeriod(row)
     const employee=payrollEmployee(row)
     const key=`${employee.toLowerCase()}|${period.from}|${period.to}`
