@@ -592,3 +592,13 @@
 .detail-drawer .drawer-range-separator{font-size:13px;text-align:center}
 .detail-drawer .drawer-tabs{margin-top:8px}
 @media(max-width:760px){.detail-drawer .drawer-range-editor{grid-template-columns:1fr 1fr}.detail-drawer .drawer-range-editor select{grid-column:1/-1}.detail-drawer .drawer-range-separator{display:none}.detail-drawer .drawer-range-editor button{grid-column:1/-1}}
+
+/* RC3.9.18 Payroll imported-labor date range and responsive KPI fixes */
+.payroll-filterbar-imported{grid-template-columns:1fr 220px;align-items:center}
+.payroll-import-range{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #dce7e2;border-radius:12px;background:#f8fcfa}
+.payroll-import-range label{display:flex;align-items:center;gap:8px;min-width:220px;height:40px;padding:0 12px;border:1px solid #d7e6df;border-radius:10px;background:#fff}
+.payroll-import-range label span{font-size:10px;font-weight:800;text-transform:uppercase;color:#5f786c;letter-spacing:.04em}
+.payroll-import-range input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-weight:700;color:#0b2340}
+.payroll-import-range-divider{color:#7f978c;font-weight:700}
+.payroll-import-range-apply{height:40px;white-space:nowrap;padding:0 16px}
+@media(max-width:900px){.payroll-filterbar-imported{grid-template-columns:1fr}.payroll-import-range{align-items:stretch;flex-wrap:wrap}.payroll-import-range label{min-width:min(100%,220px);flex:1}.payroll-import-range-apply{flex:0 0 auto}}

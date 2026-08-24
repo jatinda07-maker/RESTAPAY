@@ -13,7 +13,7 @@ import { buildKitchenWeeklyPayroll, buildWeeklyPayroll, endOfPayrollWeek, isMond
 import usePersistentState from '../hooks/usePersistentState'
 import useCrudCollection from '../hooks/useCrudCollection'
 import { useFeedback } from '../components/AppFeedback'
-import useGlobalDateRange, { inDateRange } from '../hooks/useGlobalDateRange'
+import useGlobalDateRange, { inDateRange, normalizeRowDate } from '../hooks/useGlobalDateRange'
 
 const addDays = (value, days) => {
   if (!value) return ''
@@ -70,8 +70,31 @@ export default function Payroll(){
   const [employeeAddForm,setEmployeeAddForm] = useState({name:'',job:'Kitchen',type:'Hourly',method:'Cash',basePay:'',status:'Active'})
   const { notify } = useFeedback()
   const { range, apply: applyGlobalDateRange } = useGlobalDateRange()
+  const [importFromDate,setImportFromDate] = useState('')
+  const [importToDate,setImportToDate] = useState('')
+  useEffect(() => {
+    setImportFromDate(range?.from || '')
+    setImportToDate(range?.to || '')
+  }, [range?.from, range?.to])
+  const applyImportedDateRange = () => {
+    if (!importFromDate || !importToDate) return notify('Choose both From and To dates.', 'error')
+    if (importFromDate > importToDate) return notify('From date cannot be after To date.', 'error')
+    applyGlobalDateRange({ preset:'custom', from:importFromDate, to:importToDate })
+    setPage(1)
+    notify(`Imported labor range applied: ${importFromDate} through ${importToDate}.`)
+  }
   const allSourceRows = useMemo(() => Array.isArray(sourceRows) ? sourceRows.filter(Boolean) : [], [sourceRows])
-  const scopedSourceRows = useMemo(() => allSourceRows.filter(row => inDateRange(row, range, ['pay_date','payroll_date','date'])), [allSourceRows, range])
+  const payrollRowDate = row => normalizeRowDate(row, [
+    'pay_date','payroll_date','date','business_date','work_date','shift_date','clock_date','clock_in_date','period_end','payroll_week_end'
+  ])
+  const payrollRowInRange = row => {
+    const date = payrollRowDate(row)
+    if (!date) return false
+    if (range?.from && date < range.from) return false
+    if (range?.to && date > range.to) return false
+    return true
+  }
+  const scopedSourceRows = useMemo(() => allSourceRows.filter(payrollRowInRange), [allSourceRows, range?.from, range?.to])
   const safeGroups = Array.isArray(groups) ? groups.filter(Boolean) : []
 
   const employeeById = useMemo(() => new Map((Array.isArray(employees) ? employees : []).filter(Boolean).map(employee => [String(employee.id || ''), employee])), [employees])
@@ -91,16 +114,26 @@ export default function Payroll(){
     if (status === 'paid' || status === 'void') return false
     return Boolean(row.weekly_rollup) || ['ready','ready to pay','approved','pending'].includes(status)
   }).map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
-  const paidRows = useMemo(() => allSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid').map(enrichPayrollRow), [allSourceRows, employeeById, employeeByName])
+  const paidRows = useMemo(() => scopedSourceRows.filter(row => String(row.payment_status || '').trim().toLowerCase() === 'paid').map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
   const payableRows = useMemo(() => [...new Map([...readyRows, ...paidRows, ...manualRows].map(row => [row.id, row])).values()], [readyRows, paidRows, manualRows])
   const rows = useMemo(() => payableRows.map(toPayrollViewRow), [payableRows])
-  const payrollSummary = useMemo(() => summarizePayroll(payableRows), [payableRows])
+  const kitchenRows = useMemo(() => scopedSourceRows.filter(r => /kitchen|cook|prep|dishwasher|busser/i.test(resolveEmployeeJob(r))).map(enrichPayrollRow), [scopedSourceRows, employeeById, employeeByName])
+  const cardSourceRows = useMemo(() => {
+    if (activeTab === 'Imported Labor') return importedRows
+    if (activeTab === 'Ready to Pay') return readyRows
+    if (activeTab === 'Payroll History') return paidRows
+    if (activeTab === 'Manual Labor') return manualRows
+    if (activeTab === 'Kitchen') return kitchenRows
+    return payableRows
+  }, [activeTab, importedRows, readyRows, paidRows, manualRows, kitchenRows, payableRows])
+  const payrollSummary = useMemo(() => summarizePayroll(cardSourceRows, employees), [cardSourceRows, employees])
+  const cardContext = activeTab === 'Imported Labor' ? 'Imported labor in selected range' : `${activeTab} in selected range`
   const cards = useMemo(() => [
-    {title:'Payroll Total',value:formatMoney(payrollSummary.total),meta:'Calculated payroll total',tone:'blue',icon:WalletCards},
-    {title:'Cash Payroll',value:formatMoney(payrollSummary.cash),meta:'Cash payment employees',tone:'green',icon:Banknote},
-    {title:'Check Payroll',value:formatMoney(payrollSummary.check),meta:'Check payment employees',tone:'purple',icon:Users},
-    {title:'Total Hours',value:payrollSummary.hours.toFixed(1),meta:'Imported and manual labor',tone:'orange',icon:Clock3},
-  ], [payrollSummary])
+    {title:'Payroll Total',value:formatMoney(payrollSummary.total),meta:cardContext,tone:'blue',icon:WalletCards},
+    {title:'Cash Payroll',value:formatMoney(payrollSummary.cash),meta:cardContext,tone:'green',icon:Banknote},
+    {title:'Check Payroll',value:formatMoney(payrollSummary.check),meta:cardContext,tone:'purple',icon:Users},
+    {title:'Total Hours',value:payrollSummary.hours.toFixed(1),meta:cardContext,tone:'orange',icon:Clock3},
+  ], [payrollSummary, cardContext])
 
   const tabRows = useMemo(() => {
     if (activeTab === 'Imported Labor') return importedRows.map(toPayrollViewRow)
@@ -146,13 +179,20 @@ export default function Payroll(){
   const toggleSelectedRow = id => setSelectedRowIds(ids => ids.includes(id) ? ids.filter(value => value !== id) : [...ids,id])
   const toggleAllVisible = () => setSelectedRowIds(ids => allVisibleSelected ? ids.filter(id => !filteredRowIds.includes(id)) : [...new Set([...ids,...filteredRowIds])])
 
-  const importPayroll = ({ rows: importedRows }) => {
+  const importPayroll = async ({ rows: importedRows }) => {
     const normalized = normalizePayrollRecords(importedRows, { source:'toast', method:'Check' })
       .filter(row => row.employee_name)
     if (!normalized.length) return notify('No recognizable Toast payroll rows were found.', 'error')
     const sourceFile = normalized[0]?.source_file
-    setSourceRows(items => sourceFile ? [...normalized, ...items.filter(item => item.source_file !== sourceFile)] : [...normalized, ...items])
-    notify(`${normalized.length} Toast payroll records imported.`)
+    await setSourceRows(items => sourceFile ? [...normalized, ...items.filter(item => item.source_file !== sourceFile)] : [...normalized, ...items])
+    const importedDates = normalized.map(payrollRowDate).filter(Boolean).sort()
+    if (importedDates.length) {
+      applyGlobalDateRange({ preset:'custom', from:importedDates[0], to:importedDates[importedDates.length-1] })
+    }
+    setActiveTab('Imported Labor')
+    setPage(1)
+    notify(`${normalized.length} Toast payroll records imported${importedDates.length ? ` for ${importedDates[0]} through ${importedDates[importedDates.length-1]}` : ''}.`)
+    return { savedCount: normalized.length }
   }
 
   const openAdd = () => {
@@ -672,14 +712,20 @@ export default function Payroll(){
         <div className="payroll-tab-panel"><div><strong>Saved Payroll Groups</strong><small>Create reusable groups for Kitchen, Busser, Dishwasher, or any custom role.</small></div><button className="soft-action soft-green" onClick={()=>openGroupBuilder()}><Plus size={16}/>Create Payroll Group</button></div>
         {safeGroups.length===0 ? <div className="records-empty">No payroll groups created.</div> : safeGroups.map(group=>{const count=(group.memberIds||group.member_ids||group.employees||[]).length;return <div className="payroll-group-row" key={group.id}><span><strong>{group.name}</strong><small>{group.type} · {count} employee{count===1?'':'s'}</small></span><div className="row-actions"><button title="Edit group" onClick={()=>openGroupBuilder(group)}><Edit2 size={14}/></button><button className="danger" title="Delete group" onClick={()=>deleteGroup(group.id)}><Trash2 size={14}/></button></div></div>})}
       </div>}
-      {activeTab==='Imported Labor' && <div className="payroll-tab-panel"><div><strong>Imported Daily Labor</strong><small>Daily Toast source entries used to build weekly payroll. These stay separate for audit.</small></div><button className="soft-action soft-blue" onClick={()=>setImportOpen(true)}><FileUp size={16}/>Import More Labor</button></div>}
+      {activeTab==='Imported Labor' && <div className="payroll-tab-panel"><div><strong>Imported Daily Labor</strong><small>Showing {importedRows.length} Toast source entr{importedRows.length===1?'y':'ies'} for {range.from || '—'} through {range.to || '—'}. Use the Date Range toolbar above to change the imported-record period.</small></div><button className="soft-action soft-blue" onClick={()=>setImportOpen(true)}><FileUp size={16}/>Import More Labor</button></div>}
       {activeTab==='Ready to Pay' && <div className="payroll-tab-panel"><div><strong>Weekly Payroll Ready to Pay</strong><small>Created weekly payroll saved in Supabase and awaiting Check, Cash, or ACH payment.</small></div><div className="records-actions"><button className="soft-action soft-green" disabled={!readyRows.length || savingPayroll} onClick={saveReadyPayroll}><Save size={16}/>{savingPayroll?'Saving...':'Save Payroll'}</button><button className="soft-action soft-orange" onClick={openWeeklyBuilder}><CalendarRange size={16}/>Build Another Week</button></div></div>}
       {activeTab==='Payroll History' && <div className="payroll-tab-panel"><div><strong>Paid Payroll History</strong><small>Completed weekly payroll payments and full audit details.</small></div></div>}
       {activeTab==='Kitchen' && <div className="payroll-tab-panel"><div><strong>Kitchen Payroll</strong><small>Create Monday–Sunday weekly payroll from saved employee base pay, then pay by Cash, Check, or ACH.</small></div><div className="records-actions"><button className="soft-action soft-green" onClick={openKitchenWeeklyBuilder}><CalendarRange size={16}/>{latestKitchenWeekEnd?'Build Another Kitchen Week':'Build Weekly Kitchen Payroll'}</button><button className="soft-action soft-purple" onClick={()=>openGroupBuilder()}><ChefHat size={16}/>Manage Kitchen Group</button></div></div>}
       {activeTab==='Manual Labor' && <div className="payroll-tab-panel"><div><strong>Manual Labor Entries</strong><small>Add, edit, duplicate, or delete manually entered payroll.</small></div><button className="soft-action soft-purple" onClick={openAdd}><Plus size={16}/>Add Manual Labor</button></div>}
 
       {activeTab!=='Payroll Groups' && <>
-        <div className="records-filterbar payroll-filterbar">
+        <div className={`records-filterbar payroll-filterbar ${activeTab==='Imported Labor'?'payroll-filterbar-imported':''}`}>
+          {activeTab==='Imported Labor' && <div className="payroll-import-range">
+            <label><span>From</span><input type="date" value={importFromDate} onChange={e=>setImportFromDate(e.target.value)}/></label>
+            <span className="payroll-import-range-divider">—</span>
+            <label><span>To</span><input type="date" value={importToDate} onChange={e=>setImportToDate(e.target.value)}/></label>
+            <button type="button" className="primary-button payroll-import-range-apply" onClick={applyImportedDateRange}>Apply Range</button>
+          </div>}
           {selectedRowIds.length>0 && <div className="payroll-bulk-actions">
             <strong>{selectedRowIds.length} selected</strong>
             <label className="records-select payroll-bulk-select"><select aria-label="Bulk payroll action" value={bulkAction} onChange={e=>setBulkAction(e.target.value)}><option value="">Change Action</option><option>Approved</option><option>Draft</option><option>Paid</option><option>Ready to Pay</option><option>Void</option></select><ChevronDown size={14}/></label>
