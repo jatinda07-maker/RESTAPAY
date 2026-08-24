@@ -53,7 +53,7 @@ export function summarizePayroll(rows = [], employees = []) {
     const employee = byId.get(String(raw.employee_id||'')) || byName.get(String(raw.employee_name||raw.employee||'').trim().toLowerCase())
     return normalizePayrollAliases(employee ? {...raw, job_type:raw.job_type||employee.job_type||employee.job, position:raw.position||employee.position, role:raw.role||employee.role, department:raw.department||employee.department, employee_type:raw.employee_type||employee.employee_type, payroll_classification:raw.payroll_classification||employee.payroll_classification} : raw)
   })
-  const total = normalized.reduce((sum, row) => sum + payrollTotal(row), 0)
+  const paymentTotal = normalized.reduce((sum, row) => sum + payrollTotal(row), 0)
   // Customer-owned tips are pass-through payments. Keep them in payroll/payment
   // history, but exclude them from restaurant labor used by Prime Cost/P&L.
   const tipsEarned = normalized.reduce((sum, row) => sum + originalTips(row), 0)
@@ -72,5 +72,5 @@ export function summarizePayroll(rows = [], employees = []) {
   const check = normalized.filter(row => String(row.payment_method || row.method).toLowerCase() === 'check')
     .reduce((sum, row) => sum + payrollTotal(row), 0)
   const hours = normalized.reduce((sum, row) => sum + number(row.hours || row.regular_hours), 0)
-  return { total: roundPayroll(total), operatingLabor: roundPayroll(operatingLabor), managementPayroll:roundPayroll(managementPayroll), frontOfHousePayroll:roundPayroll(frontOfHousePayroll), reviewPayroll:roundPayroll(reviewPayroll), operatingRows, managementRows, frontOfHouseRows, reviewRows, tipsEarned: roundPayroll(tipsEarned), tipsWithheld: roundPayroll(tipsWithheldTotal), netTipsPaid: roundPayroll(netTipsPaid), cash: roundPayroll(cash), check: roundPayroll(check), hours: roundPayroll(hours) }
+  return { total: roundPayroll(operatingLabor + managementPayroll + frontOfHousePayroll + reviewPayroll), paymentTotal: roundPayroll(paymentTotal), operatingLabor: roundPayroll(operatingLabor), managementPayroll:roundPayroll(managementPayroll), frontOfHousePayroll:roundPayroll(frontOfHousePayroll), reviewPayroll:roundPayroll(reviewPayroll), operatingRows, managementRows, frontOfHouseRows, reviewRows, tipsEarned: roundPayroll(tipsEarned), tipsWithheld: roundPayroll(tipsWithheldTotal), netTipsPaid: roundPayroll(netTipsPaid), cash: roundPayroll(cash), check: roundPayroll(check), hours: roundPayroll(hours) }
 }

@@ -53,14 +53,33 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
 
   const invoiceSplit = classifyInvoiceSpend(invoices)
   const invoiceTotal = invoices.reduce((sum, row) => sum + invoiceAmount(row), 0)
-  const expenseTotal = expenses.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
-  const cashExpenses = expenses.filter(row => text(row?.method || row?.payment_type) === 'cash')
+  const expenseText = row => [row?.category,row?.type,row?.expense_type,row?.name,row?.vendor,row?.payee,row?.notes].map(value=>text(value)).join(' ')
+  const isCashWithdrawal = row => /cash withdrawal|owner withdrawal|cash draw/.test(expenseText(row))
+  const isPayrollOrTipExpense = row => /(^|\b)(payroll|employee payroll|wages?|salary|labor|tips?|gratuity)(\b|$)/.test(expenseText(row)) && !/payroll tax/.test(expenseText(row))
+  const isFoodAlcoholExpense = row => isFoodCategory(row) || isAlcoholCategory(row) || /food cost|food purchase|inventory food|alcohol cost|alcohol purchase|beer purchase|wine purchase|liquor purchase/.test(expenseText(row))
+  const withdrawalRows = expenses.filter(isCashWithdrawal)
+  const excludedFoodAlcoholExpenses = expenses.filter(row => !isCashWithdrawal(row) && isFoodAlcoholExpense(row))
+  const excludedPayrollTipExpenses = expenses.filter(row => !isCashWithdrawal(row) && !isFoodAlcoholExpense(row) && isPayrollOrTipExpense(row))
+  // Restaurant P&L rule: Operating Expenses must contain only costs not already
+  // represented by Food/Alcohol COGS or Employee Payroll. This prevents the same
+  // transaction from reducing Operating Profit twice. Payroll tax remains an
+  // operating expense because it is an employer tax, not employee wage payroll.
+  const operatingExpenses = expenses.filter(row => !isCashWithdrawal(row) && !isFoodAlcoholExpense(row) && !isPayrollOrTipExpense(row))
+  const cashWithdrawals = withdrawalRows.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
+  const expenseTotal = operatingExpenses.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
+  const cashExpenses = operatingExpenses.filter(row => text(row?.method || row?.payment_type) === 'cash')
     .reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
   const cashInvoiceSpend = invoices.filter(row => text(row?.payment_type || row?.method) === 'cash')
     .reduce((sum, row) => sum + invoiceAmount(row), 0)
 
   const payrollTotal = n(payrollSummary.total)
   const operatingLabor = payrollSummary.operatingLabor === undefined ? payrollTotal : n(payrollSummary.operatingLabor)
+  const managementPayroll = n(payrollSummary.managementPayroll)
+  const frontOfHousePayroll = n(payrollSummary.frontOfHousePayroll)
+  const reviewPayroll = n(payrollSummary.reviewPayroll)
+  const employerLabor = payrollSummary.managementPayroll === undefined && payrollSummary.frontOfHousePayroll === undefined && payrollSummary.reviewPayroll === undefined
+    ? payrollTotal
+    : operatingLabor + managementPayroll + frontOfHousePayroll + reviewPayroll
   const tipsEarned = n(payrollSummary.tipsEarned)
   const tipsWithheld = n(payrollSummary.tipsWithheld)
   const netTipsPaid = n(payrollSummary.netTipsPaid)
@@ -68,25 +87,27 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
   const checkPayroll = n(payrollSummary.check)
   const payrollHours = n(payrollSummary.hours)
   const cogs = invoiceSplit.food + invoiceSplit.alcohol
-  const primeCostAmount = cogs + operatingLabor
-  const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend
-  const operatingProfit = salesTotal - cogs - operatingLabor - expenseTotal
+  // Prime Cost uses direct COGS plus kitchen/BOH and manager labor once.
+  const primeLabor = operatingLabor + managementPayroll
+  const primeCostAmount = cogs + primeLabor
+  const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend - cashWithdrawals
+  const operatingProfit = salesTotal - cogs - employerLabor - expenseTotal
   const percent = (value, base) => base > 0 ? (value / base) * 100 : 0
 
   const salesCategoryVariance = salesTotal - (foodSales + alcoholSales + otherSales)
-  const cashEquationVariance = cashRemaining - (cashSales - cashPayroll - cashExpenses - cashInvoiceSpend)
-  const profitEquationVariance = operatingProfit - (salesTotal - cogs - operatingLabor - expenseTotal)
+  const cashEquationVariance = cashRemaining - (cashSales - cashPayroll - cashExpenses - cashInvoiceSpend - cashWithdrawals)
+  const profitEquationVariance = operatingProfit - (salesTotal - cogs - employerLabor - expenseTotal)
 
   return {
     salesTotal, foodSales, alcoholSales, otherSales, tips, cashSales, creditSales,
     foodCost: invoiceSplit.food, alcoholCost: invoiceSplit.alcohol, uncategorizedInvoiceCost: invoiceSplit.uncategorized,
-    invoiceTotal, expenseTotal, cashExpenses, cashInvoiceSpend,
-    payrollTotal, operatingLabor, tipsEarned, tipsWithheld, netTipsPaid, cashPayroll, checkPayroll, payrollHours,
-    cashRemaining, cogs, primeCostAmount, operatingProfit,
+    invoiceTotal, expenseTotal, operatingExpenses, excludedFoodAlcoholExpenses, excludedPayrollTipExpenses, cashExpenses, cashInvoiceSpend, cashWithdrawals, withdrawalRows,
+    payrollTotal, operatingLabor, managementPayroll, frontOfHousePayroll, reviewPayroll, employerLabor, tipsEarned, tipsWithheld, netTipsPaid, cashPayroll, checkPayroll, payrollHours,
+    cashRemaining, cogs, primeLabor, primeCostAmount, operatingProfit,
     foodCostPercent: percent(invoiceSplit.food, foodSales),
     alcoholCostPercent: percent(invoiceSplit.alcohol, alcoholSales),
     primeCostPercent: percent(primeCostAmount, salesTotal),
-    laborMixPercent: percent(operatingLabor, salesTotal),
+    laborMixPercent: percent(primeLabor, salesTotal),
     operatingMargin: percent(operatingProfit, salesTotal),
     foodInvoiceCount: invoiceSplit.foodInvoiceCount,
     alcoholInvoiceCount: invoiceSplit.alcoholInvoiceCount,

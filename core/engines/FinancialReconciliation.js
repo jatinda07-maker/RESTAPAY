@@ -53,9 +53,18 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
 
   const invoiceSplit = classifyInvoiceSpend(invoices)
   const invoiceTotal = invoices.reduce((sum, row) => sum + invoiceAmount(row), 0)
-  const isCashWithdrawal = row => /cash withdrawal|owner withdrawal|cash draw/i.test(`${row?.category||''} ${row?.type||''} ${row?.name||''} ${row?.payment_type||''}`)
+  const expenseText = row => [row?.category,row?.type,row?.expense_type,row?.name,row?.vendor,row?.payee,row?.notes].map(value=>text(value)).join(' ')
+  const isCashWithdrawal = row => /cash withdrawal|owner withdrawal|cash draw/.test(expenseText(row))
+  const isPayrollOrTipExpense = row => /(^|\b)(payroll|employee payroll|wages?|salary|labor|tips?|gratuity)(\b|$)/.test(expenseText(row)) && !/payroll tax/.test(expenseText(row))
+  const isFoodAlcoholExpense = row => isFoodCategory(row) || isAlcoholCategory(row) || /food cost|food purchase|inventory food|alcohol cost|alcohol purchase|beer purchase|wine purchase|liquor purchase/.test(expenseText(row))
   const withdrawalRows = expenses.filter(isCashWithdrawal)
-  const operatingExpenses = expenses.filter(row => !isCashWithdrawal(row))
+  const excludedFoodAlcoholExpenses = expenses.filter(row => !isCashWithdrawal(row) && isFoodAlcoholExpense(row))
+  const excludedPayrollTipExpenses = expenses.filter(row => !isCashWithdrawal(row) && !isFoodAlcoholExpense(row) && isPayrollOrTipExpense(row))
+  // Restaurant P&L rule: Operating Expenses must contain only costs not already
+  // represented by Food/Alcohol COGS or Employee Payroll. This prevents the same
+  // transaction from reducing Operating Profit twice. Payroll tax remains an
+  // operating expense because it is an employer tax, not employee wage payroll.
+  const operatingExpenses = expenses.filter(row => !isCashWithdrawal(row) && !isFoodAlcoholExpense(row) && !isPayrollOrTipExpense(row))
   const cashWithdrawals = withdrawalRows.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
   const expenseTotal = operatingExpenses.reduce((sum, row) => sum + n(row?.amount ?? row?.total), 0)
   const cashExpenses = operatingExpenses.filter(row => text(row?.method || row?.payment_type) === 'cash')

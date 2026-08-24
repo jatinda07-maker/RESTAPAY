@@ -18,6 +18,7 @@ import { useFeedback } from '../components/AppFeedback'
 import DetailDrawer from '../components/DetailDrawer'
 import Modal from '../components/Modal'
 import { appMoney, appMoney2, useAppData } from '../hooks/useAppData'
+import { originalTips, tipsWithheld, netTips } from '../core/engines/PayrollEngine.js'
 import { exportReportPdf } from '../lib/reportExport'
 
 const reportTypes = [
@@ -50,8 +51,9 @@ const payrollPeriod = row => {
 const payrollEmployee = row => String(row?.employee_name || row?.employee || row?.name || 'Employee').trim() || 'Employee'
 const num = value => Number(String(value ?? 0).replace(/[$,%(),]/g,'')) || 0
 const rowBasePay = row => num(row?.regular_pay ?? row?.base_pay ?? row?.gross_pay ?? row?.wages)
-const rowTips = row => num(row?.credit_card_tips ?? row?.original_tips ?? row?.tips)
-const rowWithheld = row => num(row?.tip_deduction ?? row?.tips_withheld ?? row?.withheld)
+const rowTips = row => originalTips(row)
+const rowWithheld = row => tipsWithheld(row)
+const rowNetTips = row => netTips(row)
 const rowExtra = row => num(row?.extra_pay)
 const payrollMethod = row => String(row?.payment_method || row?.method || row?.payment_type || '').trim()
 const payrollStatus = row => String(row?.payment_status || row?.status || '').trim().toLowerCase()
@@ -92,9 +94,9 @@ const groupPayrollByEmployeePeriod = rows => {
     const period=payrollPeriod(row)
     const employee=payrollEmployee(row)
     const key=`${employee.toLowerCase()}|${period.from}|${period.to}`
-    if(!groups.has(key)) groups.set(key,{employee,from:period.from,to:period.to,hours:0,basePay:0,tips:0,withheld:0,extra:0,reasons:new Set(),methods:new Set(),jobs:new Set(),rows:[]})
+    if(!groups.has(key)) groups.set(key,{employee,from:period.from,to:period.to,hours:0,basePay:0,tips:0,withheld:0,netTips:0,extra:0,reasons:new Set(),methods:new Set(),jobs:new Set(),rows:[]})
     const g=groups.get(key)
-    g.rows.push(row); g.hours+=num(row.hours ?? row.regular_hours); g.basePay+=rowBasePay(row); g.tips+=rowTips(row); g.withheld+=rowWithheld(row); g.extra+=rowExtra(row)
+    g.rows.push(row); g.hours+=num(row.hours ?? row.regular_hours); g.basePay+=rowBasePay(row); g.tips+=rowTips(row); g.withheld+=rowWithheld(row); g.netTips+=rowNetTips(row); g.extra+=rowExtra(row)
     if(row.extra_reason) g.reasons.add(String(row.extra_reason))
     const method=payrollMethod(row); if(method) g.methods.add(method)
     const job=String(row.job_type || row.job || row.position || row.role || '').trim(); if(job) g.jobs.add(job)
@@ -127,10 +129,10 @@ export default function Reports() {
   const weeklyReportSections = [
     { title:'Sales Summary', total:metrics.salesTotal, headers:['Metric','Amount'], rows:[['Gross Sales',appMoney2(metrics.salesTotal)],['Net Sales',appMoney2(metrics.salesTotal)],['Cash Sales',appMoney2(metrics.cashSales)],['Credit Sales',appMoney2(metrics.creditSales)],['Tips',appMoney2(metrics.tips)]] },
     { title:'Cash Payment Employees', total:cashPayrollGroups.reduce((sum,g)=>sum+g.basePay+g.extra,0), headers:['Payroll Period','Employee','Pay','Extra Pay','Reason','Total'], rows:cashPayrollGroups.map(g=>[periodLabel(g),g.employee,appMoney2(g.basePay),appMoney2(g.extra),[...g.reasons].join('; '),appMoney2(g.basePay+g.extra)]) },
-    { title:'Employees With Tips', total:tippedPayrollGroups.reduce((sum,g)=>sum+g.tips,0), headers:['Payroll Period','Employee','Original Tips','Withheld','Tips After Withholding','Extra Pay','Reason','Total'], rows:tippedPayrollGroups.map(g=>[periodLabel(g),g.employee,appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.tips-g.withheld),appMoney2(g.extra),[...g.reasons].join('; '),appMoney2(g.tips-g.withheld+g.extra)]) },
+    { title:'Employees With Tips', total:tippedPayrollGroups.reduce((sum,g)=>sum+g.tips,0), headers:['Payroll Period','Employee','Original Tips','Withheld','Tips After Withholding','Extra Pay','Reason','Total'], rows:tippedPayrollGroups.map(g=>[periodLabel(g),g.employee,appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.netTips),appMoney2(g.extra),[...g.reasons].join('; '),appMoney2(g.netTips+g.extra)]) },
     { title:'Vendor Payments / Spending Detail', total:metrics.invoiceTotal+metrics.expenseTotal, headers:['Date','Vendor / Payee','Category','Payment Type','Details','Amount'], rows:[...invoices.map(r=>[r.date||r.invoice_date||'',r.vendor||'',r.category||'',r.payment_type||'',r.number||r.invoice_number||'',appMoney2(r.amount??r.total)]),...expenses.map(r=>[r.date||'',r.vendor||'',r.type||r.category||'',r.method||'',r.notes||'',appMoney2(r.amount??r.total)])] },
     { title:'Cash Balance Summary', total:metrics.cashRemaining, headers:['Metric','Amount'], rows:[['Previous Period Reconciliation / Carry Forward',appMoney2(metrics.cashCarryForward||0)],['Current Period Cash Sales',appMoney2(metrics.cashSales)],['Cash Employee Payments',appMoney2(-metrics.cashPayroll)],['Cash Vendor Invoices',appMoney2(-metrics.cashInvoiceSpend)],['Cash Operating Expenses',appMoney2(-metrics.cashExpenses)],['Cash Withdrawals',appMoney2(-(metrics.cashWithdrawals||0))],['Current Period Reconciliation Adjustment',appMoney2(metrics.cashAdjustments||0)],['Remaining Cash Balance',appMoney2(metrics.cashRemaining)]] },
-    { title:'Period Profit / Loss Analysis', total:metrics.operatingProfit, headers:['Metric','Amount'], rows:[['Net Sales',appMoney2(metrics.salesTotal)],['Food + Alcohol COGS',appMoney2(metrics.cogs)],['Employee Payroll Total',appMoney2(metrics.payrollTotal)],['Operating Expenses',appMoney2(metrics.expenseTotal)],['Operating Profit / Loss',appMoney2(metrics.operatingProfit)]] },
+    { title:'Period Profit / Loss Analysis', total:metrics.operatingProfit, headers:['Metric','Amount'], rows:[['Net Sales',appMoney2(metrics.salesTotal)],['Food + Alcohol COGS',appMoney2(metrics.cogs)],['Employee Payroll / Wages (tips excluded)',appMoney2(metrics.employerLabor ?? metrics.payrollTotal)],['Operating Expenses',appMoney2(metrics.expenseTotal)],['Operating Profit / Loss',appMoney2(metrics.operatingProfit)]] },
     { title:'Reconciliation Check', total:0, headers:['Check','Variance'], rows:[['Sales category equation',appMoney2(metrics.reconciliation.salesCategoryVariance)],['Cash balance equation',appMoney2(metrics.reconciliation.cashEquationVariance)],['Operating profit equation',appMoney2(metrics.reconciliation.profitEquationVariance)],['Status',metrics.reconciliation.balanced?'Balanced':'Review required']] },
   ]
   const [drawer, setDrawer] = useState(null)
@@ -159,7 +161,7 @@ export default function Reports() {
     const commonSummary = [
       { label:'Report Period', value:activeRangeLabel },
       { label:'Net Sales', value:appMoney2(metrics.salesTotal) },
-      { label:'Payroll', value:appMoney2(metrics.payrollTotal) },
+      { label:'Payroll / Wages', value:appMoney2(metrics.employerLabor ?? metrics.payrollTotal) },
       { label:'Profit / Loss', value:appMoney2(metrics.operatingProfit) },
     ]
     if (key === 'weekly-custom') return {
@@ -176,7 +178,7 @@ export default function Reports() {
     }
     if (key === 'payroll-detail') return {
       title:'Payroll Detail', subtitle:activeRangeLabel, summary:commonSummary,
-      sections:[{title:'Payroll Detail',total:appMoney2(metrics.payrollTotal),headers:['Payroll Period','Employee','Job','Hours','Base Pay','Tips','Withheld','Extra','Method','Final Pay'],rows:payrollGroups.map(g=>[periodLabel(g),g.employee,[...g.jobs].join('; '),g.hours.toFixed(1),appMoney2(g.basePay),appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.extra),[...g.methods].join(' / '),appMoney2(g.basePay+g.extra+g.tips-g.withheld)])}],
+      sections:[{title:'Payroll Detail',total:appMoney2(metrics.employerLabor ?? metrics.payrollTotal),headers:['Payroll Period','Employee','Job','Hours','Base Pay','Tips','Withheld','Extra','Method','Final Pay'],rows:payrollGroups.map(g=>[periodLabel(g),g.employee,[...g.jobs].join('; '),g.hours.toFixed(1),appMoney2(g.basePay),appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.extra),[...g.methods].join(' / '),appMoney2(g.basePay+g.extra+g.netTips)])}],
       filename:`RESTAPAY-Payroll-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
     }
     return {
