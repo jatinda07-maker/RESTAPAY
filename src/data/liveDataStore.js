@@ -7,6 +7,22 @@ const truncateMoney = value => Math.trunc((money(value) + Number.EPSILON) * 100)
 const text = value => String(value ?? '').trim()
 const normalizeJob = value => /^(server|waitress|front\s*house|front-of-house|foh)$/i.test(text(value)) ? 'Waiter' : /^dish\s*washer$/i.test(text(value)) ? 'Dishwasher' : text(value)
 
+const CLOSING_BALANCE_MARKER = 'RESTAPAY_CLOSING_BALANCE='
+const closingBalanceTarget = row => {
+  const direct = row?.target_closing_balance ?? row?.closing_balance
+  if (direct !== undefined && direct !== null && String(direct).trim() !== '') return money(direct)
+  const textBlob = `${row?.notes || ''} ${row?.purpose || ''}`
+  const match = textBlob.match(/RESTAPAY_CLOSING_BALANCE=([-+]?\d+(?:\.\d+)?)/i)
+  return match ? money(match[1]) : null
+}
+const notesWithClosingBalanceTarget = row => {
+  const base = text(row?.notes).replace(/(?:\s*\|?\s*)?RESTAPAY_CLOSING_BALANCE=[-+]?\d+(?:\.\d+)?/ig, '').trim()
+  const target = closingBalanceTarget(row)
+  if (target === null) return base
+  return `${base}${base ? ' | ' : ''}${CLOSING_BALANCE_MARKER}${target.toFixed(2)}`
+}
+export const cashClosingBalanceTarget = closingBalanceTarget
+
 const payrollIdentity = row => {
   const employee = text(row?.employee_id || row?.employee_name || row?.employee).toLowerCase()
   const date = text(row?.payroll_date || row?.pay_date || row?.date)
@@ -100,8 +116,10 @@ const configs = {
   },
   'restapay-cash-ledger': {
     table:'cash_ledger',
-    fromDb:r=>({...r,date:r.entry_date||r.date,type:r.entry_type||r.type}),
-    toDb:r=>({id:r.id||id(),entry_date:r.entry_date||r.date||new Date().toISOString().slice(0,10),entry_type:r.entry_type||r.type||'withdrawal',amount:money(r.amount),purpose:text(r.purpose),notes:text(r.notes),created_by:r.created_by||null,created_by_email:text(r.created_by_email),created_at:r.created_at||now(),updated_at:now()})
+    fromDb:r=>{ const target=closingBalanceTarget(r); return {...r,date:r.entry_date||r.date,type:r.entry_type||r.type,...(target===null?{}:{target_closing_balance:target})} },
+    // cash_ledger has no dedicated closing-balance target column in older production schemas.
+    // Persist the authoritative target in notes so a Supabase reload can reconstruct it.
+    toDb:r=>({id:r.id||id(),entry_date:r.entry_date||r.date||new Date().toISOString().slice(0,10),entry_type:r.entry_type||r.type||'withdrawal',amount:money(r.amount),purpose:text(r.purpose),notes:notesWithClosingBalanceTarget(r),created_by:r.created_by||null,created_by_email:text(r.created_by_email),created_at:r.created_at||now(),updated_at:now()})
   },
   'restapay-bank-checks': {
     table:'bank_checks',

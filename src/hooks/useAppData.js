@@ -4,7 +4,7 @@ import { buildPriceHistory, comparePrices, normalizeInvoice } from '../core/engi
 import { buildFinancialMetrics } from '../core/engines/FinancialReconciliation.js'
 import { calculateDepartmentCosts, DEFAULT_ALLOCATION_RULES } from '../core/engines/DepartmentCostEngine.js'
 
-import { liveSnapshot, subscribeLiveData, connectLiveData, reconcileLiveData, getLiveSetting } from '../data/liveDataStore.js'
+import { liveSnapshot, subscribeLiveData, connectLiveData, reconcileLiveData, getLiveSetting, cashClosingBalanceTarget } from '../data/liveDataStore.js'
 import useGlobalDateRange, { inDateRange, normalizeRowDate } from './useGlobalDateRange.js'
 
 const number = (value) => Number(String(value ?? 0).replace(/[$,%(),]/g, '')) || 0
@@ -60,10 +60,19 @@ export function useAppData(overrideRange = null) {
       expenses: scoped.expenses,
     })
 
-    // Carry cash forward from every transaction before the selected range.
+    // Cash balance is cumulative, but a physical closing-cash reconciliation is an
+    // authoritative anchor. Use the latest reconciliation on or before the selected
+    // range end, even when that reconciliation falls inside the selected range.
+    // This prevents refresh/date-range changes from replacing the live balance with
+    // the prior closing count itself (for example, $203 instead of $559).
+    const rowDate = (row,keys=[]) => normalizeRowDate(row,keys)
     const beforeRange = (row, keys=[]) => {
-      const date = normalizeRowDate(row, keys)
+      const date = rowDate(row, keys)
       return Boolean(date && range?.from && date < range.from)
+    }
+    const throughRangeEnd = (row, keys=[]) => {
+      const date = rowDate(row, keys)
+      return Boolean(date && (!range?.to || date <= range.to))
     }
     const priorSales = data.sales.filter(row=>beforeRange(row,['view_date','sales_date','date']))
     const priorPayroll = data.payroll.filter(row=>beforeRange(row,['pay_date','payroll_date','date']))
@@ -76,19 +85,12 @@ export function useAppData(overrideRange = null) {
     const priorLedgerEffect = ledgerEffect(priorCashLedger)
     const periodLedgerEffect = ledgerEffect(scoped.cashLedger)
 
-    // A physical-cash reconciliation is authoritative. Once a closing balance has
-    // been recorded, replace all older derived cash history with that actual count,
-    // then carry forward only transactions that happened after the reconciliation.
     const isClosingBalance = row => String(row.entry_type||row.type).toLowerCase()==='adjustment' && /set closing balance|closing cash|cash balance reconciliation/i.test(`${row.purpose||''} ${row.notes||''}`)
-    const reconciliationRows = priorCashLedger.filter(isClosingBalance).sort((a,b)=>String(a.entry_date||a.date).localeCompare(String(b.entry_date||b.date)))
+    const reconciliationRows = data.cashLedger
+      .filter(row=>isClosingBalance(row) && throughRangeEnd(row,['entry_date','date']))
+      .sort((a,b)=>String(a.entry_date||a.date).localeCompare(String(b.entry_date||b.date)))
     const latestReconciliation = reconciliationRows.at(-1)
-    const rowDate = (row,keys=[]) => normalizeRowDate(row,keys)
-    const betweenReconciliationAndRange = (row,keys=[]) => {
-      if (!latestReconciliation) return false
-      const date = rowDate(row,keys)
-      const reconciliationDate = rowDate(latestReconciliation,['entry_date','date'])
-      return Boolean(date && reconciliationDate && range?.from && date > reconciliationDate && date < range.from)
-    }
+
     const cashPositionThrough = date => {
       const through = (row,keys=[]) => { const d=rowDate(row,keys); return Boolean(d && d <= date) }
       const salesRows=data.sales.filter(row=>through(row,['view_date','sales_date','date']))
@@ -100,29 +102,53 @@ export function useAppData(overrideRange = null) {
       const ledgerRows=data.cashLedger.filter(row=>through(row,['entry_date','date']))
       return base.cashRemaining + ledgerEffect(ledgerRows)
     }
+
+    const financialBetween = (afterDate, beforeDateExclusive=null, throughDate=range?.to) => {
+      const inside = (row,keys=[]) => {
+        const date=rowDate(row,keys)
+        if (!date || date <= afterDate) return false
+        if (beforeDateExclusive && date >= beforeDateExclusive) return false
+        if (throughDate && date > throughDate) return false
+        return true
+      }
+      const salesRows=data.sales.filter(row=>inside(row,['view_date','sales_date','date']))
+      const payrollRows=data.payroll.filter(row=>inside(row,['pay_date','payroll_date','date']))
+      const invoiceRows=data.invoices.filter(row=>inside(row,['invoice_date','date'])).map(normalizeInvoice)
+      const expenseRows=data.expenses.filter(row=>inside(row,['expense_date','date']))
+      const payrollSummary=summarizePayroll(payrollRows,data.employees)
+      const base=buildFinancialMetrics({sales:salesRows,payrollSummary,invoices:invoiceRows,expenses:expenseRows})
+      const ledgerRows=data.cashLedger.filter(row=>inside(row,['entry_date','date']) && !isClosingBalance(row))
+      return { base, ledger: ledgerEffect(ledgerRows) }
+    }
+
     let cashCarryForward = priorFinancial.cashRemaining + priorLedgerEffect
+    let cashRemaining = cashCarryForward + financial.cashRemaining + periodLedgerEffect
     if (latestReconciliation) {
       const reconciliationDate = rowDate(latestReconciliation,['entry_date','date'])
-      const explicitTarget = number(latestReconciliation.target_closing_balance ?? latestReconciliation.closing_balance)
-      const reconciledClosing = explicitTarget || cashPositionThrough(reconciliationDate)
-      const postSales=data.sales.filter(row=>betweenReconciliationAndRange(row,['view_date','sales_date','date']))
-      const postPayroll=data.payroll.filter(row=>betweenReconciliationAndRange(row,['pay_date','payroll_date','date']))
-      const postInvoices=data.invoices.filter(row=>betweenReconciliationAndRange(row,['invoice_date','date'])).map(normalizeInvoice)
-      const postExpenses=data.expenses.filter(row=>betweenReconciliationAndRange(row,['expense_date','date']))
-      const postPayrollSummary=summarizePayroll(postPayroll,data.employees)
-      const postFinancial=buildFinancialMetrics({sales:postSales,payrollSummary:postPayrollSummary,invoices:postInvoices,expenses:postExpenses})
-      const postLedger=data.cashLedger.filter(row=>betweenReconciliationAndRange(row,['entry_date','date']))
-      cashCarryForward = reconciledClosing + postFinancial.cashRemaining + ledgerEffect(postLedger)
+      const explicitTarget = cashClosingBalanceTarget(latestReconciliation)
+      const reconciledClosing = explicitTarget === null ? cashPositionThrough(reconciliationDate) : explicitTarget
+
+      // Opening cash for the selected range comes from the same reconciliation anchor.
+      if (range?.from && reconciliationDate < range.from) {
+        const opening = financialBetween(reconciliationDate, range.from, range.from)
+        cashCarryForward = reconciledClosing + opening.base.cashRemaining + opening.ledger
+      }
+
+      // Ending/current cash always starts at the latest physical count and then applies
+      // every transaction after that count through the selected end date.
+      const afterReconciliation = financialBetween(reconciliationDate, null, range?.to)
+      cashRemaining = reconciledClosing + afterReconciliation.base.cashRemaining + afterReconciliation.ledger
     }
-    const periodCashChange = financial.cashRemaining + periodLedgerEffect
+
+    const periodCashChange = cashRemaining - cashCarryForward
     financial.cashCarryForward = cashCarryForward
     financial.periodCashChange = periodCashChange
     financial.cashLedgerRows = scoped.cashLedger
     financial.cashWithdrawalRows = scoped.cashLedger.filter(row=>String(row.entry_type||row.type).toLowerCase()==='withdrawal')
     financial.cashAdjustmentRows = scoped.cashLedger.filter(row=>String(row.entry_type||row.type).toLowerCase()==='adjustment')
     financial.cashWithdrawals = financial.cashWithdrawalRows.reduce((sum,row)=>sum+Math.abs(number(row.amount)),0)
-    financial.cashAdjustments = financial.cashAdjustmentRows.reduce((sum,row)=>sum+number(row.amount),0)
-    financial.cashRemaining = cashCarryForward + periodCashChange
+    financial.cashAdjustments = financial.cashAdjustmentRows.filter(row=>!isClosingBalance(row)).reduce((sum,row)=>sum+number(row.amount),0)
+    financial.cashRemaining = cashRemaining
 
     const vendorSpend = new Map()
     normalizedInvoices.forEach(row => {
