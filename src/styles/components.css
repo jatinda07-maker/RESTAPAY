@@ -328,3 +328,23 @@
   transform:translateY(-1px);
 }
 .compact-apply:active{transform:translateY(0);box-shadow:0 1px 4px rgba(11,111,67,.10)!important}
+
+/* RC3.9.21 topbar profile menu */
+.profile-switch-wrap{position:relative}.profile-switch-button{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:4px 6px;border-radius:12px;cursor:pointer;color:inherit}.profile-switch-button:hover{background:rgba(255,255,255,.08)}.profile-switch-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:1000;min-width:220px;padding:8px;background:#fff;border:1px solid #dce7e2;border-radius:14px;box-shadow:0 16px 40px rgba(13,37,63,.20)}.profile-switch-menu button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:11px 12px;border-radius:10px;text-align:left;font-weight:700;color:#10284b;cursor:pointer}.profile-switch-menu button:hover{background:#f2f8f5}
+
+/* RC3.9.21 interactive topbar notification + profile menus */
+.topbar-popover-wrap,.profile-switch-wrap{position:relative}
+.profile-switch-button{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:4px 6px;border-radius:12px;cursor:pointer;color:inherit}
+.profile-switch-button:hover,.profile-switch-button[aria-expanded="true"]{background:rgba(255,255,255,.08)}
+.profile-switch-menu,.topbar-popover{position:absolute;right:0;top:calc(100% + 10px);z-index:1200;min-width:240px;padding:8px;background:#fff;border:1px solid #dce7e2;border-radius:14px;box-shadow:0 16px 40px rgba(13,37,63,.20)}
+.profile-switch-menu button,.topbar-popover button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:11px 12px;border-radius:10px;text-align:left;font-weight:700;color:#10284b;cursor:pointer}
+.profile-switch-menu button:hover,.topbar-popover button:hover{background:#f2f8f5}
+.notification-button{position:relative}
+.notification-popover{min-width:300px}
+.popover-title{padding:7px 10px 9px;font-size:13px;font-weight:800;color:#10284b;border-bottom:1px solid #e6eeea}
+.notification-item{display:flex;gap:10px;padding:12px 10px;color:#0b8b57}
+.notification-item.is-error{color:#c0392b}
+.notification-item div{display:flex;flex-direction:column;gap:3px}
+.notification-item strong{font-size:13px;color:#10284b}
+.notification-item small{max-width:240px;font-size:11px;line-height:1.35;color:#64748b}
+.topbar .profile-switch-button .user-copy strong{color:#fff}.topbar .profile-switch-button .user-copy span{color:#b8c8db}.topbar .profile-switch-button>svg{color:#d6e3f0}
