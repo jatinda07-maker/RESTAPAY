@@ -25,18 +25,23 @@ export function managerAccess(){const saved=getLiveSetting('restapay-manager-acc
 export function canAccessRoute(role='admin',path='/'){if(role==='admin')return true;if(role==='manager')return managerAccess().routes.includes(path);return path==='/reports'}
 
 export function useAccessControl(){
-  const [role,setRole]=useState(()=>localStorage.getItem('restapay-current-role')||'admin')
+  const [role,setRole]=useState(()=>{
+    // Security default: every page load starts in Manager mode. Admin is an in-memory
+    // elevation for the current page only and must be unlocked again after refresh.
+    localStorage.setItem('restapay-current-role','manager')
+    return 'manager'
+  })
   const [identity,setIdentity]=useState({email:'',userId:''});const [accessVersion,setAccessVersion]=useState(0)
   useEffect(()=>{
     let active=true
     const syncRole=event=>{
-      const next=event?.detail?.role||localStorage.getItem('restapay-current-role')||'admin'
+      const next=event?.detail?.role||localStorage.getItem('restapay-current-role')||'manager'
       if(active&&['admin','manager','viewer'].includes(next))setRole(next)
     }
     const storageRole=event=>{if(event.key==='restapay-current-role')syncRole()}
     window.addEventListener('restapay:role-change',syncRole)
     window.addEventListener('storage',storageRole)
-    const load=async()=>{if(!isSupabaseReady)return;try{const{data}=await supabase.auth.getSession();const user=data?.session?.user;if(!active||!user)return;setIdentity({email:user.email||'',userId:user.id||''});const{data:row,error}=await supabase.from('app_user_roles').select('role').eq('user_id',user.id).maybeSingle();if(!error&&row?.role&&localStorage.getItem('restapay-current-role')!=='manager'){setRole(row.role);localStorage.setItem('restapay-current-role',row.role)}}catch{}}
+    const load=async()=>{if(!isSupabaseReady)return;try{const{data}=await supabase.auth.getSession();const user=data?.session?.user;if(!active||!user)return;setIdentity({email:user.email||'',userId:user.id||''})}catch{}}
     ensureLiveSetting('restapay-manager-access',DEFAULT_MANAGER_ACCESS).catch(()=>{});load()
     const{data:sub}=isSupabaseReady?supabase.auth.onAuthStateChange(()=>load()):{data:null}
     const stopSettings=subscribeLiveData(e=>{if(e?.detail?.key==='restapay-manager-access')setAccessVersion(v=>v+1)});return()=>{active=false;stopSettings?.();window.removeEventListener('restapay:role-change',syncRole);window.removeEventListener('storage',storageRole);sub?.subscription?.unsubscribe?.()}
