@@ -1,3 +1,4 @@
+import { canonicalizePayrollRows, employerWageAmount } from '../adapters/payrollAdapter.js'
 const DEFAULT_RULES = {
   managerPayroll: { food: 50, alcohol: 50 },
   kitchenPayroll: { food: 100, alcohol: 0 },
@@ -68,7 +69,7 @@ function isTips(row = {}) {
   return /customer tip|server tip|tips only|front house tip|waiter|waitress|server|foh/.test(text)
 }
 
-function payrollAmount(row = {}) { return num(row.total_pay || row.total || row.amount || row.regular_pay) }
+function payrollAmount(row = {}) { return employerWageAmount(row) }
 
 export function classifySpend(row = {}) {
   const text = textOf(row)
@@ -236,7 +237,7 @@ export function calculateDepartmentCosts({ salesRows = [], toastSalesCategories 
   const employeeById = new Map((employees || []).filter(employee => employee?.id).map(employee => [String(employee.id), employee]))
   const employeeByName = new Map((employees || []).filter(employee => employee?.name).map(employee => [String(employee.name).trim().toLowerCase(), employee]))
 
-  payrollRows.forEach(row => {
+  canonicalizePayrollRows(payrollRows).forEach(row => {
     const matchedEmployee = employeeById.get(String(row.employee_id || '')) || employeeByName.get(String(row.employee_name || row.name || '').trim().toLowerCase()) || null
     const classifiedRow = matchedEmployee ? {
       ...row,

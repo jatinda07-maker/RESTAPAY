@@ -128,7 +128,7 @@ const configs = {
   }
 }
 
-const LIVE_SETTING_KEYS = new Set(['restapay-cost-settings','restapay-expense-types-v2','restapay-categories','restapay-labor-classification'])
+const LIVE_SETTING_KEYS = new Set(['restapay-cost-settings','restapay-expense-types-v2','restapay-categories','restapay-labor-classification','restapay-manager-access'])
 const settingCache = new Map()
 const settingReady = new Map()
 export const isLiveSettingKey = key => LIVE_SETTING_KEYS.has(key)

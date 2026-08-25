@@ -109,7 +109,11 @@ export function parsePackageDetails(input = {}) {
   const totalMeasure = isCatchWeight ? actualWeight / Math.max(quantity,1) : packCount * unitSizeValue
   const normalized = normalizeToBase(totalMeasure, isCatchWeight ? 'lb' : unitSizeUnit)
   const normalizedUnitCost = isCatchWeight && unitPrice ? unitPrice : (normalized.amount > 0 ? casePrice / normalized.amount : 0)
-  const effectiveEachCost = purchaseUnit === 'case' && packCount > 1 ? casePrice / packCount : (purchaseUnit === 'bottle' || purchaseUnit === 'each' ? (lineTotal ? lineTotal / Math.max(quantity,1) : unitPrice) : 0)
+  // Normalize case/pack pricing before any price comparison. A package such as 60 EA
+  // is one purchased case containing 60 each, even when an invoice parser labels the UOM EA.
+  const eachCount = unitSizeUnit === 'each' && unitSizeValue > 1 && packCount === 1 ? unitSizeValue : packCount
+  const looksLikeCase = purchaseUnit === 'case' || eachCount > 1 || packCount > 1
+  const effectiveEachCost = looksLikeCase && eachCount > 1 ? casePrice / eachCount : (purchaseUnit === 'bottle' || purchaseUnit === 'each' ? (lineTotal ? lineTotal / Math.max(quantity,1) : unitPrice) : 0)
   const packageLabel = parsed.package_label || (unitSizeValue && unitSizeUnit ? `${packCount > 1 ? `${packCount} x ` : ''}${unitSizeValue} ${unitSizeUnit}` : packageSource || text(input.unit))
 
   return {
@@ -126,7 +130,7 @@ export function parsePackageDetails(input = {}) {
     normalized_unit: normalized.unit,
     normalized_unit_cost: Number((normalizedUnitCost || 0).toFixed(6)),
     effective_each_cost: Number((effectiveEachCost || 0).toFixed(6)),
-    comparison_basis: effectiveEachCost > 0 ? 'each' : normalized.unit || purchaseUnit,
+    comparison_basis: effectiveEachCost > 0 ? (unitSizeUnit === 'each' ? 'each' : (packCount > 1 ? 'bottle' : 'each')) : (looksLikeCase && eachCount <= 1 ? 'case' : normalized.unit || purchaseUnit),
     case_price: Number((casePrice || 0).toFixed(2)),
     calculated_extension: Number(((isCatchWeight ? actualWeight * (unitPrice || normalizedUnitCost) : quantity * (unitPrice || casePrice)) || 0).toFixed(2)),
   }

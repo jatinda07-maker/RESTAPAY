@@ -146,8 +146,9 @@ export default function Reports() {
 
   const allowedReportTypes = access.isManager ? reportTypes.filter(type=>type!=='Period P&L') : reportTypes
   const available = useMemo(() => allowedReportTypes.filter(type => !selected.includes(type)), [allowedReportTypes,selected])
-  const managerHiddenSections = new Set(['Period Profit / Loss Analysis','Reconciliation Check'])
-  const roleVisibleWeeklySections = weeklyReportSections.filter(section => !(access.isManager && managerHiddenSections.has(section.title)))
+  const managerReportAccess=access.managerAccess?.reports||{}
+  const managerSectionKeys={'Sales Summary':'sales','Cash Payment Employees':'cashEmployees','Employees With Tips':'tippedEmployees','Vendor Payments / Spending Detail':'vendorSpending','Cash Balance Summary':'cashBalance','Period Profit / Loss Analysis':'periodPL','Reconciliation Check':'reconciliation'}
+  const roleVisibleWeeklySections = weeklyReportSections.filter(section => !access.isManager || managerReportAccess[managerSectionKeys[section.title]]===true)
   const visibleWeeklySections = roleVisibleWeeklySections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)
 
   const addType = value => {
@@ -225,9 +226,9 @@ export default function Reports() {
       <header className="records-header">
         <div><h2>Reports</h2><p>Generate standard reports or arrange a custom report in your preferred order</p></div>
         <div className="records-actions">
-          <button className="secondary-action" onClick={()=>window.print()}><Printer size={17} />Print</button>
+          {(!access.isManager||managerReportAccess.print)&&<button className="secondary-action" onClick={()=>window.print()}><Printer size={17} />Print</button>}
           <button className="secondary-action" onClick={()=>notify("Report export prepared locally.")}><Download size={17} />Export</button>
-          <button className="primary-button" onClick={() => setBuilderOpen(true)}><Plus size={17} />Custom Report Builder</button>
+          {(!access.isManager||managerReportAccess.customBuilder)&&<button className="primary-button" onClick={() => setBuilderOpen(true)}><Plus size={17} />Custom Report Builder</button>}
         </div>
       </header>
 
@@ -238,7 +239,7 @@ export default function Reports() {
             <div><h3>{title}</h3><p>{desc}</p><small>{range}</small></div>
             <div className="report-actions">
               <button onClick={() => openReport(key)}><Eye size={14} />Preview</button>
-              <button onClick={()=>downloadPdf(key)}>PDF</button>
+              {(!access.isManager||managerReportAccess.pdf)&&<button onClick={()=>downloadPdf(key)}>PDF</button>}
               <button onClick={()=>notify("Excel export prepared.")}>Excel</button>
               <ChevronRight size={18} />
             </div>
@@ -256,8 +257,8 @@ export default function Reports() {
       footer={<>
         <label className="show-empty-toggle"><input type="checkbox" checked={showEmpty} onChange={event => setShowEmpty(event.target.checked)} />Show empty sections</label>
         <span className="modal-footer-spacer" />
-        <button className="secondary-action" onClick={()=>window.print()}><Printer size={16} />Print</button>
-        <button className="secondary-action" onClick={()=>downloadPdf('weekly-custom')}><Download size={16} />PDF</button>
+        {(!access.isManager||managerReportAccess.print)&&<button className="secondary-action" onClick={()=>window.print()}><Printer size={16} />Print</button>}
+        {(!access.isManager||managerReportAccess.pdf)&&<button className="secondary-action" onClick={()=>downloadPdf('weekly-custom')}><Download size={16} />PDF</button>}
         <button className="primary-button" onClick={()=>notify("Excel export prepared.")}><FileSpreadsheet size={16} />Excel</button>
       </>}
     >
