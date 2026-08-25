@@ -10,11 +10,18 @@ export const ROLE_PERMISSIONS = {
 export const MANAGER_NAV_ITEMS = [
   ['/dashboard','Dashboard'],['/sales','Sales'],['/food-alcohol-cost','Food & Alcohol Cost'],['/invoices','Invoices'],['/vendors','Vendors'],['/vendor-comparison','Vendor Comparison'],['/price-increase','Price Increase'],['/employees','Employees'],['/payroll','Payroll'],['/expenses','Expenses'],['/reports','Reports'],['/import-center','Import Center'],['/toast-integration','Toast Integration'],['/bank-checks','Bank & Checks']
 ]
-export const DEFAULT_MANAGER_ACCESS = {
-  routes:['/sales','/invoices','/reports','/import-center'],
-  reports:{sales:true,cashEmployees:true,tippedEmployees:true,vendorSpending:true,cashBalance:true,periodPL:false,reconciliation:false,payrollDetail:false,customBuilder:false,pdf:true,print:true}
+export const MANAGER_DASHBOARD_ITEMS = [
+  ['cashFlow','Cash Flow'],['primeCost','Prime Cost'],['laborMix','Labor Mix'],['foodCost','Food Cost'],['cashSales','Cash Sales'],['cashCollected','Cash Collected'],['operatingProfit','Operating Profit'],['cashRemaining','Cash Remaining'],['trueFoodCost','True Food Cost'],['trueAlcoholCost','True Alcohol Cost'],['businessExpenses','Business Expenses'],['payrollTotal','Payroll Total'],['foodAlcoholComparison','Food vs Alcohol Comparison'],['salesTrend','Sales Trend'],['foodLabor','Food & Labor'],['weeklyProfit','Weekly Profit'],['topVendors','Top Vendors'],['recentInvoices','Recent Invoices'],['recentExpenses','Recent Expenses'],['recentPayroll','Recent Payroll'],['quickAccess','Quick Access']
+]
+export const DEFAULT_MANAGER_DASHBOARD = {
+  cashFlow:true,primeCost:false,laborMix:true,foodCost:true,cashSales:true,cashCollected:true,operatingProfit:false,cashRemaining:true,trueFoodCost:true,trueAlcoholCost:true,businessExpenses:true,payrollTotal:true,foodAlcoholComparison:true,salesTrend:true,foodLabor:true,weeklyProfit:false,topVendors:true,recentInvoices:true,recentExpenses:true,recentPayroll:true,quickAccess:true
 }
-export function managerAccess(){const saved=getLiveSetting('restapay-manager-access',DEFAULT_MANAGER_ACCESS)||DEFAULT_MANAGER_ACCESS;return {...DEFAULT_MANAGER_ACCESS,...saved,reports:{...DEFAULT_MANAGER_ACCESS.reports,...(saved.reports||{})}}}
+export const DEFAULT_MANAGER_ACCESS = {
+  routes:['/dashboard','/sales','/invoices','/reports','/import-center'],
+  reports:{sales:true,cashEmployees:true,tippedEmployees:true,vendorSpending:true,cashBalance:true,periodPL:false,reconciliation:false,payrollDetail:false,customBuilder:false,pdf:true,print:true},
+  dashboard:DEFAULT_MANAGER_DASHBOARD
+}
+export function managerAccess(){const saved=getLiveSetting('restapay-manager-access',DEFAULT_MANAGER_ACCESS)||DEFAULT_MANAGER_ACCESS;return {...DEFAULT_MANAGER_ACCESS,...saved,reports:{...DEFAULT_MANAGER_ACCESS.reports,...(saved.reports||{})},dashboard:{...DEFAULT_MANAGER_DASHBOARD,...(saved.dashboard||{})}}}
 export function canAccessRoute(role='admin',path='/'){if(role==='admin')return true;if(role==='manager')return managerAccess().routes.includes(path);return path==='/reports'}
 
 export function useAccessControl(){
