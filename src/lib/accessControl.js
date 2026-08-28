@@ -11,10 +11,10 @@ export const MANAGER_NAV_ITEMS = [
   ['/dashboard','Dashboard'],['/sales','Sales'],['/food-alcohol-cost','Food & Alcohol Cost'],['/invoices','Invoices'],['/vendors','Vendors'],['/vendor-comparison','Vendor Comparison'],['/price-increase','Price Increase'],['/employees','Employees'],['/payroll','Payroll'],['/expenses','Expenses'],['/reports','Reports'],['/import-center','Import Center'],['/toast-integration','Toast Integration'],['/bank-checks','Bank & Checks']
 ]
 export const MANAGER_DASHBOARD_ITEMS = [
-  ['cashFlow','Cash Flow'],['primeCost','Prime Cost'],['laborMix','Labor Mix'],['foodCost','Food Cost'],['cashSales','Cash Sales'],['cashCollected','Cash Collected'],['operatingProfit','Operating Profit'],['cashRemaining','Cash Remaining'],['trueFoodCost','True Food Cost'],['trueAlcoholCost','True Alcohol Cost'],['businessExpenses','Business Expenses'],['payrollTotal','Payroll Total'],['foodAlcoholComparison','Food vs Alcohol Comparison'],['salesTrend','Sales Trend'],['foodLabor','Food & Labor'],['weeklyProfit','Weekly Profit'],['topVendors','Top Vendors'],['recentInvoices','Recent Invoices'],['recentExpenses','Recent Expenses'],['recentPayroll','Recent Payroll'],['quickAccess','Quick Access']
+  ['netSales','Net Sales'],['cashFlow','Cash Flow'],['primeCost','Prime Cost'],['laborMix','Labor Mix'],['foodCost','Food Cost'],['alcoholCost','Alcohol Cost'],['cashSales','Cash Sales'],['creditSales','Credit Sales'],['cashCollected','Cash Collected'],['tipsEarned','Tips Earned'],['operatingProfit','Operating Profit'],['cashRemaining','Cash Remaining'],['trueFoodCost','True Food Cost'],['trueAlcoholCost','True Alcohol Cost'],['businessExpenses','Business Expenses'],['managerOtherPayroll','Manager / GM & Other Payroll'],['kitchenPayroll','Kitchen Payroll'],['tipsCheck','Tips Check - Tipped Waiters'],['foodAlcoholComparison','Food vs Alcohol Comparison'],['salesTrend','Sales Trend'],['foodLabor','Food & Labor'],['weeklyProfit','Weekly Profit'],['topVendors','Top Vendors'],['recentInvoices','Recent Invoices'],['recentExpenses','Recent Expenses'],['recentPayroll','Recent Payroll'],['quickAccess','Quick Access']
 ]
 export const DEFAULT_MANAGER_DASHBOARD = {
-  cashFlow:true,primeCost:false,laborMix:true,foodCost:true,cashSales:true,cashCollected:true,operatingProfit:false,cashRemaining:true,trueFoodCost:true,trueAlcoholCost:true,businessExpenses:true,payrollTotal:true,foodAlcoholComparison:true,salesTrend:true,foodLabor:true,weeklyProfit:false,topVendors:true,recentInvoices:true,recentExpenses:true,recentPayroll:true,quickAccess:true
+  netSales:true,cashFlow:true,primeCost:false,laborMix:true,foodCost:true,alcoholCost:true,cashSales:true,creditSales:true,cashCollected:true,tipsEarned:true,operatingProfit:false,cashRemaining:true,trueFoodCost:true,trueAlcoholCost:true,businessExpenses:true,managerOtherPayroll:true,kitchenPayroll:true,tipsCheck:true,payrollTotal:false,foodAlcoholComparison:true,salesTrend:true,foodLabor:true,weeklyProfit:false,topVendors:true,recentInvoices:true,recentExpenses:true,recentPayroll:true,quickAccess:true
 }
 export const DEFAULT_MANAGER_ACCESS = {
   routes:['/dashboard','/sales','/invoices','/reports','/import-center'],
@@ -26,10 +26,10 @@ export function canAccessRoute(role='admin',path='/'){if(role==='admin')return t
 
 export function useAccessControl(){
   const [role,setRole]=useState(()=>{
-    // Security default: every page load starts in Manager mode. Admin is an in-memory
-    // elevation for the current page only and must be unlocked again after refresh.
-    localStorage.setItem('restapay-current-role','manager')
-    return 'manager'
+    // Remember an explicitly unlocked Admin session on this browser. A brand-new
+    // browser still starts in Manager mode until the Admin PIN is verified.
+    const saved=localStorage.getItem('restapay-current-role')
+    return saved==='admin'?'admin':saved==='viewer'?'viewer':'manager'
   })
   const [identity,setIdentity]=useState({email:'',userId:''});const [accessVersion,setAccessVersion]=useState(0)
   useEffect(()=>{

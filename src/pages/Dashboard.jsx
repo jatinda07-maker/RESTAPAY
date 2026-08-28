@@ -1,4 +1,4 @@
-import { BadgeDollarSign, Boxes, BriefcaseBusiness, ChartPie, CreditCard, FileInput, GlassWater, ShoppingCart, TrendingUp, UsersRound, Utensils, WalletCards } from 'lucide-react'
+import { BadgeDollarSign, Boxes, BriefcaseBusiness, ChartPie, CreditCard, FileInput, GlassWater, HandCoins, ReceiptText, ShoppingCart, TrendingUp, UsersRound, Utensils, WalletCards } from 'lucide-react'
 import DateToolbar from '../components/DateToolbar'
 import KpiCard from '../components/KpiCard'
 import { FoodLaborCard, SalesTrendCard, TopVendorsCard, WeeklyProfitCard } from '../components/AnalyticsCards'
@@ -27,19 +27,29 @@ export default function Dashboard() {
     const expenseSpend=expenses.map(row=>({...row,_source_table:'expenses'}))
     return calculateDepartmentCosts({salesRows:sales,payrollRows:payroll,employees,spendRows:[...invoiceSpend,...expenseSpend],settings:costSettings||{}})
   },[sales,invoices,expenses,payroll,employees,costSettings])
+  const payrollSummary=metrics.payrollSummary||{}
+  const managerOtherPayroll=Number(payrollSummary.managementPayroll||0)+Number(payrollSummary.frontOfHousePayroll||0)+Number(payrollSummary.reviewPayroll||0)
+  const kitchenPayroll=Number(payrollSummary.operatingLabor||0)
+  const tipsCheck=Number(payrollSummary.netTipsPaid||0)
   const kpis=[
-    ['cashFlow',WalletCards,'Cash Flow',appMoney(metrics.cashRemaining),`Cash collected ${appMoney(metrics.cashSales)}`,'green'],
-    ['primeCost',ChartPie,'Prime Cost',appPercent(metrics.primeCostPercent),'Food + alcohol + payroll vs sales','blue'],
-    ['laborMix',UsersRound,'Labor Mix',appPercent(metrics.laborMixPercent),`Cash ${appMoney(metrics.cashPayroll)} • Check ${appMoney(metrics.checkPayroll)}`,'purple'],
-    ['foodCost',Utensils,'Food Cost',appPercent(metrics.foodCostPercent),`${appMoney(metrics.foodCost)} purchases`,'orange'],
+    ['netSales',TrendingUp,'Net Sales',appMoney(metrics.salesTotal),'Selected-period restaurant sales','green'],
     ['cashSales',ShoppingCart,'Cash Sales',appMoney(metrics.cashSales),'Actual cash sales/payments','blue'],
+    ['creditSales',CreditCard,'Credit Sales',appMoney(metrics.creditSales),'Card and credit sales/payments','blue'],
+    ['tipsEarned',HandCoins,'Tips Earned',appMoney(metrics.tips),'Customer tips kept separate from profit','purple'],
     ['cashCollected',BriefcaseBusiness,'Cash Collected',appMoney(metrics.cashSales),'Total cash sales/payments','green'],
-    ['operatingProfit',TrendingUp,'Operating Profit',appMoney(metrics.operatingProfit),`${appPercent(metrics.operatingMargin)} margin`,'purple'],
+    ['cashFlow',WalletCards,'Cash Flow',appMoney(metrics.cashRemaining),`Cash collected ${appMoney(metrics.cashSales)}`,'green'],
     ['cashRemaining',BriefcaseBusiness,'Cash Remaining',appMoney(metrics.cashRemaining),'Cash minus cash payroll, expenses & cash invoices','teal'],
-    ['trueFoodCost',Boxes,'True Food Cost',appMoney(metrics.foodCost),'Actual food invoice totals','amber'],
-    ['trueAlcoholCost',GlassWater,'True Alcohol Cost',appMoney(metrics.alcoholCost),'Beer • liquor • wine','orange'],
-    ['businessExpenses',BadgeDollarSign,'Business Expenses',appMoney(metrics.expenseTotal),'Operating expenses','red'],
-    ['payrollTotal',UsersRound,'Payroll Total',appMoney(metrics.payrollTotal),'Cash • Check payroll','blue'],
+    ['primeCost',ChartPie,'Prime Cost',appPercent(metrics.primeCostPercent),`${appMoney(metrics.primeCostAmount)} • COGS + BOH/manager wages`,'blue'],
+    ['operatingProfit',TrendingUp,'Operating Profit',appMoney(metrics.operatingProfit),`${appPercent(metrics.operatingMargin)} margin`,'purple'],
+    ['foodCost',Utensils,'Food Cost',appPercent(metrics.foodCostPercent),`${appMoney(metrics.foodCost)} direct purchases`,'orange'],
+    ['alcoholCost',GlassWater,'Alcohol Cost',appPercent(metrics.alcoholCostPercent),`${appMoney(metrics.alcoholCost)} direct purchases`,'orange'],
+    ['trueFoodCost',Boxes,'True Food Cost',appMoney(metrics.trueFoodCost??metrics.foodCost),'Direct + allocated Food cost','amber'],
+    ['trueAlcoholCost',GlassWater,'True Alcohol Cost',appMoney(metrics.trueAlcoholCost??metrics.alcoholCost),'Direct + allocated Alcohol cost','orange'],
+    ['businessExpenses',BadgeDollarSign,'Business Expenses',appMoney(metrics.expenseTotal),'Operating expenses only • COGS/payroll excluded','red'],
+    ['managerOtherPayroll',UsersRound,'Manager / GM & Other Payroll',appMoney(managerOtherPayroll),'Wages only • customer tips excluded','purple'],
+    ['kitchenPayroll',ReceiptText,'Kitchen Payroll',appMoney(kitchenPayroll),'Kitchen / BOH wages only','green'],
+    ['tipsCheck',HandCoins,'Tips Check - Tipped Waiters',appMoney(tipsCheck),'Net tips paid after withholding • not wage expense','orange'],
+    ['laborMix',UsersRound,'Labor Mix',appPercent(metrics.laborMixPercent),`Kitchen + manager wages vs sales`,'purple'],
   ].filter(([key])=>dashboardAccess[key])
   const recentInvoices=invoices.slice(0,3).map(r=>[r.vendor||'—',r.number||r.invoice_number||'—',displayDate(r.date||r.invoice_date),appMoney2(r.amount??r.total)])
   const recentExpenses=expenses.slice(0,3).map(r=>[r.type||r.category||'—',r.vendor||'—',displayDate(r.date||r.expense_date),appMoney2(r.amount??r.total)])

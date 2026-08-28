@@ -17,7 +17,7 @@ const cards=[
   {title:'Notifications',value:'Enabled',meta:'Imports and payroll alerts',tone:'orange',icon:Bell},
 ]
 export default function Settings(){
-  const[drawer,setDrawer]=useState(null),[tab,setTab]=useState('Business'),[geminiStatus,setGeminiStatus]=useState('Not tested'),[testingGemini,setTestingGemini]=useState(false),[roleEditor,setRoleEditor]=useState(null);const {notify}=useFeedback();const access=useAccessControl()
+  const[drawer,setDrawer]=useState(null),[tab,setTab]=useState('Business'),[geminiStatus,setGeminiStatus]=useState('Not tested'),[testingGemini,setTestingGemini]=useState(false),[roleEditor,setRoleEditor]=useState(null),[savingSettings,setSavingSettings]=useState(false);const {notify}=useFeedback();const access=useAccessControl()
   const [adminPin,setAdminPinValue]=useState(''),[adminPinConfirm,setAdminPinConfirm]=useState(''),[managerPin,setManagerPinValue]=useState(''),[managerPinConfirm,setManagerPinConfirm]=useState(''),[savingPin,setSavingPin]=useState('')
   const [managerAccess,setManagerAccess]=usePersistentState('restapay-manager-access',DEFAULT_MANAGER_ACCESS)
   const [costSettings,setCostSettings]=usePersistentState('restapay-cost-settings',{departmentAllocations:DEFAULT_ALLOCATION_RULES})
@@ -27,6 +27,20 @@ export default function Settings(){
   const [expenses,,setExpenses]=useCrudCollection('restapay-expenses',[])
   const [invoices,,setInvoices]=useCrudCollection('restapay-invoices',[])
   const allocations={...DEFAULT_ALLOCATION_RULES,...(costSettings?.departmentAllocations||{})}
+  const saveSettings=async()=>{
+    if(!access.isAdmin)return notify('Admin access is required to save application settings.','error')
+    setSavingSettings(true)
+    try{
+      await Promise.all([
+        setCostSettings(costSettings),
+        setManagerAccess(managerAccess),
+        setExpenseTypes(expenseTypes),
+        setCategories(categories),
+      ])
+      notify(isSupabaseReady?'Settings saved to Supabase.':'Supabase is not configured. Settings were not saved to the cloud.',isSupabaseReady?'success':'error')
+    }catch(error){notify(`Could not save settings to Supabase: ${error?.message||error}`,'error')}
+    finally{setSavingSettings(false)}
+  }
   const setAllocation=(key,field,value)=>{const n=Math.max(0,Math.min(100,Number(value)||0));const other=field==='food'?'alcohol':'food';setCostSettings(prev=>({...prev,departmentAllocations:{...DEFAULT_ALLOCATION_RULES,...(prev?.departmentAllocations||{}),[key]:{...(prev?.departmentAllocations?.[key]||DEFAULT_ALLOCATION_RULES[key]),[field]:n,[other]:100-n}}}))}
   const classificationUsage=(kind,name)=>{
     if(kind==='expense') return {
@@ -70,7 +84,7 @@ ${targets.map(x=>x.name).join(', ')}`)?.trim();const target=targets.find(x=>same
   const testGemini=async()=>{if(!isSupabaseReady)return notify('Supabase is not configured.','error');setTestingGemini(true);try{const {data,error}=await supabase.functions.invoke('gemini-invoice',{body:{healthCheck:true}});if(error)throw error;if(!data?.ok)throw new Error(data?.message||'Gemini health check failed.');setGeminiStatus('Ready');notify('Gemini invoice engine is configured and reachable.','success')}catch(error){setGeminiStatus('Unavailable');notify(error?.message||'Gemini invoice engine could not be reached.','error')}finally{setTestingGemini(false)}}
   return <div className="records-page">
     <section className="records-kpi-grid settings-kpi-grid">{cards.map(({title,value,meta,tone,icon:Icon})=><button key={title} className={`records-kpi tone-${tone}`} onClick={()=>setDrawer(title)}><span className="records-kpi-icon"><Icon size={22}/></span><span className="records-kpi-copy"><strong>{title}</strong><b>{value}</b><small>{meta}</small></span><ChevronRight size={18}/></button>)}</section>
-    <section className="records-workspace card-surface"><header className="records-header"><div><h2>Settings</h2><p>Manage business profile, defaults, security, integrations, and interface preferences</p></div><button className="primary-button" onClick={()=>notify("Settings saved locally.")}><Save size={17}/>Save Settings</button></header>
+    <section className="records-workspace card-surface"><header className="records-header"><div><h2>Settings</h2><p>Manage business profile, defaults, security, integrations, and interface preferences</p></div><button className="primary-button" onClick={saveSettings} disabled={savingSettings}><Save size={17}/>{savingSettings?'Saving to Supabase…':'Save Settings'}</button></header>
       <div className="payroll-tabs settings-tabs">{['Business','Classifications','Payroll Defaults','Cost Allocation','Invoice Defaults','Integrations','Users & Security','Appearance'].map(item=><button key={item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</button>)}</div>
       <div className="settings-panel">
         {tab==='Business'&&<div className="form-grid"><label>Restaurant Name<input defaultValue="Isabella Restaurant"/></label><label>Business Type<select><option>Family Restaurant</option><option>Fine Dining</option><option>Bar & Grill</option></select></label><label>Phone<input defaultValue="(205) 555-0148"/></label><label>Email<input defaultValue="office@isabellarestaurant.com"/></label><label>Address<input defaultValue="Richmond, AL"/></label><label>Default Currency<select><option>USD</option></select></label></div>}
