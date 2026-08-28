@@ -84,10 +84,16 @@ function normalizeInvoicePayload(value: any) {
       description: clean(item?.description),
       item_number: clean(item?.item_number),
       brand: clean(item?.brand),
-      qty: Number(item?.qty || 0),
-      unit: clean(item?.unit),
-      purchase_unit: clean(item?.purchase_unit || item?.unit),
+      qty: Number(item?.shipped_qty ?? item?.qty ?? 0),
+      ordered_qty: Number(item?.ordered_qty ?? 0),
+      shipped_qty: Number(item?.shipped_qty ?? item?.qty ?? 0),
+      adjusted_qty: Number(item?.adjusted_qty ?? 0),
+      unit: clean(item?.unit || item?.sales_unit),
+      sales_unit: clean(item?.sales_unit || item?.unit),
+      purchase_unit: clean(item?.purchase_unit || item?.sales_unit || item?.unit),
       package_size: clean(item?.package_size),
+      pricing_unit: clean(item?.pricing_unit),
+      weight: Number(item?.weight ?? 0),
       pack_count: Number(item?.pack_count || 0),
       unit_size_value: Number(item?.unit_size_value || 0),
       unit_size_unit: clean(item?.unit_size_unit),
@@ -155,7 +161,17 @@ Deno.serve(async request => {
       }, 413)
     }
 
-    const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract invoice data from this file/image/PDF. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","due_date":"YYYY-MM-DD or raw date","payment_terms":"Due on Receipt|Net 7|Net 14|Net 15|Net 30|Net 45|Net 60|Custom|","date_ordered":"YYYY-MM-DD or raw date","shipped_date":"YYYY-MM-DD or raw date","invoice_type":"Regular Invoice|Credit Memo|Rebate|Return Credit|Vendor Adjustment","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","sales_subtotal":0,"total_discount":0,"total_charges":0,"net_amount":0,"tax":0,"total":0,"freight":0,"discount":0,"lineItems":[{"description":"","item_number":"","brand":"","qty":0,"unit":"","purchase_unit":"Case|Bottle|Each|Pack|Box|","package_size":"","pack_count":0,"unit_size_value":0,"unit_size_unit":"","unit_price":0,"discount_percent":0,"discount_amount":0,"total":0,"category":""}]}. IMPORTANT DATE RULES: invoice_date MUST come from a field explicitly labeled INVOICE DATE. Never use DATE ORDERED, SHIPPED DATE, delivery date, PDF creation time, or signature date as invoice_date. If INVOICE DATE repeats on multiple pages, use the repeated value as validation. Extract payment_terms exactly (for example NET 14 DAYS => Net 14) and extract the printed remit/due date when present. IMPORTANT TOTAL RULES: invoice summary discounts/credits such as FLYER SAVINGS or ALLOWANCE belong in total_discount as a positive number that is subtracted from Product Total; do not bury them inside total_charges. IMPORTANT: lineItems.total must be the PRINTED line Amount/extended amount after any line-level discount. Never subtract a printed line discount from that line total again. total_discount is ONLY the invoice-summary discount. The printed final total is authoritative. For US Foods, Performance Foodservice/PFG, Sysco, beverage, beer, wine, liquor and Alabama ABC invoices, distinguish the PURCHASE UNIT from the package size. purchase_unit must be Case, Bottle, Each, Pack, Box, or empty when unclear. A line sold as CS/case is Case even when package_size is 6/750 ML. A line sold as BT/BTL/bottle is Bottle. Extract pack/case details exactly when printed (examples: 2/20 LB, 4/10 LB, 6/750 ML, 12/750 ML, 24/12 OZ). Never invent pack size. If bottles-per-case is unclear, leave pack_count 0 so the app can flag Needs Review instead of guessing. Use numbers only for amounts. If a field is unclear, use empty string or 0. File name: ${fileName}`
+    const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract the invoice exactly as printed. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","due_date":"YYYY-MM-DD or raw date","payment_terms":"","date_ordered":"YYYY-MM-DD or raw date","shipped_date":"YYYY-MM-DD or raw date","invoice_type":"Regular Invoice|Credit Memo|Rebate|Return Credit|Vendor Adjustment","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","sales_subtotal":0,"total_discount":0,"total_charges":0,"net_amount":0,"tax":0,"total":0,"freight":0,"discount":0,"lineItems":[{"description":"","item_number":"","brand":"","ordered_qty":0,"shipped_qty":0,"adjusted_qty":0,"qty":0,"sales_unit":"","unit":"","purchase_unit":"Case|Bottle|Each|Pack|Box|","package_size":"","pricing_unit":"","weight":0,"pack_count":0,"unit_size_value":0,"unit_size_unit":"","unit_price":0,"discount_percent":0,"discount_amount":0,"total":0,"category":""}]}.
+
+STRICT TRANSCRIPTION RULE: Every line-item value must come from the SAME PRINTED ROW. Never carry a pack size, quantity, price, unit, or brand from the row above/below. Never invent a pack size from examples or prior invoices. If a printed cell is blank, return blank/0.
+
+US FOODS RULES: When the vendor is US Foods, locate the table headed INVOICE LINE DETAILS. Read these printed columns row-by-row: ORD, SHP, ADJ, SALES UNIT, PRODUCT NUMBER, DESCRIPTION, LABEL, PACK SIZE, CODE, WEIGHT, PRICING UNIT, UNIT PRICE, EXTENDED PRICE. Map them exactly as follows: ordered_qty=ORD; shipped_qty=SHP; adjusted_qty=ADJ; qty=SHP; sales_unit=SALES UNIT; item_number=PRODUCT NUMBER; description=DESCRIPTION; brand=LABEL; package_size=PACK SIZE exactly as printed; weight=WEIGHT; pricing_unit=PRICING UNIT; unit_price=UNIT PRICE; total=EXTENDED PRICE. Map SALES UNIT CS to purchase_unit Case and EA to Each. Do NOT calculate UNIT PRICE from quantity or EXTENDED PRICE. Do NOT calculate EXTENDED PRICE when it is printed. Weighted/catch-weight lines are valid: for a Case sold with PRICING UNIT LB, qty is the number of cases, weight is the printed pounds, unit_price is the per-pound price, and total is the printed extended price. Therefore qty * unit_price is NOT expected to equal total for those rows. Preserve adjustment rows exactly, including a shipped line whose ADJ makes the extended price $0.00.
+
+DATE RULES: invoice_date MUST come from a field explicitly labeled INVOICE DATE. Never use DATE ORDERED, SHIPPED DATE, delivery date, PDF creation time, or signature date as invoice_date. If INVOICE DATE repeats on pages, use the repeated value to validate. Extract payment terms from PAYMENT TERMS and the printed remit/due date when present.
+
+TOTAL RULES: Product Total/sales_subtotal must match the printed invoice summary. Summary savings/allowances/credits are positive total_discount values that are subtracted once. Fuel surcharge/other charges belong in total_charges/freight. Tax is the printed tax. total is the printed final amount due/remit amount and is authoritative. lineItems.total is always the printed EXTENDED PRICE/line amount and must not be recomputed or discounted twice.
+
+PACKAGE RULES: purchase_unit is the purchased sales unit, while package_size is the exact printed PACK SIZE cell. Do not infer liquor-style sizes on food invoices. Derive pack_count/unit_size fields only when unambiguous from the exact printed PACK SIZE; otherwise leave 0/blank. Use numbers only for numeric amounts. If unclear, use empty string or 0. File name: ${fileName}`
 
     const preferredModel = clean(Deno.env.get('GEMINI_MODEL'))
     const models = preferredModel

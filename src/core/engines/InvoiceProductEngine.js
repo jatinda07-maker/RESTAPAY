@@ -169,7 +169,7 @@ export function parseVendorInvoiceItem(input = {}) {
     excluded_from_purchase: notShipped,
     storage_section: text(input.storage_section || input.section || input.temperature_zone),
     reconciliation_variance: Number(variance.toFixed(2)),
-    needs_review: variance > 0.05 || (!itemNumber && !description) || (!lineTotal && shipped > 0),
+    needs_review: variance > 0.05 || (!itemNumber && !description) || (!lineTotal && shipped > 0 && adjusted >= 0),
     ...packageData,
   }
 }

@@ -85,8 +85,10 @@ export function normalizeInvoiceLine(line = {}, index = 0) {
     line_total: line.line_total ?? line.total ?? line.amount,
     package_size: line.package_size || line.size,
   })
-  const quantity = n(enriched.quantity || 1) || 1
-  const lineTotal = n(enriched.line_total) || n(enriched.unit_price) * quantity
+  const explicitQuantity = line.quantity ?? line.qty ?? line.shipped_qty ?? line.shipped_quantity
+  const quantity = explicitQuantity === 0 ? 0 : (n(enriched.quantity ?? explicitQuantity ?? 1) || 1)
+  const hasPrintedLineTotal = line.line_total !== undefined || line.total !== undefined || line.extended_price !== undefined || line.amount !== undefined
+  const lineTotal = hasPrintedLineTotal ? n(enriched.line_total) : (n(enriched.unit_price) * quantity)
   return {
     id: line.id || `line-${Date.now()}-${index}`,
     item_number: text(enriched.item_number || enriched.vendor_item_number),
@@ -95,6 +97,13 @@ export function normalizeInvoiceLine(line = {}, index = 0) {
     quantity,
     package_size: text(enriched.package_size || enriched.package_label),
     purchase_unit: text(enriched.purchase_unit || line.purchase_unit || line.sales_unit || line.unit),
+    sales_unit: text(enriched.sales_unit || line.sales_unit || line.unit),
+    pricing_unit: text(enriched.pricing_unit || line.pricing_unit || line.price_unit),
+    actual_weight: n(enriched.actual_weight || line.weight || line.actual_weight),
+    quantity_ordered: n(enriched.quantity_ordered || line.ordered_qty || line.quantity_ordered),
+    quantity_shipped: n(enriched.quantity_shipped ?? line.shipped_qty ?? line.quantity_shipped ?? quantity),
+    quantity_adjusted: n(enriched.quantity_adjusted || line.adjusted_qty || line.quantity_adjusted),
+    brand: text(enriched.brand || line.brand),
     pack_count: n(enriched.pack_count || line.pack_count),
     effective_each_cost: n(enriched.effective_each_cost),
     comparison_basis: text(enriched.comparison_basis),
