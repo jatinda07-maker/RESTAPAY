@@ -9,13 +9,14 @@ import { useMemo, useState } from 'react'
 import { appMoney, appMoney2, appPercent, useAppData } from '../hooks/useAppData'
 import usePersistentState from '../hooks/usePersistentState'
 import { calculateDepartmentCosts, DEFAULT_ALLOCATION_RULES } from '../core/engines/DepartmentCostEngine.js'
-import { useAccessControl, DEFAULT_MANAGER_DASHBOARD } from '../lib/accessControl.js'
+import { useAccessControl, DEFAULT_MANAGER_DASHBOARD, DEFAULT_ADMIN_DASHBOARD } from '../lib/accessControl.js'
 
 const displayDate = value => value || '—'
 export default function Dashboard() {
   const [openCard,setOpenCard]=useState(null)
   const access=useAccessControl()
-  const dashboardAccess=access.isManager?{...DEFAULT_MANAGER_DASHBOARD,...(access.managerAccess?.dashboard||{})}:new Proxy({}, {get:()=>true})
+  const [adminDashboard]=usePersistentState('restapay-admin-dashboard',DEFAULT_ADMIN_DASHBOARD)
+  const dashboardAccess=access.isManager?{...DEFAULT_MANAGER_DASHBOARD,...(access.managerAccess?.dashboard||{})}:{...DEFAULT_ADMIN_DASHBOARD,...(adminDashboard||{})}
   const {sales,invoices,expenses,payroll,employees,metrics}=useAppData()
   const [costSettings]=usePersistentState('restapay-cost-settings',{departmentAllocations:DEFAULT_ALLOCATION_RULES})
   const departmentCosts=useMemo(()=>{

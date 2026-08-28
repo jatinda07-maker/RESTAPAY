@@ -10,11 +10,15 @@ export const ROLE_PERMISSIONS = {
 export const MANAGER_NAV_ITEMS = [
   ['/dashboard','Dashboard'],['/sales','Sales'],['/food-alcohol-cost','Food & Alcohol Cost'],['/invoices','Invoices'],['/vendors','Vendors'],['/vendor-comparison','Vendor Comparison'],['/price-increase','Price Increase'],['/employees','Employees'],['/payroll','Payroll'],['/expenses','Expenses'],['/reports','Reports'],['/import-center','Import Center'],['/toast-integration','Toast Integration'],['/bank-checks','Bank & Checks']
 ]
-export const MANAGER_DASHBOARD_ITEMS = [
-  ['netSales','Net Sales'],['cashFlow','Cash Flow'],['primeCost','Prime Cost'],['laborMix','Labor Mix'],['foodCost','Food Cost'],['alcoholCost','Alcohol Cost'],['cashSales','Cash Sales'],['creditSales','Credit Sales'],['cashCollected','Cash Collected'],['tipsEarned','Tips Earned'],['operatingProfit','Operating Profit'],['cashRemaining','Cash Remaining'],['trueFoodCost','True Food Cost'],['trueAlcoholCost','True Alcohol Cost'],['businessExpenses','Business Expenses'],['managerOtherPayroll','Manager / GM & Other Payroll'],['kitchenPayroll','Kitchen Payroll'],['tipsCheck','Tips Check - Tipped Waiters'],['foodAlcoholComparison','Food vs Alcohol Comparison'],['salesTrend','Sales Trend'],['foodLabor','Food & Labor'],['weeklyProfit','Weekly Profit'],['topVendors','Top Vendors'],['recentInvoices','Recent Invoices'],['recentExpenses','Recent Expenses'],['recentPayroll','Recent Payroll'],['quickAccess','Quick Access']
+export const DASHBOARD_ITEMS = [
+  ['netSales','Net Sales'],['cashSales','Cash Sales'],['creditSales','Credit Sales'],['tipsEarned','Tips Earned'],['cashCollected','Cash Collected'],['cashFlow','Cash Flow'],['cashRemaining','Cash Remaining'],['primeCost','Prime Cost'],['operatingProfit','Operating Profit'],['foodCost','Food Cost'],['alcoholCost','Alcohol Cost'],['trueFoodCost','True Food Cost'],['trueAlcoholCost','True Alcohol Cost'],['businessExpenses','Business Expenses'],['managerOtherPayroll','Manager / GM & Other Payroll'],['kitchenPayroll','Kitchen Payroll'],['tipsCheck','Tips Check - Tipped Waiters'],['laborMix','Labor Mix'],['foodAlcoholComparison','Food vs Alcohol Comparison'],['salesTrend','Sales Trend'],['foodLabor','Food & Labor'],['weeklyProfit','Weekly Profit'],['topVendors','Top Vendors'],['recentInvoices','Recent Invoices'],['recentExpenses','Recent Expenses'],['recentPayroll','Recent Payroll'],['quickAccess','Quick Access']
 ]
+export const MANAGER_DASHBOARD_ITEMS = DASHBOARD_ITEMS
+export const ADMIN_DASHBOARD_ITEMS = DASHBOARD_ITEMS
+export const DEFAULT_ADMIN_DASHBOARD = Object.fromEntries(DASHBOARD_ITEMS.map(([key])=>[key,true]))
 export const DEFAULT_MANAGER_DASHBOARD = {
-  netSales:true,cashFlow:true,primeCost:false,laborMix:true,foodCost:true,alcoholCost:true,cashSales:true,creditSales:true,cashCollected:true,tipsEarned:true,operatingProfit:false,cashRemaining:true,trueFoodCost:true,trueAlcoholCost:true,businessExpenses:true,managerOtherPayroll:true,kitchenPayroll:true,tipsCheck:true,payrollTotal:false,foodAlcoholComparison:true,salesTrend:true,foodLabor:true,weeklyProfit:false,topVendors:true,recentInvoices:true,recentExpenses:true,recentPayroll:true,quickAccess:true
+  ...DEFAULT_ADMIN_DASHBOARD,
+  primeCost:false,operatingProfit:false,weeklyProfit:false
 }
 export const DEFAULT_MANAGER_ACCESS = {
   routes:['/dashboard','/sales','/invoices','/reports','/import-center'],
