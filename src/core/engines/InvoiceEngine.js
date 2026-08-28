@@ -249,6 +249,37 @@ export function propagateInvoiceCategories(invoices = [], referenceLines = []) {
   return { rows, changedLines, ruleCount: rules.size }
 }
 
+
+export function propagateInvoiceItemMaster(invoices = [], { matchDescription = '', description = '', category = '' } = {}) {
+  const matchKey = invoiceItemIdentity(matchDescription)
+  const nextDescription = String(description || '').trim()
+  const nextCategory = String(category || '').trim()
+  if (!matchKey || (!nextDescription && !nextCategory)) return { rows: Array.isArray(invoices) ? invoices : [], changedLines: 0 }
+  let changedLines = 0
+  const rows = (Array.isArray(invoices) ? invoices : []).map(invoice => {
+    let changed = false
+    const lines = (invoice?.lines || invoice?.items || []).map(line => {
+      const currentDescription = line?.description || line?.item_name || line?.name || ''
+      if (invoiceItemIdentity(currentDescription) !== matchKey) return line
+      const patch = {}
+      if (nextDescription && String(currentDescription).trim() !== nextDescription) {
+        patch.original_description = line?.original_description || String(currentDescription).trim()
+        patch.description = nextDescription
+      }
+      if (nextCategory && String(line?.category || '').trim() !== nextCategory) {
+        patch.category = nextCategory
+        patch.category_source = 'price-book-master'
+      }
+      if (!Object.keys(patch).length) return line
+      changed = true
+      changedLines += 1
+      return { ...line, ...patch, price_book_updated_at: new Date().toISOString() }
+    })
+    return changed ? { ...invoice, lines, items: invoice.items ? lines : invoice.items, price_book_updated_at: new Date().toISOString() } : invoice
+  })
+  return { rows, changedLines }
+}
+
 export function buildPriceHistory(invoices = []) {
   const history = []
   invoices.forEach(invoice => {
