@@ -158,8 +158,21 @@ export function useAppData(overrideRange = null) {
       vendorSpend.set(vendor, (vendorSpend.get(vendor) || 0) + number(row.amount ?? row.total))
     })
     const topVendors = [...vendorSpend.entries()].sort((a,b) => b[1]-a[1]).slice(0,3)
-    const priceHistory = buildPriceHistory(normalizedInvoices)
-    const priceComparisons = comparePrices(priceHistory)
+    // Price-change KPIs need historical context before the selected period.
+    // Build history through the selected end date, then keep comparisons whose
+    // CURRENT invoice falls inside the active range. This lets an Aug invoice
+    // compare against a July invoice without pulling future invoices into the KPI.
+    const comparisonInvoices = data.invoices
+      .filter(row => {
+        const date = normalizeRowDate(row, ['invoice_date','date'])
+        return Boolean(date && (!range?.to || date <= range.to))
+      })
+      .map(normalizeInvoice)
+    const priceHistory = buildPriceHistory(comparisonInvoices)
+    const priceComparisons = comparePrices(priceHistory).filter(row => {
+      const date = row.current_date || row.effective_date || row.current_row?.date || row.current_row?.invoice_date || ''
+      return Boolean(date && (!range?.from || date >= range.from) && (!range?.to || date <= range.to))
+    })
     let costSettings = { departmentAllocations: DEFAULT_ALLOCATION_RULES }
     const savedCostSettings = getLiveSetting('restapay-cost-settings', {}) || {}
     if (savedCostSettings && typeof savedCostSettings === 'object') costSettings = {...costSettings,...savedCostSettings}

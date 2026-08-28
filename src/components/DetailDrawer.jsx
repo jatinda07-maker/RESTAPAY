@@ -219,6 +219,15 @@ function buildRecentEntries(title, collections, explicitEntries = []) {
   const reviewPayroll = payrollSummary.reviewRows || collections.payroll.filter(r=>payrollCostClass(r)==='review')
   const allClassifiedPayroll = [...operatingPayroll,...managementPayroll,...frontPayroll,...reviewPayroll]
 
+  // Price KPI category rows use the item name as the drilldown scope. Resolve that
+  // item back to the exact comparison record instead of treating the item name as
+  // an invoice category. The current invoice must be in the selected period; the
+  // previous invoice may legitimately be historical and outside that period.
+  if (/^(price increases|items increased|items decreased|largest increase|unit impact)$/i.test(parentTitle)) {
+    const match = (metrics.priceComparisons||[]).find(r => String(r.item||'').trim().toLowerCase() === lowerLabel)
+    if (match) return entryTriples(match.comparison_rows || [match.previous_row, match.current_row].filter(Boolean), 'invoice')
+  }
+
   if (/^(food cost|true food cost)$/i.test(label)) {
     const manager = managerPayroll.map(r=>({...r,_display_amount:Number(r.foodAllocated||0),_allocation_percent:dc.rules?.managerPayroll?.food ?? 0}))
     return [...costTriples(foodDirect,'Direct Food Purchase'), ...costTriples(kitchenPayroll.map(r=>({...r,_display_amount:Number(r.amount||0)})),'Kitchen Payroll'), ...costTriples(manager,'Manager'), ...costTriples(foodShared,'Allocated Shared Cost')].sort((a,b)=>String(a[0]).localeCompare(String(b[0])))
@@ -362,7 +371,15 @@ export default function DetailDrawer({ title, entries = [], initialTab = 'Overvi
     const sections = preferred.length ? content.sections.filter(section=>preferred.includes(section.title)) : content.sections
     return sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row })))
   }, [content, title])
-  const scopedExplicitEntries = useMemo(() => (Array.isArray(entries)?entries:[]).filter(row=>inDateRange(row,drawerRange,['effective_date','current_date','previous_date','invoice_date','expense_date','pay_date','payroll_date','business_date','date'])), [entries,drawerRange])
+  const scopedExplicitEntries = useMemo(() => {
+    const source = Array.isArray(entries) ? entries : []
+    if (!source.length) return []
+    const currentComparisonInRange = source.some(row => String(row.comparison_role||'').toLowerCase()==='current' && inDateRange(row,drawerRange,['effective_date','current_date','invoice_date','date']))
+    return source.filter(row => {
+      if (currentComparisonInRange && /^(previous|current)$/i.test(String(row.comparison_role||''))) return true
+      return inDateRange(row,drawerRange,['effective_date','current_date','invoice_date','expense_date','pay_date','payroll_date','business_date','date'])
+    })
+  }, [entries,drawerRange])
   const recentEntries = useMemo(() => buildRecentEntries(entryScope || title, { sales, invoices, expenses, payroll, vendors, employees, metrics }, scopedExplicitEntries), [entryScope, title, scopedExplicitEntries, sales, invoices, expenses, payroll, vendors, employees, metrics])
   if (!title) return null
 
