@@ -149,3 +149,48 @@ export function summarizePayroll(rows = [], employees = []) {
   const hours = normalized.reduce((sum, row) => sum + number(row.hours || row.regular_hours), 0)
   return { total: roundPayroll(operatingLabor + managementPayroll + frontOfHousePayroll + reviewPayroll), paymentTotal: roundPayroll(paymentTotal), operatingLabor: roundPayroll(operatingLabor), managementPayroll:roundPayroll(managementPayroll), frontOfHousePayroll:roundPayroll(frontOfHousePayroll), reviewPayroll:roundPayroll(reviewPayroll), operatingRows, managementRows, frontOfHouseRows, reviewRows, tipsEarned: roundPayroll(tipsEarned), tipsWithheld: roundPayroll(tipsWithheldTotal), netTipsPaid: roundPayroll(netTipsPaid), cash: roundPayroll(cash), check: roundPayroll(check), hours: roundPayroll(hours) }
 }
+
+
+// Prime Cost reporting uses exact selected dates even when payroll is stored as a
+// Monday-Sunday weekly rollup. Weekly BOH/kitchen and management wages are spread
+// evenly over seven calendar days; ordinary daily rows remain on their actual date.
+export function summarizePrimeCostDailyLabor(rows = [], employees = [], range = {}) {
+  const from = String(range?.from || '')
+  const to = String(range?.to || '')
+  if (!from || !to) return { operatingLabor:0, managementPayroll:0, operatingDays:[], managementDays:[] }
+  const byId = new Map((employees||[]).filter(e=>e?.id).map(e=>[String(e.id),e]))
+  const byName = new Map((employees||[]).filter(e=>e?.name||e?.employee_name).map(e=>[String(e.name||e.employee_name).trim().toLowerCase(),e]))
+  const dayMs = 86400000
+  const utc = value => { const [y,m,d]=String(value||'').slice(0,10).split('-').map(Number); return y&&m&&d ? Date.UTC(y,m-1,d) : NaN }
+  const iso = ms => new Date(ms).toISOString().slice(0,10)
+  const startMs=utc(from), endMs=utc(to)
+  const details={ 'operating-labor':[], management:[] }
+  let operatingLabor=0, managementPayroll=0
+  canonicalizePayrollRows(rows).forEach(raw=>{
+    const employee = byId.get(String(raw.employee_id||'')) || byName.get(String(raw.employee_name||raw.employee||'').trim().toLowerCase())
+    const row = employee ? {...raw,job_type:raw.job_type||employee.job_type||employee.job,position:raw.position||employee.position,role:raw.role||employee.role,department:raw.department||employee.department,employee_type:raw.employee_type||employee.employee_type,payroll_classification:raw.payroll_classification||employee.payroll_classification} : raw
+    const cls=payrollCostClass(row)
+    if (!['operating-labor','management'].includes(cls)) return
+    const wage=employerWageAmount(row)
+    if (wage<=0) return
+    const period=canonicalPeriod(row)
+    const pStart=utc(period.from), pEnd=utc(period.to)
+    const weekly=Boolean(row.weekly_rollup) || ['weekly-rollup','kitchen-weekly'].includes(canonicalSource(row)) || (Number.isFinite(pStart)&&Number.isFinite(pEnd)&&pEnd>pStart)
+    if (weekly && Number.isFinite(pStart) && Number.isFinite(pEnd)) {
+      const overlapStart=Math.max(startMs,pStart), overlapEnd=Math.min(endMs,pEnd)
+      if (overlapStart>overlapEnd) return
+      const daily=wage/7
+      for(let ms=overlapStart;ms<=overlapEnd;ms+=dayMs) details[cls].push({date:iso(ms),employee_name:row.employee_name||row.employee||employee?.name||'Employee',amount:roundPayroll(daily),source:'weekly-pay/7'})
+      const amount=daily*(Math.floor((overlapEnd-overlapStart)/dayMs)+1)
+      if(cls==='operating-labor') operatingLabor+=amount; else managementPayroll+=amount
+      return
+    }
+    const date=canonicalDate(row)
+    if(date>=from && date<=to) {
+      details[cls].push({date,employee_name:row.employee_name||row.employee||employee?.name||'Employee',amount:roundPayroll(wage),source:'daily-pay'})
+      if(cls==='operating-labor') operatingLabor+=wage; else managementPayroll+=wage
+    }
+  })
+  const sort=(a,b)=>String(a.date).localeCompare(String(b.date))||String(a.employee_name).localeCompare(String(b.employee_name),undefined,{sensitivity:'base'})
+  return {operatingLabor:roundPayroll(operatingLabor),managementPayroll:roundPayroll(managementPayroll),operatingDays:details['operating-labor'].sort(sort),managementDays:details.management.sort(sort)}
+}

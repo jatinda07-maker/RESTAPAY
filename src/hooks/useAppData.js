@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { summarizePayroll } from '../core/adapters/payrollAdapter.js'
+import { summarizePayroll, summarizePrimeCostDailyLabor } from '../core/adapters/payrollAdapter.js'
 import { buildPriceHistory, comparePrices, normalizeInvoice } from '../core/engines/InvoiceEngine.js'
 import { buildFinancialMetrics } from '../core/engines/FinancialReconciliation.js'
 import { calculateDepartmentCosts, DEFAULT_ALLOCATION_RULES } from '../core/engines/DepartmentCostEngine.js'
@@ -53,9 +53,11 @@ export function useAppData(overrideRange = null) {
       return mapped ? {...row,labor_classification:mapped} : row
     })
     const payrollSummary = summarizePayroll(classifiedPayroll, scoped.employees)
+    const primeCostLabor = summarizePrimeCostDailyLabor(data.payroll, data.employees, range)
     const financial = buildFinancialMetrics({
       sales: scoped.sales,
       payrollSummary,
+      primeCostLabor,
       invoices: normalizedInvoices,
       expenses: scoped.expenses,
     })

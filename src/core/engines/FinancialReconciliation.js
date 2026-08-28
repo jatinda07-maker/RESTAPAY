@@ -41,7 +41,7 @@ export function classifyInvoiceSpend(invoices = []) {
   return { food:Number(food.toFixed(2)), alcohol:Number(alcohol.toFixed(2)), uncategorized:Number(uncategorized.toFixed(2)), foodInvoiceCount, alcoholInvoiceCount }
 }
 
-export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoices = [], expenses = [] } = {}) {
+export function buildFinancialMetrics({ sales = [], payrollSummary = {}, primeCostLabor = null, invoices = [], expenses = [] } = {}) {
   const salesTotal = sales.reduce((sum, row) => sum + n(row?.net_sales ?? row?.amount ?? row?.sales), 0)
   const foodSales = sales.reduce((sum, row) => sum + n(row?.food_sales ?? (isFoodCategory(row) ? (row?.amount ?? row?.net_sales ?? row?.sales) : 0)), 0)
   const alcoholSales = sales.reduce((sum, row) => sum + n(row?.alcohol_sales ?? (isAlcoholCategory(row) ? (row?.amount ?? row?.net_sales ?? row?.sales) : 0)), 0)
@@ -87,8 +87,11 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
   const checkPayroll = n(payrollSummary.check)
   const payrollHours = n(payrollSummary.hours)
   const cogs = invoiceSplit.food + invoiceSplit.alcohol
-  // Prime Cost uses direct COGS plus kitchen/BOH and manager labor once.
-  const primeLabor = operatingLabor + managementPayroll
+  // Prime Cost may use daily allocated labor for exact partial-week date ranges.
+  // Official payroll/payment totals remain unchanged.
+  const primeOperatingLabor = primeCostLabor ? n(primeCostLabor.operatingLabor) : operatingLabor
+  const primeManagementPayroll = primeCostLabor ? n(primeCostLabor.managementPayroll) : managementPayroll
+  const primeLabor = primeOperatingLabor + primeManagementPayroll
   const primeCostAmount = cogs + primeLabor
   const cashRemaining = cashSales - cashPayroll - cashExpenses - cashInvoiceSpend - cashWithdrawals
   const operatingProfit = salesTotal - cogs - employerLabor - expenseTotal
@@ -103,7 +106,7 @@ export function buildFinancialMetrics({ sales = [], payrollSummary = {}, invoice
     foodCost: invoiceSplit.food, alcoholCost: invoiceSplit.alcohol, uncategorizedInvoiceCost: invoiceSplit.uncategorized,
     invoiceTotal, expenseTotal, operatingExpenses, excludedFoodAlcoholExpenses, excludedPayrollTipExpenses, cashExpenses, cashInvoiceSpend, cashWithdrawals, withdrawalRows,
     payrollTotal, operatingLabor, managementPayroll, frontOfHousePayroll, reviewPayroll, employerLabor, tipsEarned, tipsWithheld, netTipsPaid, cashPayroll, checkPayroll, payrollHours,
-    cashRemaining, cogs, primeLabor, primeCostAmount, operatingProfit,
+    cashRemaining, cogs, primeLabor, primeOperatingLabor, primeManagementPayroll, primeCostAmount, operatingProfit,
     foodCostPercent: percent(invoiceSplit.food, foodSales),
     alcoholCostPercent: percent(invoiceSplit.alcohol, alcoholSales),
     primeCostPercent: percent(primeCostAmount, salesTotal),
