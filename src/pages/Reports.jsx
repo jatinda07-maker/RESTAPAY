@@ -102,7 +102,7 @@ const groupPayrollByEmployeePeriod = rows => {
     const method=payrollMethod(row); if(method) g.methods.add(method)
     const job=String(row.job_type || row.job || row.position || row.role || '').trim(); if(job) g.jobs.add(job)
   })
-  return [...groups.values()].sort((a,b)=>`${b.from}|${b.employee}`.localeCompare(`${a.from}|${a.employee}`))
+  return [...groups.values()].sort((a,b)=>String(a.from||'').localeCompare(String(b.from||'')) || String(a.employee||'').localeCompare(String(b.employee||''), undefined, {numeric:true,sensitivity:'base'}))
 }
 const periodLabel = group => group.from && group.to ? (group.from===group.to ? group.from : `${group.from}–${group.to}`) : (group.from || group.to || '')
 

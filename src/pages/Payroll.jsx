@@ -475,7 +475,7 @@ export default function Payroll(){
     })
     return [...weeks.values()]
       .map(item => ({ ...item, employeeCount:item.employees.size }))
-      .sort((a,b) => b.end.localeCompare(a.end))
+      .sort((a,b) => a.end.localeCompare(b.end))
   }, [sourceRows])
 
   const importedEmployeeNames = useMemo(() => [...new Set(sourceRows
@@ -502,7 +502,7 @@ export default function Payroll(){
     .at(-1) || '', [allSourceRows])
 
   const openWeeklyBuilder = () => {
-    const latestSourceWeek = availablePayrollWeeks[0]
+    const latestSourceWeek = availablePayrollWeeks.at(-1)
     const baseEnd = latestSavedWeeklyEnd || latestSourceWeek?.end || ''
     const next = nextWeekAfter(baseEnd)
     if (next) {

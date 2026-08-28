@@ -3,3 +3,6 @@ export const compareDate = (a,b) => String(a ?? '').localeCompare(String(b ?? ''
 export const compareNumber = (a,b) => (Number(a)||0)-(Number(b)||0)
 export const sortByText = (rows,getter) => [...(Array.isArray(rows)?rows:[])].sort((a,b)=>compareText(getter(a),getter(b)))
 export const sortByDate = (rows,getter) => [...(Array.isArray(rows)?rows:[])].sort((a,b)=>compareDate(getter(a),getter(b)))
+export const sortByDateThenText = (rows,dateGetter,textGetter) => [...(Array.isArray(rows)?rows:[])].sort((a,b)=>compareDate(dateGetter(a),dateGetter(b)) || compareText(textGetter(a),textGetter(b)))
+export const sortByTextThenDate = (rows,textGetter,dateGetter) => [...(Array.isArray(rows)?rows:[])].sort((a,b)=>compareText(textGetter(a),textGetter(b)) || compareDate(dateGetter(a),dateGetter(b)))
+export const sortOptionsAZ = values => [...new Set((Array.isArray(values)?values:[]).filter(Boolean))].sort(compareText)
