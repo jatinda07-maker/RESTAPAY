@@ -329,61 +329,46 @@
 }
 .compact-apply:active{transform:translateY(0);box-shadow:0 1px 4px rgba(11,111,67,.10)!important}
 
-/* RC3.7 financial-card readability + exclusion treatment */
-.kpi-card { background:#f7faf8; }
-.tone-green { background:#f2f9f5; }
-.tone-blue { background:#f3f7fd; }
-.tone-purple { background:#f7f4fc; }
-.tone-orange { background:#fbf6f1; }
-.tone-teal { background:#f2f9fa; }
-.tone-amber { background:#fbf8ef; }
-.tone-red { background:#fbf3f4; }
-.kpi-title { font-size:13px; font-weight:700; }
-.kpi-subtitle { font-size:10.5px; color:#5d718c; }
-.kpi-value { font-size:19px; font-weight:720; }
-.summary-card { background:#f9fbfa; }
-.summary-card-title h3 { font-size:15px; }
-.summary-card-heading > span { font-size:11px; }
-.summary-row-copy strong { font-size:12px; }
-.summary-row-copy span { font-size:10px; }
-.summary-row > b { font-size:13px; }
-.summary-card-footer { font-size:12px; background:#f4f7f5; }
-.summary-card-footer strong { font-size:18px; }
-.drawer-row-excluded { background:#fff2f2 !important; border-color:#f5d0d0 !important; }
-.drawer-row-excluded strong, .drawer-row-excluded b { color:#b4232f !important; }
-.drawer-row-excluded small { color:#9b5960 !important; }
-.detail-drawer .drawer-row strong { font-size:12px; }
-.detail-drawer .drawer-row small { font-size:10px; }
-.detail-drawer .drawer-row b { font-size:13px; }
-.summary-row-excluded { margin:0 -16px; padding:0 16px; background:#fff2f2; }
-.summary-row-excluded strong, .summary-row-excluded > b { color:#b4232f; }
-.summary-row-excluded span { color:#9b5960; }
+/* RC3.9.21 topbar profile menu */
+.profile-switch-wrap{position:relative}.profile-switch-button{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:4px 6px;border-radius:12px;cursor:pointer;color:inherit}.profile-switch-button:hover{background:rgba(255,255,255,.08)}.profile-switch-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:1000;min-width:220px;padding:8px;background:#fff;border:1px solid #dce7e2;border-radius:14px;box-shadow:0 16px 40px rgba(13,37,63,.20)}.profile-switch-menu button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:11px 12px;border-radius:10px;text-align:left;font-weight:700;color:#10284b;cursor:pointer}.profile-switch-menu button:hover{background:#f2f8f5}
 
+/* RC3.9.21 interactive topbar notification + profile menus */
+.topbar-popover-wrap,.profile-switch-wrap{position:relative}
+.profile-switch-button{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:4px 6px;border-radius:12px;cursor:pointer;color:inherit}
+.profile-switch-button:hover,.profile-switch-button[aria-expanded="true"]{background:rgba(255,255,255,.08)}
+.profile-switch-menu,.topbar-popover{position:absolute;right:0;top:calc(100% + 10px);z-index:1200;min-width:240px;padding:8px;background:#fff;border:1px solid #dce7e2;border-radius:14px;box-shadow:0 16px 40px rgba(13,37,63,.20)}
+.profile-switch-menu button,.topbar-popover button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:11px 12px;border-radius:10px;text-align:left;font-weight:700;color:#10284b;cursor:pointer}
+.profile-switch-menu button:hover,.topbar-popover button:hover{background:#f2f8f5}
+.notification-button{position:relative}
+.notification-popover{min-width:300px}
+.popover-title{padding:7px 10px 9px;font-size:13px;font-weight:800;color:#10284b;border-bottom:1px solid #e6eeea}
+.notification-item{display:flex;gap:10px;padding:12px 10px;color:#0b8b57}
+.notification-item.is-error{color:#c0392b}
+.notification-item div{display:flex;flex-direction:column;gap:3px}
+.notification-item strong{font-size:13px;color:#10284b}
+.notification-item small{max-width:240px;font-size:11px;line-height:1.35;color:#64748b}
+.topbar .profile-switch-button .user-copy strong{color:#fff}.topbar .profile-switch-button .user-copy span{color:#b8c8db}.topbar .profile-switch-button>svg{color:#d6e3f0}
 
-/* RC3.7.2 cash withdrawal + reconciled drawer controls */
-.cash-withdrawal-section{background:rgba(15,118,110,.045);border:1px solid rgba(15,118,110,.16)}
-.cash-withdrawal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:10px 0 12px}
-.cash-withdrawal-grid label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#334155}
-.cash-withdrawal-grid input{min-height:44px;border:1px solid #cbd5e1;border-radius:12px;padding:0 12px;background:#fff;font:inherit;color:#0f172a;outline:none}
-.cash-withdrawal-grid input:focus{border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.10)}
-@media(max-width:760px){.cash-withdrawal-grid{grid-template-columns:1fr}}
+/* RC3.9.21 access controls */
+.topbar-role-switch{display:flex;align-items:center;gap:10px;border:0;background:transparent;color:inherit;padding:0;cursor:pointer}
+.topbar-role-switch .user-copy{display:flex;flex-direction:column;align-items:flex-start}
+.security-settings{display:grid;gap:22px}
+.security-pin-grid{align-items:end}
+.security-pin-grid .primary-button{min-height:44px;align-self:end}
 
-/* RC3.8 access control, approval queue, and cash ledger */
-.invoice-approval-queue{margin-bottom:16px}
-.approval-list{display:grid;gap:10px;padding:4px 20px 20px}
-.approval-row{display:grid;grid-template-columns:minmax(260px,1.8fr) minmax(110px,.65fr) minmax(110px,.65fr) auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid #dbe4ee;border-radius:14px;background:#f8fbff}
-.approval-row>div{display:grid;gap:3px}.approval-row small{color:#64748b}.approval-actions{display:flex!important;grid-auto-flow:column;gap:8px}
-.security-settings{display:grid;gap:16px}.cash-ledger-actions,.cash-ledger-row-actions{display:flex;gap:8px;align-items:center}.cash-ledger-row{grid-template-columns:1fr auto auto!important}.cash-ledger-row-actions button{width:34px;height:34px;border:1px solid #dbe4ee;border-radius:10px;background:#fff;display:grid;place-items:center}.drawer-help{margin:-4px 0 12px;color:#64748b;font-size:.88rem}
-@media(max-width:900px){.approval-row{grid-template-columns:1fr 1fr}.approval-actions{grid-column:1/-1}}
-/* RC3.8.2 profile role switcher */
-.profile-switch-wrap{position:relative}.profile-switch-button{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:4px 6px;border-radius:12px;cursor:pointer;color:inherit}.profile-switch-button:hover{background:rgba(15,45,80,.06)}.profile-switch-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:1000;min-width:220px;padding:8px;background:#fff;border:1px solid #dce7e2;border-radius:14px;box-shadow:0 16px 40px rgba(13,37,63,.16)}.profile-switch-menu button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:11px 12px;border-radius:10px;text-align:left;font-weight:700;color:#10284b;cursor:pointer}.profile-switch-menu button:hover{background:#f2f8f5}
+/* RC3.9.22 Users & Security: compact role cards + working editor modal. */
+.security-role-list{display:grid;gap:12px}.security-role-card{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:14px;padding:16px 18px;border:1px solid #dce7e2;border-radius:14px;background:#fff}.security-role-card>svg{color:#079455}.security-role-card>div{display:flex;flex-direction:column;gap:4px;min-width:0}.security-role-card strong{font-size:15px;color:var(--ink-900)}.security-role-card small{font-size:11px;line-height:1.45;color:var(--ink-500)}.security-help{margin:0;color:var(--ink-500);font-size:11px}.role-editor{display:grid;gap:18px}.role-editor-summary,.role-pin-editor{padding:16px;border:1px solid #dce7e2;border-radius:13px;background:#fbfdfc}.role-editor-summary strong,.role-pin-editor h3{margin:0;color:var(--ink-900);font-size:14px}.role-editor-summary p,.role-pin-editor p{margin:6px 0 0;color:var(--ink-500);font-size:11px;line-height:1.5}.role-pin-editor{display:grid;gap:14px}.role-pin-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.role-pin-fields label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;color:var(--ink-700)}.role-pin-fields input{height:42px;border:1px solid #d7e2de;border-radius:10px;padding:0 12px;background:#fff;font-size:13px}.role-pin-editor>.primary-button{justify-self:start}.security-role-card .secondary-action{min-width:74px}@media(max-width:720px){.security-role-card{grid-template-columns:34px minmax(0,1fr)}.security-role-card .secondary-action{grid-column:2;justify-self:start}.role-pin-fields{grid-template-columns:1fr}}
 
-/* RC3.9.11 global interactive button feedback */
-button:not(:disabled){transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease,border-color .15s ease,color .15s ease;cursor:pointer}
-button:not(:disabled):active{transform:translateY(0) scale(.985)}
-.primary-button:not(:disabled):hover{transform:translateY(-1px);background:linear-gradient(180deg,#12b967,#067d44);box-shadow:0 10px 22px rgba(10,168,91,.28)}
-.secondary-action:not(:disabled):hover{transform:translateY(-1px);border-color:#8fc9aa;background:#f1faf5;color:#087f45;box-shadow:0 7px 16px rgba(20,68,48,.09)}
-.danger-action:not(:disabled):hover,.row-actions button.danger:not(:disabled):hover{border-color:#f3a6ad;background:#fff1f2;color:#c92335;box-shadow:0 7px 16px rgba(201,35,53,.10)}
-.row-actions button:not(:disabled):hover{transform:translateY(-1px);border-color:#9ebbad;background:#f2faf6;color:#087f45;box-shadow:0 6px 14px rgba(20,68,48,.09)}
-.status-badge:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 5px 12px rgba(20,68,48,.10)}
-button:disabled{cursor:not-allowed}
+/* RC3.9.23 secure role switch modal */
+.role-pin-login{display:grid;gap:12px;padding:4px 0 8px}.role-pin-login label{display:grid;gap:7px;font-weight:700;color:#0b2348}.role-pin-login input{width:100%;min-height:48px;border:1px solid #d7e1de;border-radius:13px;padding:0 14px;font:inherit;letter-spacing:.14em}.role-pin-login input:focus{outline:2px solid rgba(0,143,91,.16);border-color:#159564}.role-pin-login p{margin:0;color:#6780a9;font-size:.9rem}
+
+/* RC3.9.35A: dashboard customization is visible directly on Users & Security. */
+.dashboard-customization-panel{display:grid;gap:14px;margin-top:16px;padding:18px;border:1px solid #dce7e2;border-radius:16px;background:#fff}
+.dashboard-customization-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.dashboard-customization-head strong{font-size:16px;color:var(--ink-900)}
+.dashboard-customization-head p{margin:5px 0 0;color:var(--ink-500);font-size:11px;line-height:1.45}
+.dashboard-customization-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.dashboard-toggle-row{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border:1px solid #e0e9e5;border-radius:10px;background:#fbfdfc;color:var(--ink-800);font-size:11px;font-weight:700}
+.dashboard-toggle-row input{width:18px;height:18px;accent-color:#079455}
+@media(max-width:1000px){.dashboard-customization-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.dashboard-customization-grid{grid-template-columns:1fr}}
