@@ -12,6 +12,37 @@ import { calculateDepartmentCosts, DEFAULT_ALLOCATION_RULES } from '../core/engi
 import { useAccessControl, DEFAULT_MANAGER_DASHBOARD, DEFAULT_ADMIN_DASHBOARD } from '../lib/accessControl.js'
 
 const displayDate = value => value || '—'
+
+const clamp=(value,min,max)=>Math.min(max,Math.max(min,value))
+const healthBand=score=>score>=85?['Excellent','green']:score>=70?['Good','blue']:score>=55?['Watch','amber']:['Needs Attention','red']
+function RestaurantHealthCard({metrics}){
+  const operatingMargin=Number(metrics.operatingMargin||0)
+  const primeCost=Number(metrics.primeCostPercent||0)
+  const laborMix=Number(metrics.laborMixPercent||0)
+  const cashRemaining=Number(metrics.cashRemaining||0)
+  const reconciliation=metrics.reconciliation||{}
+  const marginScore=operatingMargin>=15?25:operatingMargin>=10?21:operatingMargin>=5?15:operatingMargin>=0?9:2
+  const primeScore=primeCost>0&&primeCost<=60?25:primeCost<=65?21:primeCost<=70?15:primeCost<=75?9:4
+  const laborScore=laborMix>0&&laborMix<=25?20:laborMix<=30?17:laborMix<=35?12:laborMix<=40?7:3
+  const cashScore=cashRemaining>=0?15:4
+  const reconValues=[reconciliation.salesCategoryVariance,reconciliation.cashEquationVariance,reconciliation.profitEquationVariance].map(v=>Math.abs(Number(v||0)))
+  const maxVariance=Math.max(0,...reconValues)
+  const reconScore=reconciliation.balanced?15:maxVariance<=1?12:maxVariance<=25?8:4
+  const score=clamp(Math.round(marginScore+primeScore+laborScore+cashScore+reconScore),0,100)
+  const [label,tone]=healthBand(score)
+  const checks=[
+    ['Operating Margin',`${operatingMargin.toFixed(1)}%`,operatingMargin>=10?'good':operatingMargin>=5?'watch':'risk'],
+    ['Prime Cost',`${primeCost.toFixed(1)}%`,primeCost<=65?'good':primeCost<=70?'watch':'risk'],
+    ['Labor Mix',`${laborMix.toFixed(1)}%`,laborMix<=30?'good':laborMix<=35?'watch':'risk'],
+    ['Cash Position',appMoney(cashRemaining),cashRemaining>=0?'good':'risk'],
+    ['Reconciliation',reconciliation.balanced?'Balanced':maxVariance<=1?'Near balance':`Variance ${appMoney2(maxVariance)}`,reconciliation.balanced?'good':maxVariance<=1?'watch':'risk'],
+  ]
+  return <section className={`restaurant-health-card card-surface health-${tone}`}>
+    <div className="restaurant-health-score"><div className="health-score-ring"><strong>{score}</strong><span>/100</span></div><div><span className="health-eyebrow">RESTAURANT HEALTH</span><h2>{label}</h2><p>Live score for the selected date range using profitability, prime cost, labor, cash, and reconciliation.</p></div></div>
+    <div className="restaurant-health-checks">{checks.map(([name,value,state])=><div key={name} className={`health-check health-${state}`}><span>{name}</span><strong>{value}</strong></div>)}</div>
+  </section>
+}
+
 export default function Dashboard() {
   const [openCard,setOpenCard]=useState(null)
   const access=useAccessControl()
@@ -57,6 +88,7 @@ export default function Dashboard() {
   const recentPayroll=payroll.slice(0,3).map(r=>[r.employee_name||r.employee||'—',r.payment_method||r.method||'—',displayDate(r.pay_date||r.date),appMoney2((Number(r.regular_pay||r.base_pay||0)+Number(r.credit_card_tips||r.tips||0)-Number(r.tip_deduction||0)+Number(r.extra_pay||0)))])
   return <div className="dashboard-page"><DateToolbar/>
     <section className="kpi-grid">{kpis.map(([,icon,title,value,subtitle,tone])=><KpiCard key={title} icon={icon} title={title} value={value} subtitle={subtitle} tone={tone} onOpen={setOpenCard}/>)}</section>
+    <RestaurantHealthCard metrics={metrics}/>
     {dashboardAccess.foodAlcoholComparison&&<section className="department-comparison card-surface"><header className="department-comparison-header"><div><h2>Food vs Alcohol Cost</h2><p>Side-by-side true cost with shared-cost and manager-pay allocations</p></div><span>Allocation rules from Settings</span></header><div className="department-comparison-grid">{[
       {name:'Food',sales:departmentCosts.foodSales,direct:departmentCosts.directFoodCost,payroll:departmentCosts.kitchenPayroll,manager:departmentCosts.managerFood,shared:departmentCosts.foodSupplies+departmentCosts.foodShared,total:departmentCosts.trueFoodCost,costPct:departmentCosts.foodCostPercent,profit:departmentCosts.foodProfit,margin:departmentCosts.foodProfitMargin},
       {name:'Alcohol',sales:departmentCosts.alcoholSales,direct:departmentCosts.directAlcoholCost,payroll:departmentCosts.barPayroll,manager:departmentCosts.managerAlcohol,shared:departmentCosts.alcoholShared,total:departmentCosts.trueAlcoholCost,costPct:departmentCosts.alcoholCostPercent,profit:departmentCosts.alcoholProfit,margin:departmentCosts.alcoholProfitMargin}
