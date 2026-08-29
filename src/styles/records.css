@@ -602,3 +602,9 @@
 .payroll-import-range-divider{color:#7f978c;font-weight:700}
 .payroll-import-range-apply{height:40px;white-space:nowrap;padding:0 16px}
 @media(max-width:900px){.payroll-filterbar-imported{grid-template-columns:1fr}.payroll-import-range{align-items:stretch;flex-wrap:wrap}.payroll-import-range label{min-width:min(100%,220px);flex:1}.payroll-import-range-apply{flex:0 0 auto}}
+
+/* RC3.9.35 security editor modal: reliable scrolling on desktop and mobile. */
+.app-modal{min-height:0}
+.app-modal>.modal-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.app-modal>.modal-body>.role-editor{min-height:min-content}
+@media(max-height:820px){.modal-layer{place-items:stretch center;padding:10px}.app-modal{max-height:calc(100vh - 20px)}}
