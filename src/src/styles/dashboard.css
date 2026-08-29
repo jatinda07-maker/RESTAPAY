@@ -1,7 +1,0 @@
-.dashboard-page { width: 100%; max-width: none; margin: 0; }
-.kpi-grid { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
-.analytics-grid { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-top: 12px; }
-.recent-grid { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-top: 12px; }
-.app-footer { display: flex; justify-content: space-between; padding: 22px 2px 4px; color: var(--ink-500); font-size: 10px; }
-@media (max-width: 1250px) { .kpi-grid, .analytics-grid, .recent-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .date-toolbar { grid-template-columns: 1fr 1fr; align-items: end; } .date-arrow { display:none; } .range-select-wrap { width: 100%; } }
-@media (max-width: 720px) { .kpi-grid, .analytics-grid, .recent-grid { grid-template-columns: 1fr; } }

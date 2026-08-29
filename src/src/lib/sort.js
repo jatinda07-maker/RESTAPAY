@@ -1,5 +1,0 @@
-export const compareText = (a,b) => String(a ?? '').localeCompare(String(b ?? ''),undefined,{numeric:true,sensitivity:'base'})
-export const compareDate = (a,b) => String(a ?? '').localeCompare(String(b ?? ''))
-export const compareNumber = (a,b) => (Number(a)||0)-(Number(b)||0)
-export const sortByText = (rows,getter) => [...(Array.isArray(rows)?rows:[])].sort((a,b)=>compareText(getter(a),getter(b)))
-export const sortByDate = (rows,getter) => [...(Array.isArray(rows)?rows:[])].sort((a,b)=>compareDate(getter(a),getter(b)))
