@@ -361,3 +361,14 @@
 
 /* RC3.9.23 secure role switch modal */
 .role-pin-login{display:grid;gap:12px;padding:4px 0 8px}.role-pin-login label{display:grid;gap:7px;font-weight:700;color:#0b2348}.role-pin-login input{width:100%;min-height:48px;border:1px solid #d7e1de;border-radius:13px;padding:0 14px;font:inherit;letter-spacing:.14em}.role-pin-login input:focus{outline:2px solid rgba(0,143,91,.16);border-color:#159564}.role-pin-login p{margin:0;color:#6780a9;font-size:.9rem}
+
+/* RC3.9.35A: dashboard customization is visible directly on Users & Security. */
+.dashboard-customization-panel{display:grid;gap:14px;margin-top:16px;padding:18px;border:1px solid #dce7e2;border-radius:16px;background:#fff}
+.dashboard-customization-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.dashboard-customization-head strong{font-size:16px;color:var(--ink-900)}
+.dashboard-customization-head p{margin:5px 0 0;color:var(--ink-500);font-size:11px;line-height:1.45}
+.dashboard-customization-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.dashboard-toggle-row{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border:1px solid #e0e9e5;border-radius:10px;background:#fbfdfc;color:var(--ink-800);font-size:11px;font-weight:700}
+.dashboard-toggle-row input{width:18px;height:18px;accent-color:#079455}
+@media(max-width:1000px){.dashboard-customization-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.dashboard-customization-grid{grid-template-columns:1fr}}
