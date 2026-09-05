@@ -60,6 +60,31 @@ function safeProviderError(raw: string) {
   }
 }
 
+function isAlabamaAbcVendor(value: any) {
+  const vendor = clean(value?.vendor_name).toLowerCase()
+  return /alabama.*(?:alcoholic beverage control|abc)|(?:alcoholic beverage control).*alabama/.test(vendor)
+}
+
+function repairedAlabamaAbcQuantity(value: any, item: any) {
+  const explicit = Number(item?.shipped_qty ?? item?.qty ?? 0)
+  if (explicit > 0 || !isAlabamaAbcVendor(value)) return explicit
+
+  const unit = clean(item?.purchase_unit || item?.sales_unit || item?.unit).toLowerCase()
+  if (!['case', 'cs'].includes(unit)) return explicit
+
+  const gross = Number(item?.gross_unit_price ?? item?.unit_price ?? 0)
+  const discount = Number(item?.discount_per_unit ?? item?.discount_amount ?? 0)
+  const total = Number(item?.total ?? 0)
+  const netCase = gross - discount
+  if (!(gross > 0) || !(netCase > 0) || !(total > 0)) return explicit
+
+  const estimated = total / netCase
+  const rounded = Math.round(estimated)
+  if (rounded < 1 || rounded > 100) return explicit
+  const variance = Math.abs(total - rounded * netCase)
+  return variance <= 0.03 ? rounded : explicit
+}
+
 function normalizeInvoicePayload(value: any) {
   const lineItems = Array.isArray(value?.lineItems) ? value.lineItems : []
   return {
@@ -80,17 +105,24 @@ function normalizeInvoicePayload(value: any) {
     tax: Number(value?.tax || 0),
     freight: Number(value?.freight || 0),
     discount: Number(value?.discount || 0),
-    lineItems: lineItems.map((item: any) => ({
+    lineItems: lineItems.map((item: any) => {
+      const repairedQty = repairedAlabamaAbcQuantity(value, item)
+      return {
       description: clean(item?.description),
       item_number: clean(item?.item_number),
       brand: clean(item?.brand),
-      qty: Number(item?.shipped_qty ?? item?.qty ?? 0),
+      qty: repairedQty,
       ordered_qty: Number(item?.ordered_qty ?? 0),
-      shipped_qty: Number(item?.shipped_qty ?? item?.qty ?? 0),
+      shipped_qty: repairedQty,
       adjusted_qty: Number(item?.adjusted_qty ?? 0),
       unit: clean(item?.unit || item?.sales_unit),
       sales_unit: clean(item?.sales_unit || item?.unit),
-      purchase_unit: clean(item?.purchase_unit || item?.sales_unit || item?.unit),
+      purchase_unit: (() => {
+        const unit = clean(item?.purchase_unit || item?.sales_unit || item?.unit)
+        if (/^cs$/i.test(unit)) return 'Case'
+        if (/^ea$/i.test(unit)) return 'Each'
+        return unit
+      })(),
       package_size: clean(item?.package_size),
       pricing_unit: clean(item?.pricing_unit),
       weight: Number(item?.weight ?? 0),
@@ -105,7 +137,8 @@ function normalizeInvoicePayload(value: any) {
       discount_amount: Number(item?.discount_amount || 0),
       total: Number(item?.total || 0),
       category: clean(item?.category)
-    }))
+      }
+    })
   }
 }
 

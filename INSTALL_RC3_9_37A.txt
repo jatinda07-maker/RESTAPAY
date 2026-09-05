@@ -1,0 +1,11 @@
+RESTAPAY RC3.9.37A - Alabama ABC Quantity Repair
+
+1. Extract this ZIP over C:\Users\jatin\RESTAPAY-NEW-UI and allow overwrite.
+2. No new database migration is required for 37A.
+3. Deploy the updated Edge Function:
+   npx.cmd supabase functions deploy gemini-invoice
+4. Build and test:
+   npm.cmd run build
+   node scripts\test-rc3937a-alabama-abc-quantity.mjs
+5. Re-upload the Alabama ABC invoice and verify Cases / Qty = 2 for all three rows before saving.
+6. Commit/push main and deploy to restapay1.
