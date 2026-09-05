@@ -97,7 +97,10 @@ function normalizeInvoicePayload(value: any) {
       pack_count: Number(item?.pack_count || 0),
       unit_size_value: Number(item?.unit_size_value || 0),
       unit_size_unit: clean(item?.unit_size_unit),
-      unit_price: Number(item?.unit_price || 0),
+      unit_price: Number(item?.gross_unit_price ?? item?.unit_price ?? 0),
+      gross_unit_price: Number(item?.gross_unit_price ?? item?.unit_price ?? 0),
+      discount_per_unit: Number(item?.discount_per_unit ?? item?.discount_amount ?? 0),
+      net_unit_price: Number(item?.net_unit_price ?? 0),
       discount_percent: Number(item?.discount_percent || 0),
       discount_amount: Number(item?.discount_amount || 0),
       total: Number(item?.total || 0),
@@ -161,7 +164,7 @@ Deno.serve(async request => {
       }, 413)
     }
 
-    const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract the invoice exactly as printed. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","due_date":"YYYY-MM-DD or raw date","payment_terms":"","date_ordered":"YYYY-MM-DD or raw date","shipped_date":"YYYY-MM-DD or raw date","invoice_type":"Regular Invoice|Credit Memo|Rebate|Return Credit|Vendor Adjustment","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","sales_subtotal":0,"total_discount":0,"total_charges":0,"net_amount":0,"tax":0,"total":0,"freight":0,"discount":0,"lineItems":[{"description":"","item_number":"","brand":"","ordered_qty":0,"shipped_qty":0,"adjusted_qty":0,"qty":0,"sales_unit":"","unit":"","purchase_unit":"Case|Bottle|Each|Pack|Box|","package_size":"","pricing_unit":"","weight":0,"pack_count":0,"unit_size_value":0,"unit_size_unit":"","unit_price":0,"discount_percent":0,"discount_amount":0,"total":0,"category":""}]}.
+    const prompt = `You are an invoice extraction engine for a restaurant accounting app. Extract the invoice exactly as printed. Return only valid JSON, no markdown. Shape: {"vendor_name":"","invoice_number":"","invoice_date":"YYYY-MM-DD or raw date","due_date":"YYYY-MM-DD or raw date","payment_terms":"","date_ordered":"YYYY-MM-DD or raw date","shipped_date":"YYYY-MM-DD or raw date","invoice_type":"Regular Invoice|Credit Memo|Rebate|Return Credit|Vendor Adjustment","category":"Food|Beverage|Beer|Liquor|Utilities|Insurance|Supplies|Maintenance|Other","sales_subtotal":0,"total_discount":0,"total_charges":0,"net_amount":0,"tax":0,"total":0,"freight":0,"discount":0,"lineItems":[{"description":"","item_number":"","brand":"","ordered_qty":0,"shipped_qty":0,"adjusted_qty":0,"qty":0,"sales_unit":"","unit":"","purchase_unit":"Case|Bottle|Each|Pack|Box|","package_size":"","pricing_unit":"","weight":0,"pack_count":0,"unit_size_value":0,"unit_size_unit":"","unit_price":0,"gross_unit_price":0,"discount_percent":0,"discount_amount":0,"discount_per_unit":0,"net_unit_price":0,"total":0,"category":""}]}.
 
 STRICT TRANSCRIPTION RULE: Every line-item value must come from the SAME PRINTED ROW. Never carry a pack size, quantity, price, unit, or brand from the row above/below. Never invent a pack size from examples or prior invoices. If a printed cell is blank, return blank/0.
 
@@ -171,7 +174,7 @@ DATE RULES: invoice_date MUST come from a field explicitly labeled INVOICE DATE.
 
 TOTAL RULES: Product Total/sales_subtotal must match the printed invoice summary. Summary savings/allowances/credits are positive total_discount values that are subtracted once. Fuel surcharge/other charges belong in total_charges/freight. Tax is the printed tax. total is the printed final amount due/remit amount and is authoritative. lineItems.total is always the printed EXTENDED PRICE/line amount and must not be recomputed or discounted twice.
 
-PACKAGE RULES: purchase_unit is the purchased sales unit, while package_size is the exact printed PACK SIZE cell. Do not infer liquor-style sizes on food invoices. Derive pack_count/unit_size fields only when unambiguous from the exact printed PACK SIZE; otherwise leave 0/blank. Use numbers only for numeric amounts. If unclear, use empty string or 0. File name: ${fileName}`
+ALABAMA ABC RULES: For Alabama Alcoholic Beverage Control / Alabama ABC, read every item row left-to-right from the same printed row. Quantity is the printed case quantity. Unit cs/CS means purchase_unit Case. Unit price is the printed GROSS CASE PRICE. Discount Amount is the printed DISCOUNT PER CASE / purchased unit. The final printed row amount is the authoritative EXTENDED NET LINE TOTAL. Set gross_unit_price=unit_price, discount_per_unit=discount_amount, and net_unit_price=total/qty when qty is greater than zero. Example: 2.00 cs, 167.88 unit price, 23.51 Discount Amount, 288.75 printed line amount means 2 cases, gross case 167.88, discount per case 23.51, net case 144.375, extended 288.75. Never place 288.75 into unit_price. Never treat a net case value such as 386.95 (773.90 / 2) as a bottle price. If bottles-per-case is not printed, leave package_size blank and pack_count 0; do not guess. PACKAGE RULES: purchase_unit is the purchased sales unit, while package_size is the exact printed PACK SIZE cell. Do not infer liquor-style sizes on food invoices. Derive pack_count/unit_size fields only when unambiguous from the exact printed PACK SIZE; otherwise leave 0/blank. Use numbers only for numeric amounts. If unclear, use empty string or 0. File name: ${fileName}`
 
     const preferredModel = clean(Deno.env.get('GEMINI_MODEL'))
     const models = preferredModel

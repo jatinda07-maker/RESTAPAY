@@ -1,0 +1,8 @@
+RESTAPAY RC3.9.37 - Alabama ABC case / discount invoice parser
+
+1. Extract this ZIP over C:\Users\jatin\RESTAPAY-NEW-UI and allow overwrite.
+2. Run: npm.cmd run build
+3. Run: node scripts\test-rc3937-alabama-abc-invoice.mjs
+4. Apply Supabase migration: npx.cmd supabase db push
+5. Deploy updated invoice extractor: npx.cmd supabase functions deploy gemini-invoice
+6. Commit/push to main. Render target: restapay1.
