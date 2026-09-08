@@ -103,7 +103,15 @@ const reportPayrollRows = rows => {
       return
     }
     if(String(row.payroll_status || '').trim().toLowerCase()==='rolled-up') return
-    if(rollupsByKey.has(key)) return
+    const rollup=rollupsByKey.get(key)
+    if(rollup){
+      const rowMethod=payrollMethod(row).trim().toLowerCase()
+      const rollupMethod=payrollMethod(rollup).trim().toLowerCase()
+      // A weekly rollup only replaces a detail row when it clearly represents the
+      // same payment method. Keep distinct/manual payments (for example a Check
+      // entry alongside a Cash weekly rollup) so legitimate payroll is not lost.
+      if(rowMethod && rollupMethod && rowMethod===rollupMethod) return
+    }
     canonical.push(row)
   })
   return canonical
@@ -352,7 +360,7 @@ export default function Reports() {
                     <tr><td className="empty-report-row" colSpan={section.headers.length}>No data for this section.</td></tr>
                   )}
                 </tbody>
-                <tfoot><tr className="weekly-report-subtotal-row" style={{fontWeight:800,color:'#b42318'}}>{sectionTotalRow(section).map((cell,cellIndex)=><td key={`total-${cellIndex}`} className={cellIndex>0?'numeric-report-cell':''}><strong>{cell}</strong></td>)}</tr></tfoot>
+                <tfoot><tr className="weekly-report-subtotal-row">{sectionTotalRow(section).map((cell,cellIndex)=><td key={`total-${cellIndex}`} className={cellIndex>0?'numeric-report-cell':''} style={{fontWeight:900,color:'#b42318'}}><strong style={{fontWeight:900,color:'#b42318'}}>{cell}</strong></td>)}</tr></tfoot>
               </table>
             </div>
           </section>
@@ -395,7 +403,7 @@ export default function Reports() {
                     <tr><td className="empty-report-row" colSpan={section.headers.length}>No data for this section.</td></tr>
                   )}
                 </tbody>
-                <tfoot><tr className="weekly-report-subtotal-row" style={{fontWeight:800,color:'#b42318'}}>{sectionTotalRow(section).map((cell,cellIndex)=><td key={`no-ach-total-${cellIndex}`} className={cellIndex>0?'numeric-report-cell':''}><strong>{cell}</strong></td>)}</tr></tfoot>
+                <tfoot><tr className="weekly-report-subtotal-row">{sectionTotalRow(section).map((cell,cellIndex)=><td key={`no-ach-total-${cellIndex}`} className={cellIndex>0?'numeric-report-cell':''} style={{fontWeight:900,color:'#b42318'}}><strong style={{fontWeight:900,color:'#b42318'}}>{cell}</strong></td>)}</tr></tfoot>
               </table>
             </div>
           </section>
