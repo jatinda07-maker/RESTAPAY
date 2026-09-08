@@ -150,6 +150,18 @@ export default function Reports() {
   const managerSectionKeys={'Sales Summary':'sales','Cash Payment Employees':'cashEmployees','Employees With Tips':'tippedEmployees','Vendor Payments / Spending Detail':'vendorSpending','Cash Balance Summary':'cashBalance','Period Profit / Loss Analysis':'periodPL','Reconciliation Check':'reconciliation'}
   const roleVisibleWeeklySections = weeklyReportSections.filter(section => !access.isManager || managerReportAccess[managerSectionKeys[section.title]]===true)
   const visibleWeeklySections = roleVisibleWeeklySections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)
+  const sectionTotalLabel = section => ({
+    'Sales Summary':'Sales Total',
+    'Cash Payment Employees':'Payroll Total',
+    'Employees With Tips':'Tips Total',
+    'Vendor Payments / Spending Detail':'Vendor / Expense Total',
+    'Cash Balance Summary':'Remaining Cash Balance',
+    'Period Profit / Loss Analysis':'Operating Profit / Loss',
+    'Reconciliation Check':'Reconciliation Total',
+  }[section.title] || 'Subtotal')
+  const sectionTotalRow = section => section.headers.map((_,index)=>
+    index===0 ? sectionTotalLabel(section) : index===section.headers.length-1 ? money(section.total) : ''
+  )
 
   const addType = value => {
     if (value && !selected.includes(value)) setSelected(prev => [...prev, value])
@@ -174,7 +186,7 @@ export default function Reports() {
       title: reportName || 'Custom Restaurant Report',
       subtitle: activeRangeLabel,
       summary: commonSummary,
-      sections: visibleWeeklySections.map(section=>({ ...section, total:money(section.total) })),
+      sections: visibleWeeklySections.map(section=>({ ...section, total:'', rows:[...section.rows, sectionTotalRow(section)] })),
       filename:`RESTAPAY-Custom-Report-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
     }
     if (key === 'sales-department') return {
@@ -272,7 +284,7 @@ export default function Reports() {
 
         {visibleWeeklySections.map(section => (
           <section className="weekly-report-section" key={section.title}>
-            <header><div><h3>{section.title}</h3><small>{section.rows.length ? `${section.rows.length} report row${section.rows.length === 1 ? '' : 's'}` : 'No data for this section'}</small></div><strong>{money(section.total)}</strong></header>
+            <header><div><h3>{section.title}</h3><small>{section.rows.length ? `${section.rows.length} report row${section.rows.length === 1 ? '' : 's'}` : 'No data for this section'}</small></div></header>
             <div className="weekly-report-table-wrap">
               <table className="weekly-report-table">
                 <thead><tr>{section.headers.map(header => <th key={header}>{header}</th>)}</tr></thead>
@@ -283,6 +295,11 @@ export default function Reports() {
                     <tr><td className="empty-report-row" colSpan={section.headers.length}>No data for this section.</td></tr>
                   )}
                 </tbody>
+                <tfoot>
+                  <tr className="weekly-report-subtotal-row">
+                    {sectionTotalRow(section).map((cell, cellIndex)=><td key={`subtotal-${cellIndex}`} className={cellIndex > 0 ? 'numeric-report-cell' : ''}><strong>{cell}</strong></td>)}
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </section>
