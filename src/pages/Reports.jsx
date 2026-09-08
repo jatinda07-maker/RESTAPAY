@@ -107,10 +107,16 @@ const reportPayrollRows = rows => {
     if(rollup){
       const rowMethod=payrollMethod(row).trim().toLowerCase()
       const rollupMethod=payrollMethod(rollup).trim().toLowerCase()
-      // A weekly rollup only replaces a detail row when it clearly represents the
-      // same payment method. Keep distinct/manual payments (for example a Check
-      // entry alongside a Cash weekly rollup) so legitimate payroll is not lost.
-      if(rowMethod && rollupMethod && rowMethod===rollupMethod) return
+      const rowSource=payrollSource(row)
+      const explicitStandalone =
+        row.manual === true || row.manual_entry === true ||
+        /manual|standalone|adjustment|fixed/.test(rowSource) ||
+        (num(row.hours ?? row.regular_hours) === 0 && rowBasePay(row) > 0)
+
+      // Preserve legitimate standalone/fixed payments even when an employee/week
+      // also has a rollup. Only suppress clear detail/import rows represented by
+      // the same-method weekly rollup.
+      if(!explicitStandalone && rowMethod && rollupMethod && rowMethod===rollupMethod) return
     }
     canonical.push(row)
   })

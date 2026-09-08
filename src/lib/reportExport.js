@@ -62,6 +62,13 @@ export function exportReportPdf({ title = 'RESTAPAY Report', subtitle = '', summ
       styles: { fontSize: 7, cellPadding: 4, overflow: 'linebreak' },
       headStyles: { fontStyle: 'bold' },
       theme: 'grid',
+      willDrawCell: data => {
+        const lastBodyRowIndex = body.length - 1
+        if (data.section === 'body' && data.row.index === lastBodyRowIndex && body.length) {
+          data.cell.styles.fontStyle = 'bold'
+          data.cell.styles.textColor = [208, 0, 0]
+        }
+      },
       didDrawPage: data => {
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(7)
