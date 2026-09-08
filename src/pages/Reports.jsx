@@ -29,6 +29,25 @@ const reportTypes = [
 
 const money = value => `$${Number(value).toFixed(2)}`
 
+const paymentMethod = row => String(row?.payment_type || row?.payment_method || row?.method || '').trim().toLowerCase()
+const vendorName = row => String(row?.vendor_name || row?.vendor || row?.payee || '').trim()
+const isUsFoodsVendor = row => vendorName(row).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().includes('us foods')
+const includeNoAchInvoice = row => paymentMethod(row) !== 'ach' || isUsFoodsVendor(row)
+const includeNoAchExpense = row => paymentMethod(row) !== 'ach'
+const sectionTotalLabel = title => ({
+  'Sales Summary':'Sales Total',
+  'Cash Payment Employees':'Payroll Total',
+  'Employees With Tips':'Tips Total',
+  'Vendor Payments / Spending Detail':'Vendor / Expense Total',
+  'Cash Balance Summary':'Remaining Cash Balance',
+  'Period Profit / Loss Analysis':'Operating Profit / Loss',
+  'Reconciliation Check':'Reconciliation Total',
+  'No-ACH Vendor Payments / Spending':'No-ACH Spend Total',
+  'ACH Exclusion Check':'ACH Excluded Total',
+}[title] || 'Total')
+const sectionTotalRow = section => section.headers.map((_,index)=>index===0?sectionTotalLabel(section.title):index===section.headers.length-1?appMoney2(section.total):'')
+const pdfSectionWithBottomTotal = section => ({ ...section, total:'', rows:[...(section.rows||[]), sectionTotalRow(section)] })
+
 const payrollDate = row => String(row?.pay_date || row?.payroll_date || row?.date || '').slice(0,10)
 const localIso = date => {
   const y=date.getFullYear(), m=String(date.getMonth()+1).padStart(2,'0'), d=String(date.getDate()).padStart(2,'0')
@@ -114,6 +133,7 @@ export default function Reports() {
   const activeRangeLabel = `${formatDate(dateRange?.from)}–${formatDate(dateRange?.to)}`
   const reports = [
     ['Custom Restaurant Report','Sales, payroll, tips, vendor spending, cash balance and P&L',activeRangeLabel,'weekly-custom'],
+    ['Custom Report - No ACH','Separate report excluding ACH payments; US Foods invoices remain included',activeRangeLabel,'weekly-no-ach'],
     ['Sales by Department','Food, alcohol and other live sales',activeRangeLabel,'sales-department'],
     ['Payroll Detail','Hours, tips, withholding, extra pay and payment method',activeRangeLabel,'payroll-detail'],
     ['Vendor & Expense Summary','Invoices and expenses grouped by category',activeRangeLabel,'vendor-expense'],
@@ -137,9 +157,43 @@ export default function Reports() {
     { title:'Period Profit / Loss Analysis', total:metrics.operatingProfit, headers:['Metric','Amount'], rows:[['Net Sales',appMoney2(metrics.salesTotal)],['Food + Alcohol COGS',appMoney2(metrics.cogs)],['Employee Payroll / Wages (tips excluded)',appMoney2(metrics.employerLabor ?? metrics.payrollTotal)],['Operating Expenses',appMoney2(metrics.expenseTotal)],['Operating Profit / Loss',appMoney2(metrics.operatingProfit)]] },
     { title:'Reconciliation Check', total:0, headers:['Check','Variance'], rows:[['Sales category equation',appMoney2(metrics.reconciliation.salesCategoryVariance)],['Cash balance equation',appMoney2(metrics.reconciliation.cashEquationVariance)],['Operating profit equation',appMoney2(metrics.reconciliation.profitEquationVariance)],['Status',metrics.reconciliation.balanced?'Balanced':'Review required']] },
   ]
+  const noAchInvoices = invoices.filter(includeNoAchInvoice)
+  const noAchExpenses = expenses.filter(includeNoAchExpense)
+  const noAchInvoiceTotal = noAchInvoices.reduce((sum,row)=>sum+num(row.amount ?? row.total),0)
+  const noAchExpenseTotal = noAchExpenses.reduce((sum,row)=>sum+num(row.amount ?? row.total),0)
+  const excludedAchInvoiceTotal = invoices.filter(row=>paymentMethod(row)==='ach' && !isUsFoodsVendor(row)).reduce((sum,row)=>sum+num(row.amount ?? row.total),0)
+  const excludedAchExpenseTotal = expenses.filter(row=>paymentMethod(row)==='ach').reduce((sum,row)=>sum+num(row.amount ?? row.total),0)
+  const usFoodsAchIncluded = noAchInvoices.filter(row=>paymentMethod(row)==='ach' && isUsFoodsVendor(row)).reduce((sum,row)=>sum+num(row.amount ?? row.total),0)
+  const noAchReportSections = [
+    weeklyReportSections[0],
+    weeklyReportSections[1],
+    weeklyReportSections[2],
+    {
+      title:'No-ACH Vendor Payments / Spending',
+      total:noAchInvoiceTotal+noAchExpenseTotal,
+      headers:['Date','Vendor / Payee','Category','Payment Type','Details','Amount'],
+      rows:[
+        ...noAchInvoices.map(r=>[r.date||r.invoice_date||'',r.vendor_name||r.vendor||'',r.category||'',r.payment_type||'',r.number||r.invoice_number||'',appMoney2(r.amount??r.total)]),
+        ...noAchExpenses.map(r=>[r.date||'',r.vendor||r.payee||'',r.type||r.category||'',r.method||r.payment_type||'',r.notes||'',appMoney2(r.amount??r.total)]),
+      ],
+    },
+    {
+      title:'ACH Exclusion Check',
+      total:excludedAchInvoiceTotal+excludedAchExpenseTotal,
+      headers:['Metric','Amount'],
+      rows:[
+        ['ACH invoices excluded (except US Foods)',appMoney2(excludedAchInvoiceTotal)],
+        ['ACH expenses excluded',appMoney2(excludedAchExpenseTotal)],
+        ['US Foods ACH invoices included',appMoney2(usFoodsAchIncluded)],
+      ],
+    },
+    weeklyReportSections[4],
+  ]
+
   const [drawer, setDrawer] = useState(null)
   const [builderOpen, setBuilderOpen] = useState(false)
   const [weeklyOpen, setWeeklyOpen] = useState(false)
+  const [noAchOpen, setNoAchOpen] = useState(false)
   const [showEmpty, setShowEmpty] = useState(true)
   const [selected, setSelected] = useState(['Cash Sales', 'Cash Payroll', 'Vendor Cash Spend', 'Remaining Cash', 'Period P&L'])
   const [reportName, setReportName] = useState('Custom Restaurant Report')
@@ -147,21 +201,11 @@ export default function Reports() {
   const allowedReportTypes = access.isManager ? reportTypes.filter(type=>type!=='Period P&L') : reportTypes
   const available = useMemo(() => allowedReportTypes.filter(type => !selected.includes(type)), [allowedReportTypes,selected])
   const managerReportAccess=access.managerAccess?.reports||{}
-  const managerSectionKeys={'Sales Summary':'sales','Cash Payment Employees':'cashEmployees','Employees With Tips':'tippedEmployees','Vendor Payments / Spending Detail':'vendorSpending','Cash Balance Summary':'cashBalance','Period Profit / Loss Analysis':'periodPL','Reconciliation Check':'reconciliation'}
+  const managerSectionKeys={'Sales Summary':'sales','Cash Payment Employees':'cashEmployees','Employees With Tips':'tippedEmployees','Vendor Payments / Spending Detail':'vendorSpending','No-ACH Vendor Payments / Spending':'vendorSpending','ACH Exclusion Check':'vendorSpending','Cash Balance Summary':'cashBalance','Period Profit / Loss Analysis':'periodPL','Reconciliation Check':'reconciliation'}
   const roleVisibleWeeklySections = weeklyReportSections.filter(section => !access.isManager || managerReportAccess[managerSectionKeys[section.title]]===true)
   const visibleWeeklySections = roleVisibleWeeklySections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)
-  const sectionTotalLabel = section => ({
-    'Sales Summary':'Sales Total',
-    'Cash Payment Employees':'Payroll Total',
-    'Employees With Tips':'Tips Total',
-    'Vendor Payments / Spending Detail':'Vendor / Expense Total',
-    'Cash Balance Summary':'Remaining Cash Balance',
-    'Period Profit / Loss Analysis':'Operating Profit / Loss',
-    'Reconciliation Check':'Reconciliation Total',
-  }[section.title] || 'Subtotal')
-  const sectionTotalRow = section => section.headers.map((_,index)=>
-    index===0 ? sectionTotalLabel(section) : index===section.headers.length-1 ? money(section.total) : ''
-  )
+  const roleVisibleNoAchSections = noAchReportSections.filter(section => !access.isManager || managerReportAccess[managerSectionKeys[section.title]]===true)
+  const visibleNoAchSections = roleVisibleNoAchSections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)
 
   const addType = value => {
     if (value && !selected.includes(value)) setSelected(prev => [...prev, value])
@@ -186,22 +230,34 @@ export default function Reports() {
       title: reportName || 'Custom Restaurant Report',
       subtitle: activeRangeLabel,
       summary: commonSummary,
-      sections: visibleWeeklySections.map(section=>({ ...section, total:'', rows:[...section.rows, sectionTotalRow(section)] })),
+      sections: visibleWeeklySections.map(pdfSectionWithBottomTotal),
       filename:`RESTAPAY-Custom-Report-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
+    }
+    if (key === 'weekly-no-ach') return {
+      title:'Custom Report - No ACH',
+      subtitle:`${activeRangeLabel} • ACH excluded; US Foods invoices included`,
+      summary:[
+        { label:'Report Period', value:activeRangeLabel },
+        { label:'No-ACH Vendor / Expense Spend', value:appMoney2(noAchInvoiceTotal+noAchExpenseTotal) },
+        { label:'ACH Excluded', value:appMoney2(excludedAchInvoiceTotal+excludedAchExpenseTotal) },
+        { label:'US Foods ACH Included', value:appMoney2(usFoodsAchIncluded) },
+      ],
+      sections:visibleNoAchSections.map(pdfSectionWithBottomTotal),
+      filename:`RESTAPAY-No-ACH-Report-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
     }
     if (key === 'sales-department') return {
       title:'Sales by Department', subtitle:activeRangeLabel, summary:commonSummary,
-      sections:[{title:'Sales Detail',total:appMoney2(metrics.salesTotal),headers:['Date','Food','Alcohol','Other','Cash','Credit','Total'],rows:sales.map(r=>[r.date||'',appMoney2(r.food_sales||r.food||0),appMoney2(r.alcohol_sales||r.alcohol||0),appMoney2(r.other_sales||r.other||0),appMoney2(r.cash_sales||r.cash||0),appMoney2(r.credit_sales||r.credit||0),appMoney2(r.total_sales||r.total||r.amount||0)])}],
+      sections:[pdfSectionWithBottomTotal({title:'Sales Detail',total:metrics.salesTotal,headers:['Date','Food','Alcohol','Other','Cash','Credit','Total'],rows:sales.map(r=>[r.date||'',appMoney2(r.food_sales||r.food||0),appMoney2(r.alcohol_sales||r.alcohol||0),appMoney2(r.other_sales||r.other||0),appMoney2(r.cash_sales||r.cash||0),appMoney2(r.credit_sales||r.credit||0),appMoney2(r.total_sales||r.total||r.amount||0)])})],
       filename:`RESTAPAY-Sales-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
     }
     if (key === 'payroll-detail') return {
       title:'Payroll Detail', subtitle:activeRangeLabel, summary:commonSummary,
-      sections:[{title:'Payroll Detail',total:appMoney2(metrics.employerLabor ?? metrics.payrollTotal),headers:['Payroll Period','Employee','Job','Hours','Base Pay','Tips','Withheld','Extra','Method','Final Pay'],rows:payrollGroups.map(g=>[periodLabel(g),g.employee,[...g.jobs].join('; '),g.hours.toFixed(1),appMoney2(g.basePay),appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.extra),[...g.methods].join(' / '),appMoney2(g.basePay+g.extra+g.netTips)])}],
+      sections:[pdfSectionWithBottomTotal({title:'Payroll Detail',total:metrics.employerLabor ?? metrics.payrollTotal,headers:['Payroll Period','Employee','Job','Hours','Base Pay','Tips','Withheld','Extra','Method','Final Pay'],rows:payrollGroups.map(g=>[periodLabel(g),g.employee,[...g.jobs].join('; '),g.hours.toFixed(1),appMoney2(g.basePay),appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.extra),[...g.methods].join(' / '),appMoney2(g.basePay+g.extra+g.netTips)])})],
       filename:`RESTAPAY-Payroll-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
     }
     return {
       title:'Vendor & Expense Summary', subtitle:activeRangeLabel, summary:commonSummary,
-      sections:[{title:'Vendor Invoices',total:appMoney2(metrics.invoiceTotal),headers:['Date','Vendor','Invoice #','Category','Payment','Amount'],rows:invoices.map(r=>[r.invoice_date||r.date||'',r.vendor_name||r.vendor||'',r.invoice_number||r.number||'',r.category||'',r.payment_type||'',appMoney2(r.total||r.amount||0)])},{title:'Business Expenses',total:appMoney2(metrics.expenseTotal),headers:['Date','Vendor / Payee','Category','Method','Notes','Amount'],rows:expenses.map(r=>[r.date||'',r.vendor||r.payee||'',r.category||r.type||'',r.method||'',r.notes||'',appMoney2(r.amount||r.total||0)])}],
+      sections:[pdfSectionWithBottomTotal({title:'Vendor Invoices',total:metrics.invoiceTotal,headers:['Date','Vendor','Invoice #','Category','Payment','Amount'],rows:invoices.map(r=>[r.invoice_date||r.date||'',r.vendor_name||r.vendor||'',r.invoice_number||r.number||'',r.category||'',r.payment_type||'',appMoney2(r.total||r.amount||0)])}),pdfSectionWithBottomTotal({title:'Business Expenses',total:metrics.expenseTotal,headers:['Date','Vendor / Payee','Category','Method','Notes','Amount'],rows:expenses.map(r=>[r.date||'',r.vendor||r.payee||'',r.category||r.type||'',r.method||'',r.notes||'',appMoney2(r.amount||r.total||0)])})],
       filename:`RESTAPAY-Vendor-Expense-${dateRange?.from || 'from'}-${dateRange?.to || 'to'}`,
     }
   }
@@ -218,6 +274,7 @@ export default function Reports() {
 
   const openReport = key => {
     if (key === 'weekly-custom') setWeeklyOpen(true)
+    else if (key === 'weekly-no-ach') setNoAchOpen(true)
     else setDrawer('Report Preview')
   }
 
@@ -247,7 +304,7 @@ export default function Reports() {
       <div className="report-card-grid">
         {reports.map(([title, desc, range, key], i) => (
           <article className={`report-card ${key === 'weekly-custom' ? 'report-card-featured' : ''}`} key={title}>
-            <span className={`report-icon tone-${['green', 'blue', 'purple', 'orange'][i]}`}><FileBarChart size={21} /></span>
+            <span className={`report-icon tone-${['green', 'blue', 'purple', 'orange', 'blue'][i] || 'blue'}`}><FileBarChart size={21} /></span>
             <div><h3>{title}</h3><p>{desc}</p><small>{range}</small></div>
             <div className="report-actions">
               <button onClick={() => openReport(key)}><Eye size={14} />Preview</button>
@@ -295,11 +352,50 @@ export default function Reports() {
                     <tr><td className="empty-report-row" colSpan={section.headers.length}>No data for this section.</td></tr>
                   )}
                 </tbody>
-                <tfoot>
-                  <tr className="weekly-report-subtotal-row">
-                    {sectionTotalRow(section).map((cell, cellIndex)=><td key={`subtotal-${cellIndex}`} className={cellIndex > 0 ? 'numeric-report-cell' : ''}><strong>{cell}</strong></td>)}
-                  </tr>
-                </tfoot>
+                <tfoot><tr className="weekly-report-subtotal-row" style={{fontWeight:800,color:'#b42318'}}>{sectionTotalRow(section).map((cell,cellIndex)=><td key={`total-${cellIndex}`} className={cellIndex>0?'numeric-report-cell':''}><strong>{cell}</strong></td>)}</tr></tfoot>
+              </table>
+            </div>
+          </section>
+        ))}
+      </div>
+    </Modal>
+
+    <Modal
+      open={noAchOpen}
+      title="Custom Report - No ACH"
+      subtitle={`${activeRangeLabel} • ACH excluded; US Foods invoices included`}
+      onClose={() => setNoAchOpen(false)}
+      size="lg"
+      footer={<>
+        <label className="show-empty-toggle"><input type="checkbox" checked={showEmpty} onChange={event => setShowEmpty(event.target.checked)} />Show empty sections</label>
+        <span className="modal-footer-spacer" />
+        {(!access.isManager||managerReportAccess.print)&&<button className="secondary-action" onClick={()=>window.print()}><Printer size={16} />Print</button>}
+        {(!access.isManager||managerReportAccess.pdf)&&<button className="secondary-action" onClick={()=>downloadPdf('weekly-no-ach')}><Download size={16} />PDF</button>}
+        <button className="primary-button" onClick={()=>notify("No-ACH Excel export prepared.")}><FileSpreadsheet size={16} />Excel</button>
+      </>}
+    >
+      <div className="weekly-report-preview">
+        <div className="weekly-report-summary">
+          <div><small>Report Period</small><strong>{activeRangeLabel}</strong></div>
+          <div><small>No-ACH Vendor / Expense Spend</small><strong>{appMoney2(noAchInvoiceTotal+noAchExpenseTotal)}</strong></div>
+          <div><small>ACH Excluded</small><strong>{appMoney2(excludedAchInvoiceTotal+excludedAchExpenseTotal)}</strong></div>
+          <div><small>US Foods ACH Included</small><strong>{appMoney2(usFoodsAchIncluded)}</strong></div>
+        </div>
+
+        {visibleNoAchSections.map(section => (
+          <section className="weekly-report-section" key={`no-ach-${section.title}`}>
+            <header><div><h3>{section.title}</h3><small>{section.rows.length ? `${section.rows.length} report row${section.rows.length === 1 ? '' : 's'}` : 'No data for this section'}</small></div></header>
+            <div className="weekly-report-table-wrap">
+              <table className="weekly-report-table">
+                <thead><tr>{section.headers.map(header => <th key={header}>{header}</th>)}</tr></thead>
+                <tbody>
+                  {section.rows.length > 0 ? section.rows.map((row, index) => (
+                    <tr key={`no-ach-${section.title}-${index}`}>{row.map((cell, cellIndex) => <td key={`${index}-${cellIndex}`} className={cellIndex > 0 ? 'numeric-report-cell' : ''}>{cell}</td>)}</tr>
+                  )) : (
+                    <tr><td className="empty-report-row" colSpan={section.headers.length}>No data for this section.</td></tr>
+                  )}
+                </tbody>
+                <tfoot><tr className="weekly-report-subtotal-row" style={{fontWeight:800,color:'#b42318'}}>{sectionTotalRow(section).map((cell,cellIndex)=><td key={`no-ach-total-${cellIndex}`} className={cellIndex>0?'numeric-report-cell':''}><strong>{cell}</strong></td>)}</tr></tfoot>
               </table>
             </div>
           </section>
