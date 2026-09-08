@@ -37,6 +37,7 @@ const includeNoAchExpense = row => paymentMethod(row) !== 'ach'
 const sectionTotalLabel = title => ({
   'Sales Summary':'Sales Total',
   'Cash Payment Employees':'Payroll Total',
+  'Payroll Employees':'Payroll Total',
   'Employees With Tips':'Tips Total',
   'Vendor Payments / Spending Detail':'Vendor / Expense Total',
   'Cash Balance Summary':'Remaining Cash Balance',
@@ -107,16 +108,10 @@ const reportPayrollRows = rows => {
     if(rollup){
       const rowMethod=payrollMethod(row).trim().toLowerCase()
       const rollupMethod=payrollMethod(rollup).trim().toLowerCase()
-      const rowSource=payrollSource(row)
-      const explicitStandalone =
-        row.manual === true || row.manual_entry === true ||
-        /manual|standalone|adjustment|fixed/.test(rowSource) ||
-        (num(row.hours ?? row.regular_hours) === 0 && rowBasePay(row) > 0)
-
-      // Preserve legitimate standalone/fixed payments even when an employee/week
-      // also has a rollup. Only suppress clear detail/import rows represented by
-      // the same-method weekly rollup.
-      if(!explicitStandalone && rowMethod && rollupMethod && rowMethod===rollupMethod) return
+      // A weekly rollup only replaces a detail row when it clearly represents the
+      // same payment method. Keep distinct/manual payments (for example a Check
+      // entry alongside a Cash weekly rollup) so legitimate payroll is not lost.
+      if(rowMethod && rollupMethod && rowMethod===rollupMethod) return
     }
     canonical.push(row)
   })
@@ -159,12 +154,11 @@ export default function Reports() {
     { title: 'Expense Report', value: appMoney(metrics.expenseTotal), meta: `${expenses.length} expense entries`, tone: 'orange', icon: FileSpreadsheet },
   ]
   const payrollGroups = groupPayrollByEmployeePeriod(payroll)
-  const cashPayrollGroups = groupPayrollByEmployeePeriod(payroll.filter(r=>payrollMethod(r).toLowerCase()==='cash'))
   const tippedPayrollGroups = groupPayrollByEmployeePeriod(payroll.filter(r=>rowTips(r)>0))
 
   const weeklyReportSections = [
     { title:'Sales Summary', total:metrics.salesTotal, headers:['Metric','Amount'], rows:[['Gross Sales',appMoney2(metrics.salesTotal)],['Net Sales',appMoney2(metrics.salesTotal)],['Cash Sales',appMoney2(metrics.cashSales)],['Credit Sales',appMoney2(metrics.creditSales)],['Tips',appMoney2(metrics.tips)]] },
-    { title:'Cash Payment Employees', total:cashPayrollGroups.reduce((sum,g)=>sum+g.basePay+g.extra,0), headers:['Payroll Period','Employee','Pay','Extra Pay','Reason','Total'], rows:cashPayrollGroups.map(g=>[periodLabel(g),g.employee,appMoney2(g.basePay),appMoney2(g.extra),[...g.reasons].join('; '),appMoney2(g.basePay+g.extra)]) },
+    { title:'Payroll Employees', total:payrollGroups.reduce((sum,g)=>sum+g.basePay+g.extra,0), headers:['Payroll Period','Employee','Method','Pay','Extra Pay','Reason','Total'], rows:payrollGroups.map(g=>[periodLabel(g),g.employee,[...g.methods].join(' / '),appMoney2(g.basePay),appMoney2(g.extra),[...g.reasons].join('; '),appMoney2(g.basePay+g.extra)]) },
     { title:'Employees With Tips', total:tippedPayrollGroups.reduce((sum,g)=>sum+g.tips,0), headers:['Payroll Period','Employee','Original Tips','Withheld','Tips After Withholding','Extra Pay','Reason','Total'], rows:tippedPayrollGroups.map(g=>[periodLabel(g),g.employee,appMoney2(g.tips),appMoney2(g.withheld),appMoney2(g.netTips),appMoney2(g.extra),[...g.reasons].join('; '),appMoney2(g.netTips+g.extra)]) },
     { title:'Vendor Payments / Spending Detail', total:metrics.invoiceTotal+metrics.expenseTotal, headers:['Date','Vendor / Payee','Category','Payment Type','Details','Amount'], rows:[...invoices.map(r=>[r.date||r.invoice_date||'',r.vendor||'',r.category||'',r.payment_type||'',r.number||r.invoice_number||'',appMoney2(r.amount??r.total)]),...expenses.map(r=>[r.date||'',r.vendor||'',r.type||r.category||'',r.method||'',r.notes||'',appMoney2(r.amount??r.total)])] },
     { title:'Cash Balance Summary', total:metrics.cashRemaining, headers:['Metric','Amount'], rows:[['Previous Period Reconciliation / Carry Forward',appMoney2(metrics.cashCarryForward||0)],['Current Period Cash Sales',appMoney2(metrics.cashSales)],['Cash Employee Payments',appMoney2(-metrics.cashPayroll)],['Cash Vendor Invoices',appMoney2(-metrics.cashInvoiceSpend)],['Cash Operating Expenses',appMoney2(-metrics.cashExpenses)],['Cash Withdrawals',appMoney2(-(metrics.cashWithdrawals||0))],['Current Period Reconciliation Adjustment',appMoney2(metrics.cashAdjustments||0)],['Remaining Cash Balance',appMoney2(metrics.cashRemaining)]] },
@@ -215,7 +209,7 @@ export default function Reports() {
   const allowedReportTypes = access.isManager ? reportTypes.filter(type=>type!=='Period P&L') : reportTypes
   const available = useMemo(() => allowedReportTypes.filter(type => !selected.includes(type)), [allowedReportTypes,selected])
   const managerReportAccess=access.managerAccess?.reports||{}
-  const managerSectionKeys={'Sales Summary':'sales','Cash Payment Employees':'cashEmployees','Employees With Tips':'tippedEmployees','Vendor Payments / Spending Detail':'vendorSpending','No-ACH Vendor Payments / Spending':'vendorSpending','ACH Exclusion Check':'vendorSpending','Cash Balance Summary':'cashBalance','Period Profit / Loss Analysis':'periodPL','Reconciliation Check':'reconciliation'}
+  const managerSectionKeys={'Sales Summary':'sales','Cash Payment Employees':'cashEmployees','Payroll Employees':'cashEmployees','Employees With Tips':'tippedEmployees','Vendor Payments / Spending Detail':'vendorSpending','No-ACH Vendor Payments / Spending':'vendorSpending','ACH Exclusion Check':'vendorSpending','Cash Balance Summary':'cashBalance','Period Profit / Loss Analysis':'periodPL','Reconciliation Check':'reconciliation'}
   const roleVisibleWeeklySections = weeklyReportSections.filter(section => !access.isManager || managerReportAccess[managerSectionKeys[section.title]]===true)
   const visibleWeeklySections = roleVisibleWeeklySections.filter(section => showEmpty || section.rows.length > 0 || section.total !== 0)
   const roleVisibleNoAchSections = noAchReportSections.filter(section => !access.isManager || managerReportAccess[managerSectionKeys[section.title]]===true)
